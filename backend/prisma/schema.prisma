@@ -1,0 +1,172 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  INSPECTOR
+  VIEWER
+}
+
+enum UserStatus {
+  ACTIVE
+  DELETED
+}
+
+enum InspectionStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum FloorStatus {
+  OK
+  ATENCAO
+  PROBLEMA
+}
+
+enum ItemCategory {
+  MANUTENCAO
+  LIMPEZA
+}
+
+enum ItemStatus {
+  OK
+  NOK
+  NA
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  SYNC_GOOGLE_FORM
+  SYNC_GOOGLE_FORM_FAILED
+  FINISH_INSPECTION
+  GENERATE_EXCEL
+}
+
+// ─────────────────────────────────────────────
+// MODELS
+// ─────────────────────────────────────────────
+
+model User {
+  id            String     @id @default(uuid())
+  name          String
+  email         String     @unique
+  password_hash String
+  role          Role       @default(INSPECTOR)
+  avatar_url    String?
+  status        UserStatus @default(ACTIVE)
+  created_at    DateTime   @default(now())
+  updated_at    DateTime   @updatedAt
+
+  inspections InspectionReport[]
+  audit_logs  AuditLog[]
+
+  @@map("users")
+}
+
+model Building {
+  id   String @id @default(uuid())
+  name String
+
+  floors      Floor[]
+  inspections InspectionReport[]
+
+  @@map("buildings")
+}
+
+model Floor {
+  id          String  @id @default(uuid())
+  building_id String
+  label       String
+  order       Int
+
+  building          Building           @relation(fields: [building_id], references: [id])
+  floor_form_entries FloorFormEntry[]
+
+  @@unique([building_id, order])
+  @@map("floors")
+}
+
+model InspectionReport {
+  id                    String           @id @default(uuid())
+  inspector_id          String
+  building_id           String
+  date                  DateTime         @db.Date
+  started_at            DateTime         @default(now())
+  finished_at           DateTime?
+  floors_inspected      String[]
+  status                InspectionStatus @default(IN_PROGRESS)
+  excel_url             String?
+  google_form_synced    Boolean          @default(false)
+  google_form_synced_at DateTime?
+  created_at            DateTime         @default(now())
+
+  inspector          User             @relation(fields: [inspector_id], references: [id])
+  building           Building         @relation(fields: [building_id], references: [id])
+  floor_form_entries FloorFormEntry[]
+
+  @@map("inspection_reports")
+}
+
+model FloorFormEntry {
+  id            String      @id @default(uuid())
+  report_id     String
+  floor_id      String
+  status_geral  FloorStatus
+  observations  String[]    @default([])
+  photos        String[]    @default([])
+  completed_at  DateTime    @default(now())
+
+  report            InspectionReport  @relation(fields: [report_id], references: [id])
+  floor             Floor             @relation(fields: [floor_id], references: [id])
+  form_item_responses FormItemResponse[]
+
+  @@unique([report_id, floor_id])
+  @@map("floor_form_entries")
+}
+
+model FormItemResponse {
+  id                  String       @id @default(uuid())
+  floor_form_entry_id String
+  category            ItemCategory
+  item_name           String
+  has_item            Boolean?
+  quantity            Int?
+  is_marked           Boolean?
+  status              ItemStatus?
+
+  floor_form_entry FloorFormEntry @relation(fields: [floor_form_entry_id], references: [id])
+
+  @@map("form_item_responses")
+}
+
+model AuditLog {
+  id        String      @id @default(uuid())
+  user_id   String?
+  action    AuditAction
+  entity    String?
+  entity_id String?
+  metadata  Json?
+  timestamp DateTime    @default(now())
+
+  user User? @relation(fields: [user_id], references: [id])
+
+  @@map("audit_logs")
+}

@@ -1,0 +1,595 @@
+openapi: 3.0.3
+info:
+  title: Viston API
+  description: |
+    Backend do sistema de gestão de vistorias prediais Viston.
+    
+    ## Autenticação
+    Todas as rotas (exceto `/auth/login` e `/auth/refresh`) requerem Bearer token JWT.
+    
+    ## Roles
+    - **ADMIN**: acesso total
+    - **INSPECTOR**: criar/finalizar inspeções + leitura
+    - **VIEWER**: apenas leitura
+    
+    ## Erros padronizados
+    Todos os erros seguem o formato: `{ "error": { "code": "string", "message": "string" } }`
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: Desenvolvimento local
+  - url: https://viston-api.onrender.com
+    description: Produção (Render)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [ADMIN, INSPECTOR, VIEWER] }
+        avatar_url: { type: string, nullable: true }
+        status: { type: string, enum: [ACTIVE, DELETED] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Floor:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        building_id: { type: string, format: uuid }
+        label: { type: string, example: "6º Andar" }
+        order: { type: integer, example: 6 }
+
+    FormItemResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        category: { type: string, enum: [MANUTENCAO, LIMPEZA] }
+        item_name: { type: string }
+        has_item: { type: boolean, nullable: true }
+        quantity: { type: integer, nullable: true }
+        is_marked: { type: boolean, nullable: true }
+        status: { type: string, enum: [OK, NOK, NA], nullable: true }
+
+    FloorFormEntry:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        floor_id: { type: string, format: uuid }
+        status_geral: { type: string, enum: [OK, ATENCAO, PROBLEMA] }
+        observations: { type: array, items: { type: string } }
+        photos: { type: array, items: { type: string, format: uri } }
+        completed_at: { type: string, format: date-time }
+        floor: { $ref: '#/components/schemas/Floor' }
+        form_item_responses:
+          type: array
+          items: { $ref: '#/components/schemas/FormItemResponse' }
+
+    InspectionReport:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        inspector_id: { type: string, format: uuid }
+        building_id: { type: string, format: uuid }
+        date: { type: string, format: date }
+        started_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time, nullable: true }
+        floors_inspected: { type: array, items: { type: string, format: uuid } }
+        status: { type: string, enum: [IN_PROGRESS, COMPLETED] }
+        excel_url: { type: string, format: uri, nullable: true }
+        google_form_synced: { type: boolean }
+        google_form_synced_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        inspector: { $ref: '#/components/schemas/User' }
+        building:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        floor_form_entries:
+          type: array
+          items: { $ref: '#/components/schemas/FloorFormEntry' }
+
+    FloorFormPayload:
+      type: object
+      required: [status_geral, manutencao, limpeza]
+      properties:
+        status_geral:
+          type: string
+          enum: [OK, ATENCAO, PROBLEMA]
+        observations:
+          type: array
+          items: { type: string }
+          default: []
+        manutencao:
+          type: object
+          required: [cadeiras, tomadas, ar_condicionado, mesas, portas]
+          properties:
+            cadeiras:
+              type: object
+              required: [has_item]
+              properties:
+                has_item: { type: boolean }
+                quantity: { type: integer, description: "Obrigatório se has_item = true" }
+                is_marked: { type: boolean, description: "Obrigatório se has_item = true" }
+            tomadas:
+              type: object
+              required: [has_item]
+              properties:
+                has_item: { type: boolean }
+                quantity: { type: integer }
+                is_marked: { type: boolean }
+            ar_condicionado:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [OK, NOK, NA] }
+            mesas:
+              type: object
+              required: [has_item]
+              properties:
+                has_item: { type: boolean }
+                quantity: { type: integer }
+                is_marked: { type: boolean }
+            portas:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [OK, NOK, NA] }
+        limpeza:
+          type: object
+          required: [carpete, vidros, cadeiras]
+          properties:
+            carpete:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [OK, NOK, NA] }
+            vidros:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [OK, NOK, NA] }
+            cadeiras:
+              type: object
+              required: [has_item]
+              properties:
+                has_item: { type: boolean }
+                quantity: { type: integer }
+                is_marked: { type: boolean }
+
+security:
+  - BearerAuth: []
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login com e-mail e senha
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Login bem-sucedido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: { type: string }
+                  refresh_token: { type: string }
+                  user: { $ref: '#/components/schemas/User' }
+        '401':
+          description: Credenciais inválidas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Renovar access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200':
+          description: Tokens renovados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: { type: string }
+                  refresh_token: { type: string }
+        '401':
+          description: Refresh token inválido
+
+  /users:
+    post:
+      tags: [Users]
+      summary: Criar usuário (ADMIN only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password, role]
+              properties:
+                name: { type: string, minLength: 2 }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                role: { type: string, enum: [ADMIN, INSPECTOR, VIEWER] }
+      responses:
+        '201':
+          description: Usuário criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '409':
+          description: E-mail já cadastrado
+    get:
+      tags: [Users]
+      summary: Listar usuários (ADMIN only)
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: Lista paginada de usuários
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users: { type: array, items: { $ref: '#/components/schemas/User' } }
+                  total: { type: integer }
+                  page: { type: integer }
+                  limit: { type: integer }
+
+  /users/{id}:
+    patch:
+      tags: [Users]
+      summary: Atualizar role/status de usuário (ADMIN only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role: { type: string, enum: [ADMIN, INSPECTOR, VIEWER] }
+                status: { type: string, enum: [ACTIVE, DELETED] }
+      responses:
+        '200':
+          description: Usuário atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Obter dados do usuário autenticado
+      responses:
+        '200':
+          description: Dados do usuário
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+    patch:
+      tags: [Users]
+      summary: Atualizar nome/e-mail do usuário autenticado
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Usuário atualizado
+    delete:
+      tags: [Users]
+      summary: Soft delete da própria conta (anonimização)
+      responses:
+        '204':
+          description: Conta anonimizada com sucesso
+
+  /users/me/password:
+    patch:
+      tags: [Users]
+      summary: Alterar senha do usuário autenticado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password: { type: string }
+                new_password: { type: string, minLength: 8 }
+      responses:
+        '204':
+          description: Senha alterada com sucesso
+        '401':
+          description: Senha atual incorreta
+
+  /buildings/{id}/floors:
+    get:
+      tags: [Buildings]
+      summary: Listar andares de um prédio (ordenados do 6 ao -5)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Prédio e lista de andares
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  building:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                  floors:
+                    type: array
+                    items: { $ref: '#/components/schemas/Floor' }
+
+  /inspections:
+    post:
+      tags: [Inspections]
+      summary: Iniciar nova inspeção (INSPECTOR/ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [building_id, floor_ids]
+              properties:
+                building_id: { type: string, format: uuid }
+                floor_ids:
+                  type: array
+                  items: { type: string, format: uuid }
+                  minItems: 1
+                  maxItems: 12
+      responses:
+        '201':
+          description: Inspeção iniciada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InspectionReport' }
+    get:
+      tags: [Inspections]
+      summary: Histórico de inspeções (apenas COMPLETED por padrão)
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+        - in: query
+          name: status
+          schema: { type: string, enum: [IN_PROGRESS, COMPLETED] }
+        - in: query
+          name: inspector_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: floor_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: google_form_synced
+          schema: { type: boolean }
+        - in: query
+          name: date_from
+          schema: { type: string, format: date }
+        - in: query
+          name: date_to
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Lista paginada de inspeções
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inspections: { type: array, items: { $ref: '#/components/schemas/InspectionReport' } }
+                  total: { type: integer }
+                  page: { type: integer }
+                  limit: { type: integer }
+                  pages: { type: integer }
+
+  /inspections/{id}/floors/{floorId}:
+    patch:
+      tags: [Inspections]
+      summary: Salvar formulário de um andar (INSPECTOR/ADMIN)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: floorId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FloorFormPayload' }
+      responses:
+        '200':
+          description: Formulário do andar salvo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FloorFormEntry' }
+        '400':
+          description: Payload inválido
+        '409':
+          description: Relatório já finalizado ou andar não pertence à inspeção
+
+  /inspections/{id}/finish:
+    post:
+      tags: [Inspections]
+      summary: Finalizar inspeção — gera Excel e dispara sync Google Forms (INSPECTOR/ADMIN)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Inspeção finalizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InspectionReport' }
+        '409':
+          description: Andares pendentes ou relatório já finalizado
+
+  /inspections/{id}:
+    get:
+      tags: [Inspections]
+      summary: Obter inspeção por ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Dados completos da inspeção
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InspectionReport' }
+        '404':
+          description: Inspeção não encontrada
+
+  /inspections/{id}/excel:
+    get:
+      tags: [Inspections]
+      summary: Obter URL do Excel gerado
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: URL do arquivo Excel
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  excel_url: { type: string, format: uri }
+        '404':
+          description: Excel ainda não gerado
+
+  /inspections/{id}/sync-google-form:
+    post:
+      tags: [Inspections]
+      summary: Reenvio manual para Google Forms (INSPECTOR/ADMIN)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sincronização realizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InspectionReport' }
+        '409':
+          description: Relatório não está COMPLETED
+
+  /calendar:
+    get:
+      tags: [Calendar]
+      summary: Heatmap de atividade de inspeções
+      parameters:
+        - in: query
+          name: month
+          schema: { type: integer, minimum: 1, maximum: 12 }
+        - in: query
+          name: year
+          schema: { type: integer }
+        - in: query
+          name: range
+          schema: { type: string, enum: [semestral, anual] }
+      responses:
+        '200':
+          description: Heatmap de atividade
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date_from: { type: string, format: date-time }
+                  date_to: { type: string, format: date-time }
+                  heatmap:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        count: { type: integer }
+                        inspectors: { type: array, items: { type: string } }
+                    example:
+                      "2024-01-15":
+                        count: 2
+                        inspectors: ["Carlos Inspetor", "Ana Inspetora"]
