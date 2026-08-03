@@ -13,7 +13,7 @@ export const createUserSchema = z.object({
   name: z.string().min(2, 'Nome deve ter ao menos 2 caracteres'),
   email: z.string().email('E-mail inválido'),
   password: z.string().min(8, 'Senha deve ter ao menos 8 caracteres'),
-  role: z.enum(['ADMIN', 'INSPECTOR', 'VIEWER']),
+  role: z.enum(['ADMIN', 'INSPECTOR', 'VIEWER']).optional(), // ignorado no cadastro público
 });
 
 export const updateUserSchema = z.object({

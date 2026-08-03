@@ -59,14 +59,24 @@ docker run -d \
 
 ### 3. Rodar migrations e seed
 
+**Se o banco já tem o schema aplicado (via SQL direto)** — faça o baseline antes:
+
 ```bash
 # Gerar cliente Prisma
 npm run prisma:generate
 
-# Aplicar migrations
-npm run prisma:migrate
+# Marcar a migration inicial como já aplicada (sem recriar nada no banco)
+npx prisma migrate resolve --applied 20260803000000_init
 
 # Popular banco com dados de teste
+npm run seed
+```
+
+**Se o banco está vazio** (fresh install):
+
+```bash
+npm run prisma:generate
+npm run prisma:migrate   # aplica a migration e cria todas as tabelas
 npm run seed
 ```
 
@@ -200,7 +210,7 @@ Configure todas as variáveis do `.env.example` com os valores de produção. Ve
 | Variável | Local | Produção |
 |---|---|---|
 | `DATABASE_URL` | `postgresql://postgres:postgres@localhost:54322/...` | URL pooling Supabase (`?pgbouncer=true&connection_limit=1`) |
-| `DIRECT_URL` | mesma que DATABASE_URL local | URL direta Supabase (sem pooling) |
+| `DIRECT_URL` | mesma que DATABASE_URL local | URL direta Supabase (porta 5432, sem pooling — para migrations) |
 | `SUPABASE_URL` | `http://localhost:54321` | `https://[PROJECT_REF].supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | chave local do `supabase start` | service_role key do painel Supabase |
 | `JWT_SECRET` | qualquer string | string aleatória 64+ chars |
@@ -211,6 +221,8 @@ Configure todas as variáveis do `.env.example` com os valores de produção. Ve
 | `NODE_ENV` | `development` | `production` |
 
 > Nenhuma alteração de código é necessária — apenas substituição das variáveis de ambiente.
+
+> **Região do Render:** o `render.yaml` usa `frankfurt` por ser a região mais próxima do Supabase em `sa-east-1` (São Paulo). Se `frankfurt` não estiver disponível no seu plano, troque para `oregon` — funciona, mas adiciona ~150ms de latência por query.
 
 ---
 

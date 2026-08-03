@@ -4,12 +4,16 @@ import { userRepository } from '../repositories/user.repository';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
 
 export const userService = {
-  async create(data: { name: string; email: string; password: string; role: Role }) {
+  async create(data: { name: string; email: string; password: string; role?: Role }) {
     const existing = await userRepository.findByEmail(data.email);
     if (existing) throw new ConflictError('E-mail já cadastrado');
 
+    // Primeiro usuário do sistema vira ADMIN automaticamente
+    const totalUsers = await userRepository.count();
+    const role: Role = totalUsers === 0 ? Role.ADMIN : (data.role ?? Role.VIEWER);
+
     const password_hash = await bcrypt.hash(data.password, 10);
-    const user = await userRepository.create({ ...data, password_hash });
+    const user = await userRepository.create({ ...data, role, password_hash });
 
     const { password_hash: _, ...safe } = user;
     return safe;

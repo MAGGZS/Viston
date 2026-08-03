@@ -2,7 +2,9 @@ services:
   - type: web
     name: viston-api
     env: node
-    region: oregon
+    region: frankfurt  # Mais próximo de sa-east-1 (São Paulo) disponível no plano free
+                     # Trocar para "oregon" se frankfurt não estiver disponível no seu plano
+                     # Render regiões: oregon, frankfurt, singapore, ohio
     plan: free
     buildCommand: npm install && npm run prisma:generate && npm run build && npm run prisma:migrate:deploy
     startCommand: npm start

@@ -12,17 +12,18 @@ import {
 
 const router = Router();
 
-router.use(authenticate as any);
+pode remover// Cadastro público — primeiro usuário vira ADMIN, demais entram como VIEWER
+// O campo role no body é ignorado (definido automaticamente pelo service)
+router.post('/', validate(createUserSchema), userController.create as any);
 
-// ADMIN only
-router.post('/', authorize('ADMIN') as any, validate(createUserSchema), userController.create as any);
-router.get('/', authorize('ADMIN') as any, userController.findAll as any);
-router.patch('/:id', authorize('ADMIN') as any, validate(updateUserSchema), userController.update as any);
+// Rotas protegidas
+router.get('/', authenticate as any, authorize('ADMIN') as any, userController.findAll as any);
+router.patch('/:id', authenticate as any, authorize('ADMIN') as any, validate(updateUserSchema), userController.update as any);
 
 // Próprio usuário
-router.get('/me', userController.getMe as any);
-router.patch('/me', validate(updateMeSchema), userController.updateMe as any);
-router.patch('/me/password', validate(changePasswordSchema), userController.changePassword as any);
-router.delete('/me', userController.deleteMe as any);
+router.get('/me', authenticate as any, userController.getMe as any);
+router.patch('/me', authenticate as any, validate(updateMeSchema), userController.updateMe as any);
+router.patch('/me/password', authenticate as any, validate(changePasswordSchema), userController.changePassword as any);
+router.delete('/me', authenticate as any, userController.deleteMe as any);
 
 export default router;

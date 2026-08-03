@@ -43,15 +43,24 @@ export async function syncGoogleForms(reportId: string, userId?: string): Promis
   const report = await inspectionRepository.findById(reportId);
   if (!report) throw new Error(`Relatório ${reportId} não encontrado`);
 
-  const allItems: FormItemResponse[] = report.floor_form_entries.flatMap(
-    (entry) => entry.form_item_responses
-  );
+  const allItems: Array<FormItemResponse & { observations?: string[] }> = [];
+
+  for (const entry of report.floor_form_entries) {
+    // Primeira observação do andar vai junto com o primeiro item do andar;
+    // as demais são enviadas como entradas separadas (item_name vazio)
+    const obs = entry.observations ?? [];
+    entry.form_item_responses.forEach((item, idx) => {
+      allItems.push({ ...item, observations: idx === 0 ? obs : [] });
+    });
+  }
 
   const errors: string[] = [];
 
   for (const item of allItems) {
     try {
-      const params = buildFormPayload(item);
+      const obs = (item as FormItemResponse & { observations?: string[] }).observations;
+      const obsText = obs && obs.length > 0 ? obs.join(' | ') : undefined;
+      const params = buildFormPayload(item, obsText);
       await submitToGoogleForms(params);
       // Delay entre envios para evitar rate limiting do Google
       await sleep(300 + Math.random() * 200);
