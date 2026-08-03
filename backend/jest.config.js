@@ -10,7 +10,6 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
-  setupFilesAfterFramework: [],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',

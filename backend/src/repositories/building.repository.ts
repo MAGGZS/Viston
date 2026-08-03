@@ -1,4 +1,4 @@
-import { AuditAction } from '@prisma/client';
+import { AuditAction, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 export const buildingRepository = {
@@ -26,9 +26,18 @@ export const auditRepository = {
     entity_id?: string;
     metadata?: Record<string, unknown>;
   }) {
-    return prisma.auditLog.create({ data }).catch((err) => {
-      // Nunca deixar falha de audit derrubar a operação principal
-      console.error('[AuditLog] Falha ao registrar:', err);
-    });
+    const { user_id, metadata, ...rest } = data;
+    return prisma.auditLog
+      .create({
+        data: {
+          ...rest,
+          metadata: metadata as Prisma.InputJsonValue | undefined,
+          ...(user_id ? { user: { connect: { id: user_id } } } : {}),
+        },
+      })
+      .catch((err) => {
+        // Nunca deixar falha de audit derrubar a operação principal
+        console.error('[AuditLog] Falha ao registrar:', err);
+      });
   },
 };

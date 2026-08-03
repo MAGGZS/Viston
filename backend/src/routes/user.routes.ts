@@ -1,6 +1,6 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router } from 'express';
 import { userController } from '../controllers/user.controller';
-import { authenticate, AuthenticatedRequest } from '../middlewares/authenticate';
+import { authenticate } from '../middlewares/authenticate';
 import { authorize } from '../middlewares/authorize';
 import { validate } from '../middlewares/validate';
 import {
@@ -12,34 +12,17 @@ import {
 
 const router = Router();
 
-// Todas as rotas de /users requerem autenticação
-router.use(authenticate as (req: Request, res: Response, next: NextFunction) => void);
+router.use(authenticate as any);
 
 // ADMIN only
-router.post(
-  '/',
-  authorize('ADMIN') as (req: AuthenticatedRequest, res: Response, next: NextFunction) => void,
-  validate(createUserSchema),
-  userController.create as (req: AuthenticatedRequest, res: Response) => void
-);
+router.post('/', authorize('ADMIN') as any, validate(createUserSchema), userController.create as any);
+router.get('/', authorize('ADMIN') as any, userController.findAll as any);
+router.patch('/:id', authorize('ADMIN') as any, validate(updateUserSchema), userController.update as any);
 
-router.get(
-  '/',
-  authorize('ADMIN') as (req: AuthenticatedRequest, res: Response, next: NextFunction) => void,
-  userController.findAll as (req: AuthenticatedRequest, res: Response) => void
-);
-
-router.patch(
-  '/:id',
-  authorize('ADMIN') as (req: AuthenticatedRequest, res: Response, next: NextFunction) => void,
-  validate(updateUserSchema),
-  userController.update as (req: AuthenticatedRequest, res: Response) => void
-);
-
-// Rotas do próprio usuário
-router.get('/me', userController.getMe as (req: AuthenticatedRequest, res: Response) => void);
-router.patch('/me', validate(updateMeSchema), userController.updateMe as (req: AuthenticatedRequest, res: Response) => void);
-router.patch('/me/password', validate(changePasswordSchema), userController.changePassword as (req: AuthenticatedRequest, res: Response) => void);
-router.delete('/me', userController.deleteMe as (req: AuthenticatedRequest, res: Response) => void);
+// Próprio usuário
+router.get('/me', userController.getMe as any);
+router.patch('/me', validate(updateMeSchema), userController.updateMe as any);
+router.patch('/me/password', validate(changePasswordSchema), userController.changePassword as any);
+router.delete('/me', userController.deleteMe as any);
 
 export default router;
