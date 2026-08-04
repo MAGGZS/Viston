@@ -12,7 +12,7 @@ import {
 
 const router = Router();
 
-pode remover// Cadastro público — primeiro usuário vira ADMIN, demais entram como VIEWER
+// Cadastro público — primeiro usuário vira ADMIN, demais entram como VIEWER
 // O campo role no body é ignorado (definido automaticamente pelo service)
 router.post('/', validate(createUserSchema), userController.create as any);
 

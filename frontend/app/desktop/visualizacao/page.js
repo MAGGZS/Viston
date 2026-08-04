@@ -1,0 +1,168 @@
+'use client';
+import { useState } from 'react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import Link from 'next/link';
+import { RouteGuard } from '@/app/components/RouteGuard';
+import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
+import { Badge, Skeleton, Button } from '@/app/components/ui';
+import { useAuthStore } from '@/app/store/auth';
+import { useCalendar, useInspections } from '@/app/hooks/useApi';
+
+const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada' };
+const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success' };
+
+export default function VisualizacaoPage() {
+  const { user } = useAuthStore();
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
+
+  const { data: calData, isLoading: calLoading } = useCalendar({ month, year });
+  const { data: inspData, isLoading: inspLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInspections({});
+
+  const rows = inspData?.pages?.flatMap((p) => p.inspections) ?? [];
+
+  function prev() {
+    if (month === 1) { setMonth(12); setYear((y) => y - 1); }
+    else setMonth((m) => m - 1);
+  }
+  function next() {
+    if (month === 12) { setMonth(1); setYear((y) => y + 1); }
+    else setMonth((m) => m + 1);
+  }
+
+  const monthLabel = format(new Date(year, month - 1), 'MMMM yyyy', { locale: ptBR });
+
+  return (
+    <RouteGuard roles={['INSPECTOR', 'VIEWER']}>
+      <div className="hidden lg:flex min-h-screen bg-[#0D0D0D]">
+        {/* Sidebar simples */}
+        <aside className="w-64 min-h-screen bg-[#1A1A1A] border-r border-[#2A2A2A] flex flex-col">
+          <div className="p-6 border-b border-[#2A2A2A] flex items-center gap-3">
+            <div className="w-9 h-9 bg-[#F5C518] rounded-xl flex items-center justify-center">
+              <span className="text-black font-black text-sm">V</span>
+            </div>
+            <span className="text-white font-bold text-lg">Viston</span>
+          </div>
+          <div className="flex-1 p-6 flex flex-col justify-between">
+            <div>
+              <p className="text-[#9A9A9A] text-xs mb-1">Logado como</p>
+              <p className="text-white font-medium text-sm">{user?.name}</p>
+              <Badge variant={user?.role === 'INSPECTOR' ? 'success' : 'default'} className="mt-2">
+                {user?.role === 'INSPECTOR' ? 'Inspetor' : 'Visualizador'}
+              </Badge>
+            </div>
+            {user?.role === 'INSPECTOR' && (
+              <Link
+                href="/inspecao"
+                className="w-full bg-[#F5C518] text-black rounded-xl py-3 text-center font-bold text-sm hover:bg-[#E0B400] transition-colors"
+              >
+                Nova Inspeção
+              </Link>
+            )}
+          </div>
+        </aside>
+
+        <main className="flex-1 p-8 overflow-auto">
+          <h1 className="text-2xl font-bold text-white mb-8">Visão Geral</h1>
+
+          <div className="grid grid-cols-3 gap-6">
+            {/* Calendário heatmap */}
+            <div className="col-span-1 bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A] p-5">
+              <div className="flex items-center justify-between mb-4">
+                <button onClick={prev} className="p-1 text-[#9A9A9A] hover:text-white">
+                  <ChevronLeft size={18} />
+                </button>
+                <span className="text-white text-sm font-semibold capitalize">{monthLabel}</span>
+                <button onClick={next} className="p-1 text-[#9A9A9A] hover:text-white">
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+              {calLoading ? (
+                <Skeleton className="h-48 w-full" />
+              ) : (
+                <CalendarHeatmap heatmap={calData?.heatmap ?? {}} month={month} year={year} />
+              )}
+              <div className="flex items-center gap-1 mt-3 justify-end">
+                <span className="text-[#9A9A9A] text-xs">Menos</span>
+                {['bg-[#1E1E1E]', 'bg-[#2E2A12]', 'bg-[#6B5A00]', 'bg-[#A88A00]', 'bg-[#F5C518]'].map((c, i) => (
+                  <div key={i} className={`w-3 h-3 rounded-sm ${c}`} />
+                ))}
+                <span className="text-[#9A9A9A] text-xs">Mais</span>
+              </div>
+            </div>
+
+            {/* Tabela de inspeções */}
+            <div className="col-span-2 bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A] overflow-hidden">
+              <div className="px-6 py-4 border-b border-[#2A2A2A]">
+                <h2 className="text-white font-semibold">Inspeções Recentes</h2>
+              </div>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[#2A2A2A]">
+                    {['Prédio', 'Status', 'Data', 'Excel'].map((h) => (
+                      <th key={h} className="text-left px-6 py-3 text-[#9A9A9A] text-xs font-medium">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {inspLoading && [1, 2, 3].map((i) => (
+                    <tr key={i} className="border-b border-[#2A2A2A]">
+                      {[1, 2, 3, 4].map((j) => (
+                        <td key={j} className="px-6 py-3"><Skeleton className="h-4 w-full" /></td>
+                      ))}
+                    </tr>
+                  ))}
+                  {rows.map((r) => (
+                    <tr key={r.id} className="border-b border-[#2A2A2A] hover:bg-[#1E1E1E] transition-colors">
+                      <td className="px-6 py-3 text-white text-sm">{r.building?.name ?? r.buildingId}</td>
+                      <td className="px-6 py-3">
+                        <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+                      </td>
+                      <td className="px-6 py-3 text-[#9A9A9A] text-sm">
+                        {format(new Date(r.createdAt), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                      </td>
+                      <td className="px-6 py-3">
+                        {r.excelUrl ? (
+                          <a href={r.excelUrl} target="_blank" rel="noreferrer"
+                            className="flex items-center gap-1 text-[#F5C518] text-sm hover:underline">
+                            <Download size={13} /> Baixar
+                          </a>
+                        ) : <span className="text-[#9A9A9A] text-sm">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                  {!inspLoading && rows.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-10 text-center text-[#9A9A9A] text-sm">
+                        Nenhuma inspeção encontrada
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              {hasNextPage && (
+                <div className="px-6 py-4 border-t border-[#2A2A2A] flex justify-center">
+                  <Button variant="secondary" onClick={() => fetchNextPage()} loading={isFetchingNextPage}>
+                    Carregar mais
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {/* Mobile fallback */}
+      <div className="lg:hidden flex items-center justify-center min-h-screen bg-[#0D0D0D] p-6 text-center">
+        <div>
+          <p className="text-4xl mb-4">📱</p>
+          <p className="text-white font-bold text-lg">Use o app mobile</p>
+          <p className="text-[#9A9A9A] text-sm mt-2">Esta visualização é otimizada para desktop</p>
+        </div>
+      </div>
+    </RouteGuard>
+  );
+}
