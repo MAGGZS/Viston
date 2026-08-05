@@ -7,7 +7,7 @@ export const buildingRepository = {
   },
 
   getMemberBuildings(userId: string) {
-    return (prisma as any).buildingMember.findMany({
+    return prisma.buildingMember.findMany({
       where: { user_id: userId },
       include: { building: true },
     });
@@ -53,39 +53,39 @@ export const buildingRepository = {
 
   // ── Membros ────────────────────────────────────────────────────────────────
   findMember(buildingId: string, userId: string) {
-    return (prisma as any).buildingMember.findUnique({
+    return prisma.buildingMember.findUnique({
       where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
     });
   },
 
   getMembers(buildingId: string) {
-    return (prisma as any).buildingMember.findMany({
+    return prisma.buildingMember.findMany({
       where: { building_id: buildingId },
       include: { user: { select: { id: true, name: true, email: true, role: true } } },
     });
   },
 
   addMember(buildingId: string, userId: string, role: string) {
-    return (prisma as any).buildingMember.create({
+    return prisma.buildingMember.create({
       data: { building_id: buildingId, user_id: userId, role },
     });
   },
 
   removeMember(buildingId: string, userId: string) {
-    return (prisma as any).buildingMember.delete({
+    return prisma.buildingMember.delete({
       where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
     });
   },
 
   // ── Solicitações de acesso ─────────────────────────────────────────────────
   findAccessRequest(buildingId: string, userId: string) {
-    return (prisma as any).buildingAccessRequest.findUnique({
+    return prisma.buildingAccessRequest.findUnique({
       where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
     });
   },
 
   getAccessRequests(buildingId: string, status?: string) {
-    return (prisma as any).buildingAccessRequest.findMany({
+    return prisma.buildingAccessRequest.findMany({
       where: { building_id: buildingId, ...(status ? { status } : {}) },
       include: { user: { select: { id: true, name: true, email: true, role: true } } },
       orderBy: { requested_at: 'desc' },
@@ -93,13 +93,13 @@ export const buildingRepository = {
   },
 
   createAccessRequest(buildingId: string, userId: string) {
-    return (prisma as any).buildingAccessRequest.create({
+    return prisma.buildingAccessRequest.create({
       data: { building_id: buildingId, user_id: userId },
     });
   },
 
   updateAccessRequest(id: string, status: string) {
-    return (prisma as any).buildingAccessRequest.update({
+    return prisma.buildingAccessRequest.update({
       where: { id },
       data: { status, reviewed_at: new Date() },
       include: { user: { select: { id: true, name: true, email: true, role: true } } },
@@ -108,8 +108,8 @@ export const buildingRepository = {
 
   getDashboard(buildingId: string) {
     return Promise.all([
-      (prisma as any).buildingMember.count({ where: { building_id: buildingId, role: 'INSPECTOR' } }),
-      (prisma as any).buildingMember.count({ where: { building_id: buildingId, role: 'VIEWER' } }),
+      prisma.buildingMember.count({ where: { building_id: buildingId, role: 'INSPECTOR' } }),
+      prisma.buildingMember.count({ where: { building_id: buildingId, role: 'VIEWER' } }),
       prisma.inspectionReport.count({ where: { building_id: buildingId } }),
     ]);
   },

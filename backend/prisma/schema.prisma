@@ -73,20 +73,57 @@ model User {
   created_at    DateTime   @default(now())
   updated_at    DateTime   @updatedAt
 
-  inspections InspectionReport[]
-  audit_logs  AuditLog[]
+  inspections     InspectionReport[]
+  audit_logs      AuditLog[]
+  created_buildings Building[]             @relation("BuildingCreator")
+  building_members  BuildingMember[]       @relation("BuildingMembers")
+  access_requests   BuildingAccessRequest[] @relation("BuildingAccessRequests")
 
   @@map("users")
 }
 
 model Building {
-  id   String @id @default(uuid())
-  name String
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+  created_by  String?
 
+  creator     User?                  @relation("BuildingCreator", fields: [created_by], references: [id])
   floors      Floor[]
   inspections InspectionReport[]
+  members     BuildingMember[]
+  access_requests BuildingAccessRequest[]
 
   @@map("buildings")
+}
+
+model BuildingMember {
+  id          String   @id @default(uuid())
+  building_id String
+  user_id     String
+  role        String
+  joined_at   DateTime @default(now())
+
+  building Building @relation(fields: [building_id], references: [id], onDelete: Cascade)
+  user     User     @relation("BuildingMembers", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([building_id, user_id])
+  @@map("building_members")
+}
+
+model BuildingAccessRequest {
+  id          String    @id @default(uuid())
+  building_id String
+  user_id     String
+  status      String    @default("PENDING")
+  requested_at DateTime @default(now())
+  reviewed_at  DateTime?
+
+  building Building @relation(fields: [building_id], references: [id], onDelete: Cascade)
+  user     User     @relation("BuildingAccessRequests", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([building_id, user_id])
+  @@map("building_access_requests")
 }
 
 model Floor {
