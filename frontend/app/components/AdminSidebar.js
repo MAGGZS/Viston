@@ -1,10 +1,11 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Users, ClipboardList, Calendar, LogOut } from 'lucide-react';
+import { Users, ClipboardList, Calendar, Building2, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/app/store/auth';
 
 const items = [
+  { href: '/desktop/admin/predios', icon: Building2, label: 'Prédios' },
   { href: '/desktop/admin', icon: Users, label: 'Usuários' },
   { href: '/desktop/admin/historico', icon: ClipboardList, label: 'Histórico' },
   { href: '/desktop/admin/calendario', icon: Calendar, label: 'Calendário' },
@@ -30,7 +31,9 @@ export function AdminSidebar() {
 
       <nav style={{ flex: 1, padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {items.map(({ href, icon: Icon, label }) => {
-          const active = pathname === href;
+          const active = href === '/desktop/admin'
+            ? pathname === href
+            : pathname.startsWith(href);
           return (
             <Link key={href} href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 14, fontSize: 14, fontWeight: 500, textDecoration: 'none', transition: 'all 0.2s', background: active ? 'rgba(245,197,24,0.1)' : 'transparent', color: active ? '#F5C518' : 'rgba(255,255,255,0.35)', border: active ? '1px solid rgba(245,197,24,0.15)' : '1px solid transparent' }}>
               <Icon size={17} strokeWidth={active ? 2.5 : 1.8} />

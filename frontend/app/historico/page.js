@@ -8,7 +8,7 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Badge, Button, Modal, StatusBadge } from '@/app/components/ui';
-import { useInspections, useSyncGoogleForm, useCalendar } from '@/app/hooks/useApi';
+import { useInspections, useSyncGoogleForm, useCalendar, useMyBuildings, useBuildingHistory } from '@/app/hooks/useApi';
 import { useAuthStore } from '@/app/store/auth';
 
 const S = {
@@ -145,11 +145,25 @@ export default function HistoricoPage() {
   }
 
   const [filters, setFilters] = useState({ date_from: '', date_to: '', google_form_synced: '' });
+
+  // Prédios do usuário (para mobile)
+  const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
+  const hasBuilding = myBuildings.length > 0;
+  const myBuildingId = myBuildings[0]?.id;
+
+  // Desktop: todas as inspeções (admin vê tudo)
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInspections(
     Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''))
   );
+
+  // Mobile: histórico do prédio vinculado
+  const { data: buildingData, isLoading: buildingLoading, fetchNextPage: buildingFetchNext, hasNextPage: buildingHasNext, isFetchingNextPage: buildingFetchingNext } = useBuildingHistory(
+    hasBuilding ? myBuildingId : null
+  );
+
   const { mutateAsync: syncForm } = useSyncGoogleForm();
   const allInspections = data?.pages?.flatMap(p => p.inspections) || [];
+  const buildingInspections = buildingData?.pages?.flatMap(p => p.inspections) || [];
 
   async function handleSync(id) {
     try { await syncForm(id); } catch (e) { alert(e?.response?.data?.error?.message || 'Erro'); }
@@ -231,12 +245,38 @@ export default function HistoricoPage() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '56px 20px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h1 style={{ color: 'rgba(255,255,255,0.95)', fontSize: 22, fontWeight: 700 }}>Histórico</h1>
-        <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
-          <SlidersHorizontal size={15} />
-        </button>
+        {hasBuilding && (
+          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
+            <SlidersHorizontal size={15} />
+          </button>
+        )}
       </div>
       <div style={{ padding: '0 20px', overflowY: 'auto' }}>
-        {listaPanel}
+        {buildingsLoading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[1,2,3].map(i => <div key={i} style={{ height: 120, background: 'rgba(255,255,255,0.05)', borderRadius: 20 }} />)}
+          </div>
+        ) : !hasBuilding ? (
+          <div style={{ textAlign: 'center', padding: '80px 0' }}>
+            <p style={{ fontSize: 40, marginBottom: 16 }}>🏢</p>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>Você não tem ligação a nenhum prédio</p>
+            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, lineHeight: 1.6 }}>Peça ao administrador o ID do prédio e solicite acesso.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {buildingLoading && [1,2,3].map(i => <div key={i} style={{ height: 120, background: 'rgba(255,255,255,0.05)', borderRadius: 20 }} />)}
+            {!buildingLoading && buildingInspections.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '60px 0' }}>
+                <p style={{ fontSize: 36, marginBottom: 12 }}>📋</p>
+                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
+              </div>
+            )}
+            {buildingInspections.map(i => <InspectionCard key={i.id} inspection={i} onSync={handleSync} />)}
+            {buildingHasNext && (
+              <Button variant="secondary" style={{ width: '100%' }} onClick={() => buildingFetchNext()} loading={buildingFetchingNext}>Carregar mais</Button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

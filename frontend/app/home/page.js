@@ -9,7 +9,7 @@ import { BottomNav } from '@/app/components/BottomNav';
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
 import { Button, Card, Modal, Skeleton } from '@/app/components/ui';
 import { useAuthStore } from '@/app/store/auth';
-import { useCalendar } from '@/app/hooks/useApi';
+import { useCalendar, useMyBuildings } from '@/app/hooks/useApi';
 
 export default function HomePage() {
   const { user } = useAuthStore();
@@ -18,7 +18,14 @@ export default function HomePage() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [dayModal, setDayModal] = useState(null);
-  const { data, isLoading } = useCalendar({ month, year });
+
+  const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
+  const hasBuilding = myBuildings.length > 0;
+  const buildingId = myBuildings[0]?.id;
+
+  const { data, isLoading } = useCalendar(
+    hasBuilding ? { month, year, building_id: buildingId } : null,
+  );
 
   function prevMonth() { if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); }
   function nextMonth() { if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1); }
@@ -61,24 +68,26 @@ export default function HomePage() {
             </button>
           )}
 
-          {/* Calendário */}
-          <Card>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <button onClick={prevMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: 4 }}><ChevronLeft size={18} /></button>
-              <h2 style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: 600, textTransform: 'capitalize' }}>{monthLabel}</h2>
-              <button onClick={nextMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: 4 }}><ChevronRight size={18} /></button>
-            </div>
-            {isLoading ? <Skeleton style={{ height: 192, width: '100%' }} /> : (
-              <CalendarHeatmap heatmap={data?.heatmap || {}} month={month} year={year} onDayClick={(day, info) => setDayModal({ day, info })} />
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 16, justifyContent: 'flex-end' }}>
-              <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11 }}>Menos</span>
-              {['rgba(255,255,255,0.05)', 'rgba(245,197,24,0.15)', 'rgba(245,197,24,0.35)', 'rgba(245,197,24,0.6)', '#F5C518'].map((c, i) => (
-                <div key={i} style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
-              ))}
-              <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11 }}>Mais</span>
-            </div>
-          </Card>
+          {/* Calendário — só aparece se tiver vínculo com prédio */}
+          {!buildingsLoading && hasBuilding && (
+            <Card>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <button onClick={prevMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: 4 }}><ChevronLeft size={18} /></button>
+                <h2 style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: 600, textTransform: 'capitalize' }}>{monthLabel}</h2>
+                <button onClick={nextMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: 4 }}><ChevronRight size={18} /></button>
+              </div>
+              {isLoading ? <Skeleton style={{ height: 192, width: '100%' }} /> : (
+                <CalendarHeatmap heatmap={data?.heatmap || {}} month={month} year={year} onDayClick={(day, info) => setDayModal({ day, info })} />
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 16, justifyContent: 'flex-end' }}>
+                <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11 }}>Menos</span>
+                {['rgba(255,255,255,0.05)', 'rgba(245,197,24,0.15)', 'rgba(245,197,24,0.35)', 'rgba(245,197,24,0.6)', '#F5C518'].map((c, i) => (
+                  <div key={i} style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
+                ))}
+                <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11 }}>Mais</span>
+              </div>
+            </Card>
+          )}
         </div>
 
         <Modal open={!!dayModal} onClose={() => setDayModal(null)} title={dayModal?.day}>

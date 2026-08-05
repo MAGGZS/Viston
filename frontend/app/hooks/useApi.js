@@ -61,6 +61,121 @@ export function useDeleteMe() {
 }
 
 // ── Buildings ─────────────────────────────────────────────────────────────────
+export function useMyBuildings() {
+  return useQuery({
+    queryKey: ['my-buildings'],
+    queryFn: () => api.get('/buildings/me').then((r) => r.data),
+  });
+}
+
+export function useBuildings() {
+  return useQuery({
+    queryKey: ['buildings'],
+    queryFn: () => api.get('/buildings').then((r) => r.data),
+  });
+}
+
+export function useBuildingDashboard(id) {
+  return useQuery({
+    queryKey: ['building-dashboard', id],
+    queryFn: () => api.get(`/buildings/${id}/dashboard`).then((r) => r.data),
+    enabled: !!id,
+  });
+}
+
+export function useBuildingHistory(id, params = {}) {
+  return useInfiniteQuery({
+    queryKey: ['building-history', id, params],
+    queryFn: ({ pageParam = 1 }) =>
+      api.get(`/buildings/${id}/history`, { params: { ...params, page: pageParam, limit: 20 } }).then((r) => r.data),
+    getNextPageParam: (last) => last.page < last.pages ? last.page + 1 : undefined,
+    initialPageParam: 1,
+    enabled: !!id,
+  });
+}
+
+export function useCreateBuilding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => api.post('/buildings', data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['buildings'] }),
+  });
+}
+
+export function useUpdateBuilding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }) => api.patch(`/buildings/${id}`, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['buildings'] }),
+  });
+}
+
+export function useDeleteBuilding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.delete(`/buildings/${id}`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['buildings'] }),
+  });
+}
+
+export function useCreateFloor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ buildingId, ...data }) => api.post(`/buildings/${buildingId}/floors`, data).then((r) => r.data),
+    onSuccess: (_, { buildingId }) => qc.invalidateQueries({ queryKey: ['floors', buildingId] }),
+  });
+}
+
+export function useDeleteFloor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ buildingId, floorId }) => api.delete(`/buildings/${buildingId}/floors/${floorId}`).then((r) => r.data),
+    onSuccess: (_, { buildingId }) => qc.invalidateQueries({ queryKey: ['floors', buildingId] }),
+  });
+}
+
+export function useBuildingMembers(id) {
+  return useQuery({
+    queryKey: ['building-members', id],
+    queryFn: () => api.get(`/buildings/${id}/members`).then((r) => r.data),
+    enabled: !!id,
+  });
+}
+
+export function useRemoveMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ buildingId, userId }) => api.delete(`/buildings/${buildingId}/members/${userId}`).then((r) => r.data),
+    onSuccess: (_, { buildingId }) => qc.invalidateQueries({ queryKey: ['building-members', buildingId] }),
+  });
+}
+
+export function useRequestAccess() {
+  return useMutation({
+    mutationFn: (buildingId) => api.post(`/buildings/${buildingId}/access-requests`).then((r) => r.data),
+  });
+}
+
+export function useAccessRequests(buildingId) {
+  return useQuery({
+    queryKey: ['access-requests', buildingId],
+    queryFn: () => api.get(`/buildings/${buildingId}/access-requests`, { params: { status: 'PENDING' } }).then((r) => r.data),
+    enabled: !!buildingId,
+  });
+}
+
+export function useReviewAccessRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ buildingId, requestId, status }) =>
+      api.patch(`/buildings/${buildingId}/access-requests/${requestId}`, { status }).then((r) => r.data),
+    onSuccess: (_, { buildingId }) => {
+      qc.invalidateQueries({ queryKey: ['access-requests', buildingId] });
+      qc.invalidateQueries({ queryKey: ['building-members', buildingId] });
+    },
+  });
+}
+
 export function useFloors(buildingId) {
   return useQuery({
     queryKey: ['floors', buildingId],
