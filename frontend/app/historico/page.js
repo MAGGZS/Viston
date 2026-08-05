@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, FileSpreadsheet, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { Suspense } from 'react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
@@ -98,7 +99,7 @@ function InspectionCard({ inspection, onSync }) {
   );
 }
 
-export default function HistoricoPage() {
+function HistoricoContent() {
   const { user } = useAuthStore();
   const searchParams = useSearchParams();
   const isAdmin = user?.role === 'ADMIN';
@@ -262,6 +263,7 @@ export default function HistoricoPage() {
   return (
     <RouteGuard>
       <div style={S.page}>
+
         {isDesktop ? (
           isAdmin ? (
             <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -318,5 +320,13 @@ export default function HistoricoPage() {
         {!isDesktop && <BottomNav />}
       </div>
     </RouteGuard>
+  );
+}
+
+export default function HistoricoPage() {
+  return (
+    <Suspense>
+      <HistoricoContent />
+    </Suspense>
   );
 }
