@@ -197,14 +197,16 @@ export const inspectionService = {
     return inspectionRepository.findById(reportId);
   },
 
-  async findAll(filters: Parameters<typeof inspectionRepository.findAll>[0]) {
-    const [inspections, total] = await inspectionRepository.findAll(filters);
+  async findAll(filters: Parameters<typeof inspectionRepository.findAll>[0] & { page?: number; limit?: number }) {
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 20;
+    const [inspections, total] = await inspectionRepository.findAll({ ...filters, page, limit });
     return {
       inspections,
       total,
-      page: filters.page,
-      limit: filters.limit,
-      pages: Math.ceil(total / filters.limit),
+      page,
+      limit,
+      pages: Math.ceil(total / limit),
     };
   },
 
