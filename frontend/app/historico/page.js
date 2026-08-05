@@ -1,10 +1,8 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, FileSpreadsheet, RefreshCw, SlidersHorizontal } from 'lucide-react';
-import { Suspense } from 'react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
@@ -99,9 +97,8 @@ function InspectionCard({ inspection, onSync }) {
   );
 }
 
-function HistoricoContent() {
+export default function HistoricoPage() {
   const { user } = useAuthStore();
-  const searchParams = useSearchParams();
   const isAdmin = user?.role === 'ADMIN';
 
   const [isDesktop, setIsDesktop] = useState(false);
@@ -146,11 +143,7 @@ function HistoricoContent() {
     else setYear(y => y + 1);
   }
 
-  const [filters, setFilters] = useState({
-    date_from: searchParams.get('date_from') || '',
-    date_to: searchParams.get('date_to') || '',
-    google_form_synced: '',
-  });
+  const [filters, setFilters] = useState({ date_from: '', date_to: '', google_form_synced: '' });
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInspections(
     Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''))
   );
@@ -212,7 +205,6 @@ function HistoricoContent() {
     </div>
   );
 
-  // Desktop: duas colunas lado a lado (sem tabs)
   const desktopContent = (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '32px 32px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -234,7 +226,6 @@ function HistoricoContent() {
     </div>
   );
 
-  // Mobile: tabs
   const mobileContent = (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '56px 20px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -263,7 +254,6 @@ function HistoricoContent() {
   return (
     <RouteGuard>
       <div style={S.page}>
-
         {isDesktop ? (
           isAdmin ? (
             <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -320,13 +310,5 @@ function HistoricoContent() {
         {!isDesktop && <BottomNav />}
       </div>
     </RouteGuard>
-  );
-}
-
-export default function HistoricoPage() {
-  return (
-    <Suspense>
-      <HistoricoContent />
-    </Suspense>
   );
 }

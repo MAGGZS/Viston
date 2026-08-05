@@ -32,7 +32,8 @@ export const inspectionController = {
   },
 
   async findAll(req: AuthenticatedRequest, res: Response) {
-    const filters = inspectionFiltersSchema.parse(req.query);
+    const parsed = inspectionFiltersSchema.parse(req.query);
+    const filters = { ...parsed, page: parsed.page ?? 1, limit: parsed.limit ?? 20 };
     const result = await inspectionService.findAll(filters);
     ok(res, result);
   },
