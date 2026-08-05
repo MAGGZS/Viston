@@ -1,11 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Carrega .env.local em dev, .env em produção
-const envFile = process.env.NODE_ENV === 'production' ? '.env' : '.env.local';
-dotenv.config({ path: path.resolve(process.cwd(), envFile) });
-// Fallback para .env.example se nenhum existir
-dotenv.config({ path: path.resolve(process.cwd(), '.env.example') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 function required(key: string): string {
   const value = process.env[key];

@@ -11,26 +11,25 @@ const schema = yup.object({
   password: yup.string().min(1, 'Obrigatório').required('Obrigatório'),
 });
 
-function Field({ label, error, children }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      <label style={{ fontSize: '11px', fontWeight: 600, color: '#9A9A9A', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-        {label}
-      </label>
-      {children}
-      {error && <span style={{ fontSize: '12px', color: '#f87171' }}>{error}</span>}
-    </div>
-  );
-}
+const S = {
+  page: { minHeight: '100vh', background: '#080810', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  wrap: { width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32 },
+  logo: { width: 60, height: 60, background: '#F5C518', borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 40px rgba(245,197,24,0.3)' },
+  card: { width: '100%', background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 28, padding: '28px 24px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' },
+  field: { display: 'flex', flexDirection: 'column', gap: 6 },
+  label: { fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' },
+  input: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 14, padding: '13px 16px', color: 'rgba(255,255,255,0.9)', fontSize: 15, outline: 'none', width: '100%' },
+  btn: { width: '100%', background: '#F5C518', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 14, border: 'none', cursor: 'pointer', marginTop: 4, boxShadow: '0 0 20px rgba(245,197,24,0.2)' },
+  errBox: { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, padding: '10px 14px', textAlign: 'center' },
+  footer: { color: 'rgba(255,255,255,0.25)', fontSize: 14 },
+  link: { color: 'rgba(245,197,24,0.85)', fontWeight: 600, textDecoration: 'none' },
+};
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuthStore();
   const { mutateAsync, isPending, error } = useLogin();
-
-  const { register, handleSubmit, formState: { errors } } = useForm({
-    resolver: yupResolver(schema),
-  });
+  const { register, handleSubmit, formState: { errors } } = useForm({ resolver: yupResolver(schema) });
 
   async function onSubmit(data) {
     try {
@@ -42,78 +41,37 @@ export default function LoginPage() {
 
   const apiError = error?.response?.data?.error?.message;
 
-  const inputStyle = {
-    width: '100%',
-    background: '#1A1A1A',
-    border: '1px solid #2A2A2A',
-    borderRadius: '12px',
-    padding: '14px 16px',
-    color: '#fff',
-    fontSize: '15px',
-    outline: 'none',
-    transition: 'border-color 0.2s',
-    boxSizing: 'border-box',
-  };
-
   return (
-    <div style={{ minHeight: '100vh', background: '#0D0D0D', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-      <div style={{ width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '32px' }}>
-
-        {/* Logo */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '56px', height: '56px', background: '#F5C518', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: '#000', fontSize: '22px', fontWeight: 900 }}>V</span>
-          </div>
+    <div style={S.page}>
+      <div style={S.wrap}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div style={S.logo}><span style={{ color: '#000', fontSize: 24, fontWeight: 900 }}>V</span></div>
           <div style={{ textAlign: 'center' }}>
-            <h1 style={{ color: '#fff', fontSize: '24px', fontWeight: 700, margin: 0 }}>Viston</h1>
-            <p style={{ color: '#9A9A9A', fontSize: '14px', marginTop: '4px' }}>Sistema de Vistoria Predial</p>
+            <h1 style={{ color: 'rgba(255,255,255,0.95)', fontSize: 24, fontWeight: 700, margin: 0 }}>Viston</h1>
+            <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14, marginTop: 4 }}>Sistema de Vistoria Predial</p>
           </div>
         </div>
 
-        {/* Card */}
-        <div style={{ width: '100%', background: '#141414', border: '1px solid #222', borderRadius: '20px', padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-            <Field label="E-mail" error={errors.email?.message}>
-              <input type="email" placeholder="seu@email.com" style={inputStyle} {...register('email')} />
-            </Field>
-
-            <Field label="Senha" error={errors.password?.message}>
-              <input type="password" placeholder="••••••••" style={inputStyle} {...register('password')} />
-            </Field>
-
-            {apiError && (
-              <p style={{ color: '#f87171', fontSize: '13px', textAlign: 'center', background: 'rgba(153,27,27,0.2)', borderRadius: '10px', padding: '10px' }}>
-                {apiError}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={isPending}
-              style={{
-                width: '100%',
-                background: isPending ? '#A88A00' : '#F5C518',
-                color: '#000',
-                fontWeight: 700,
-                fontSize: '15px',
-                padding: '14px',
-                borderRadius: '12px',
-                border: 'none',
-                cursor: isPending ? 'not-allowed' : 'pointer',
-                marginTop: '4px',
-                transition: 'background 0.2s',
-              }}
-            >
+        <div style={S.card}>
+          <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={S.field}>
+              <label style={S.label}>E-mail</label>
+              <input type="email" placeholder="seu@email.com" style={{ ...S.input, ...(errors.email ? { borderColor: 'rgba(239,68,68,0.5)' } : {}) }} {...register('email')} />
+              {errors.email && <span style={{ fontSize: 12, color: 'rgb(248,113,113)' }}>{errors.email.message}</span>}
+            </div>
+            <div style={S.field}>
+              <label style={S.label}>Senha</label>
+              <input type="password" placeholder="••••••••" style={{ ...S.input, ...(errors.password ? { borderColor: 'rgba(239,68,68,0.5)' } : {}) }} {...register('password')} />
+              {errors.password && <span style={{ fontSize: 12, color: 'rgb(248,113,113)' }}>{errors.password.message}</span>}
+            </div>
+            {apiError && <div style={S.errBox}><p style={{ color: 'rgb(248,113,113)', fontSize: 13 }}>{apiError}</p></div>}
+            <button type="submit" disabled={isPending} style={{ ...S.btn, opacity: isPending ? 0.6 : 1 }}>
               {isPending ? 'Entrando...' : 'Entrar'}
             </button>
           </form>
         </div>
 
-        <p style={{ color: '#555', fontSize: '14px' }}>
-          Não tem conta?{' '}
-          <a href="/register" style={{ color: '#F5C518', textDecoration: 'none', fontWeight: 600 }}>Cadastre-se</a>
-        </p>
+        <p style={S.footer}>Não tem conta?{' '}<a href="/register" style={S.link}>Cadastre-se</a></p>
       </div>
     </div>
   );

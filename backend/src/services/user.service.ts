@@ -8,9 +8,7 @@ export const userService = {
     const existing = await userRepository.findByEmail(data.email);
     if (existing) throw new ConflictError('E-mail já cadastrado');
 
-    // Primeiro usuário do sistema vira ADMIN automaticamente
-    const totalUsers = await userRepository.count();
-    const role: Role = totalUsers === 0 ? Role.ADMIN : (data.role ?? Role.VIEWER);
+    const role: Role = data.role ?? Role.VIEWER;
 
     const password_hash = await bcrypt.hash(data.password, 10);
     const user = await userRepository.create({ ...data, role, password_hash });

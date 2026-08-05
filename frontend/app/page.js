@@ -4,11 +4,13 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/app/store/auth';
 
 export default function RootPage() {
-  const { user, token } = useAuthStore();
+  const { user, isLoading } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
-    if (!token) {
+    if (isLoading) return;
+
+    if (!user) {
       router.replace('/login');
       return;
     }
@@ -21,7 +23,7 @@ export default function RootPage() {
     } else {
       router.replace('/home');
     }
-  }, [token, user, router]);
+  }, [isLoading, user, router]);
 
   return (
     <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center">

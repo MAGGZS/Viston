@@ -1,151 +1,321 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { format } from 'date-fns';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { FileSpreadsheet, RefreshCw, Filter } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileSpreadsheet, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
-import { StatusBadge, Badge, Button, Card, Skeleton, Modal } from '@/app/components/ui';
-import { useInspections, useSyncGoogleForm } from '@/app/hooks/useApi';
+import { AdminSidebar } from '@/app/components/AdminSidebar';
+import { Badge, Button, Modal, StatusBadge } from '@/app/components/ui';
+import { useInspections, useSyncGoogleForm, useCalendar } from '@/app/hooks/useApi';
 import { useAuthStore } from '@/app/store/auth';
+
+const S = {
+  page: { minHeight: '100vh', background: '#080810' },
+  label: { fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' },
+  input: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 14, outline: 'none', width: '100%' },
+};
+
+const DAYS_LABEL = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+
+function heatColor(count) {
+  if (!count) return 'rgba(255,255,255,0.05)';
+  if (count === 1) return 'rgba(245,197,24,0.2)';
+  if (count === 2) return 'rgba(245,197,24,0.4)';
+  if (count === 3) return 'rgba(245,197,24,0.65)';
+  return '#F5C518';
+}
+
+function MonthGrid({ heatmap, year, month, onDayClick, compact = false }) {
+  const days = eachDayOfInterval({ start: startOfMonth(new Date(year, month - 1)), end: endOfMonth(new Date(year, month - 1)) });
+  const blanks = Array(days[0].getDay()).fill(null);
+  const size = compact ? 18 : 28;
+  const gap = compact ? 3 : 4;
+  return (
+    <div>
+      {!compact && (
+        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, marginBottom: 8, textTransform: 'capitalize' }}>
+          {format(new Date(year, month - 1), 'MMMM', { locale: ptBR })}
+        </p>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap, marginBottom: gap }}>
+        {DAYS_LABEL.map((d, i) => <span key={i} style={{ textAlign: 'center', fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>{d}</span>)}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap }}>
+        {blanks.map((_, i) => <div key={`b${i}`} />)}
+        {days.map((d) => {
+          const key = format(d, 'yyyy-MM-dd');
+          const info = heatmap?.[key];
+          return (
+            <div key={key} onClick={() => info?.count && onDayClick?.(key, info)} title={`${key}: ${info?.count ?? 0} inspeção(ões)`}
+              style={{ width: size, height: size, borderRadius: 4, background: heatColor(info?.count), cursor: info?.count ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.15s' }}>
+              <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)' }}>{format(d, 'd')}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function InspectionCard({ inspection, onSync }) {
   const { user } = useAuthStore();
   const canSync = user?.role === 'ADMIN' || user?.role === 'INSPECTOR';
-
   return (
-    <Card className="flex flex-col gap-3">
-      <div className="flex items-start justify-between">
+    <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <p className="text-white font-semibold">
+          <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 14 }}>
             {format(new Date(inspection.date), "d 'de' MMMM yyyy", { locale: ptBR })}
           </p>
-          <p className="text-[#9A9A9A] text-sm">{inspection.inspector?.name}</p>
+          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>{inspection.inspector?.name}</p>
         </div>
         <StatusBadge synced={inspection.google_form_synced} />
       </div>
-
-      {/* Andares */}
-      <div className="flex flex-wrap gap-1">
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {inspection.floor_form_entries?.map(e => (
-          <Badge key={e.floor_id} variant={
-            e.status_geral === 'OK' ? 'success' :
-            e.status_geral === 'ATENCAO' ? 'warning' : 'danger'
-          }>
+          <Badge key={e.floor_id} variant={e.status_geral === 'OK' ? 'success' : e.status_geral === 'ATENCAO' ? 'warning' : 'danger'}>
             {e.floor?.label || e.floor_id.slice(0, 6)}
           </Badge>
         ))}
       </div>
-
-      <div className="flex gap-2">
+      <div style={{ display: 'flex', gap: 8 }}>
         {inspection.excel_url && (
-          <a href={inspection.excel_url} target="_blank" rel="noreferrer" className="flex-1">
-            <Button variant="secondary" className="w-full text-sm py-2">
-              <FileSpreadsheet size={16} /> Excel
+          <a href={inspection.excel_url} target="_blank" rel="noreferrer" style={{ flex: 1 }}>
+            <Button variant="secondary" style={{ width: '100%', fontSize: 12, padding: '8px 12px' }}>
+              <FileSpreadsheet size={13} /> Excel
             </Button>
           </a>
         )}
         {!inspection.google_form_synced && canSync && (
-          <Button variant="secondary" className="flex-1 text-sm py-2" onClick={() => onSync(inspection.id)}>
-            <RefreshCw size={16} /> Reenviar
+          <Button variant="secondary" style={{ flex: 1, fontSize: 12, padding: '8px 12px' }} onClick={() => onSync(inspection.id)}>
+            <RefreshCw size={13} /> Reenviar
           </Button>
         )}
       </div>
-    </Card>
+    </div>
   );
 }
 
 export default function HistoricoPage() {
+  const { user } = useAuthStore();
   const searchParams = useSearchParams();
+  const isAdmin = user?.role === 'ADMIN';
+
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    setIsDesktop(mq.matches);
+    const handler = e => setIsDesktop(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  const [tab, setTab] = useState('lista');
+  const [showFilters, setShowFilters] = useState(false);
+  const [selected, setSelected] = useState(null);
+
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
+  const [calMode, setCalMode] = useState('Mensal');
+  const MODES = ['Mensal', 'Semestral', 'Anual'];
+
+  const calParams = useMemo(() => calMode === 'Mensal' ? { month, year } : { year }, [calMode, month, year]);
+  const { data: calData, isLoading: calLoading } = useCalendar(calParams);
+  const heatmap = calData?.heatmap ?? {};
+
+  const calMonths = useMemo(() => {
+    if (calMode === 'Mensal') return [month];
+    if (calMode === 'Semestral') { const s = month <= 6 ? 1 : 7; return Array.from({ length: 6 }, (_, i) => s + i); }
+    return Array.from({ length: 12 }, (_, i) => i + 1);
+  }, [calMode, month]);
+
+  const navLabel = calMode === 'Mensal'
+    ? format(new Date(year, month - 1), 'MMMM yyyy', { locale: ptBR })
+    : calMode === 'Semestral' ? `${month <= 6 ? '1º' : '2º'} semestre ${year}` : `${year}`;
+
+  function prevCal() {
+    if (calMode === 'Mensal') { if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); }
+    else setYear(y => y - 1);
+  }
+  function nextCal() {
+    if (calMode === 'Mensal') { if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1); }
+    else setYear(y => y + 1);
+  }
+
   const [filters, setFilters] = useState({
     date_from: searchParams.get('date_from') || '',
     date_to: searchParams.get('date_to') || '',
     google_form_synced: '',
   });
-  const [showFilters, setShowFilters] = useState(false);
-
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInspections(
     Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''))
   );
-
-  const { mutateAsync: syncForm, isPending: isSyncing } = useSyncGoogleForm();
-
+  const { mutateAsync: syncForm } = useSyncGoogleForm();
   const allInspections = data?.pages?.flatMap(p => p.inspections) || [];
 
   async function handleSync(id) {
-    try {
-      await syncForm(id);
-    } catch (e) {
-      alert(e?.response?.data?.error?.message || 'Erro ao sincronizar');
-    }
+    try { await syncForm(id); } catch (e) { alert(e?.response?.data?.error?.message || 'Erro'); }
   }
+
+  const listaPanel = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {isLoading && [1, 2, 3].map(i => <div key={i} style={{ height: 120, background: 'rgba(255,255,255,0.05)', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />)}
+      {!isLoading && allInspections.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '60px 0' }}>
+          <p style={{ fontSize: 36, marginBottom: 12 }}>📋</p>
+          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
+        </div>
+      )}
+      {allInspections.map(i => <InspectionCard key={i.id} inspection={i} onSync={handleSync} />)}
+      {hasNextPage && (
+        <Button variant="secondary" style={{ width: '100%' }} onClick={() => fetchNextPage()} loading={isFetchingNextPage}>Carregar mais</Button>
+      )}
+    </div>
+  );
+
+  const calendarioPanel = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={prevCal} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 10, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.5)', display: 'flex' }}><ChevronLeft size={16} /></button>
+          <span style={{ color: 'rgba(255,255,255,0.8)', fontWeight: 600, fontSize: 14, textTransform: 'capitalize', minWidth: 160, textAlign: 'center' }}>{navLabel}</span>
+          <button onClick={nextCal} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 10, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.5)', display: 'flex' }}><ChevronRight size={16} /></button>
+        </div>
+        <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 3, gap: 2 }}>
+          {MODES.map(m => (
+            <button key={m} onClick={() => setCalMode(m)} style={{ padding: '5px 12px', borderRadius: 9, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: calMode === m ? '#F5C518' : 'transparent', color: calMode === m ? '#000' : 'rgba(255,255,255,0.4)', transition: 'all 0.2s' }}>{m}</button>
+          ))}
+        </div>
+      </div>
+      {calLoading ? (
+        <div style={{ height: 200, background: 'rgba(255,255,255,0.05)', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: calMode === 'Mensal' ? '1fr' : calMode === 'Semestral' ? 'repeat(auto-fill, minmax(200px, 1fr))' : 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16 }}>
+          {calMonths.map(m => (
+            <div key={m} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 16 }}>
+              <MonthGrid heatmap={heatmap} year={year} month={m} onDayClick={(day, info) => setSelected({ day, info })} compact={calMode !== 'Mensal'} />
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11 }}>Menos</span>
+        {['rgba(255,255,255,0.05)', 'rgba(245,197,24,0.2)', 'rgba(245,197,24,0.4)', 'rgba(245,197,24,0.65)', '#F5C518'].map((c, i) => (
+          <div key={i} style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
+        ))}
+        <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11 }}>Mais</span>
+      </div>
+    </div>
+  );
+
+  // Desktop: duas colunas lado a lado (sem tabs)
+  const desktopContent = (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '32px 32px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h1 style={{ color: 'rgba(255,255,255,0.95)', fontSize: 22, fontWeight: 700 }}>Histórico</h1>
+        <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
+          <SlidersHorizontal size={15} />
+        </button>
+      </div>
+      <div style={{ padding: '0 32px 32px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={S.label}>Lista</p>
+          {listaPanel}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={S.label}>Calendário</p>
+          {calendarioPanel}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Mobile: tabs
+  const mobileContent = (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '56px 20px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h1 style={{ color: 'rgba(255,255,255,0.95)', fontSize: 22, fontWeight: 700 }}>Histórico</h1>
+        {tab === 'lista' && (
+          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
+            <SlidersHorizontal size={15} />
+          </button>
+        )}
+      </div>
+      <div style={{ padding: '0 20px 16px' }}>
+        <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 4, gap: 2 }}>
+          {['lista', 'calendario'].map(t => (
+            <button key={t} onClick={() => setTab(t)} style={{ padding: '7px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', transition: 'all 0.2s', background: tab === t ? '#F5C518' : 'transparent', color: tab === t ? '#000' : 'rgba(255,255,255,0.4)' }}>
+              {t === 'lista' ? 'Lista' : 'Calendário'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ padding: '0 20px', overflowY: 'auto' }}>
+        {tab === 'lista' ? listaPanel : calendarioPanel}
+      </div>
+    </div>
+  );
 
   return (
     <RouteGuard>
-      <div className="min-h-screen bg-[#0D0D0D] pb-24">
-        <div className="px-5 pt-12 pb-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-white">Histórico</h1>
-            <button onClick={() => setShowFilters(true)} className="text-[#9A9A9A] hover:text-[#F5C518]">
-              <Filter size={22} />
-            </button>
+      <div style={S.page}>
+        {isDesktop ? (
+          isAdmin ? (
+            <div style={{ display: 'flex', minHeight: '100vh' }}>
+              <AdminSidebar />
+              <main style={{ flex: 1, overflowY: 'auto' }}>{desktopContent}</main>
+            </div>
+          ) : (
+            desktopContent
+          )
+        ) : (
+          <div style={{ paddingBottom: 100 }}>
+            {mobileContent}
           </div>
-        </div>
+        )}
 
-        <div className="px-5 flex flex-col gap-3">
-          {isLoading && [1,2,3].map(i => <Skeleton key={i} className="h-36" />)}
-
-          {!isLoading && allInspections.length === 0 && (
-            <div className="text-center py-16 text-[#9A9A9A]">
-              <p className="text-4xl mb-3">📋</p>
-              <p>Nenhuma inspeção encontrada</p>
-            </div>
-          )}
-
-          {allInspections.map(inspection => (
-            <InspectionCard key={inspection.id} inspection={inspection} onSync={handleSync} />
-          ))}
-
-          {hasNextPage && (
-            <Button variant="secondary" className="w-full" onClick={() => fetchNextPage()} loading={isFetchingNextPage}>
-              Carregar mais
-            </Button>
-          )}
-        </div>
-
-        {/* Modal de filtros */}
         <Modal open={showFilters} onClose={() => setShowFilters(false)} title="Filtros">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-[#9A9A9A]">Data inicial</label>
-              <input type="date" className="bg-[#1E1E1E] border border-[#2A2A2A] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F5C518]"
-                value={filters.date_from} onChange={e => setFilters(f => ({ ...f, date_from: e.target.value }))} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-[#9A9A9A]">Data final</label>
-              <input type="date" className="bg-[#1E1E1E] border border-[#2A2A2A] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F5C518]"
-                value={filters.date_to} onChange={e => setFilters(f => ({ ...f, date_to: e.target.value }))} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-[#9A9A9A]">Sync Google Forms</label>
-              <select className="bg-[#1E1E1E] border border-[#2A2A2A] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F5C518]"
-                value={filters.google_form_synced} onChange={e => setFilters(f => ({ ...f, google_form_synced: e.target.value }))}>
-                <option value="">Todos</option>
-                <option value="true">Sincronizado</option>
-                <option value="false">Pendente</option>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {[['Data inicial', 'date_from'], ['Data final', 'date_to']].map(([lbl, key]) => (
+              <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={S.label}>{lbl}</label>
+                <input type="date" style={S.input} value={filters[key]} onChange={e => setFilters(f => ({ ...f, [key]: e.target.value }))} />
+              </div>
+            ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={S.label}>Sincronização</label>
+              <select style={S.input} value={filters.google_form_synced} onChange={e => setFilters(f => ({ ...f, google_form_synced: e.target.value }))}>
+                <option value="" style={{ background: '#0e0e1a' }}>Todos</option>
+                <option value="true" style={{ background: '#0e0e1a' }}>Sincronizado</option>
+                <option value="false" style={{ background: '#0e0e1a' }}>Pendente</option>
               </select>
             </div>
-            <div className="flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={() => { setFilters({ date_from: '', date_to: '', google_form_synced: '' }); setShowFilters(false); }}>
-                Limpar
-              </Button>
-              <Button className="flex-1" onClick={() => setShowFilters(false)}>Aplicar</Button>
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <Button variant="secondary" style={{ flex: 1 }} onClick={() => { setFilters({ date_from: '', date_to: '', google_form_synced: '' }); setShowFilters(false); }}>Limpar</Button>
+              <Button style={{ flex: 1 }} onClick={() => setShowFilters(false)}>Aplicar</Button>
             </div>
           </div>
         </Modal>
 
-        <BottomNav />
+        {selected && (
+          <div style={{ position: 'fixed', bottom: 100, right: 20, background: 'rgba(10,10,20,0.95)', backdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 20, minWidth: 220, zIndex: 50, boxShadow: '0 16px 48px rgba(0,0,0,0.6)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 14 }}>{selected.day}</p>
+              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+            </div>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginBottom: 10 }}>{selected.info.count} inspeção(ões)</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {selected.info.inspectors?.map((name, i) => (
+                <span key={i} style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)', fontSize: 11, padding: '4px 10px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.1)' }}>{name}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!isDesktop && <BottomNav />}
       </div>
     </RouteGuard>
   );

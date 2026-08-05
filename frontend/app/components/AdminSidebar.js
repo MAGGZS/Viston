@@ -16,39 +16,35 @@ export function AdminSidebar() {
   const router = useRouter();
 
   return (
-    <aside className="w-64 min-h-screen bg-[#1A1A1A] border-r border-[#2A2A2A] flex flex-col">
-      <div className="p-6 border-b border-[#2A2A2A]">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-[#F5C518] rounded-xl flex items-center justify-center">
-            <span className="text-black font-black text-sm">V</span>
+    <aside style={{ width: 232, minHeight: '100vh', background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '24px 20px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 36, height: 36, background: '#F5C518', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(245,197,24,0.3)' }}>
+            <span style={{ color: '#000', fontWeight: 900, fontSize: 14 }}>V</span>
           </div>
-          <span className="text-white font-bold text-lg">Viston</span>
+          <span style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 700, fontSize: 16 }}>Viston</span>
         </div>
       </div>
 
-      <nav className="flex-1 p-4 flex flex-col gap-1">
+      <div style={{ margin: '0 16px', height: 1, background: 'rgba(255,255,255,0.06)' }} />
+
+      <nav style={{ flex: 1, padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {items.map(({ href, icon: Icon, label }) => {
           const active = pathname === href;
           return (
-            <Link key={href} href={href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-                active ? 'bg-[#F5C518]/10 text-[#F5C518]' : 'text-[#9A9A9A] hover:text-white hover:bg-[#2A2A2A]'
-              }`}
-            >
-              <Icon size={20} />
-              <span className="font-medium">{label}</span>
+            <Link key={href} href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 14, fontSize: 14, fontWeight: 500, textDecoration: 'none', transition: 'all 0.2s', background: active ? 'rgba(245,197,24,0.1)' : 'transparent', color: active ? '#F5C518' : 'rgba(255,255,255,0.35)', border: active ? '1px solid rgba(245,197,24,0.15)' : '1px solid transparent' }}>
+              <Icon size={17} strokeWidth={active ? 2.5 : 1.8} />
+              {label}
             </Link>
           );
         })}
       </nav>
 
-      <div className="p-4 border-t border-[#2A2A2A]">
-        <button
-          onClick={() => { logout(); router.replace('/login'); }}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-[#9A9A9A] hover:text-white hover:bg-[#2A2A2A] w-full transition-colors"
-        >
-          <LogOut size={20} />
-          <span className="font-medium">Sair</span>
+      <div style={{ padding: '10px 10px 24px' }}>
+        <div style={{ margin: '0 6px 10px', height: 1, background: 'rgba(255,255,255,0.06)' }} />
+        <button onClick={() => { logout(); router.replace('/login'); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 14, fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.3)', background: 'transparent', border: 'none', cursor: 'pointer', width: '100%', transition: 'all 0.2s' }}>
+          <LogOut size={17} strokeWidth={1.8} />
+          Sair
         </button>
       </div>
     </aside>

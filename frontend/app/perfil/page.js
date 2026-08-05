@@ -74,64 +74,70 @@ export default function PerfilPage() {
 
   return (
     <RouteGuard>
-      <div className="min-h-screen bg-[#0D0D0D] pb-24">
-        <div className="px-5 pt-12 pb-6">
+      <div className="min-h-screen pb-28">
+        {/* Header */}
+        <div className="px-5 pt-14 pb-6">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-white">Perfil</h1>
-            <button onClick={() => { logout(); router.replace('/login'); }} className="text-[#9A9A9A] hover:text-white">
-              <LogOut size={22} />
+            <h1 className="text-white/95 text-2xl font-bold tracking-tight">Perfil</h1>
+            <button
+              onClick={() => { logout(); router.replace('/login'); }}
+              className="w-9 h-9 bg-white/5 border border-white/8 rounded-2xl flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/10 transition-all"
+            >
+              <LogOut size={16} />
             </button>
           </div>
         </div>
 
-        <div className="px-5 flex flex-col gap-5">
-          {/* Avatar + role */}
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-[#F5C518] flex items-center justify-center">
+        <div className="px-5 flex flex-col gap-4">
+          {/* Avatar */}
+          <div className="flex items-center gap-4 px-1">
+            <div className="w-16 h-16 rounded-full bg-[#F5C518] flex items-center justify-center shadow-[0_0_20px_rgba(245,197,24,0.25)]">
               <span className="text-black font-bold text-2xl">{user?.name?.[0]?.toUpperCase()}</span>
             </div>
             <div>
-              <p className="text-white font-bold text-lg">{user?.name}</p>
-              <span className="text-xs bg-[#F5C518]/20 text-[#F5C518] px-2 py-0.5 rounded-full">
+              <p className="text-white/90 font-bold text-base">{user?.name}</p>
+              <span className="text-xs bg-[#F5C518]/10 text-[#F5C518] border border-[#F5C518]/20 px-2.5 py-1 rounded-full mt-1 inline-block">
                 {ROLE_LABELS[user?.role] || user?.role}
               </span>
             </div>
           </div>
 
           {successMsg && (
-            <p className="text-green-400 text-sm text-center bg-green-900/20 rounded-xl p-3">{successMsg}</p>
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3">
+              <p className="text-emerald-400 text-sm text-center">{successMsg}</p>
+            </div>
           )}
 
-          {/* Editar perfil */}
+          {/* Dados pessoais */}
           <Card>
-            <h2 className="text-white font-semibold mb-4">Dados pessoais</h2>
+            <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Dados pessoais</h2>
             <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="flex flex-col gap-4">
               <Input label="Nome" error={profileForm.formState.errors.name?.message} {...profileForm.register('name')} />
               <Input label="E-mail" type="email" error={profileForm.formState.errors.email?.message} {...profileForm.register('email')} />
               {profileForm.formState.errors.root && (
-                <p className="text-red-400 text-sm">{profileForm.formState.errors.root.message}</p>
+                <p className="text-red-400/80 text-xs">{profileForm.formState.errors.root.message}</p>
               )}
               <Button type="submit" loading={updateMe.isPending} className="w-full">Salvar</Button>
             </form>
           </Card>
 
-          {/* Trocar senha */}
+          {/* Alterar senha */}
           <Card>
-            <h2 className="text-white font-semibold mb-4">Alterar senha</h2>
+            <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Alterar senha</h2>
             <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="flex flex-col gap-4">
               <Input label="Senha atual" type="password" error={passwordForm.formState.errors.current_password?.message} {...passwordForm.register('current_password')} />
               <Input label="Nova senha" type="password" error={passwordForm.formState.errors.new_password?.message} {...passwordForm.register('new_password')} />
               {passwordForm.formState.errors.root && (
-                <p className="text-red-400 text-sm">{passwordForm.formState.errors.root.message}</p>
+                <p className="text-red-400/80 text-xs">{passwordForm.formState.errors.root.message}</p>
               )}
               <Button type="submit" loading={changePassword.isPending} className="w-full">Alterar senha</Button>
             </form>
           </Card>
 
-          {/* Excluir conta */}
+          {/* Zona de perigo */}
           <Card>
-            <h2 className="text-white font-semibold mb-2">Zona de perigo</h2>
-            <p className="text-[#9A9A9A] text-sm mb-4">A exclusão é irreversível. Seus relatórios serão mantidos de forma anônima.</p>
+            <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1.5">Zona de perigo</h2>
+            <p className="text-white/30 text-xs mb-4">A exclusão é irreversível. Seus relatórios serão mantidos de forma anônima.</p>
             <Button variant="danger" className="w-full" onClick={() => setDeleteModal(true)}>
               Excluir minha conta
             </Button>
@@ -139,13 +145,13 @@ export default function PerfilPage() {
         </div>
 
         <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Excluir conta">
-          <p className="text-[#9A9A9A] text-sm mb-6">
-            Tem certeza? Esta ação é <strong className="text-white">irreversível</strong>. Seu nome e e-mail serão anonimizados, mas seus relatórios serão mantidos.
+          <p className="text-white/40 text-sm mb-6">
+            Tem certeza? Esta ação é <strong className="text-white/80">irreversível</strong>. Seu nome e e-mail serão anonimizados.
           </p>
           <div className="flex gap-3">
             <Button variant="secondary" className="flex-1" onClick={() => setDeleteModal(false)}>Cancelar</Button>
             <Button variant="danger" className="flex-1" loading={deleteMe.isPending} onClick={handleDelete}>
-              Confirmar exclusão
+              Confirmar
             </Button>
           </div>
         </Modal>

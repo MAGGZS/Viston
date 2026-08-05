@@ -18,101 +18,77 @@ export default function HomePage() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [dayModal, setDayModal] = useState(null);
-
   const { data, isLoading } = useCalendar({ month, year });
 
-  function prevMonth() {
-    if (month === 1) { setMonth(12); setYear((y) => y - 1); }
-    else setMonth((m) => m - 1);
-  }
-  function nextMonth() {
-    if (month === 12) { setMonth(1); setYear((y) => y + 1); }
-    else setMonth((m) => m + 1);
-  }
+  function prevMonth() { if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); }
+  function nextMonth() { if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1); }
 
   const canInspect = user?.role === 'ADMIN' || user?.role === 'INSPECTOR';
   const monthLabel = format(new Date(year, month - 1, 1), 'MMMM yyyy', { locale: ptBR });
 
   return (
     <RouteGuard>
-      <div className="min-h-screen bg-[#0D0D0D] pb-24">
-        <div className="px-5 pt-12 pb-6">
-          <div className="flex items-center justify-between">
+      <div style={{ minHeight: '100vh', background: '#080810', paddingBottom: 100 }}>
+
+        {/* Header */}
+        <div style={{ padding: '56px 20px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <p className="text-[#9A9A9A] text-sm capitalize">
+              <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, textTransform: 'capitalize' }}>
                 {format(now, "EEEE, d 'de' MMMM", { locale: ptBR })}
               </p>
-              <h1 className="text-2xl font-bold text-white mt-1">
+              <h1 style={{ color: 'rgba(255,255,255,0.95)', fontSize: 24, fontWeight: 700, marginTop: 4 }}>
                 Olá, {user?.name?.split(' ')[0]} 👋
               </h1>
             </div>
-            <div className="w-11 h-11 rounded-full bg-[#F5C518] flex items-center justify-center">
-              <span className="text-black font-bold text-lg">{user?.name?.[0]?.toUpperCase()}</span>
+            <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#F5C518', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(245,197,24,0.3)' }}>
+              <span style={{ color: '#000', fontWeight: 700, fontSize: 18 }}>{user?.name?.[0]?.toUpperCase()}</span>
             </div>
           </div>
         </div>
 
-        {canInspect && (
-          <div className="px-5 mb-6">
-            <button
-              onClick={() => router.push('/inspecao')}
-              className="w-full bg-[#F5C518] text-black rounded-2xl p-5 flex items-center gap-4 hover:bg-[#E0B400] transition-colors"
-            >
-              <div className="w-12 h-12 bg-black/20 rounded-xl flex items-center justify-center">
-                <ClipboardCheck size={24} />
+        <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* CTA */}
+          {canInspect && (
+            <button onClick={() => router.push('/inspecao')} style={{ width: '100%', background: '#F5C518', color: '#000', borderRadius: 24, padding: 20, display: 'flex', alignItems: 'center', gap: 16, border: 'none', cursor: 'pointer', boxShadow: '0 0 30px rgba(245,197,24,0.2)', textAlign: 'left' }}>
+              <div style={{ width: 48, height: 48, background: 'rgba(0,0,0,0.15)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <ClipboardCheck size={22} />
               </div>
-              <div className="text-left">
-                <p className="font-bold text-lg">Fazer Inspeção</p>
-                <p className="text-sm opacity-70">Iniciar nova vistoria</p>
+              <div>
+                <p style={{ fontWeight: 700, fontSize: 16 }}>Fazer Inspeção</p>
+                <p style={{ fontSize: 13, opacity: 0.6, marginTop: 2 }}>Iniciar nova vistoria</p>
               </div>
             </button>
-          </div>
-        )}
+          )}
 
-        <div className="px-5">
+          {/* Calendário */}
           <Card>
-            <div className="flex items-center justify-between mb-4">
-              <button onClick={prevMonth} className="p-1 text-[#9A9A9A] hover:text-white">
-                <ChevronLeft size={20} />
-              </button>
-              <h2 className="text-white font-semibold capitalize">{monthLabel}</h2>
-              <button onClick={nextMonth} className="p-1 text-[#9A9A9A] hover:text-white">
-                <ChevronRight size={20} />
-              </button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <button onClick={prevMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: 4 }}><ChevronLeft size={18} /></button>
+              <h2 style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: 600, textTransform: 'capitalize' }}>{monthLabel}</h2>
+              <button onClick={nextMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: 4 }}><ChevronRight size={18} /></button>
             </div>
-
-            {isLoading ? (
-              <Skeleton className="h-48 w-full" />
-            ) : (
-              <CalendarHeatmap
-                heatmap={data?.heatmap || {}}
-                month={month}
-                year={year}
-                onDayClick={(day, info) => setDayModal({ day, info })}
-              />
+            {isLoading ? <Skeleton style={{ height: 192, width: '100%' }} /> : (
+              <CalendarHeatmap heatmap={data?.heatmap || {}} month={month} year={year} onDayClick={(day, info) => setDayModal({ day, info })} />
             )}
-
-            <div className="flex items-center gap-2 mt-4 justify-end">
-              <span className="text-[#9A9A9A] text-xs">Menos</span>
-              {['bg-[#1E1E1E]', 'bg-[#2E2A12]', 'bg-[#6B5A00]', 'bg-[#A88A00]', 'bg-[#F5C518]'].map((c, i) => (
-                <div key={i} className={`w-3 h-3 rounded-sm ${c}`} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 16, justifyContent: 'flex-end' }}>
+              <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11 }}>Menos</span>
+              {['rgba(255,255,255,0.05)', 'rgba(245,197,24,0.15)', 'rgba(245,197,24,0.35)', 'rgba(245,197,24,0.6)', '#F5C518'].map((c, i) => (
+                <div key={i} style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
               ))}
-              <span className="text-[#9A9A9A] text-xs">Mais</span>
+              <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11 }}>Mais</span>
             </div>
           </Card>
         </div>
 
         <Modal open={!!dayModal} onClose={() => setDayModal(null)} title={dayModal?.day}>
-          <p className="text-[#9A9A9A] text-sm mb-3">{dayModal?.info?.count} inspeção(ões) realizada(s)</p>
-          <div className="flex flex-wrap gap-2 mb-4">
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginBottom: 16 }}>{dayModal?.info?.count} inspeção(ões) realizada(s)</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
             {dayModal?.info?.inspectors?.map((name, i) => (
-              <span key={i} className="bg-[#2A2A2A] text-white text-xs px-3 py-1 rounded-full">{name}</span>
+              <span key={i} style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)', fontSize: 12, padding: '6px 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.1)' }}>{name}</span>
             ))}
           </div>
-          <Button variant="secondary" className="w-full" onClick={() => {
-            router.push(`/historico?date_from=${dayModal?.day}&date_to=${dayModal?.day}`);
-            setDayModal(null);
-          }}>
+          <Button variant="secondary" style={{ width: '100%' }} onClick={() => { router.push(`/historico?date_from=${dayModal?.day}&date_to=${dayModal?.day}`); setDayModal(null); }}>
             Ver relatórios do dia
           </Button>
         </Modal>
