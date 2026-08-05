@@ -44,6 +44,9 @@ export const config = {
   },
 
   cors: {
-    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+    frontendUrl: (() => {
+      const url = process.env.FRONTEND_URL || 'http://localhost:5173';
+      return url.startsWith('http') ? url : `https://${url}`;
+    })(),
   },
 };
