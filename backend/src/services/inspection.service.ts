@@ -197,16 +197,23 @@ export const inspectionService = {
     return inspectionRepository.findById(reportId);
   },
 
-  async findAll(filters: Parameters<typeof inspectionRepository.findAll>[0] & { page?: number; limit?: number }) {
-    const page = filters.page ?? 1;
-    const limit = filters.limit ?? 20;
-    const [inspections, total] = await inspectionRepository.findAll({ ...filters, page, limit });
+  async findAll(filters: {
+    page: number;
+    limit: number;
+    status?: InspectionStatus;
+    inspector_id?: string;
+    floor_id?: string;
+    google_form_synced?: boolean;
+    date_from?: string;
+    date_to?: string;
+  }) {
+    const [inspections, total] = await inspectionRepository.findAll(filters);
     return {
       inspections,
       total,
-      page,
-      limit,
-      pages: Math.ceil(total / limit),
+      page: filters.page,
+      limit: filters.limit,
+      pages: Math.ceil(total / filters.limit),
     };
   },
 
