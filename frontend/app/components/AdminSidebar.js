@@ -1,14 +1,12 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Users, ClipboardList, Calendar, Building2, LogOut } from 'lucide-react';
+import { Users, Building2, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/app/store/auth';
 
 const items = [
   { href: '/desktop/admin/predios', icon: Building2, label: 'Prédios' },
   { href: '/desktop/admin', icon: Users, label: 'Usuários' },
-  { href: '/desktop/admin/historico', icon: ClipboardList, label: 'Histórico' },
-  { href: '/desktop/admin/calendario', icon: Calendar, label: 'Calendário' },
 ];
 
 export function AdminSidebar() {

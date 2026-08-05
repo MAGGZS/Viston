@@ -115,6 +115,13 @@ export const buildingController = {
     noContent(res);
   },
 
+  async leaveBuilding(req: AuthenticatedRequest, res: Response) {
+    const isMember = await buildingRepository.findMember(req.params.id, req.user.id);
+    if (!isMember) throw new NotFoundError('Vínculo');
+    await buildingRepository.removeMemberSelf(req.params.id, req.user.id);
+    noContent(res);
+  },
+
   // ── Solicitações de acesso ────────────────────────────────────────────────
   async requestAccess(req: AuthenticatedRequest, res: Response) {
     const building = await buildingRepository.findById(req.params.id);

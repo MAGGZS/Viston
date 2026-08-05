@@ -61,6 +61,14 @@ export function useDeleteMe() {
 }
 
 // ── Buildings ─────────────────────────────────────────────────────────────────
+export function useLeaveBuilding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (buildingId) => api.delete(`/buildings/${buildingId}/members/me`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-buildings'] }),
+  });
+}
+
 export function useMyBuildings() {
   return useQuery({
     queryKey: ['my-buildings'],

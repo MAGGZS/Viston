@@ -9,7 +9,7 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { Button, Input, Card, Modal } from '@/app/components/ui';
 import { useAuthStore } from '@/app/store/auth';
-import { useUpdateMe, useChangePassword, useDeleteMe } from '@/app/hooks/useApi';
+import { useUpdateMe, useChangePassword, useDeleteMe, useMyBuildings, useLeaveBuilding, useRequestAccess, useFloors } from '@/app/hooks/useApi';
 
 const profileSchema = yup.object({
   name: yup.string().min(2).required('Obrigatório'),
@@ -32,6 +32,38 @@ export default function PerfilPage() {
   const updateMe = useUpdateMe();
   const changePassword = useChangePassword();
   const deleteMe = useDeleteMe();
+  const leaveBuilding = useLeaveBuilding();
+  const requestAccess = useRequestAccess();
+
+  const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
+  const hasBuilding = myBuildings.length > 0;
+  const myBuilding = myBuildings[0];
+
+  const [newBuildingId, setNewBuildingId] = useState('');
+  const [searchBuildingId, setSearchBuildingId] = useState('');
+  const [accessRequested, setAccessRequested] = useState(false);
+  const { data: searchedBuilding, isLoading: searchLoading, error: searchError } = useFloors(searchBuildingId);
+
+  async function handleLeave() {
+    if (!confirm('Tem certeza que deseja sair deste prédio?')) return;
+    try {
+      await leaveBuilding.mutateAsync(myBuilding.id);
+      setNewBuildingId('');
+      setSearchBuildingId('');
+      setAccessRequested(false);
+    } catch (e) {
+      alert(e?.response?.data?.error?.message || 'Erro ao sair do prédio');
+    }
+  }
+
+  async function handleRequestAccess() {
+    try {
+      await requestAccess.mutateAsync(searchBuildingId);
+      setAccessRequested(true);
+    } catch (e) {
+      alert(e?.response?.data?.error?.message || 'Erro ao solicitar acesso');
+    }
+  }
 
   const profileForm = useForm({
     resolver: yupResolver(profileSchema),
@@ -133,6 +165,59 @@ export default function PerfilPage() {
               <Button type="submit" loading={changePassword.isPending} className="w-full">Alterar senha</Button>
             </form>
           </Card>
+
+          {/* Prédio vinculado */}
+          {user?.role !== 'ADMIN' && (
+            <Card>
+              <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Prédio vinculado</h2>
+              {buildingsLoading ? (
+                <div style={{ height: 48, background: 'rgba(255,255,255,0.05)', borderRadius: 12 }} />
+              ) : hasBuilding ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 14 }}>{myBuilding.name}</p>
+                      {myBuilding.description && <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>{myBuilding.description}</p>}
+                    </div>
+                  </div>
+                  <button onClick={handleLeave} disabled={leaveBuilding.isPending}
+                    className="w-full text-sm text-red-400 border border-red-900/40 bg-red-900/10 rounded-2xl py-2.5 hover:bg-red-900/20 transition-colors disabled:opacity-50">
+                    {leaveBuilding.isPending ? 'Saindo...' : 'Sair deste prédio'}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Você não está vinculado a nenhum prédio.</p>
+                  {!accessRequested ? (
+                    <>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 13, outline: 'none' }}
+                          placeholder="ID do prédio..."
+                          value={newBuildingId}
+                          onChange={e => setNewBuildingId(e.target.value)}
+                        />
+                        <Button variant="secondary" onClick={() => { setSearchBuildingId(newBuildingId); setAccessRequested(false); }}>Buscar</Button>
+                      </div>
+                      {searchLoading && <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Buscando...</p>}
+                      {searchError && <p style={{ color: '#f87171', fontSize: 13 }}>Prédio não encontrado</p>}
+                      {searchedBuilding && (
+                        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <p style={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600, fontSize: 14 }}>{searchedBuilding.building?.name}</p>
+                          <Button onClick={handleRequestAccess} loading={requestAccess.isPending} style={{ fontSize: 12, padding: '6px 14px' }}>Solicitar</Button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 14, padding: 14, textAlign: 'center' }}>
+                      <p style={{ color: '#4ade80', fontWeight: 600, fontSize: 14 }}>Solicitação enviada!</p>
+                      <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 4 }}>Aguarde a aprovação do administrador.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </Card>
+          )}
 
           {/* Zona de perigo */}
           <Card>

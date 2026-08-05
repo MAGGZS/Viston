@@ -27,6 +27,7 @@ router.get('/:id/history', auth, anyRole, buildingController.getHistory as any);
 
 // ── Membros ───────────────────────────────────────────────────────────────────
 router.get('/:id/members', auth, adminOnly, buildingController.getMembers as any);
+router.delete('/:id/members/me', auth, anyRole, buildingController.leaveBuilding as any);
 router.delete('/:id/members/:userId', auth, adminOnly, buildingController.removeMember as any);
 
 // ── Solicitações de acesso ────────────────────────────────────────────────────

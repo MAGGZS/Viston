@@ -71,6 +71,12 @@ export const buildingRepository = {
     });
   },
 
+  removeMemberSelf(buildingId: string, userId: string) {
+    return prisma.buildingMember.delete({
+      where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
+    });
+  },
+
   removeMember(buildingId: string, userId: string) {
     return prisma.buildingMember.delete({
       where: { building_id_user_id: { building_id: buildingId, user_id: userId } },

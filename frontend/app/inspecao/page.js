@@ -1,80 +1,132 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Building2 } from 'lucide-react';
+import { ArrowLeft, Building2, Search } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { FloorForm } from '@/app/components/FloorForm';
 import { Button, Card, Spinner } from '@/app/components/ui';
-import { useFloors, useStartInspection, useSaveFloorForm, useFinishInspection } from '@/app/hooks/useApi';
+import { useFloors, useStartInspection, useSaveFloorForm, useFinishInspection, useMyBuildings, useRequestAccess } from '@/app/hooks/useApi';
 
-function StepSelectFloors({ onStart }) {
+// Tela quando não tem vínculo: busca por ID e solicita acesso
+function StepSemVinculo() {
   const [inputId, setInputId] = useState('');
-  const [resolvedId, setResolvedId] = useState('');
-  const [selectedIds, setSelectedIds] = useState([]);
+  const [searchId, setSearchId] = useState('');
+  const [requested, setRequested] = useState(false);
+  const { data, isLoading, error } = useFloors(searchId);
+  const requestAccess = useRequestAccess();
 
-  const { data, isLoading, error } = useFloors(resolvedId);
+  async function handleRequest() {
+    try {
+      await requestAccess.mutateAsync(searchId);
+      setRequested(true);
+    } catch (e) {
+      alert(e?.response?.data?.error?.message || 'Erro ao solicitar acesso');
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 20, padding: 16 }}>
+        <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, lineHeight: 1.6 }}>
+          Você não tem vínculo com nenhum prédio. Busque pelo ID fornecido pelo administrador e solicite acesso.
+        </p>
+      </div>
+
+      <Card>
+        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>ID do Prédio</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 14, outline: 'none' }}
+            placeholder="Cole o ID do prédio..."
+            value={inputId}
+            onChange={e => setInputId(e.target.value)}
+          />
+          <Button variant="secondary" onClick={() => { setSearchId(inputId); setRequested(false); }}>
+            <Search size={15} />
+          </Button>
+        </div>
+      </Card>
+
+      {isLoading && <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}><Spinner /></div>}
+      {error && <p style={{ color: '#f87171', fontSize: 13, textAlign: 'center' }}>Prédio não encontrado</p>}
+
+      {data && !requested && (
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, background: 'rgba(245,197,24,0.1)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Building2 size={18} color="#F5C518" />
+            </div>
+            <div>
+              <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 15 }}>{data.building?.name}</p>
+              <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>{data.floors?.length} andar(es)</p>
+            </div>
+          </div>
+          <Button onClick={handleRequest} loading={requestAccess.isPending} className="w-full">
+            Solicitar acesso a este prédio
+          </Button>
+        </div>
+      )}
+
+      {requested && (
+        <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 20, padding: 20, textAlign: 'center' }}>
+          <p style={{ fontSize: 28, marginBottom: 8 }}>✓</p>
+          <p style={{ color: 'rgba(255,255,255,0.8)', fontWeight: 600, fontSize: 15 }}>Solicitação enviada!</p>
+          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, marginTop: 4 }}>Aguarde o administrador aprovar seu acesso.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Tela com vínculo: seleciona andares do prédio vinculado
+function StepSelectFloors({ building, floors, onStart }) {
+  const [selectedIds, setSelectedIds] = useState([]);
   const { mutateAsync: startInspection, isPending } = useStartInspection();
 
   function toggle(id) {
-    setSelectedIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   }
 
   async function handleStart() {
-    if (!selectedIds.length || !resolvedId) return;
+    if (!selectedIds.length) return;
     try {
-      const report = await startInspection({ building_id: resolvedId, floor_ids: selectedIds });
-      onStart(report, data.floors.filter(f => selectedIds.includes(f.id)));
+      const report = await startInspection({ building_id: building.id, floor_ids: selectedIds });
+      onStart(report, floors.filter(f => selectedIds.includes(f.id)));
     } catch (e) {
       alert(e?.response?.data?.error?.message || 'Erro ao iniciar inspeção');
     }
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <Card>
-        <p className="text-[#9A9A9A] text-xs mb-2">ID do Prédio</p>
-        <div className="flex gap-2">
-          <input
-            className="flex-1 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-[#F5C518]"
-            placeholder="Cole o ID do prédio..."
-            value={inputId}
-            onChange={e => setInputId(e.target.value)}
-          />
-          <Button variant="secondary" onClick={() => setResolvedId(inputId)}>Buscar</Button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 40, height: 40, background: 'rgba(245,197,24,0.1)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Building2 size={18} color="#F5C518" />
         </div>
-      </Card>
+        <div>
+          <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 15 }}>{building.name}</p>
+          {building.description && <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>{building.description}</p>}
+        </div>
+      </div>
 
-      {isLoading && <div className="flex justify-center py-8"><Spinner /></div>}
-      {error && <p className="text-red-400 text-sm text-center">Prédio não encontrado</p>}
+      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Selecione os andares</p>
 
-      {data && (
-        <>
-          <p className="text-white font-semibold">{data.building?.name}</p>
-          <div className="grid grid-cols-2 gap-3">
-            {data.floors?.map(floor => (
-              <button
-                key={floor.id}
-                onClick={() => toggle(floor.id)}
-                className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                  selectedIds.includes(floor.id)
-                    ? 'border-[#F5C518] bg-[#F5C518]/10'
-                    : 'border-[#2A2A2A] bg-[#1E1E1E]'
-                }`}
-              >
-                <Building2 size={20} className={selectedIds.includes(floor.id) ? 'text-[#F5C518]' : 'text-[#9A9A9A]'} />
-                <p className={`mt-2 font-semibold text-sm ${selectedIds.includes(floor.id) ? 'text-[#F5C518]' : 'text-white'}`}>
-                  {floor.label}
-                </p>
-              </button>
-            ))}
-          </div>
-          <Button onClick={handleStart} loading={isPending} disabled={!selectedIds.length} className="w-full">
-            Iniciar ({selectedIds.length} andar{selectedIds.length !== 1 ? 'es' : ''})
-          </Button>
-        </>
-      )}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {floors.map(floor => {
+          const sel = selectedIds.includes(floor.id);
+          return (
+            <button key={floor.id} onClick={() => toggle(floor.id)}
+              style={{ padding: 16, borderRadius: 20, border: `2px solid ${sel ? '#F5C518' : 'rgba(255,255,255,0.08)'}`, background: sel ? 'rgba(245,197,24,0.08)' : 'rgba(255,255,255,0.03)', textAlign: 'left', cursor: 'pointer', transition: 'all 0.2s' }}>
+              <Building2 size={18} color={sel ? '#F5C518' : 'rgba(255,255,255,0.3)'} />
+              <p style={{ color: sel ? '#F5C518' : 'rgba(255,255,255,0.8)', fontWeight: 600, fontSize: 13, marginTop: 8 }}>{floor.label}</p>
+            </button>
+          );
+        })}
+      </div>
+
+      <Button onClick={handleStart} loading={isPending} disabled={!selectedIds.length} className="w-full">
+        Iniciar ({selectedIds.length} andar{selectedIds.length !== 1 ? 'es' : ''})
+      </Button>
     </div>
   );
 }
@@ -86,6 +138,12 @@ export default function InspecaoPage() {
   const [floors, setFloors] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [finishedReport, setFinishedReport] = useState(null);
+
+  const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
+  const hasBuilding = myBuildings.length > 0;
+  const myBuilding = myBuildings[0];
+
+  const { data: floorsData, isLoading: floorsLoading } = useFloors(myBuilding?.id);
 
   const { mutateAsync: saveFloor, isPending: isSaving } = useSaveFloorForm();
   const { mutateAsync: finishInspection, isPending: isFinishing } = useFinishInspection();
@@ -105,7 +163,6 @@ export default function InspecaoPage() {
         ...formData,
         observations: formData.observations.filter(Boolean),
       });
-
       if (currentIndex < floors.length - 1) {
         setCurrentIndex(i => i + 1);
       } else {
@@ -120,37 +177,46 @@ export default function InspecaoPage() {
 
   return (
     <RouteGuard roles={['ADMIN', 'INSPECTOR']}>
-      <div className="min-h-screen bg-[#0D0D0D] pb-10">
+      <div style={{ minHeight: '100vh', background: '#0D0D0D', paddingBottom: 40 }}>
         {/* Header */}
-        <div className="sticky top-0 bg-[#0D0D0D]/95 backdrop-blur px-5 pt-12 pb-4 z-10">
-          <div className="flex items-center gap-3">
-            <button onClick={() => step === 'select' ? router.back() : setStep('select')} className="text-[#9A9A9A] hover:text-white">
+        <div style={{ position: 'sticky', top: 0, background: 'rgba(13,13,13,0.95)', backdropFilter: 'blur(12px)', padding: '48px 20px 16px', zIndex: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={() => step === 'select' ? router.back() : setStep('select')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: 4 }}>
               <ArrowLeft size={22} />
             </button>
             <div>
-              <h1 className="text-white font-bold text-lg">
-                {step === 'select' && 'Selecionar Andares'}
+              <h1 style={{ color: 'rgba(255,255,255,0.95)', fontWeight: 700, fontSize: 18 }}>
+                {step === 'select' && 'Nova Inspeção'}
                 {step === 'form' && floors[currentIndex]?.label}
                 {step === 'done' && 'Inspeção Concluída'}
               </h1>
               {step === 'form' && (
-                <p className="text-[#9A9A9A] text-xs">Andar {currentIndex + 1} de {floors.length}</p>
+                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>Andar {currentIndex + 1} de {floors.length}</p>
               )}
             </div>
           </div>
-
           {step === 'form' && (
-            <div className="mt-3 h-1 bg-[#2A2A2A] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-[#F5C518] transition-all"
-                style={{ width: `${((currentIndex + 1) / floors.length) * 100}%` }}
-              />
+            <div style={{ marginTop: 12, height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden' }}>
+              <div style={{ height: '100%', background: '#F5C518', borderRadius: 99, width: `${((currentIndex + 1) / floors.length) * 100}%`, transition: 'width 0.3s' }} />
             </div>
           )}
         </div>
 
-        <div className="px-5 mt-4">
-          {step === 'select' && <StepSelectFloors onStart={handleStart} />}
+        <div style={{ padding: '16px 20px' }}>
+          {step === 'select' && (
+            buildingsLoading || floorsLoading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>
+            ) : !hasBuilding ? (
+              <StepSemVinculo />
+            ) : (
+              <StepSelectFloors
+                building={myBuilding}
+                floors={floorsData?.floors ?? []}
+                onStart={handleStart}
+              />
+            )
+          )}
 
           {step === 'form' && (
             <FloorForm
@@ -162,21 +228,21 @@ export default function InspecaoPage() {
           )}
 
           {step === 'done' && (
-            <div className="flex flex-col items-center gap-6 pt-10 text-center">
-              <div className="w-20 h-20 bg-[#F5C518]/20 rounded-full flex items-center justify-center">
-                <span className="text-4xl">✓</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, paddingTop: 40, textAlign: 'center' }}>
+              <div style={{ width: 80, height: 80, background: 'rgba(245,197,24,0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: 36 }}>✓</span>
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-white">Inspeção Finalizada!</h2>
-                <p className="text-[#9A9A9A] mt-2">Relatório gerado com sucesso</p>
+                <h2 style={{ color: 'rgba(255,255,255,0.95)', fontWeight: 700, fontSize: 22 }}>Inspeção Finalizada!</h2>
+                <p style={{ color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>Relatório gerado com sucesso</p>
               </div>
               <Card className="w-full text-left">
-                <p className="text-[#9A9A9A] text-xs mb-1">Google Forms</p>
-                <p className={`font-semibold ${finishedReport?.google_form_synced ? 'text-green-400' : 'text-yellow-400'}`}>
+                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginBottom: 4 }}>Google Forms</p>
+                <p style={{ fontWeight: 600, color: finishedReport?.google_form_synced ? '#4ade80' : '#facc15' }}>
                   {finishedReport?.google_form_synced ? '✓ Sincronizado' : '⏳ Sincronização pendente'}
                 </p>
               </Card>
-              <div className="flex flex-col gap-3 w-full">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
                 {finishedReport?.excel_url && (
                   <a href={finishedReport.excel_url} target="_blank" rel="noreferrer">
                     <Button variant="secondary" className="w-full">📊 Baixar Planilha Excel</Button>
