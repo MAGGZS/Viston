@@ -17,6 +17,16 @@ const S = {
   input: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 14, outline: 'none', width: '100%' },
 };
 
+function NoPredioState({ isMobile }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '80px 0' : '120px 0', textAlign: 'center' }}>
+      <p style={{ fontSize: 40, marginBottom: 16 }}>🏢</p>
+      <p style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>Você não tem ligação a nenhum prédio</p>
+      <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, lineHeight: 1.6 }}>Peça ao administrador o ID do prédio e solicite acesso.</p>
+    </div>
+  );
+}
+
 const DAYS_LABEL = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
 function heatColor(count) {
@@ -171,16 +181,16 @@ export default function HistoricoPage() {
 
   const listaPanel = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {isLoading && [1, 2, 3].map(i => <div key={i} style={{ height: 120, background: 'rgba(255,255,255,0.05)', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />)}
-      {!isLoading && allInspections.length === 0 && (
+      {(isAdmin ? isLoading : buildingLoading) && [1, 2, 3].map(i => <div key={i} style={{ height: 120, background: 'rgba(255,255,255,0.05)', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />)}
+      {!(isAdmin ? isLoading : buildingLoading) && (isAdmin ? allInspections : buildingInspections).length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
           <p style={{ fontSize: 36, marginBottom: 12 }}>📋</p>
           <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
         </div>
       )}
-      {allInspections.map(i => <InspectionCard key={i.id} inspection={i} onSync={handleSync} />)}
-      {hasNextPage && (
-        <Button variant="secondary" style={{ width: '100%' }} onClick={() => fetchNextPage()} loading={isFetchingNextPage}>Carregar mais</Button>
+      {(isAdmin ? allInspections : buildingInspections).map(i => <InspectionCard key={i.id} inspection={i} onSync={handleSync} />)}
+      {(isAdmin ? hasNextPage : buildingHasNext) && (
+        <Button variant="secondary" style={{ width: '100%' }} onClick={() => isAdmin ? fetchNextPage() : buildingFetchNext()} loading={isAdmin ? isFetchingNextPage : buildingFetchingNext}>Carregar mais</Button>
       )}
     </div>
   );
@@ -224,20 +234,31 @@ export default function HistoricoPage() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '32px 32px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h1 style={{ color: 'rgba(255,255,255,0.95)', fontSize: 22, fontWeight: 700 }}>Histórico</h1>
-        <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
-          <SlidersHorizontal size={15} />
-        </button>
+        {!isAdmin && hasBuilding && (
+          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
+            <SlidersHorizontal size={15} />
+          </button>
+        )}
+        {isAdmin && (
+          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
+            <SlidersHorizontal size={15} />
+          </button>
+        )}
       </div>
-      <div style={{ padding: '0 32px 32px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, overflowY: 'auto' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p style={S.label}>Lista</p>
-          {listaPanel}
+      {!isAdmin && !buildingsLoading && !hasBuilding ? (
+        <div style={{ padding: '0 32px' }}><NoPredioState /></div>
+      ) : (
+        <div style={{ padding: '0 32px 32px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, overflowY: 'auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={S.label}>Lista</p>
+            {listaPanel}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={S.label}>Calendário</p>
+            {calendarioPanel}
+          </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p style={S.label}>Calendário</p>
-          {calendarioPanel}
-        </div>
-      </div>
+      )}
     </div>
   );
 
