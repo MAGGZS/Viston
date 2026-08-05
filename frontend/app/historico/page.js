@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, FileSpreadsheet, RefreshCw, SlidersHorizontal } from 'lucide-react';
+// calendar imports kept for desktop layout only
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
@@ -110,7 +111,7 @@ export default function HistoricoPage() {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  const [tab, setTab] = useState('lista');
+  const [tab, setTab] = useState('lista'); // used on desktop only
   const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState(null);
 
@@ -230,23 +231,12 @@ export default function HistoricoPage() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '56px 20px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h1 style={{ color: 'rgba(255,255,255,0.95)', fontSize: 22, fontWeight: 700 }}>Histórico</h1>
-        {tab === 'lista' && (
-          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
-            <SlidersHorizontal size={15} />
-          </button>
-        )}
-      </div>
-      <div style={{ padding: '0 20px 16px' }}>
-        <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 4, gap: 2 }}>
-          {['lista', 'calendario'].map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{ padding: '7px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', transition: 'all 0.2s', background: tab === t ? '#F5C518' : 'transparent', color: tab === t ? '#000' : 'rgba(255,255,255,0.4)' }}>
-              {t === 'lista' ? 'Lista' : 'Calendário'}
-            </button>
-          ))}
-        </div>
+        <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
+          <SlidersHorizontal size={15} />
+        </button>
       </div>
       <div style={{ padding: '0 20px', overflowY: 'auto' }}>
-        {tab === 'lista' ? listaPanel : calendarioPanel}
+        {listaPanel}
       </div>
     </div>
   );
