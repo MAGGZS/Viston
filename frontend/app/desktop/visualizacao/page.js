@@ -2,19 +2,17 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, UserCircle } from 'lucide-react';
 import Link from 'next/link';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
 import { Badge, Skeleton, Button } from '@/app/components/ui';
-import { useAuthStore } from '@/app/store/auth';
 import { useCalendar, useInspections } from '@/app/hooks/useApi';
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada' };
 const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success' };
 
 export default function VisualizacaoPage() {
-  const { user } = useAuthStore();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -37,34 +35,24 @@ export default function VisualizacaoPage() {
 
   return (
     <RouteGuard roles={['INSPECTOR', 'VIEWER']}>
-      <div className="hidden lg:flex min-h-screen bg-[#0D0D0D]">
-        {/* Sidebar simples */}
-        <aside className="w-64 min-h-screen bg-[#1A1A1A] border-r border-[#2A2A2A] flex flex-col">
-          <div className="p-6 border-b border-[#2A2A2A] flex items-center gap-3">
-            <div className="w-9 h-9 bg-[#F5C518] rounded-xl flex items-center justify-center">
-              <span className="text-black font-black text-sm">V</span>
+      <div className="hidden lg:flex flex-col min-h-screen bg-[#0D0D0D]">
+        {/* Header */}
+        <header style={{ height: 60, background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 32, height: 32, background: '#F5C518', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 12px rgba(245,197,24,0.3)' }}>
+              <span style={{ color: '#000', fontWeight: 900, fontSize: 13 }}>V</span>
             </div>
-            <span className="text-white font-bold text-lg">Viston</span>
+            <span style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 700, fontSize: 15 }}>Viston</span>
           </div>
-          <div className="flex-1 p-6 flex flex-col justify-between">
-            <div>
-              <p className="text-[#9A9A9A] text-xs mb-1">Logado como</p>
-              <p className="text-white font-medium text-sm">{user?.name}</p>
-              <Badge variant={user?.role === 'INSPECTOR' ? 'success' : 'default'} className="mt-2">
-                {user?.role === 'INSPECTOR' ? 'Inspetor' : 'Visualizador'}
-              </Badge>
-            </div>
-            {user?.role === 'INSPECTOR' && (
-              <Link
-                href="/inspecao"
-                className="w-full bg-[#F5C518] text-black rounded-xl py-3 text-center font-bold text-sm hover:bg-[#E0B400] transition-colors"
-              >
-                Nova Inspeção
-              </Link>
-            )}
-          </div>
-        </aside>
+          <Link href="/perfil" style={{ color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.9)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+          >
+            <UserCircle size={28} strokeWidth={1.5} />
+          </Link>
+        </header>
 
+        {/* Main */}
         <main className="flex-1 p-8 overflow-auto">
           <h1 className="text-2xl font-bold text-white mb-8">Visão Geral</h1>
 
