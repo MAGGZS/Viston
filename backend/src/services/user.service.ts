@@ -11,7 +11,7 @@ export const userService = {
     const role: Role = data.role ?? Role.VIEWER;
 
     const password_hash = await bcrypt.hash(data.password, 10);
-    const user = await userRepository.create({ ...data, role, password_hash });
+    const user = await userRepository.create({ name: data.name, email: data.email, role, password_hash });
 
     const { password_hash: _, ...safe } = user;
     return safe;
