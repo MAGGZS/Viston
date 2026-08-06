@@ -39,7 +39,7 @@ export const buildingRepository = {
     });
   },
 
-  createFloor(data: { building_id: string; label: string; order: number }) {
+  createFloor(data: { building_id: string; label: string }) {
     return prisma.floor.create({ data });
   },
 

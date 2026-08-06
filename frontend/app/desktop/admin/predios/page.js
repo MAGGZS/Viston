@@ -77,12 +77,12 @@ function CreateBuildingModal({ open, onClose }) {
     try {
       const building = await createBuilding.mutateAsync(form);
       for (let i = 0; i < labels.length; i++) {
-        await createFloor.mutateAsync({ buildingId: building.id, label: labels[i], order: i });
+        await createFloor.mutateAsync({ buildingId: building.id, label: labels[i] });
       }
       toast('Prédio criado!', 'success');
       handleClose();
     } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao criar', 'error');
+      toast(e?.response?.data?.error?.message || 'Erro ao criar', 'error', e);
     }
   }
 
@@ -169,13 +169,13 @@ function EditBuildingModal({ building, open, onClose }) {
         await deleteFloor.mutateAsync({ buildingId: building.id, floorId: floor.id });
       }
       for (let i = 0; i < toAdd.length; i++) {
-        await createFloor.mutateAsync({ buildingId: building.id, label: toAdd[i], order: i });
+        await createFloor.mutateAsync({ buildingId: building.id, label: toAdd[i] });
       }
 
       toast('Prédio atualizado!', 'success');
       handleClose();
     } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao salvar', 'error');
+      toast(e?.response?.data?.error?.message || 'Erro ao salvar', 'error', e);
     }
   }
 
@@ -213,7 +213,7 @@ export default function AdminPrediosPage() {
 
   async function handleDelete() {
     try { await deleteBuilding.mutateAsync(deleteModal.id); setDeleteModal(null); toast('Prédio excluído', 'info'); }
-    catch (e) { toast(e?.response?.data?.error?.message || 'Erro ao excluir', 'error'); }
+    catch (e) { toast(e?.response?.data?.error?.message || 'Erro ao excluir', 'error', e); }
   }
 
   return (

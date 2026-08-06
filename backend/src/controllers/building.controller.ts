@@ -53,8 +53,8 @@ export const buildingController = {
   async createFloor(req: AuthenticatedRequest, res: Response) {
     const building = await buildingRepository.findById(req.params.id);
     if (!building) throw new NotFoundError('Prédio');
-    const { label, order } = req.body;
-    const floor = await buildingRepository.createFloor({ building_id: req.params.id, label, order });
+    const { label } = req.body;
+    const floor = await buildingRepository.createFloor({ building_id: req.params.id, label });
     created(res, floor);
   },
 
