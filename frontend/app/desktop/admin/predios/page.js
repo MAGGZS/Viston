@@ -8,51 +8,76 @@ import { Button, Input, Modal } from '@/app/components/ui';
 import { useToastStore } from '@/app/store/toast';
 import { useBuildings, useCreateBuilding, useUpdateBuilding, useDeleteBuilding, useCreateFloor, useDeleteFloor, useFloors } from '@/app/hooks/useApi';
 
-const DEFAULT_FLOORS = ['-5', '-4', '-3', '-2', '-1', '0', '1', '2', '3', '4', '5', '6'];
+// Componente de tags reutilizável
+function FloorTags({ labels, onRemove, input, onInputChange, onAdd, max = 20 }) {
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Andares ({labels.length})
+        </p>
+      </div>
+
+      {/* Tags */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, minHeight: 36 }}>
+        {labels.length === 0 && (
+          <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13 }}>Nenhum andar adicionado</span>
+        )}
+        {labels.map(label => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px 6px 12px', borderRadius: 20, border: '1px solid rgba(245,197,24,0.3)', background: 'rgba(245,197,24,0.08)' }}>
+            <span style={{ color: '#F5C518', fontSize: 13, fontWeight: 600 }}>{label}</span>
+            <button onClick={() => onRemove(label)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', padding: 0, lineHeight: 1 }}
+              onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.25)'}>
+              <X size={12} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Input */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '9px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 13, outline: 'none' }}
+          placeholder="Ex: 1, 2, Cobertura, Subsolo... (Enter para adicionar)"
+          value={input}
+          onChange={e => onInputChange(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && onAdd()}
+        />
+        <Button variant="secondary" onClick={onAdd}><Plus size={15} /></Button>
+      </div>
+    </div>
+  );
+}
 
 // Modal único de criação
 function CreateBuildingModal({ open, onClose }) {
   const [form, setForm] = useState({ name: '', description: '' });
-  const [selected, setSelected] = useState(new Set(DEFAULT_FLOORS));
-  const [customInput, setCustomInput] = useState('');
-  const [customFloors, setCustomFloors] = useState([]);
+  const [labels, setLabels] = useState([]);
+  const [input, setInput] = useState('');
   const createBuilding = useCreateBuilding();
   const createFloor = useCreateFloor();
   const { show: toast } = useToastStore();
 
-  function toggleDefault(label) {
-    setSelected(prev => {
-      const next = new Set(prev);
-      next.has(label) ? next.delete(label) : next.size < 12 ? next.add(label) : toast('Máximo de 12 andares', 'error');
-      return next;
-    });
-  }
-
-  function addCustom() {
-    const label = customInput.trim();
+  function addFloor() {
+    const label = input.trim();
     if (!label) return;
-    if (selected.size + customFloors.filter(f => !selected.has(f)).length >= 12) { toast('Máximo de 12 andares', 'error'); return; }
-    if (DEFAULT_FLOORS.includes(label) || customFloors.includes(label)) { toast('Andar já existe', 'error'); return; }
-    setCustomFloors(prev => [...prev, label]);
-    setSelected(prev => new Set([...prev, label]));
-    setCustomInput('');
+    if (labels.includes(label)) { toast('Andar já adicionado', 'error'); return; }
+    setLabels(prev => [...prev, label]);
+    setInput('');
   }
 
-  function removeCustom(label) {
-    setCustomFloors(prev => prev.filter(f => f !== label));
-    setSelected(prev => { const next = new Set(prev); next.delete(label); return next; });
+  function removeFloor(label) {
+    setLabels(prev => prev.filter(l => l !== label));
   }
-
-  const totalSelected = selected.size;
 
   async function handleCreate() {
     if (!form.name.trim()) return;
-    if (totalSelected === 0) { toast('Selecione ao menos 1 andar', 'error'); return; }
+    if (labels.length === 0) { toast('Adicione ao menos 1 andar', 'error'); return; }
     try {
       const building = await createBuilding.mutateAsync(form);
-      const allFloors = [...DEFAULT_FLOORS, ...customFloors].filter(l => selected.has(l));
-      for (let i = 0; i < allFloors.length; i++) {
-        await createFloor.mutateAsync({ buildingId: building.id, label: allFloors[i], order: i });
+      for (let i = 0; i < labels.length; i++) {
+        await createFloor.mutateAsync({ buildingId: building.id, label: labels[i], order: i });
       }
       toast('Prédio criado!', 'success');
       handleClose();
@@ -63,9 +88,8 @@ function CreateBuildingModal({ open, onClose }) {
 
   function handleClose() {
     setForm({ name: '', description: '' });
-    setSelected(new Set(DEFAULT_FLOORS));
-    setCustomFloors([]);
-    setCustomInput('');
+    setLabels([]);
+    setInput('');
     onClose();
   }
 
@@ -74,67 +98,10 @@ function CreateBuildingModal({ open, onClose }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
         <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
         <Input label="Descrição (opcional)" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Andares ({totalSelected}/12)
-            </p>
-            <span style={{ fontSize: 11, color: totalSelected >= 12 ? '#f87171' : 'rgba(255,255,255,0.25)' }}>
-              {totalSelected >= 12 ? 'Limite atingido' : `${12 - totalSelected} disponíveis`}
-            </span>
-          </div>
-
-          {/* Checklist horizontal — andares padrão */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-            {DEFAULT_FLOORS.map(label => {
-              const checked = selected.has(label);
-              return (
-                <button key={label} onClick={() => toggleDefault(label)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, border: `1px solid ${checked ? 'rgba(245,197,24,0.4)' : 'rgba(255,255,255,0.1)'}`, background: checked ? 'rgba(245,197,24,0.1)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', transition: 'all 0.15s' }}>
-                  <div style={{ width: 14, height: 14, borderRadius: 4, border: `2px solid ${checked ? '#F5C518' : 'rgba(255,255,255,0.2)'}`, background: checked ? '#F5C518' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {checked && <span style={{ color: '#000', fontSize: 9, fontWeight: 900, lineHeight: 1 }}>✓</span>}
-                  </div>
-                  <span style={{ color: checked ? '#F5C518' : 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 600 }}>{label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Andares customizados */}
-          {customFloors.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-              {customFloors.map(label => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.08)' }}>
-                  <span style={{ color: '#a5b4fc', fontSize: 13, fontWeight: 600 }}>{label}</span>
-                  <button onClick={() => removeCustom(label)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', display: 'flex', padding: 0 }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-                    onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}>
-                    <X size={13} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Adicionar andar personalizado */}
-          {totalSelected < 12 && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '9px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 13, outline: 'none' }}
-                placeholder="Adicionar andar personalizado (ex: Cobertura)..."
-                value={customInput}
-                onChange={e => setCustomInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addCustom()}
-              />
-              <Button variant="secondary" onClick={addCustom}><Plus size={15} /></Button>
-            </div>
-          )}
-        </div>
-
+        <FloorTags labels={labels} onRemove={removeFloor} input={input} onInputChange={setInput} onAdd={addFloor} />
         <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
           <Button variant="secondary" style={{ flex: 1 }} onClick={handleClose}>Cancelar</Button>
-          <Button style={{ flex: 1 }} onClick={handleCreate} loading={createBuilding.isPending || createFloor.isPending} disabled={!form.name.trim() || totalSelected === 0}>
+          <Button style={{ flex: 1 }} onClick={handleCreate} loading={createBuilding.isPending || createFloor.isPending} disabled={!form.name.trim() || labels.length === 0}>
             Criar prédio
           </Button>
         </div>
@@ -152,70 +119,57 @@ function EditBuildingModal({ building, open, onClose }) {
   const { show: toast } = useToastStore();
 
   const [form, setForm] = useState({ name: '', description: '' });
-  const [customInput, setCustomInput] = useState('');
-  // Estado local dos andares — só sincroniza com DB ao abrir
-  const [localLabels, setLocalLabels] = useState([]);
+  const [labels, setLabels] = useState([]);
+  const [input, setInput] = useState('');
   const [initialized, setInitialized] = useState(false);
 
   const dbFloors = floorsData?.floors ?? [];
 
-  // Inicializa estado local quando os dados do DB chegam (apenas uma vez por abertura)
   useEffect(() => {
-    if (!floorsLoading && dbFloors.length >= 0 && !initialized) {
-      setLocalLabels(dbFloors.map(f => f.label));
+    if (!floorsLoading && !initialized && open) {
+      setLabels(dbFloors.map(f => f.label));
       setInitialized(true);
     }
-  }, [floorsLoading, dbFloors, initialized]);
+  }, [floorsLoading, dbFloors, initialized, open]);
 
   useEffect(() => {
     if (building) setForm({ name: building.name, description: building.description || '' });
   }, [building]);
 
-  // Reset ao fechar
   function handleClose() {
     setInitialized(false);
-    setLocalLabels([]);
-    setCustomInput('');
+    setLabels([]);
+    setInput('');
     onClose();
   }
 
-  const totalFloors = localLabels.length;
-
-  function toggleFloor(label) {
-    if (localLabels.includes(label)) {
-      if (totalFloors <= 1) { toast('Mínimo de 1 andar obrigatório', 'error'); return; }
-      setLocalLabels(prev => prev.filter(l => l !== label));
-    } else {
-      if (totalFloors >= 12) { toast('Máximo de 12 andares', 'error'); return; }
-      setLocalLabels(prev => [...prev, label]);
-    }
+  function addFloor() {
+    const label = input.trim();
+    if (!label) return;
+    if (labels.includes(label)) { toast('Andar já adicionado', 'error'); return; }
+    setLabels(prev => [...prev, label]);
+    setInput('');
   }
 
-  function addCustom() {
-    const label = customInput.trim();
-    if (!label) return;
-    if (totalFloors >= 12) { toast('Máximo de 12 andares', 'error'); return; }
-    if (localLabels.includes(label)) { toast('Andar já existe', 'error'); return; }
-    setLocalLabels(prev => [...prev, label]);
-    setCustomInput('');
+  function removeFloor(label) {
+    if (labels.length <= 1) { toast('Mínimo de 1 andar obrigatório', 'error'); return; }
+    setLabels(prev => prev.filter(l => l !== label));
   }
 
   async function handleSave() {
+    if (!form.name.trim() || labels.length === 0) return;
     try {
-      // Salva nome/descrição
       await updateBuilding.mutateAsync({ id: building.id, ...form });
 
       const dbLabels = dbFloors.map(f => f.label);
-      // Andares a adicionar (estão no local mas não no DB)
-      const toAdd = localLabels.filter(l => !dbLabels.includes(l));
-      // Andares a remover (estão no DB mas não no local)
-      const toRemove = dbFloors.filter(f => !localLabels.includes(f.label));
+      const toAdd = labels.filter(l => !dbLabels.includes(l));
+      const toRemove = dbFloors.filter(f => !labels.includes(f.label));
 
-      for (const label of toAdd) {
-        await createFloor.mutateAsync({ buildingId: building.id, label, order: localLabels.indexOf(label) });
-      }
       for (const floor of toRemove) {
         await deleteFloor.mutateAsync({ buildingId: building.id, floorId: floor.id });
+      }
+      for (let i = 0; i < toAdd.length; i++) {
+        await createFloor.mutateAsync({ buildingId: building.id, label: toAdd[i], order: i });
       }
 
       toast('Prédio atualizado!', 'success');
@@ -226,8 +180,6 @@ function EditBuildingModal({ building, open, onClose }) {
   }
 
   if (!building) return null;
-
-  const extraLabels = localLabels.filter(l => !DEFAULT_FLOORS.includes(l));
   const isSaving = updateBuilding.isPending || createFloor.isPending || deleteFloor.isPending;
 
   return (
@@ -235,73 +187,13 @@ function EditBuildingModal({ building, open, onClose }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
         <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
         <Input label="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Andares ({totalFloors}/12)
-            </p>
-            <span style={{ fontSize: 11, color: totalFloors >= 12 ? '#f87171' : 'rgba(255,255,255,0.25)' }}>
-              {totalFloors >= 12 ? 'Limite atingido' : `${12 - totalFloors} disponíveis`}
-            </span>
-          </div>
-
-          {floorsLoading || !initialized ? (
-            <div style={{ height: 60, background: 'rgba(255,255,255,0.04)', borderRadius: 12 }} />
-          ) : (
-            <>
-              {/* Checklist horizontal — andares padrão */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                {DEFAULT_FLOORS.map(label => {
-                  const checked = localLabels.includes(label);
-                  return (
-                    <button key={label} onClick={() => toggleFloor(label)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, border: `1px solid ${checked ? 'rgba(245,197,24,0.4)' : 'rgba(255,255,255,0.1)'}`, background: checked ? 'rgba(245,197,24,0.1)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', transition: 'all 0.15s' }}>
-                      <div style={{ width: 14, height: 14, borderRadius: 4, border: `2px solid ${checked ? '#F5C518' : 'rgba(255,255,255,0.2)'}`, background: checked ? '#F5C518' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {checked && <span style={{ color: '#000', fontSize: 9, fontWeight: 900, lineHeight: 1 }}>✓</span>}
-                      </div>
-                      <span style={{ color: checked ? '#F5C518' : 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 600 }}>{label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Andares extras (não padrão) */}
-              {extraLabels.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                  {extraLabels.map(label => (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.08)' }}>
-                      <span style={{ color: '#a5b4fc', fontSize: 13, fontWeight: 600 }}>{label}</span>
-                      <button onClick={() => toggleFloor(label)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', display: 'flex', padding: 0 }}
-                        onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-                        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}>
-                        <X size={13} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Adicionar andar personalizado */}
-              {totalFloors < 12 && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '9px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 13, outline: 'none' }}
-                    placeholder="Adicionar andar personalizado (ex: Cobertura)..."
-                    value={customInput}
-                    onChange={e => setCustomInput(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && addCustom()}
-                  />
-                  <Button variant="secondary" onClick={addCustom}><Plus size={15} /></Button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
+        {floorsLoading || !initialized
+          ? <div style={{ height: 80, background: 'rgba(255,255,255,0.04)', borderRadius: 12 }} />
+          : <FloorTags labels={labels} onRemove={removeFloor} input={input} onInputChange={setInput} onAdd={addFloor} />
+        }
         <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
           <Button variant="secondary" style={{ flex: 1 }} onClick={handleClose}>Cancelar</Button>
-          <Button style={{ flex: 1 }} onClick={handleSave} loading={isSaving} disabled={!form.name.trim() || totalFloors === 0}>Salvar</Button>
+          <Button style={{ flex: 1 }} onClick={handleSave} loading={isSaving} disabled={!form.name.trim() || labels.length === 0}>Salvar</Button>
         </div>
       </div>
     </Modal>
