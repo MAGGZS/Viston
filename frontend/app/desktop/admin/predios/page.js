@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Pencil, Trash2, Share2, Building2, RefreshCw, X } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
@@ -10,186 +10,278 @@ import { useBuildings, useCreateBuilding, useUpdateBuilding, useDeleteBuilding, 
 
 const DEFAULT_FLOORS = ['-5', '-4', '-3', '-2', '-1', '0', '1', '2', '3', '4', '5', '6'];
 
-// Editor de andares reutilizável
-function FloorsEditor({ buildingId, onDone }) {
-  const { data, isLoading } = useFloors(buildingId);
-  const createFloor = useCreateFloor();
-  const deleteFloor = useDeleteFloor();
-  const { show: toast } = useToastStore();
-  const [newLabel, setNewLabel] = useState('');
-
-  const floors = data?.floors ?? [];
-
-  async function handleAdd() {
-    const label = newLabel.trim();
-    if (!label) return;
-    if (floors.length >= 12) { toast('Máximo de 12 andares atingido', 'error'); return; }
-    try {
-      await createFloor.mutateAsync({ buildingId, label, order: floors.length });
-      setNewLabel('');
-    } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao adicionar andar', 'error');
-    }
-  }
-
-  async function handleDelete(floorId) {
-    if (floors.length <= 1) { toast('Mínimo de 1 andar obrigatório', 'error'); return; }
-    try {
-      await deleteFloor.mutateAsync({ buildingId, floorId });
-    } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao remover andar', 'error');
-    }
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Andares ({floors.length}/12)
-        </p>
-        <span style={{ fontSize: 11, color: floors.length >= 12 ? '#f87171' : 'rgba(255,255,255,0.25)' }}>
-          {floors.length >= 12 ? 'Limite atingido' : `${12 - floors.length} disponíveis`}
-        </span>
-      </div>
-
-      {isLoading ? (
-        <div style={{ height: 80, background: 'rgba(255,255,255,0.04)', borderRadius: 12, animation: 'pulse 1.5s infinite' }} />
-      ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {floors.map((f) => (
-            <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(245,197,24,0.08)', border: '1px solid rgba(245,197,24,0.2)', borderRadius: 10, padding: '6px 10px' }}>
-              <span style={{ color: '#F5C518', fontSize: 13, fontWeight: 600 }}>{f.label}</span>
-              <button onClick={() => handleDelete(f.id)} disabled={deleteFloor.isPending}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', display: 'flex', padding: 0 }}
-                onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}>
-                <X size={13} />
-              </button>
-            </div>
-          ))}
-          {floors.length === 0 && (
-            <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13 }}>Nenhum andar adicionado</p>
-          )}
-        </div>
-      )}
-
-      {floors.length < 12 && (
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 14, outline: 'none' }}
-            placeholder="Ex: 7, Cobertura, Subsolo..."
-            value={newLabel}
-            onChange={e => setNewLabel(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          />
-          <Button variant="secondary" onClick={handleAdd} loading={createFloor.isPending}>
-            <Plus size={15} />
-          </Button>
-        </div>
-      )}
-
-      <Button onClick={onDone} className="w-full">Concluir</Button>
-    </div>
-  );
-}
-
-// Modal de criação em 2 etapas
+// Modal único de criação
 function CreateBuildingModal({ open, onClose }) {
-  const [step, setStep] = useState('info'); // 'info' | 'floors'
   const [form, setForm] = useState({ name: '', description: '' });
-  const [createdId, setCreatedId] = useState(null);
+  const [selected, setSelected] = useState(new Set(DEFAULT_FLOORS));
+  const [customInput, setCustomInput] = useState('');
+  const [customFloors, setCustomFloors] = useState([]);
   const createBuilding = useCreateBuilding();
   const createFloor = useCreateFloor();
   const { show: toast } = useToastStore();
 
+  function toggleDefault(label) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(label) ? next.delete(label) : next.size < 12 ? next.add(label) : toast('Máximo de 12 andares', 'error');
+      return next;
+    });
+  }
+
+  function addCustom() {
+    const label = customInput.trim();
+    if (!label) return;
+    if (selected.size + customFloors.filter(f => !selected.has(f)).length >= 12) { toast('Máximo de 12 andares', 'error'); return; }
+    if (DEFAULT_FLOORS.includes(label) || customFloors.includes(label)) { toast('Andar já existe', 'error'); return; }
+    setCustomFloors(prev => [...prev, label]);
+    setSelected(prev => new Set([...prev, label]));
+    setCustomInput('');
+  }
+
+  function removeCustom(label) {
+    setCustomFloors(prev => prev.filter(f => f !== label));
+    setSelected(prev => { const next = new Set(prev); next.delete(label); return next; });
+  }
+
+  const totalSelected = selected.size;
+
   async function handleCreate() {
     if (!form.name.trim()) return;
+    if (totalSelected === 0) { toast('Selecione ao menos 1 andar', 'error'); return; }
     try {
       const building = await createBuilding.mutateAsync(form);
-      // Criar andares padrão
-      for (let i = 0; i < DEFAULT_FLOORS.length; i++) {
-        await createFloor.mutateAsync({ buildingId: building.id, label: DEFAULT_FLOORS[i], order: i });
+      const allFloors = [...DEFAULT_FLOORS, ...customFloors].filter(l => selected.has(l));
+      for (let i = 0; i < allFloors.length; i++) {
+        await createFloor.mutateAsync({ buildingId: building.id, label: allFloors[i], order: i });
       }
-      setCreatedId(building.id);
-      setStep('floors');
-      toast('Prédio criado com andares padrão!', 'success');
+      toast('Prédio criado!', 'success');
+      handleClose();
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao criar', 'error');
     }
   }
 
   function handleClose() {
-    setStep('info');
     setForm({ name: '', description: '' });
-    setCreatedId(null);
+    setSelected(new Set(DEFAULT_FLOORS));
+    setCustomFloors([]);
+    setCustomInput('');
     onClose();
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title={step === 'info' ? 'Novo prédio' : 'Configurar andares'}>
-      {step === 'info' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          <Input label="Descrição (opcional)" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>
-            Serão criados 12 andares padrão (-5 a 6). Você poderá editar na próxima etapa.
-          </p>
-          <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
-            <Button variant="secondary" style={{ flex: 1 }} onClick={handleClose}>Cancelar</Button>
-            <Button style={{ flex: 1 }} onClick={handleCreate} loading={createBuilding.isPending || createFloor.isPending} disabled={!form.name.trim()}>
-              Criar e configurar andares
-            </Button>
+    <Modal open={open} onClose={handleClose} title="Novo prédio">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
+        <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+        <Input label="Descrição (opcional)" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Andares ({totalSelected}/12)
+            </p>
+            <span style={{ fontSize: 11, color: totalSelected >= 12 ? '#f87171' : 'rgba(255,255,255,0.25)' }}>
+              {totalSelected >= 12 ? 'Limite atingido' : `${12 - totalSelected} disponíveis`}
+            </span>
           </div>
+
+          {/* Checklist horizontal — andares padrão */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            {DEFAULT_FLOORS.map(label => {
+              const checked = selected.has(label);
+              return (
+                <button key={label} onClick={() => toggleDefault(label)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, border: `1px solid ${checked ? 'rgba(245,197,24,0.4)' : 'rgba(255,255,255,0.1)'}`, background: checked ? 'rgba(245,197,24,0.1)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', transition: 'all 0.15s' }}>
+                  <div style={{ width: 14, height: 14, borderRadius: 4, border: `2px solid ${checked ? '#F5C518' : 'rgba(255,255,255,0.2)'}`, background: checked ? '#F5C518' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {checked && <span style={{ color: '#000', fontSize: 9, fontWeight: 900, lineHeight: 1 }}>✓</span>}
+                  </div>
+                  <span style={{ color: checked ? '#F5C518' : 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 600 }}>{label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Andares customizados */}
+          {customFloors.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+              {customFloors.map(label => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.08)' }}>
+                  <span style={{ color: '#a5b4fc', fontSize: 13, fontWeight: 600 }}>{label}</span>
+                  <button onClick={() => removeCustom(label)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', display: 'flex', padding: 0 }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}>
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Adicionar andar personalizado */}
+          {totalSelected < 12 && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '9px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 13, outline: 'none' }}
+                placeholder="Adicionar andar personalizado (ex: Cobertura)..."
+                value={customInput}
+                onChange={e => setCustomInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addCustom()}
+              />
+              <Button variant="secondary" onClick={addCustom}><Plus size={15} /></Button>
+            </div>
+          )}
         </div>
-      ) : (
-        <FloorsEditor buildingId={createdId} onDone={handleClose} />
-      )}
+
+        <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
+          <Button variant="secondary" style={{ flex: 1 }} onClick={handleClose}>Cancelar</Button>
+          <Button style={{ flex: 1 }} onClick={handleCreate} loading={createBuilding.isPending || createFloor.isPending} disabled={!form.name.trim() || totalSelected === 0}>
+            Criar prédio
+          </Button>
+        </div>
+      </div>
     </Modal>
   );
 }
 
-// Modal de edição de andares para prédio existente
-function EditFloorsModal({ building, open, onClose }) {
+// Modal único de edição
+function EditBuildingModal({ building, open, onClose }) {
   const updateBuilding = useUpdateBuilding();
+  const createFloor = useCreateFloor();
+  const deleteFloor = useDeleteFloor();
+  const { data: floorsData, isLoading: floorsLoading } = useFloors(building?.id);
   const { show: toast } = useToastStore();
-  const [tab, setTab] = useState('info');
-  const [form, setForm] = useState({ name: building?.name || '', description: building?.description || '' });
 
-  async function handleSaveInfo() {
+  const [form, setForm] = useState({ name: '', description: '' });
+  const [customInput, setCustomInput] = useState('');
+
+  const existingFloors = floorsData?.floors ?? [];
+  const existingLabels = existingFloors.map(f => f.label);
+
+  useEffect(() => {
+    if (building) setForm({ name: building.name, description: building.description || '' });
+  }, [building]);
+
+  const totalFloors = existingFloors.length;
+
+  async function toggleFloor(label) {
+    const existing = existingFloors.find(f => f.label === label);
+    if (existing) {
+      if (totalFloors <= 1) { toast('Mínimo de 1 andar obrigatório', 'error'); return; }
+      try { await deleteFloor.mutateAsync({ buildingId: building.id, floorId: existing.id }); }
+      catch (e) { toast(e?.response?.data?.error?.message || 'Erro ao remover', 'error'); }
+    } else {
+      if (totalFloors >= 12) { toast('Máximo de 12 andares', 'error'); return; }
+      try { await createFloor.mutateAsync({ buildingId: building.id, label, order: totalFloors }); }
+      catch (e) { toast(e?.response?.data?.error?.message || 'Erro ao adicionar', 'error'); }
+    }
+  }
+
+  async function addCustom() {
+    const label = customInput.trim();
+    if (!label) return;
+    if (totalFloors >= 12) { toast('Máximo de 12 andares', 'error'); return; }
+    if (existingLabels.includes(label)) { toast('Andar já existe', 'error'); return; }
+    try {
+      await createFloor.mutateAsync({ buildingId: building.id, label, order: totalFloors });
+      setCustomInput('');
+    } catch (e) {
+      toast(e?.response?.data?.error?.message || 'Erro ao adicionar', 'error');
+    }
+  }
+
+  async function handleSave() {
     try {
       await updateBuilding.mutateAsync({ id: building.id, ...form });
       toast('Prédio atualizado!', 'success');
       onClose();
     } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao editar', 'error');
+      toast(e?.response?.data?.error?.message || 'Erro ao salvar', 'error');
     }
   }
 
   if (!building) return null;
 
+  // Todos os labels visíveis = padrão + extras que já existem mas não são padrão
+  const extraLabels = existingLabels.filter(l => !DEFAULT_FLOORS.includes(l));
+
   return (
     <Modal open={open} onClose={onClose} title={`Editar — ${building.name}`}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        {['info', 'floors'].map((t) => (
-          <button key={t} onClick={() => setTab(t)}
-            style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: tab === t ? '#F5C518' : 'rgba(255,255,255,0.06)', color: tab === t ? '#000' : 'rgba(255,255,255,0.5)', transition: 'all 0.2s' }}>
-            {t === 'info' ? 'Informações' : 'Andares'}
-          </button>
-        ))}
-      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
+        <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+        <Input label="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
 
-      {tab === 'info' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          <Input label="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-          <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
-            <Button variant="secondary" style={{ flex: 1 }} onClick={onClose}>Cancelar</Button>
-            <Button style={{ flex: 1 }} onClick={handleSaveInfo} loading={updateBuilding.isPending}>Salvar</Button>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Andares ({totalFloors}/12)
+            </p>
+            <span style={{ fontSize: 11, color: totalFloors >= 12 ? '#f87171' : 'rgba(255,255,255,0.25)' }}>
+              {totalFloors >= 12 ? 'Limite atingido' : `${12 - totalFloors} disponíveis`}
+            </span>
           </div>
+
+          {floorsLoading ? (
+            <div style={{ height: 60, background: 'rgba(255,255,255,0.04)', borderRadius: 12 }} />
+          ) : (
+            <>
+              {/* Checklist horizontal — andares padrão */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                {DEFAULT_FLOORS.map(label => {
+                  const checked = existingLabels.includes(label);
+                  const isPending = createFloor.isPending || deleteFloor.isPending;
+                  return (
+                    <button key={label} onClick={() => !isPending && toggleFloor(label)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, border: `1px solid ${checked ? 'rgba(245,197,24,0.4)' : 'rgba(255,255,255,0.1)'}`, background: checked ? 'rgba(245,197,24,0.1)' : 'rgba(255,255,255,0.03)', cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.6 : 1, transition: 'all 0.15s' }}>
+                      <div style={{ width: 14, height: 14, borderRadius: 4, border: `2px solid ${checked ? '#F5C518' : 'rgba(255,255,255,0.2)'}`, background: checked ? '#F5C518' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {checked && <span style={{ color: '#000', fontSize: 9, fontWeight: 900, lineHeight: 1 }}>✓</span>}
+                      </div>
+                      <span style={{ color: checked ? '#F5C518' : 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 600 }}>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Andares extras (não padrão) */}
+              {extraLabels.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                  {extraLabels.map(label => {
+                    const floor = existingFloors.find(f => f.label === label);
+                    return (
+                      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.08)' }}>
+                        <span style={{ color: '#a5b4fc', fontSize: 13, fontWeight: 600 }}>{label}</span>
+                        <button onClick={() => toggleFloor(label)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', display: 'flex', padding: 0 }}
+                          onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}>
+                          <X size={13} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Adicionar andar personalizado */}
+              {totalFloors < 12 && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '9px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 13, outline: 'none' }}
+                    placeholder="Adicionar andar personalizado (ex: Cobertura)..."
+                    value={customInput}
+                    onChange={e => setCustomInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addCustom()}
+                  />
+                  <Button variant="secondary" onClick={addCustom} loading={createFloor.isPending}><Plus size={15} /></Button>
+                </div>
+              )}
+            </>
+          )}
         </div>
-      ) : (
-        <FloorsEditor buildingId={building.id} onDone={onClose} />
-      )}
+
+        <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
+          <Button variant="secondary" style={{ flex: 1 }} onClick={onClose}>Cancelar</Button>
+          <Button style={{ flex: 1 }} onClick={handleSave} loading={updateBuilding.isPending}>Salvar</Button>
+        </div>
+      </div>
     </Modal>
   );
 }
@@ -274,9 +366,8 @@ export default function AdminPrediosPage() {
       </div>
 
       <CreateBuildingModal open={createModal} onClose={() => setCreateModal(false)} />
-      <EditFloorsModal building={editModal} open={!!editModal} onClose={() => setEditModal(null)} />
+      <EditBuildingModal building={editModal} open={!!editModal} onClose={() => setEditModal(null)} />
 
-      {/* Modal excluir */}
       <Modal open={!!deleteModal} onClose={() => setDeleteModal(null)} title="Excluir prédio">
         <p className="text-[#9A9A9A] text-sm mb-6">Tem certeza que deseja excluir <span className="text-white font-semibold">{deleteModal?.name}</span>? Esta ação não pode ser desfeita.</p>
         <div className="flex gap-3">
@@ -285,7 +376,6 @@ export default function AdminPrediosPage() {
         </div>
       </Modal>
 
-      {/* Modal compartilhar ID */}
       <Modal open={!!shareModal} onClose={() => setShareModal(null)} title="ID do prédio">
         <p className="text-[#9A9A9A] text-sm mb-4">Compartilhe este ID com inspetores e visualizadores para que possam solicitar acesso ao prédio <span className="text-white font-semibold">{shareModal?.name}</span>.</p>
         <div className="bg-[#0D0D0D] border border-[#2A2A2A] rounded-xl p-4 flex items-center justify-between gap-3">
