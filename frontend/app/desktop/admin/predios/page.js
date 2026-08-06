@@ -153,47 +153,73 @@ function EditBuildingModal({ building, open, onClose }) {
 
   const [form, setForm] = useState({ name: '', description: '' });
   const [customInput, setCustomInput] = useState('');
+  // Estado local dos andares — só sincroniza com DB ao abrir
+  const [localLabels, setLocalLabels] = useState([]);
+  const [initialized, setInitialized] = useState(false);
 
-  const existingFloors = floorsData?.floors ?? [];
-  const existingLabels = existingFloors.map(f => f.label);
+  const dbFloors = floorsData?.floors ?? [];
+
+  // Inicializa estado local quando os dados do DB chegam (apenas uma vez por abertura)
+  useEffect(() => {
+    if (!floorsLoading && dbFloors.length >= 0 && !initialized) {
+      setLocalLabels(dbFloors.map(f => f.label));
+      setInitialized(true);
+    }
+  }, [floorsLoading, dbFloors, initialized]);
 
   useEffect(() => {
     if (building) setForm({ name: building.name, description: building.description || '' });
   }, [building]);
 
-  const totalFloors = existingFloors.length;
+  // Reset ao fechar
+  function handleClose() {
+    setInitialized(false);
+    setLocalLabels([]);
+    setCustomInput('');
+    onClose();
+  }
 
-  async function toggleFloor(label) {
-    const existing = existingFloors.find(f => f.label === label);
-    if (existing) {
+  const totalFloors = localLabels.length;
+
+  function toggleFloor(label) {
+    if (localLabels.includes(label)) {
       if (totalFloors <= 1) { toast('Mínimo de 1 andar obrigatório', 'error'); return; }
-      try { await deleteFloor.mutateAsync({ buildingId: building.id, floorId: existing.id }); }
-      catch (e) { toast(e?.response?.data?.error?.message || 'Erro ao remover', 'error'); }
+      setLocalLabels(prev => prev.filter(l => l !== label));
     } else {
       if (totalFloors >= 12) { toast('Máximo de 12 andares', 'error'); return; }
-      try { await createFloor.mutateAsync({ buildingId: building.id, label, order: totalFloors }); }
-      catch (e) { toast(e?.response?.data?.error?.message || 'Erro ao adicionar', 'error'); }
+      setLocalLabels(prev => [...prev, label]);
     }
   }
 
-  async function addCustom() {
+  function addCustom() {
     const label = customInput.trim();
     if (!label) return;
     if (totalFloors >= 12) { toast('Máximo de 12 andares', 'error'); return; }
-    if (existingLabels.includes(label)) { toast('Andar já existe', 'error'); return; }
-    try {
-      await createFloor.mutateAsync({ buildingId: building.id, label, order: totalFloors });
-      setCustomInput('');
-    } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao adicionar', 'error');
-    }
+    if (localLabels.includes(label)) { toast('Andar já existe', 'error'); return; }
+    setLocalLabels(prev => [...prev, label]);
+    setCustomInput('');
   }
 
   async function handleSave() {
     try {
+      // Salva nome/descrição
       await updateBuilding.mutateAsync({ id: building.id, ...form });
+
+      const dbLabels = dbFloors.map(f => f.label);
+      // Andares a adicionar (estão no local mas não no DB)
+      const toAdd = localLabels.filter(l => !dbLabels.includes(l));
+      // Andares a remover (estão no DB mas não no local)
+      const toRemove = dbFloors.filter(f => !localLabels.includes(f.label));
+
+      for (const label of toAdd) {
+        await createFloor.mutateAsync({ buildingId: building.id, label, order: localLabels.indexOf(label) });
+      }
+      for (const floor of toRemove) {
+        await deleteFloor.mutateAsync({ buildingId: building.id, floorId: floor.id });
+      }
+
       toast('Prédio atualizado!', 'success');
-      onClose();
+      handleClose();
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao salvar', 'error');
     }
@@ -201,11 +227,11 @@ function EditBuildingModal({ building, open, onClose }) {
 
   if (!building) return null;
 
-  // Todos os labels visíveis = padrão + extras que já existem mas não são padrão
-  const extraLabels = existingLabels.filter(l => !DEFAULT_FLOORS.includes(l));
+  const extraLabels = localLabels.filter(l => !DEFAULT_FLOORS.includes(l));
+  const isSaving = updateBuilding.isPending || createFloor.isPending || deleteFloor.isPending;
 
   return (
-    <Modal open={open} onClose={onClose} title={`Editar — ${building.name}`}>
+    <Modal open={open} onClose={handleClose} title={`Editar — ${building.name}`}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
         <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
         <Input label="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
@@ -220,18 +246,17 @@ function EditBuildingModal({ building, open, onClose }) {
             </span>
           </div>
 
-          {floorsLoading ? (
+          {floorsLoading || !initialized ? (
             <div style={{ height: 60, background: 'rgba(255,255,255,0.04)', borderRadius: 12 }} />
           ) : (
             <>
               {/* Checklist horizontal — andares padrão */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                 {DEFAULT_FLOORS.map(label => {
-                  const checked = existingLabels.includes(label);
-                  const isPending = createFloor.isPending || deleteFloor.isPending;
+                  const checked = localLabels.includes(label);
                   return (
-                    <button key={label} onClick={() => !isPending && toggleFloor(label)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, border: `1px solid ${checked ? 'rgba(245,197,24,0.4)' : 'rgba(255,255,255,0.1)'}`, background: checked ? 'rgba(245,197,24,0.1)' : 'rgba(255,255,255,0.03)', cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.6 : 1, transition: 'all 0.15s' }}>
+                    <button key={label} onClick={() => toggleFloor(label)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, border: `1px solid ${checked ? 'rgba(245,197,24,0.4)' : 'rgba(255,255,255,0.1)'}`, background: checked ? 'rgba(245,197,24,0.1)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', transition: 'all 0.15s' }}>
                       <div style={{ width: 14, height: 14, borderRadius: 4, border: `2px solid ${checked ? '#F5C518' : 'rgba(255,255,255,0.2)'}`, background: checked ? '#F5C518' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         {checked && <span style={{ color: '#000', fontSize: 9, fontWeight: 900, lineHeight: 1 }}>✓</span>}
                       </div>
@@ -244,19 +269,16 @@ function EditBuildingModal({ building, open, onClose }) {
               {/* Andares extras (não padrão) */}
               {extraLabels.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                  {extraLabels.map(label => {
-                    const floor = existingFloors.find(f => f.label === label);
-                    return (
-                      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.08)' }}>
-                        <span style={{ color: '#a5b4fc', fontSize: 13, fontWeight: 600 }}>{label}</span>
-                        <button onClick={() => toggleFloor(label)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', display: 'flex', padding: 0 }}
-                          onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-                          onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}>
-                          <X size={13} />
-                        </button>
-                      </div>
-                    );
-                  })}
+                  {extraLabels.map(label => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.08)' }}>
+                      <span style={{ color: '#a5b4fc', fontSize: 13, fontWeight: 600 }}>{label}</span>
+                      <button onClick={() => toggleFloor(label)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', display: 'flex', padding: 0 }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}>
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -270,7 +292,7 @@ function EditBuildingModal({ building, open, onClose }) {
                     onChange={e => setCustomInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && addCustom()}
                   />
-                  <Button variant="secondary" onClick={addCustom} loading={createFloor.isPending}><Plus size={15} /></Button>
+                  <Button variant="secondary" onClick={addCustom}><Plus size={15} /></Button>
                 </div>
               )}
             </>
@@ -278,8 +300,8 @@ function EditBuildingModal({ building, open, onClose }) {
         </div>
 
         <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
-          <Button variant="secondary" style={{ flex: 1 }} onClick={onClose}>Cancelar</Button>
-          <Button style={{ flex: 1 }} onClick={handleSave} loading={updateBuilding.isPending}>Salvar</Button>
+          <Button variant="secondary" style={{ flex: 1 }} onClick={handleClose}>Cancelar</Button>
+          <Button style={{ flex: 1 }} onClick={handleSave} loading={isSaving} disabled={!form.name.trim() || totalFloors === 0}>Salvar</Button>
         </div>
       </div>
     </Modal>
