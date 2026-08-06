@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Pencil, Trash2, Share2, Building2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Share2, Building2, RefreshCw } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Button, Input, Modal } from '@/app/components/ui';
@@ -11,7 +11,7 @@ import { useBuildings, useCreateBuilding, useUpdateBuilding, useDeleteBuilding }
 export default function AdminPrediosPage() {
   const router = useRouter();
   const { show: toast } = useToastStore();
-  const { data: buildings = [], isLoading } = useBuildings();
+  const { data: buildings = [], isLoading, refetch, isFetching } = useBuildings();
   const createBuilding = useCreateBuilding();
   const updateBuilding = useUpdateBuilding();
   const deleteBuilding = useDeleteBuilding();
@@ -47,7 +47,10 @@ export default function AdminPrediosPage() {
         <main className="flex-1 p-8 overflow-auto">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-2xl font-bold text-white">Prédios</h1>
-            <Button onClick={openCreate}><Plus size={16} /> Novo prédio</Button>
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={() => refetch()} loading={isFetching}><RefreshCw size={15} /> Atualizar</Button>
+              <Button onClick={openCreate}><Plus size={16} /> Novo prédio</Button>
+            </div>
           </div>
 
           {isLoading && (
