@@ -135,7 +135,6 @@ model Floor {
   building          Building           @relation(fields: [building_id], references: [id])
   floor_form_entries FloorFormEntry[]
 
-  @@unique([building_id, order])
   @@map("floors")
 }
 
