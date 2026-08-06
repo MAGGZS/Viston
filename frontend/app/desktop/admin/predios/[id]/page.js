@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, ArrowLeft, UserCheck, UserMinus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, ArrowLeft, UserCheck, UserMinus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
@@ -60,6 +60,7 @@ export default function BuildingDashboardPage() {
   const [selected, setSelected] = useState(null);
   const [shareModal, setShareModal] = useState(false);
   const [membersModal, setMembersModal] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(null); // membro a remover
 
   const { data, isLoading } = useBuildingDashboard(id);
   const { data: histData, isLoading: histLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useBuildingHistory(id);
@@ -258,14 +259,7 @@ export default function BuildingDashboardPage() {
                   {m.role === 'INSPECTOR' ? 'Inspetor' : 'Visualizador'}
                 </span>
                 <button
-                  onClick={async () => {
-                    try {
-                      await removeMember.mutateAsync({ buildingId: id, userId: m.user_id });
-                      toast(`${m.user?.name} removido`, 'info');
-                    } catch (e) {
-                      toast(e?.response?.data?.error?.message || 'Erro ao remover', 'error', e);
-                    }
-                  }}
+                  onClick={() => setConfirmRemove(m)}
                   disabled={removeMember.isPending}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.25)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0 }}
                   onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
@@ -277,6 +271,33 @@ export default function BuildingDashboardPage() {
             ))}
           </div>
         )}
+      </Modal>
+
+      {/* Confirmação de desvinculo */}
+      <Modal open={!!confirmRemove} onClose={() => setConfirmRemove(null)} title="Remover colaborador">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <AlertTriangle size={18} color="#f87171" style={{ flexShrink: 0, marginTop: 2 }} />
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, lineHeight: 1.6 }}>
+              Tem certeza que deseja remover o vínculo de <span style={{ color: '#fff', fontWeight: 600 }}>{confirmRemove?.user?.name}</span> com este prédio? O usuário perderá o acesso imediatamente.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="secondary" style={{ flex: 1 }} onClick={() => setConfirmRemove(null)}>Cancelar</Button>
+            <Button variant="danger" style={{ flex: 1 }} loading={removeMember.isPending}
+              onClick={async () => {
+                try {
+                  await removeMember.mutateAsync({ buildingId: id, userId: confirmRemove.user_id });
+                  toast(`${confirmRemove.user?.name} removido`, 'info');
+                  setConfirmRemove(null);
+                } catch (e) {
+                  toast(e?.response?.data?.error?.message || 'Erro ao remover', 'error', e);
+                }
+              }}>
+              Remover
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       <Modal open={shareModal} onClose={() => setShareModal(false)} title="Compartilhar ID do prédio">

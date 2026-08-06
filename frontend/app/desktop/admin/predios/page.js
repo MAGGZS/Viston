@@ -1,12 +1,30 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Pencil, Trash2, Share2, Building2, RefreshCw, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Share2, Building2, RefreshCw, X, AlertTriangle } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Button, Input, Modal } from '@/app/components/ui';
 import { useToastStore } from '@/app/store/toast';
 import { useBuildings, useCreateBuilding, useUpdateBuilding, useDeleteBuilding, useCreateFloor, useDeleteFloor, useFloors } from '@/app/hooks/useApi';
+
+// Modal de confirmação reutilizável
+function ConfirmModal({ open, title, message, confirmLabel = 'Confirmar', confirmVariant = 'danger', onConfirm, onCancel }) {
+  return (
+    <Modal open={open} onClose={onCancel} title={title}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <AlertTriangle size={18} color="#f87171" style={{ flexShrink: 0, marginTop: 2 }} />
+          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, lineHeight: 1.6 }}>{message}</p>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Button variant="secondary" style={{ flex: 1 }} onClick={onCancel}>Voltar</Button>
+          <Button variant={confirmVariant} style={{ flex: 1 }} onClick={onConfirm}>{confirmLabel}</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
 
 // Componente de tags reutilizável
 function FloorTags({ labels, onRemove, input, onInputChange, onAdd, max = 20 }) {
@@ -55,9 +73,12 @@ function CreateBuildingModal({ open, onClose }) {
   const [form, setForm] = useState({ name: '', description: '' });
   const [labels, setLabels] = useState([]);
   const [input, setInput] = useState('');
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const createBuilding = useCreateBuilding();
   const createFloor = useCreateFloor();
   const { show: toast } = useToastStore();
+
+  const isDirty = form.name.trim() !== '' || form.description.trim() !== '' || labels.length > 0;
 
   function addFloor() {
     const label = input.trim();
@@ -80,33 +101,49 @@ function CreateBuildingModal({ open, onClose }) {
         await createFloor.mutateAsync({ buildingId: building.id, label: labels[i] });
       }
       toast('Prédio criado!', 'success');
-      handleClose();
+      doClose();
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao criar', 'error', e);
     }
   }
 
-  function handleClose() {
+  function doClose() {
     setForm({ name: '', description: '' });
     setLabels([]);
     setInput('');
+    setConfirmCancel(false);
     onClose();
   }
 
+  function handleClose() {
+    if (isDirty) { setConfirmCancel(true); return; }
+    doClose();
+  }
+
   return (
-    <Modal open={open} onClose={handleClose} title="Novo prédio">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
-        <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-        <Input label="Descrição (opcional)" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-        <FloorTags labels={labels} onRemove={removeFloor} input={input} onInputChange={setInput} onAdd={addFloor} />
-        <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
-          <Button variant="secondary" style={{ flex: 1 }} onClick={handleClose}>Cancelar</Button>
-          <Button style={{ flex: 1 }} onClick={handleCreate} loading={createBuilding.isPending || createFloor.isPending} disabled={!form.name.trim() || labels.length === 0}>
-            Criar prédio
-          </Button>
+    <>
+      <Modal open={open && !confirmCancel} onClose={handleClose} title="Novo prédio">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
+          <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <Input label="Descrição (opcional)" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          <FloorTags labels={labels} onRemove={removeFloor} input={input} onInputChange={setInput} onAdd={addFloor} />
+          <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
+            <Button variant="secondary" style={{ flex: 1 }} onClick={handleClose}>Cancelar</Button>
+            <Button style={{ flex: 1 }} onClick={handleCreate} loading={createBuilding.isPending || createFloor.isPending} disabled={!form.name.trim() || labels.length === 0}>
+              Criar prédio
+            </Button>
+          </div>
         </div>
-      </div>
-    </Modal>
+      </Modal>
+      <ConfirmModal
+        open={confirmCancel}
+        title="Descartar alterações?"
+        message="Você tem informações não salvas. Deseja sair sem criar o prédio?"
+        confirmLabel="Descartar"
+        onConfirm={doClose}
+        onCancel={() => setConfirmCancel(false)}
+      />
+    </>
   );
 }
 
@@ -122,25 +159,45 @@ function EditBuildingModal({ building, open, onClose }) {
   const [labels, setLabels] = useState([]);
   const [input, setInput] = useState('');
   const [initialized, setInitialized] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [initForm, setInitForm] = useState({ name: '', description: '' });
+  const [initLabels, setInitLabels] = useState([]);
 
   const dbFloors = floorsData?.floors ?? [];
 
   useEffect(() => {
     if (!floorsLoading && !initialized && open) {
-      setLabels(dbFloors.map(f => f.label));
+      const lbls = dbFloors.map(f => f.label);
+      setLabels(lbls);
+      setInitLabels(lbls);
       setInitialized(true);
     }
   }, [floorsLoading, dbFloors, initialized, open]);
 
   useEffect(() => {
-    if (building) setForm({ name: building.name, description: building.description || '' });
+    if (building) {
+      const f = { name: building.name, description: building.description || '' };
+      setForm(f);
+      setInitForm(f);
+    }
   }, [building]);
 
-  function handleClose() {
+  const isDirty = form.name !== initForm.name ||
+    form.description !== initForm.description ||
+    JSON.stringify([...labels].sort()) !== JSON.stringify([...initLabels].sort());
+
+  function doClose() {
     setInitialized(false);
     setLabels([]);
+    setInitLabels([]);
     setInput('');
+    setConfirmCancel(false);
     onClose();
+  }
+
+  function handleClose() {
+    if (isDirty) { setConfirmCancel(true); return; }
+    doClose();
   }
 
   function addFloor() {
@@ -160,20 +217,17 @@ function EditBuildingModal({ building, open, onClose }) {
     if (!form.name.trim() || labels.length === 0) return;
     try {
       await updateBuilding.mutateAsync({ id: building.id, ...form });
-
       const dbLabels = dbFloors.map(f => f.label);
       const toAdd = labels.filter(l => !dbLabels.includes(l));
       const toRemove = dbFloors.filter(f => !labels.includes(f.label));
-
       for (const floor of toRemove) {
         await deleteFloor.mutateAsync({ buildingId: building.id, floorId: floor.id });
       }
       for (let i = 0; i < toAdd.length; i++) {
         await createFloor.mutateAsync({ buildingId: building.id, label: toAdd[i] });
       }
-
       toast('Prédio atualizado!', 'success');
-      handleClose();
+      doClose();
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao salvar', 'error', e);
     }
@@ -183,20 +237,30 @@ function EditBuildingModal({ building, open, onClose }) {
   const isSaving = updateBuilding.isPending || createFloor.isPending || deleteFloor.isPending;
 
   return (
-    <Modal open={open} onClose={handleClose} title={`Editar — ${building.name}`}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
-        <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-        <Input label="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-        {floorsLoading || !initialized
-          ? <div style={{ height: 80, background: 'rgba(255,255,255,0.04)', borderRadius: 12 }} />
-          : <FloorTags labels={labels} onRemove={removeFloor} input={input} onInputChange={setInput} onAdd={addFloor} />
-        }
-        <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
-          <Button variant="secondary" style={{ flex: 1 }} onClick={handleClose}>Cancelar</Button>
-          <Button style={{ flex: 1 }} onClick={handleSave} loading={isSaving} disabled={!form.name.trim() || labels.length === 0}>Salvar</Button>
+    <>
+      <Modal open={open && !confirmCancel} onClose={handleClose} title={`Editar — ${building.name}`}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
+          <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <Input label="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          {floorsLoading || !initialized
+            ? <div style={{ height: 80, background: 'rgba(255,255,255,0.04)', borderRadius: 12 }} />
+            : <FloorTags labels={labels} onRemove={removeFloor} input={input} onInputChange={setInput} onAdd={addFloor} />
+          }
+          <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
+            <Button variant="secondary" style={{ flex: 1 }} onClick={handleClose}>Cancelar</Button>
+            <Button style={{ flex: 1 }} onClick={handleSave} loading={isSaving} disabled={!form.name.trim() || labels.length === 0}>Salvar</Button>
+          </div>
         </div>
-      </div>
-    </Modal>
+      </Modal>
+      <ConfirmModal
+        open={confirmCancel}
+        title="Descartar alterações?"
+        message="Você tem alterações não salvas. Deseja sair sem salvar?"
+        confirmLabel="Descartar"
+        onConfirm={doClose}
+        onCancel={() => setConfirmCancel(false)}
+      />
+    </>
   );
 }
 
