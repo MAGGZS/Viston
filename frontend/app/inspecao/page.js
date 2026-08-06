@@ -62,7 +62,7 @@ function StepSemVinculo() {
             </div>
           </div>
           <Button onClick={handleRequest} loading={requestAccess.isPending} className="w-full">
-            Solicitar acesso a este prédio
+            Conectar-se
           </Button>
         </div>
       )}
