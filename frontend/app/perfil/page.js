@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { LogOut } from 'lucide-react';
+import { LogOut, ArrowLeft, Building2 } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { Button, Input, Card, Modal } from '@/app/components/ui';
@@ -104,10 +104,152 @@ export default function PerfilPage() {
     }
   }
 
+  // Seção de prédio vinculado (reutilizada em ambos os layouts)
+  function BuildingSection() {
+    if (user?.role === 'ADMIN') return null;
+    return (
+      <Card>
+        <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Prédio vinculado</h2>
+        {buildingsLoading ? (
+          <div style={{ height: 48, background: 'rgba(255,255,255,0.05)', borderRadius: 12 }} />
+        ) : hasBuilding ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Building2 size={18} color="#F5C518" />
+              <div>
+                <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 14 }}>{myBuilding.name}</p>
+                {myBuilding.description && <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>{myBuilding.description}</p>}
+              </div>
+            </div>
+            <button onClick={handleLeave} disabled={leaveBuilding.isPending}
+              className="w-full text-sm text-red-400 border border-red-900/40 bg-red-900/10 rounded-2xl py-2.5 hover:bg-red-900/20 transition-colors disabled:opacity-50">
+              {leaveBuilding.isPending ? 'Saindo...' : 'Sair deste prédio'}
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Você não está vinculado a nenhum prédio.</p>
+            {!accessRequested ? (
+              <>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 13, outline: 'none' }}
+                    placeholder="ID do prédio..."
+                    value={newBuildingId}
+                    onChange={e => setNewBuildingId(e.target.value)}
+                  />
+                  <Button variant="secondary" onClick={() => { setSearchBuildingId(newBuildingId); setAccessRequested(false); }}>Buscar</Button>
+                </div>
+                {searchLoading && <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Buscando...</p>}
+                {searchError && <p style={{ color: '#f87171', fontSize: 13 }}>Prédio não encontrado</p>}
+                {searchedBuilding && (
+                  <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <p style={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600, fontSize: 14 }}>{searchedBuilding.building?.name}</p>
+                    <Button onClick={handleRequestAccess} loading={requestAccess.isPending} style={{ fontSize: 12, padding: '6px 14px' }}>Conectar-se</Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 14, padding: 14, textAlign: 'center' }}>
+                <p style={{ color: '#4ade80', fontWeight: 600, fontSize: 14 }}>Solicitação enviada!</p>
+                <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 4 }}>Aguarde a aprovação do administrador.</p>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+    );
+  }
+
   return (
     <RouteGuard>
-      <div className="min-h-screen pb-28">
+      {/* ── DESKTOP ── */}
+      <div className="hidden lg:flex min-h-screen bg-[#0D0D0D]">
         {/* Header */}
+        <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 60, background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', zIndex: 10 }}>
+          <button onClick={() => router.back()} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.9)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}>
+            <ArrowLeft size={18} />
+            <span style={{ fontSize: 14 }}>Voltar</span>
+          </button>
+          <span style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 700, fontSize: 15 }}>Perfil</span>
+          <button onClick={() => { logout(); router.replace('/login'); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}
+            onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}>
+            <LogOut size={16} /> Sair
+          </button>
+        </header>
+
+        {/* Content */}
+        <div style={{ marginTop: 60, width: '100%', maxWidth: 900, margin: '60px auto 0', padding: '40px 32px', display: 'flex', gap: 32, alignItems: 'flex-start' }}>
+          {/* Sidebar esquerda — avatar + info */}
+          <div style={{ width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16, position: 'sticky', top: 96 }}>
+            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
+              <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#F5C518', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 24px rgba(245,197,24,0.25)' }}>
+                <span style={{ color: '#000', fontWeight: 900, fontSize: 28 }}>{user?.name?.[0]?.toUpperCase()}</span>
+              </div>
+              <div>
+                <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 700, fontSize: 15 }}>{user?.name}</p>
+                <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>{user?.email}</p>
+              </div>
+              <span style={{ fontSize: 11, background: 'rgba(245,197,24,0.1)', color: '#F5C518', border: '1px solid rgba(245,197,24,0.2)', padding: '4px 12px', borderRadius: 99 }}>
+                {ROLE_LABELS[user?.role] || user?.role}
+              </span>
+            </div>
+          </div>
+
+          {/* Cards principais */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {successMsg && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3">
+                <p className="text-emerald-400 text-sm text-center">{successMsg}</p>
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              {/* Dados pessoais */}
+              <Card>
+                <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Dados pessoais</h2>
+                <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="flex flex-col gap-4">
+                  <Input label="Nome" error={profileForm.formState.errors.name?.message} {...profileForm.register('name')} />
+                  <Input label="E-mail" type="email" error={profileForm.formState.errors.email?.message} {...profileForm.register('email')} />
+                  {profileForm.formState.errors.root && (
+                    <p className="text-red-400/80 text-xs">{profileForm.formState.errors.root.message}</p>
+                  )}
+                  <Button type="submit" loading={updateMe.isPending} className="w-full">Salvar</Button>
+                </form>
+              </Card>
+
+              {/* Alterar senha */}
+              <Card>
+                <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Alterar senha</h2>
+                <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="flex flex-col gap-4">
+                  <Input label="Senha atual" type="password" error={passwordForm.formState.errors.current_password?.message} {...passwordForm.register('current_password')} />
+                  <Input label="Nova senha" type="password" error={passwordForm.formState.errors.new_password?.message} {...passwordForm.register('new_password')} />
+                  {passwordForm.formState.errors.root && (
+                    <p className="text-red-400/80 text-xs">{passwordForm.formState.errors.root.message}</p>
+                  )}
+                  <Button type="submit" loading={changePassword.isPending} className="w-full">Alterar senha</Button>
+                </form>
+              </Card>
+            </div>
+
+            <BuildingSection />
+
+            {/* Zona de perigo */}
+            <Card>
+              <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1.5">Zona de perigo</h2>
+              <p className="text-white/30 text-xs mb-4">A exclusão é irreversível. Seus relatórios serão mantidos de forma anônima.</p>
+              <Button variant="danger" onClick={() => setDeleteModal(true)}>Excluir minha conta</Button>
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* ── MOBILE ── */}
+      <div className="lg:hidden min-h-screen pb-28">
         <div className="px-5 pt-14 pb-6">
           <div className="flex items-center justify-between">
             <h1 className="text-white/95 text-2xl font-bold tracking-tight">Perfil</h1>
@@ -121,7 +263,6 @@ export default function PerfilPage() {
         </div>
 
         <div className="px-5 flex flex-col gap-4">
-          {/* Avatar */}
           <div className="flex items-center gap-4 px-1">
             <div className="w-16 h-16 rounded-full bg-[#F5C518] flex items-center justify-center shadow-[0_0_20px_rgba(245,197,24,0.25)]">
               <span className="text-black font-bold text-2xl">{user?.name?.[0]?.toUpperCase()}</span>
@@ -140,7 +281,6 @@ export default function PerfilPage() {
             </div>
           )}
 
-          {/* Dados pessoais */}
           <Card>
             <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Dados pessoais</h2>
             <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="flex flex-col gap-4">
@@ -153,7 +293,6 @@ export default function PerfilPage() {
             </form>
           </Card>
 
-          {/* Alterar senha */}
           <Card>
             <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Alterar senha</h2>
             <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="flex flex-col gap-4">
@@ -166,60 +305,8 @@ export default function PerfilPage() {
             </form>
           </Card>
 
-          {/* Prédio vinculado */}
-          {user?.role !== 'ADMIN' && (
-            <Card>
-              <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Prédio vinculado</h2>
-              {buildingsLoading ? (
-                <div style={{ height: 48, background: 'rgba(255,255,255,0.05)', borderRadius: 12 }} />
-              ) : hasBuilding ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 14 }}>{myBuilding.name}</p>
-                      {myBuilding.description && <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>{myBuilding.description}</p>}
-                    </div>
-                  </div>
-                  <button onClick={handleLeave} disabled={leaveBuilding.isPending}
-                    className="w-full text-sm text-red-400 border border-red-900/40 bg-red-900/10 rounded-2xl py-2.5 hover:bg-red-900/20 transition-colors disabled:opacity-50">
-                    {leaveBuilding.isPending ? 'Saindo...' : 'Sair deste prédio'}
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Você não está vinculado a nenhum prédio.</p>
-                  {!accessRequested ? (
-                    <>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <input
-                          style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 13, outline: 'none' }}
-                          placeholder="ID do prédio..."
-                          value={newBuildingId}
-                          onChange={e => setNewBuildingId(e.target.value)}
-                        />
-                        <Button variant="secondary" onClick={() => { setSearchBuildingId(newBuildingId); setAccessRequested(false); }}>Buscar</Button>
-                      </div>
-                      {searchLoading && <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Buscando...</p>}
-                      {searchError && <p style={{ color: '#f87171', fontSize: 13 }}>Prédio não encontrado</p>}
-                      {searchedBuilding && (
-                        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                          <p style={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600, fontSize: 14 }}>{searchedBuilding.building?.name}</p>
-                          <Button onClick={handleRequestAccess} loading={requestAccess.isPending} style={{ fontSize: 12, padding: '6px 14px' }}>Conectar-se</Button>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 14, padding: 14, textAlign: 'center' }}>
-                      <p style={{ color: '#4ade80', fontWeight: 600, fontSize: 14 }}>Solicitação enviada!</p>
-                      <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 4 }}>Aguarde a aprovação do administrador.</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </Card>
-          )}
+          <BuildingSection />
 
-          {/* Zona de perigo */}
           <Card>
             <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1.5">Zona de perigo</h2>
             <p className="text-white/30 text-xs mb-4">A exclusão é irreversível. Seus relatórios serão mantidos de forma anônima.</p>
@@ -229,20 +316,20 @@ export default function PerfilPage() {
           </Card>
         </div>
 
-        <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Excluir conta">
-          <p className="text-white/40 text-sm mb-6">
-            Tem certeza? Esta ação é <strong className="text-white/80">irreversível</strong>. Seu nome e e-mail serão anonimizados.
-          </p>
-          <div className="flex gap-3">
-            <Button variant="secondary" className="flex-1" onClick={() => setDeleteModal(false)}>Cancelar</Button>
-            <Button variant="danger" className="flex-1" loading={deleteMe.isPending} onClick={handleDelete}>
-              Confirmar
-            </Button>
-          </div>
-        </Modal>
-
         <BottomNav />
       </div>
+
+      <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Excluir conta">
+        <p className="text-white/40 text-sm mb-6">
+          Tem certeza? Esta ação é <strong className="text-white/80">irreversível</strong>. Seu nome e e-mail serão anonimizados.
+        </p>
+        <div className="flex gap-3">
+          <Button variant="secondary" className="flex-1" onClick={() => setDeleteModal(false)}>Cancelar</Button>
+          <Button variant="danger" className="flex-1" loading={deleteMe.isPending} onClick={handleDelete}>
+            Confirmar
+          </Button>
+        </div>
+      </Modal>
     </RouteGuard>
   );
 }
