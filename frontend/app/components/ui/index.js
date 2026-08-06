@@ -16,7 +16,11 @@ export function Button({ children, variant = 'primary', className = '', loading 
   };
   return (
     <button
-      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontWeight: 600, fontSize: 14, padding: '12px 20px', borderRadius: 16, border: 'none', cursor: props.disabled || loading ? 'not-allowed' : 'pointer', opacity: props.disabled || loading ? 0.5 : 1, transition: 'all 0.2s', ...styles[variant], ...style }}
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontWeight: 600, fontSize: 14, padding: '12px 20px', borderRadius: 16, border: 'none', cursor: props.disabled || loading ? 'not-allowed' : 'pointer', opacity: props.disabled || loading ? 0.5 : 1, transition: 'transform 0.15s ease, opacity 0.2s, box-shadow 0.2s', ...styles[variant], ...style }}
+      onMouseEnter={e => { if (!props.disabled && !loading) e.currentTarget.style.transform = 'scale(1.03)'; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+      onMouseDown={e => { if (!props.disabled && !loading) e.currentTarget.style.transform = 'scale(0.97)'; }}
+      onMouseUp={e => { e.currentTarget.style.transform = 'scale(1.03)'; }}
       disabled={loading || props.disabled}
       {...props}
     >
@@ -37,7 +41,7 @@ export function Input({ label, error, style = {}, ...props }) {
 
 export function Card({ children, style = {}, className = '' }) {
   return (
-    <div style={{ ...G.card, padding: 20, ...style }} className={className}>
+    <div style={{ ...G.card, padding: 20, transition: 'border-color 0.2s, box-shadow 0.2s', ...style }} className={`anim-fade-up ${className}`}>
       {children}
     </div>
   );
@@ -86,15 +90,15 @@ export function StatusBadge({ synced }) {
 }
 
 export function Skeleton({ className = '', style = {} }) {
-  return <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 16, animation: 'pulse 1.5s ease-in-out infinite', ...style }} className={className} />;
+  return <div style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%)', backgroundSize: '200% 100%', borderRadius: 16, animation: 'shimmer 1.4s ease-in-out infinite', ...style }} className={className} />;
 }
 
 export function Modal({ open, onClose, title, children }) {
   if (!open) return null;
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, animation: 'fade-in 0.2s ease both' }}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)' }} onClick={onClose} />
-      <div style={{ position: 'relative', background: 'rgba(10,10,20,0.92)', backdropFilter: 'blur(32px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 28, padding: 24, width: '100%', maxWidth: 440, boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}>
+      <div className="anim-scale-in" style={{ position: 'relative', background: 'rgba(10,10,20,0.92)', backdropFilter: 'blur(32px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 28, padding: 24, width: '100%', maxWidth: 440, boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}>
         {title && <h2 style={{ fontSize: 16, fontWeight: 700, color: 'rgba(255,255,255,0.9)', marginBottom: 20 }}>{title}</h2>}
         {children}
       </div>
