@@ -3,12 +3,12 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, ArrowLeft, UserCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, ArrowLeft, UserCheck, UserMinus } from 'lucide-react';
 import Link from 'next/link';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Badge, Skeleton, Button, Modal } from '@/app/components/ui';
-import { useBuildingDashboard, useBuildingHistory, useBuildingMembers } from '@/app/hooks/useApi';
+import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember } from '@/app/hooks/useApi';
 import { useToastStore } from '@/app/store/toast';
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
@@ -64,6 +64,7 @@ export default function BuildingDashboardPage() {
   const { data, isLoading } = useBuildingDashboard(id);
   const { data: histData, isLoading: histLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useBuildingHistory(id);
   const { data: membersData, isLoading: membersLoading } = useBuildingMembers(membersModal ? id : null);
+  const removeMember = useRemoveMember();
   const { show: toast } = useToastStore();
   const members = membersData ?? [];
   const rows = histData?.pages?.flatMap((p) => p.inspections) ?? [];
@@ -256,6 +257,22 @@ export default function BuildingDashboardPage() {
                 <span className="text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: m.role === 'INSPECTOR' ? 'rgba(245,197,24,0.1)' : 'rgba(99,102,241,0.1)', color: m.role === 'INSPECTOR' ? '#F5C518' : '#a5b4fc' }}>
                   {m.role === 'INSPECTOR' ? 'Inspetor' : 'Visualizador'}
                 </span>
+                <button
+                  onClick={async () => {
+                    try {
+                      await removeMember.mutateAsync({ buildingId: id, userId: m.user_id });
+                      toast(`${m.user?.name} removido`, 'info');
+                    } catch (e) {
+                      toast(e?.response?.data?.error?.message || 'Erro ao remover', 'error', e);
+                    }
+                  }}
+                  disabled={removeMember.isPending}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.25)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0 }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.25)'}
+                  title="Remover vínculo">
+                  <UserMinus size={15} />
+                </button>
               </div>
             ))}
           </div>
