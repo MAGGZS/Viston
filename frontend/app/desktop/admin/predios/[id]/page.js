@@ -9,6 +9,7 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Badge, Skeleton, Button, Modal } from '@/app/components/ui';
 import { useBuildingDashboard, useBuildingHistory } from '@/app/hooks/useApi';
+import { useToastStore } from '@/app/store/toast';
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success', COMPLETED: 'success' };
@@ -60,6 +61,7 @@ export default function BuildingDashboardPage() {
 
   const { data, isLoading } = useBuildingDashboard(id);
   const { data: histData, isLoading: histLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useBuildingHistory(id);
+  const { show: toast } = useToastStore();
   const rows = histData?.pages?.flatMap((p) => p.inspections) ?? [];
 
   const heatmap = data?.heatmap ?? {};
@@ -233,7 +235,7 @@ export default function BuildingDashboardPage() {
         <p className="text-[#9A9A9A] text-sm mb-4">Compartilhe este ID com inspetores e visualizadores para que possam solicitar acesso.</p>
         <div className="bg-[#0D0D0D] border border-[#2A2A2A] rounded-xl p-4 flex items-center justify-between gap-3">
           <span className="text-[#F5C518] font-mono text-sm break-all">{id}</span>
-          <button onClick={() => navigator.clipboard.writeText(id)}
+          <button onClick={() => { navigator.clipboard.writeText(id); toast('ID copiado!', 'info'); }}
             className="text-xs text-[#9A9A9A] hover:text-white whitespace-nowrap border border-[#2A2A2A] rounded-lg px-3 py-1.5 transition-colors">
             Copiar
           </button>

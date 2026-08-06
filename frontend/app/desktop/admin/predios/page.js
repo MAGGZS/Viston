@@ -5,10 +5,12 @@ import { Plus, Pencil, Trash2, Share2, Building2 } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Button, Input, Modal } from '@/app/components/ui';
+import { useToastStore } from '@/app/store/toast';
 import { useBuildings, useCreateBuilding, useUpdateBuilding, useDeleteBuilding } from '@/app/hooks/useApi';
 
 export default function AdminPrediosPage() {
   const router = useRouter();
+  const { show: toast } = useToastStore();
   const { data: buildings = [], isLoading } = useBuildings();
   const createBuilding = useCreateBuilding();
   const updateBuilding = useUpdateBuilding();
@@ -24,18 +26,18 @@ export default function AdminPrediosPage() {
   function openEdit(b) { setForm({ name: b.name, description: b.description || '' }); setEditModal(b); }
 
   async function handleCreate() {
-    try { await createBuilding.mutateAsync(form); setCreateModal(false); }
-    catch (e) { alert(e?.response?.data?.error?.message || 'Erro ao criar'); }
+    try { await createBuilding.mutateAsync(form); setCreateModal(false); toast('Prédio criado!', 'success'); }
+    catch (e) { toast(e?.response?.data?.error?.message || 'Erro ao criar', 'error'); }
   }
 
   async function handleEdit() {
-    try { await updateBuilding.mutateAsync({ id: editModal.id, ...form }); setEditModal(null); }
-    catch (e) { alert(e?.response?.data?.error?.message || 'Erro ao editar'); }
+    try { await updateBuilding.mutateAsync({ id: editModal.id, ...form }); setEditModal(null); toast('Prédio atualizado!', 'success'); }
+    catch (e) { toast(e?.response?.data?.error?.message || 'Erro ao editar', 'error'); }
   }
 
   async function handleDelete() {
-    try { await deleteBuilding.mutateAsync(deleteModal.id); setDeleteModal(null); }
-    catch (e) { alert(e?.response?.data?.error?.message || 'Erro ao excluir'); }
+    try { await deleteBuilding.mutateAsync(deleteModal.id); setDeleteModal(null); toast('Prédio excluído', 'info'); }
+    catch (e) { toast(e?.response?.data?.error?.message || 'Erro ao excluir', 'error'); }
   }
 
   return (
@@ -138,7 +140,7 @@ export default function AdminPrediosPage() {
         <p className="text-[#9A9A9A] text-sm mb-4">Compartilhe este ID com inspetores e visualizadores para que possam solicitar acesso ao prédio <span className="text-white font-semibold">{shareModal?.name}</span>.</p>
         <div className="bg-[#0D0D0D] border border-[#2A2A2A] rounded-xl p-4 flex items-center justify-between gap-3">
           <span className="text-[#F5C518] font-mono text-sm break-all">{shareModal?.id}</span>
-          <button onClick={() => { navigator.clipboard.writeText(shareModal?.id); }}
+          <button onClick={() => { navigator.clipboard.writeText(shareModal?.id); toast('ID copiado!', 'info'); }}
             className="text-xs text-[#9A9A9A] hover:text-white whitespace-nowrap border border-[#2A2A2A] rounded-lg px-3 py-1.5 transition-colors">
             Copiar
           </button>

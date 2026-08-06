@@ -9,6 +9,7 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { Button, Input, Card, Modal } from '@/app/components/ui';
 import { useAuthStore } from '@/app/store/auth';
+import { useToastStore } from '@/app/store/toast';
 import { useUpdateMe, useChangePassword, useDeleteMe, useMyBuildings, useLeaveBuilding, useRequestAccess, useFloors } from '@/app/hooks/useApi';
 
 const profileSchema = yup.object({
@@ -25,9 +26,9 @@ const ROLE_LABELS = { ADMIN: 'Administrador', INSPECTOR: 'Inspetor', VIEWER: 'Vi
 
 export default function PerfilPage() {
   const { user, setUser, logout } = useAuthStore();
+  const { show: toast } = useToastStore();
   const router = useRouter();
   const [deleteModal, setDeleteModal] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
 
   const updateMe = useUpdateMe();
   const changePassword = useChangePassword();
@@ -51,8 +52,9 @@ export default function PerfilPage() {
       setNewBuildingId('');
       setSearchBuildingId('');
       setAccessRequested(false);
+      toast('Você saiu do prédio', 'info');
     } catch (e) {
-      alert(e?.response?.data?.error?.message || 'Erro ao sair do prédio');
+      toast(e?.response?.data?.error?.message || 'Erro ao sair do prédio', 'error');
     }
   }
 
@@ -60,8 +62,9 @@ export default function PerfilPage() {
     try {
       await requestAccess.mutateAsync(searchBuildingId);
       setAccessRequested(true);
+      toast('Solicitação enviada! Aguarde a aprovação.', 'success');
     } catch (e) {
-      alert(e?.response?.data?.error?.message || 'Erro ao solicitar acesso');
+      toast(e?.response?.data?.error?.message || 'Erro ao solicitar acesso', 'error');
     }
   }
 
@@ -76,10 +79,9 @@ export default function PerfilPage() {
     try {
       const updated = await updateMe.mutateAsync(data);
       setUser(updated);
-      setSuccessMsg('Perfil atualizado!');
-      setTimeout(() => setSuccessMsg(''), 3000);
+      toast('Perfil atualizado!', 'success');
     } catch (e) {
-      profileForm.setError('root', { message: e?.response?.data?.error?.message || 'Erro ao atualizar' });
+      toast(e?.response?.data?.error?.message || 'Erro ao atualizar', 'error');
     }
   }
 
@@ -87,10 +89,9 @@ export default function PerfilPage() {
     try {
       await changePassword.mutateAsync(data);
       passwordForm.reset();
-      setSuccessMsg('Senha alterada!');
-      setTimeout(() => setSuccessMsg(''), 3000);
+      toast('Senha alterada com sucesso!', 'success');
     } catch (e) {
-      passwordForm.setError('root', { message: e?.response?.data?.error?.message || 'Senha atual incorreta' });
+      toast(e?.response?.data?.error?.message || 'Senha atual incorreta', 'error');
     }
   }
 
@@ -100,11 +101,10 @@ export default function PerfilPage() {
       logout();
       router.replace('/login');
     } catch (e) {
-      alert(e?.response?.data?.error?.message || 'Erro ao excluir conta');
+      toast(e?.response?.data?.error?.message || 'Erro ao excluir conta', 'error');
     }
   }
 
-  // Seção de prédio vinculado (reutilizada em ambos os layouts)
   function BuildingSection() {
     if (user?.role === 'ADMIN') return null;
     return (
@@ -165,7 +165,6 @@ export default function PerfilPage() {
     <RouteGuard>
       {/* ── DESKTOP ── */}
       <div className="hidden lg:flex min-h-screen bg-[#0D0D0D]">
-        {/* Header */}
         <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 60, background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', zIndex: 10 }}>
           <button onClick={() => router.back()} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}
             onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.9)'}
@@ -182,9 +181,7 @@ export default function PerfilPage() {
           </button>
         </header>
 
-        {/* Content */}
         <div style={{ marginTop: 60, width: '100%', maxWidth: 900, margin: '60px auto 0', padding: '40px 32px', display: 'flex', gap: 32, alignItems: 'flex-start' }}>
-          {/* Sidebar esquerda — avatar + info */}
           <div style={{ width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16, position: 'sticky', top: 96 }}>
             <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
               <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#F5C518', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 24px rgba(245,197,24,0.25)' }}>
@@ -200,45 +197,26 @@ export default function PerfilPage() {
             </div>
           </div>
 
-          {/* Cards principais */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {successMsg && (
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3">
-                <p className="text-emerald-400 text-sm text-center">{successMsg}</p>
-              </div>
-            )}
-
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              {/* Dados pessoais */}
               <Card>
                 <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Dados pessoais</h2>
                 <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="flex flex-col gap-4">
                   <Input label="Nome" error={profileForm.formState.errors.name?.message} {...profileForm.register('name')} />
                   <Input label="E-mail" type="email" error={profileForm.formState.errors.email?.message} {...profileForm.register('email')} />
-                  {profileForm.formState.errors.root && (
-                    <p className="text-red-400/80 text-xs">{profileForm.formState.errors.root.message}</p>
-                  )}
                   <Button type="submit" loading={updateMe.isPending} className="w-full">Salvar</Button>
                 </form>
               </Card>
-
-              {/* Alterar senha */}
               <Card>
                 <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Alterar senha</h2>
                 <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="flex flex-col gap-4">
                   <Input label="Senha atual" type="password" error={passwordForm.formState.errors.current_password?.message} {...passwordForm.register('current_password')} />
                   <Input label="Nova senha" type="password" error={passwordForm.formState.errors.new_password?.message} {...passwordForm.register('new_password')} />
-                  {passwordForm.formState.errors.root && (
-                    <p className="text-red-400/80 text-xs">{passwordForm.formState.errors.root.message}</p>
-                  )}
                   <Button type="submit" loading={changePassword.isPending} className="w-full">Alterar senha</Button>
                 </form>
               </Card>
             </div>
-
             <BuildingSection />
-
-            {/* Zona de perigo */}
             <Card>
               <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1.5">Zona de perigo</h2>
               <p className="text-white/30 text-xs mb-4">A exclusão é irreversível. Seus relatórios serão mantidos de forma anônima.</p>
@@ -253,10 +231,8 @@ export default function PerfilPage() {
         <div className="px-5 pt-14 pb-6">
           <div className="flex items-center justify-between">
             <h1 className="text-white/95 text-2xl font-bold tracking-tight">Perfil</h1>
-            <button
-              onClick={() => { logout(); router.replace('/login'); }}
-              className="w-9 h-9 bg-white/5 border border-white/8 rounded-2xl flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/10 transition-all"
-            >
+            <button onClick={() => { logout(); router.replace('/login'); }}
+              className="w-9 h-9 bg-white/5 border border-white/8 rounded-2xl flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/10 transition-all">
               <LogOut size={16} />
             </button>
           </div>
@@ -275,20 +251,11 @@ export default function PerfilPage() {
             </div>
           </div>
 
-          {successMsg && (
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3">
-              <p className="text-emerald-400 text-sm text-center">{successMsg}</p>
-            </div>
-          )}
-
           <Card>
             <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Dados pessoais</h2>
             <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="flex flex-col gap-4">
               <Input label="Nome" error={profileForm.formState.errors.name?.message} {...profileForm.register('name')} />
               <Input label="E-mail" type="email" error={profileForm.formState.errors.email?.message} {...profileForm.register('email')} />
-              {profileForm.formState.errors.root && (
-                <p className="text-red-400/80 text-xs">{profileForm.formState.errors.root.message}</p>
-              )}
               <Button type="submit" loading={updateMe.isPending} className="w-full">Salvar</Button>
             </form>
           </Card>
@@ -298,9 +265,6 @@ export default function PerfilPage() {
             <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="flex flex-col gap-4">
               <Input label="Senha atual" type="password" error={passwordForm.formState.errors.current_password?.message} {...passwordForm.register('current_password')} />
               <Input label="Nova senha" type="password" error={passwordForm.formState.errors.new_password?.message} {...passwordForm.register('new_password')} />
-              {passwordForm.formState.errors.root && (
-                <p className="text-red-400/80 text-xs">{passwordForm.formState.errors.root.message}</p>
-              )}
               <Button type="submit" loading={changePassword.isPending} className="w-full">Alterar senha</Button>
             </form>
           </Card>
@@ -310,12 +274,9 @@ export default function PerfilPage() {
           <Card>
             <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1.5">Zona de perigo</h2>
             <p className="text-white/30 text-xs mb-4">A exclusão é irreversível. Seus relatórios serão mantidos de forma anônima.</p>
-            <Button variant="danger" className="w-full" onClick={() => setDeleteModal(true)}>
-              Excluir minha conta
-            </Button>
+            <Button variant="danger" className="w-full" onClick={() => setDeleteModal(true)}>Excluir minha conta</Button>
           </Card>
         </div>
-
         <BottomNav />
       </div>
 
@@ -325,9 +286,7 @@ export default function PerfilPage() {
         </p>
         <div className="flex gap-3">
           <Button variant="secondary" className="flex-1" onClick={() => setDeleteModal(false)}>Cancelar</Button>
-          <Button variant="danger" className="flex-1" loading={deleteMe.isPending} onClick={handleDelete}>
-            Confirmar
-          </Button>
+          <Button variant="danger" className="flex-1" loading={deleteMe.isPending} onClick={handleDelete}>Confirmar</Button>
         </div>
       </Modal>
     </RouteGuard>

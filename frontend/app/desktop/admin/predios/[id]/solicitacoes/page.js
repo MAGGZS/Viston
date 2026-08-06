@@ -7,6 +7,7 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Badge, Skeleton } from '@/app/components/ui';
 import { useAccessRequests, useReviewAccessRequest, useBuildingDashboard } from '@/app/hooks/useApi';
+import { useToastStore } from '@/app/store/toast';
 
 const ROLE_LABEL = { ADMIN: 'Admin', INSPECTOR: 'Inspetor', VIEWER: 'Visualizador' };
 const ROLE_VARIANT = { ADMIN: 'accent', INSPECTOR: 'success', VIEWER: 'default' };
@@ -17,10 +18,14 @@ export default function SolicitacoesPage() {
   const { data: requests = [], isLoading } = useAccessRequests(id);
   const { data: dash } = useBuildingDashboard(id);
   const review = useReviewAccessRequest();
+  const { show: toast } = useToastStore();
 
   async function handle(requestId, status) {
-    try { await review.mutateAsync({ buildingId: id, requestId, status }); }
-    catch (e) { alert(e?.response?.data?.error?.message || 'Erro'); }
+    try {
+      await review.mutateAsync({ buildingId: id, requestId, status });
+      toast(status === 'APPROVED' ? 'Acesso aprovado!' : 'Solicitação rejeitada', status === 'APPROVED' ? 'success' : 'info');
+    }
+    catch (e) { toast(e?.response?.data?.error?.message || 'Erro', 'error'); }
   }
 
   return (

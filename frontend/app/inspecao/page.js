@@ -6,6 +6,7 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { FloorForm } from '@/app/components/FloorForm';
 import { Button, Card, Spinner } from '@/app/components/ui';
 import { useFloors, useStartInspection, useSaveFloorForm, useFinishInspection, useMyBuildings, useRequestAccess } from '@/app/hooks/useApi';
+import { useToastStore } from '@/app/store/toast';
 
 // Tela quando não tem vínculo: busca por ID e solicita acesso
 function StepSemVinculo() {
@@ -14,13 +15,15 @@ function StepSemVinculo() {
   const [requested, setRequested] = useState(false);
   const { data, isLoading, error } = useFloors(searchId);
   const requestAccess = useRequestAccess();
+  const { show: toast } = useToastStore();
 
   async function handleRequest() {
     try {
       await requestAccess.mutateAsync(searchId);
       setRequested(true);
+      toast('Solicitação enviada! Aguarde a aprovação.', 'success');
     } catch (e) {
-      alert(e?.response?.data?.error?.message || 'Erro ao solicitar acesso');
+      toast(e?.response?.data?.error?.message || 'Erro ao solicitar acesso', 'error');
     }
   }
 
@@ -82,6 +85,7 @@ function StepSemVinculo() {
 function StepSelectFloors({ building, floors, onStart }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const { mutateAsync: startInspection, isPending } = useStartInspection();
+  const { show: toast } = useToastStore();
 
   function toggle(id) {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -93,7 +97,7 @@ function StepSelectFloors({ building, floors, onStart }) {
       const report = await startInspection({ building_id: building.id, floor_ids: selectedIds });
       onStart(report, floors.filter(f => selectedIds.includes(f.id)));
     } catch (e) {
-      alert(e?.response?.data?.error?.message || 'Erro ao iniciar inspeção');
+      toast(e?.response?.data?.error?.message || 'Erro ao iniciar inspeção', 'error');
     }
   }
 
@@ -147,6 +151,7 @@ export default function InspecaoPage() {
 
   const { mutateAsync: saveFloor, isPending: isSaving } = useSaveFloorForm();
   const { mutateAsync: finishInspection, isPending: isFinishing } = useFinishInspection();
+  const { show: toast } = useToastStore();
 
   function handleStart(rep, selectedFloors) {
     setReport(rep);
@@ -171,7 +176,7 @@ export default function InspecaoPage() {
         setStep('done');
       }
     } catch (e) {
-      alert(e?.response?.data?.error?.message || 'Erro ao salvar andar');
+      toast(e?.response?.data?.error?.message || 'Erro ao salvar andar', 'error');
     }
   }
 

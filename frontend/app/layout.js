@@ -1,6 +1,7 @@
 import './globals.css';
 import { QueryProvider } from '@/app/lib/QueryProvider';
 import { AuthProvider } from '@/app/lib/AuthProvider';
+import { Toast } from '@/app/components/Toast';
 
 export const metadata = {
   title: 'Viston',
@@ -12,7 +13,10 @@ export default function RootLayout({ children }) {
     <html lang="pt-BR">
       <body>
         <QueryProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <Toast />
+            {children}
+          </AuthProvider>
         </QueryProvider>
       </body>
     </html>
