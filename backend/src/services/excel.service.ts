@@ -72,7 +72,7 @@ export async function generateInspectionExcel(report: FullReport): Promise<Buffe
   headerStyle(summary, statusHeader, 'FF2D6A4F');
 
   const sortedEntries = [...report.floor_form_entries].sort(
-    (a, b) => b.floor.order - a.floor.order
+    (a, b) => a.floor.label.localeCompare(b.floor.label, 'pt-BR', { numeric: true })
   );
 
   sortedEntries.forEach((entry) => {
