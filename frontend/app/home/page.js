@@ -38,7 +38,7 @@ export default function HomePage() {
       <div style={{ minHeight: '100vh', background: '#080810', paddingBottom: 100 }}>
 
         {/* Header */}
-        <div style={{ padding: '56px 20px 24px' }}>
+        <div className="anim-fade-down" style={{ padding: '56px 20px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, textTransform: 'capitalize' }}>
@@ -57,7 +57,9 @@ export default function HomePage() {
         <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* CTA */}
           {canInspect && (
-            <button onClick={() => router.push('/inspecao')} style={{ width: '100%', background: '#F5C518', color: '#000', borderRadius: 24, padding: 20, display: 'flex', alignItems: 'center', gap: 16, border: 'none', cursor: 'pointer', boxShadow: '0 0 30px rgba(245,197,24,0.2)', textAlign: 'left' }}>
+            <button onClick={() => router.push('/inspecao')} className="anim-fade-up anim-d1 hover-glow" style={{ width: '100%', background: '#F5C518', color: '#000', borderRadius: 24, padding: 20, display: 'flex', alignItems: 'center', gap: 16, border: 'none', cursor: 'pointer', boxShadow: '0 0 30px rgba(245,197,24,0.2)', textAlign: 'left', transition: 'transform 0.2s ease, box-shadow 0.2s ease' }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
               <div style={{ width: 48, height: 48, background: 'rgba(0,0,0,0.15)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <ClipboardCheck size={22} />
               </div>
@@ -70,7 +72,7 @@ export default function HomePage() {
 
           {/* Calendário — só aparece se tiver vínculo com prédio */}
           {!buildingsLoading && hasBuilding && (
-            <Card>
+            <Card className="anim-fade-up anim-d2">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <button onClick={prevMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: 4 }}><ChevronLeft size={18} /></button>
                 <h2 style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: 600, textTransform: 'capitalize' }}>{monthLabel}</h2>

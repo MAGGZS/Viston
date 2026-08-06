@@ -120,8 +120,8 @@ export default function BuildingDashboardPage() {
               { icon: ClipboardList, label: 'Total de inspeções', value: data?.totalInspections },
               { icon: Users, label: 'Inspetores', value: data?.inspectorCount },
               { icon: Eye, label: 'Visualizadores', value: data?.viewerCount },
-            ].map(({ icon: Icon, label, value }) => (
-              <div key={label} className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-5 flex items-center gap-4">
+            ].map(({ icon: Icon, label, value }, idx) => (
+              <div key={label} className={`anim-fade-up anim-d${idx + 1} bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-5 flex items-center gap-4 hover:border-[#3A3A3A] transition-all duration-200`}>
                 <div className="w-10 h-10 bg-[#F5C518]/10 rounded-xl flex items-center justify-center">
                   <Icon size={18} className="text-[#F5C518]" />
                 </div>
@@ -136,7 +136,7 @@ export default function BuildingDashboardPage() {
           </div>
 
           {/* Calendário + Histórico */}
-          <div className="grid grid-cols-3 gap-6">
+          <div className="anim-fade-up anim-d4 grid grid-cols-3 gap-6">
             <div className="col-span-1 bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-5">
               <div className="flex items-center justify-between mb-4">
                 <button onClick={prev} className="p-1 text-[#9A9A9A] hover:text-white"><ChevronLeft size={16} /></button>

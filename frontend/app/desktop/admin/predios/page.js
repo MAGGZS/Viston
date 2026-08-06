@@ -308,8 +308,8 @@ export default function AdminPrediosPage() {
           )}
 
           <div className="grid grid-cols-3 gap-4">
-            {buildings.map((b) => (
-              <div key={b.id} className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-5 flex flex-col gap-4 hover:border-[#3A3A3A] transition-colors">
+            {buildings.map((b, idx) => (
+              <div key={b.id} className={`anim-fade-up anim-d${Math.min(idx + 1, 6)} bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-5 flex flex-col gap-4 hover:border-[#3A3A3A] hover:-translate-y-1 transition-all duration-200`}>
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-semibold text-base truncate">{b.name}</p>
                   {b.description && <p className="text-[#9A9A9A] text-sm mt-1 line-clamp-2">{b.description}</p>}

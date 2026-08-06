@@ -210,7 +210,8 @@ export default function InspecaoPage() {
 
         <div style={{ padding: '16px 20px' }}>
           {step === 'select' && (
-            buildingsLoading || floorsLoading ? (
+            <div className="anim-fade-up">
+            {buildingsLoading || floorsLoading ? (
               <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>
             ) : !hasBuilding ? (
               <StepSemVinculo />
@@ -220,21 +221,24 @@ export default function InspecaoPage() {
                 floors={floorsData?.floors ?? []}
                 onStart={handleStart}
               />
-            )
+            )}
+            </div>
           )}
 
           {step === 'form' && (
+            <div className="anim-fade-up">
             <FloorForm
               floor={floors[currentIndex]}
               onSubmit={handleFloorSubmit}
               isLoading={isSaving || isFinishing}
               isLast={currentIndex === floors.length - 1}
             />
+            </div>
           )}
 
           {step === 'done' && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, paddingTop: 40, textAlign: 'center' }}>
-              <div style={{ width: 80, height: 80, background: 'rgba(245,197,24,0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="anim-scale-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, paddingTop: 40, textAlign: 'center' }}>
+              <div className="anim-pop-in" style={{ width: 80, height: 80, background: 'rgba(245,197,24,0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <span style={{ fontSize: 36 }}>✓</span>
               </div>
               <div>

@@ -51,12 +51,12 @@ export default function RegisterPage() {
   return (
     <div style={S.page}>
       <div style={S.wrap}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div style={S.logo}><span style={{ color: '#000', fontSize: 24, fontWeight: 900 }}>V</span></div>
+        <div className="anim-fade-down" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div className="anim-pop-in" style={S.logo}><span style={{ color: '#000', fontSize: 24, fontWeight: 900 }}>V</span></div>
           <h1 style={{ color: 'rgba(255,255,255,0.95)', fontSize: 24, fontWeight: 700 }}>Criar conta</h1>
         </div>
 
-        <div style={S.card}>
+        <div className="anim-fade-up anim-d2" style={S.card}>
           <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {fields.map(({ name, label, type, placeholder }) => (
               <div key={name} style={S.field}>

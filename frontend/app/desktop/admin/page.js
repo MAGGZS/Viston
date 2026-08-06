@@ -98,8 +98,8 @@ export default function AdminUsersPage() {
                     ))}
                   </tr>
                 ))}
-                {data?.users?.map(u => (
-                  <tr key={u.id} className="border-b border-[#2A2A2A] hover:bg-[#1E1E1E] transition-colors">
+                {data?.users?.map((u, idx) => (
+                  <tr key={u.id} className={`anim-fade-in anim-d${Math.min(idx + 1, 6)} border-b border-[#2A2A2A] hover:bg-[#1E1E1E] transition-colors`}>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-[#F5C518] flex items-center justify-center">
