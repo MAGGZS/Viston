@@ -26,10 +26,6 @@ export const userRepository = {
     ]);
   },
 
-  count() {
-    return prisma.user.count();
-  },
-
   create(data: { name: string; email: string; password_hash: string; role: Role }) {
     return prisma.user.create({ data });
   },

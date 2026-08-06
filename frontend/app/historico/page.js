@@ -3,7 +3,6 @@ import { useState, useMemo, useEffect } from 'react';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, FileSpreadsheet, RefreshCw, SlidersHorizontal } from 'lucide-react';
-// calendar imports kept for desktop layout only
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
@@ -121,7 +120,6 @@ export default function HistoricoPage() {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  const [tab, setTab] = useState('lista'); // used on desktop only
   const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState(null);
 

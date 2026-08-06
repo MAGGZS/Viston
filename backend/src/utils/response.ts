@@ -11,12 +11,3 @@ export function created<T>(res: Response, data: T): Response {
 export function noContent(res: Response): Response {
   return res.status(204).send();
 }
-
-export function errorResponse(
-  res: Response,
-  statusCode: number,
-  code: string,
-  message: string
-): Response {
-  return res.status(statusCode).json({ error: { code, message } });
-}

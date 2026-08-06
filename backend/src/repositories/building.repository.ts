@@ -77,12 +77,6 @@ export const buildingRepository = {
     });
   },
 
-  removeMember(buildingId: string, userId: string) {
-    return prisma.buildingMember.delete({
-      where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
-    });
-  },
-
   // ── Solicitações de acesso ─────────────────────────────────────────────────
   findAccessRequest(buildingId: string, userId: string) {
     return prisma.buildingAccessRequest.findUnique({

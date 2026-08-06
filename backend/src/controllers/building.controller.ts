@@ -3,7 +3,7 @@ import { AuthenticatedRequest } from '../middlewares/authenticate';
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
 import { inspectionRepository } from '../repositories/inspection.repository';
 import { ok, created, noContent } from '../utils/response';
-import { NotFoundError, ForbiddenError, ConflictError } from '../utils/errors';
+import { NotFoundError, ConflictError } from '../utils/errors';
 import { AuditAction } from '@prisma/client';
 
 export const buildingController = {
@@ -111,7 +111,7 @@ export const buildingController = {
   },
 
   async removeMember(req: AuthenticatedRequest, res: Response) {
-    await buildingRepository.removeMember(req.params.id, req.params.userId);
+    await buildingRepository.removeMemberSelf(req.params.id, req.params.userId);
     noContent(res);
   },
 

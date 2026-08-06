@@ -138,10 +138,6 @@ export const inspectionRepository = {
     });
   },
 
-  countCompletedFloors(reportId: string) {
-    return prisma.floorFormEntry.count({ where: { report_id: reportId } });
-  },
-
   getCalendarData(dateFrom: Date, dateTo: Date, buildingId?: string) {
     return prisma.inspectionReport.findMany({
       where: {

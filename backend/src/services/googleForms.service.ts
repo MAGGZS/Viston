@@ -1,9 +1,8 @@
 import fetch from 'node-fetch';
-import { FormItemResponse } from '@prisma/client';
+import { FormItemResponse, AuditAction } from '@prisma/client';
 import { config } from '../config';
 import { inspectionRepository } from '../repositories/inspection.repository';
 import { auditRepository } from '../repositories/building.repository';
-import { AuditAction } from '@prisma/client';
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
