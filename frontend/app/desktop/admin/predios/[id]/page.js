@@ -3,12 +3,12 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, ArrowLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, ArrowLeft, UserCheck } from 'lucide-react';
 import Link from 'next/link';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Badge, Skeleton, Button, Modal } from '@/app/components/ui';
-import { useBuildingDashboard, useBuildingHistory } from '@/app/hooks/useApi';
+import { useBuildingDashboard, useBuildingHistory, useBuildingMembers } from '@/app/hooks/useApi';
 import { useToastStore } from '@/app/store/toast';
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
@@ -26,13 +26,13 @@ function MonthGrid({ heatmap, year, month, onDayClick }) {
   const days = eachDayOfInterval({ start: startOfMonth(new Date(year, month - 1)), end: endOfMonth(new Date(year, month - 1)) });
   const blanks = Array(days[0].getDay()).fill(null);
   return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3, marginBottom: 4 }}>
+    <div style={{ width: '100%' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 6 }}>
         {['D','S','T','Q','Q','S','S'].map((d, i) => (
-          <span key={i} style={{ textAlign: 'center', fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>{d}</span>
+          <div key={i} style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.25)', fontWeight: 600, padding: '2px 0' }}>{d}</div>
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
         {blanks.map((_, i) => <div key={`b${i}`} />)}
         {days.map((d) => {
           const key = format(d, 'yyyy-MM-dd');
@@ -40,8 +40,8 @@ function MonthGrid({ heatmap, year, month, onDayClick }) {
           return (
             <div key={key} onClick={() => info?.count && onDayClick?.(key, info)}
               title={`${key}: ${info?.count ?? 0} inspeção(ões)`}
-              style={{ width: 22, height: 22, borderRadius: 4, background: intensity(info?.count), cursor: info?.count ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)' }}>{format(d, 'd')}</span>
+              style={{ aspectRatio: '1', borderRadius: 5, background: intensity(info?.count), cursor: info?.count ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 0 }}>
+              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', lineHeight: 1 }}>{format(d, 'd')}</span>
             </div>
           );
         })}
@@ -59,10 +59,13 @@ export default function BuildingDashboardPage() {
   const [year, setYear] = useState(now.getFullYear());
   const [selected, setSelected] = useState(null);
   const [shareModal, setShareModal] = useState(false);
+  const [membersModal, setMembersModal] = useState(false);
 
   const { data, isLoading } = useBuildingDashboard(id);
   const { data: histData, isLoading: histLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useBuildingHistory(id);
+  const { data: membersData, isLoading: membersLoading } = useBuildingMembers(membersModal ? id : null);
   const { show: toast } = useToastStore();
+  const members = membersData ?? [];
   const rows = histData?.pages?.flatMap((p) => p.inspections) ?? [];
 
   const heatmap = data?.heatmap ?? {};
@@ -98,6 +101,10 @@ export default function BuildingDashboardPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl text-[#9A9A9A] text-sm hover:text-white transition-colors">
                 <Users size={15} /> Solicitações
               </Link>
+              <button onClick={() => setMembersModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl text-[#9A9A9A] text-sm hover:text-white transition-colors">
+                <UserCheck size={15} /> Colaboradores
+              </button>
               <button onClick={() => setShareModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl text-[#9A9A9A] text-sm hover:text-white transition-colors">
                 <Share2 size={15} /> Compartilhar ID
@@ -227,6 +234,33 @@ export default function BuildingDashboardPage() {
           )}
         </div>
       )}
+
+      <Modal open={membersModal} onClose={() => setMembersModal(false)} title="Colaboradores">
+        {membersLoading ? (
+          <div className="flex flex-col gap-3">
+            {[1,2,3].map(i => <div key={i} className="h-12 bg-[#1A1A1A] rounded-xl animate-pulse" />)}
+          </div>
+        ) : members.length === 0 ? (
+          <p className="text-[#9A9A9A] text-sm text-center py-6">Nenhum colaborador vinculado</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {members.map((m) => (
+              <div key={m.id} className="flex items-center gap-3 bg-[#0D0D0D] border border-[#2A2A2A] rounded-xl px-4 py-3">
+                <div className="w-8 h-8 rounded-full bg-[#F5C518] flex items-center justify-center flex-shrink-0">
+                  <span className="text-black text-xs font-bold">{m.user?.name?.[0]}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-medium truncate">{m.user?.name}</p>
+                  <p className="text-[#9A9A9A] text-xs truncate">{m.user?.email}</p>
+                </div>
+                <span className="text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: m.role === 'INSPECTOR' ? 'rgba(245,197,24,0.1)' : 'rgba(99,102,241,0.1)', color: m.role === 'INSPECTOR' ? '#F5C518' : '#a5b4fc' }}>
+                  {m.role === 'INSPECTOR' ? 'Inspetor' : 'Visualizador'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
 
       <Modal open={shareModal} onClose={() => setShareModal(false)} title="Compartilhar ID do prédio">
         <p className="text-[#9A9A9A] text-sm mb-4">Compartilhe este ID com inspetores e visualizadores para que possam solicitar acesso.</p>
