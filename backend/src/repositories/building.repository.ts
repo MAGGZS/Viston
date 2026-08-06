@@ -35,7 +35,7 @@ export const buildingRepository = {
   getFloors(buildingId: string) {
     return prisma.floor.findMany({
       where: { building_id: buildingId },
-      orderBy: { order: 'asc' },
+      orderBy: { label: 'asc' },
     });
   },
 
