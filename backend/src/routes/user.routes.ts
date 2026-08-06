@@ -12,18 +12,17 @@ import {
 
 const router = Router();
 
-// Cadastro público — primeiro usuário vira ADMIN, demais entram como VIEWER
-// O campo role no body é ignorado (definido automaticamente pelo service)
+// Cadastro público
 router.post('/', validate(createUserSchema), userController.create as any);
 
-// Rotas protegidas
-router.get('/', authenticate as any, authorize('ADMIN') as any, userController.findAll as any);
-router.patch('/:id', authenticate as any, authorize('ADMIN') as any, validate(updateUserSchema), userController.update as any);
-
-// Próprio usuário
+// Próprio usuário — deve vir ANTES de /:id para não ser capturado pelo parâmetro dinâmico
 router.get('/me', authenticate as any, userController.getMe as any);
 router.patch('/me', authenticate as any, validate(updateMeSchema), userController.updateMe as any);
 router.patch('/me/password', authenticate as any, validate(changePasswordSchema), userController.changePassword as any);
 router.delete('/me', authenticate as any, userController.deleteMe as any);
+
+// Rotas admin — /:id depois das rotas fixas
+router.get('/', authenticate as any, authorize('ADMIN') as any, userController.findAll as any);
+router.patch('/:id', authenticate as any, authorize('ADMIN') as any, validate(updateUserSchema), userController.update as any);
 
 export default router;
