@@ -1,14 +1,14 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, ArrowLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, ArrowLeft, Layers, Plus, X } from 'lucide-react';
 import Link from 'next/link';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Badge, Skeleton, Button, Modal } from '@/app/components/ui';
-import { useBuildingDashboard, useBuildingHistory } from '@/app/hooks/useApi';
+import { useBuildingDashboard, useBuildingHistory, useFloors, useCreateFloor, useDeleteFloor } from '@/app/hooks/useApi';
 import { useToastStore } from '@/app/store/toast';
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
@@ -50,6 +50,78 @@ function MonthGrid({ heatmap, year, month, onDayClick }) {
   );
 }
 
+function FloorsEditorModal({ buildingId, open, onClose }) {
+  const { data, isLoading } = useFloors(buildingId);
+  const createFloor = useCreateFloor();
+  const deleteFloor = useDeleteFloor();
+  const { show: toast } = useToastStore();
+  const [newLabel, setNewLabel] = useState('');
+  const floors = data?.floors ?? [];
+
+  async function handleAdd() {
+    const label = newLabel.trim();
+    if (!label) return;
+    if (floors.length >= 12) { toast('Máximo de 12 andares atingido', 'error'); return; }
+    try { await createFloor.mutateAsync({ buildingId, label, order: floors.length }); setNewLabel(''); }
+    catch (e) { toast(e?.response?.data?.error?.message || 'Erro ao adicionar andar', 'error'); }
+  }
+
+  async function handleDelete(floorId) {
+    if (floors.length <= 1) { toast('Mínimo de 1 andar obrigatório', 'error'); return; }
+    try { await deleteFloor.mutateAsync({ buildingId, floorId }); }
+    catch (e) { toast(e?.response?.data?.error?.message || 'Erro ao remover andar', 'error'); }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Editar andares">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Andares ({floors.length}/12)
+          </p>
+          <span style={{ fontSize: 11, color: floors.length >= 12 ? '#f87171' : 'rgba(255,255,255,0.25)' }}>
+            {floors.length >= 12 ? 'Limite atingido' : `${12 - floors.length} disponíveis`}
+          </span>
+        </div>
+
+        {isLoading ? (
+          <div style={{ height: 60, background: 'rgba(255,255,255,0.04)', borderRadius: 12 }} />
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {floors.map((f) => (
+              <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(245,197,24,0.08)', border: '1px solid rgba(245,197,24,0.2)', borderRadius: 10, padding: '6px 10px' }}>
+                <span style={{ color: '#F5C518', fontSize: 13, fontWeight: 600 }}>{f.label}</span>
+                <button onClick={() => handleDelete(f.id)} disabled={deleteFloor.isPending}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', display: 'flex', padding: 0 }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}>
+                  <X size={13} />
+                </button>
+              </div>
+            ))}
+            {floors.length === 0 && <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13 }}>Nenhum andar adicionado</p>}
+          </div>
+        )}
+
+        {floors.length < 12 && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 14, outline: 'none' }}
+              placeholder="Ex: 7, Cobertura, Subsolo..."
+              value={newLabel}
+              onChange={e => setNewLabel(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            />
+            <Button variant="secondary" onClick={handleAdd} loading={createFloor.isPending}><Plus size={15} /></Button>
+          </div>
+        )}
+
+        <Button onClick={onClose} className="w-full">Concluir</Button>
+      </div>
+    </Modal>
+  );
+}
+
 export default function BuildingDashboardPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -58,6 +130,7 @@ export default function BuildingDashboardPage() {
   const [year, setYear] = useState(now.getFullYear());
   const [selected, setSelected] = useState(null);
   const [shareModal, setShareModal] = useState(false);
+  const [floorsModal, setFloorsModal] = useState(false);
 
   const { data, isLoading } = useBuildingDashboard(id);
   const { data: histData, isLoading: histLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useBuildingHistory(id);
@@ -97,6 +170,10 @@ export default function BuildingDashboardPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl text-[#9A9A9A] text-sm hover:text-white transition-colors">
                 <Users size={15} /> Solicitações
               </Link>
+              <button onClick={() => setFloorsModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl text-[#9A9A9A] text-sm hover:text-white transition-colors">
+                <Layers size={15} /> Editar andares
+              </button>
               <button onClick={() => setShareModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl text-[#9A9A9A] text-sm hover:text-white transition-colors">
                 <Share2 size={15} /> Compartilhar ID
@@ -127,7 +204,6 @@ export default function BuildingDashboardPage() {
 
           {/* Calendário + Histórico */}
           <div className="grid grid-cols-3 gap-6">
-            {/* Calendário */}
             <div className="col-span-1 bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-5">
               <div className="flex items-center justify-between mb-4">
                 <button onClick={prev} className="p-1 text-[#9A9A9A] hover:text-white"><ChevronLeft size={16} /></button>
@@ -144,7 +220,6 @@ export default function BuildingDashboardPage() {
               </div>
             </div>
 
-            {/* Histórico */}
             <div className="col-span-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl overflow-hidden">
               <div className="px-6 py-4 border-b border-[#2A2A2A]">
                 <h2 className="text-white font-semibold">Histórico de Inspeções</h2>
@@ -208,7 +283,6 @@ export default function BuildingDashboardPage() {
         <div><p className="text-4xl mb-4">🖥️</p><p className="text-white font-bold">Acesse pelo computador</p></div>
       </div>
 
-      {/* Tooltip dia selecionado */}
       {selected && (
         <div className="fixed bottom-8 right-8 bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-5 shadow-2xl min-w-64 z-50">
           <div className="flex items-center justify-between mb-3">
@@ -230,7 +304,8 @@ export default function BuildingDashboardPage() {
         </div>
       )}
 
-      {/* Modal compartilhar ID */}
+      <FloorsEditorModal buildingId={id} open={floorsModal} onClose={() => setFloorsModal(false)} />
+
       <Modal open={shareModal} onClose={() => setShareModal(false)} title="Compartilhar ID do prédio">
         <p className="text-[#9A9A9A] text-sm mb-4">Compartilhe este ID com inspetores e visualizadores para que possam solicitar acesso.</p>
         <div className="bg-[#0D0D0D] border border-[#2A2A2A] rounded-xl p-4 flex items-center justify-between gap-3">
