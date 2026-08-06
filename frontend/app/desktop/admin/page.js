@@ -3,11 +3,12 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, RefreshCw } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Button, Input, Select, Modal, Badge, Skeleton } from '@/app/components/ui';
 import { useUsers, useCreateUser, useUpdateUser } from '@/app/hooks/useApi';
+import { useToastStore } from '@/app/store/toast';
 
 const schema = yup.object({
   name: yup.string().min(2).required('Obrigatório'),
@@ -25,7 +26,7 @@ export default function AdminUsersPage() {
   const [createModal, setCreateModal] = useState(false);
   const [editUser, setEditUser] = useState(null);
 
-  const { data, isLoading } = useUsers(page);
+  const { data, isLoading, refetch, isFetching } = useUsers(page);
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
 
@@ -34,21 +35,25 @@ export default function AdminUsersPage() {
     defaultValues: { role: 'INSPECTOR' },
   });
 
+  const { show: toast } = useToastStore();
+
   async function onCreateSubmit(data) {
     try {
       await createUser.mutateAsync(data);
       reset();
       setCreateModal(false);
+      toast('Usuário criado!', 'success');
     } catch (e) {
-      alert(e?.response?.data?.error?.message || 'Erro ao criar usuário');
+      toast(e?.response?.data?.error?.message || 'Erro ao criar usuário', 'error');
     }
   }
 
   async function handleRoleChange(userId, role) {
     try {
       await updateUser.mutateAsync({ id: userId, role });
+      toast('Role atualizado!', 'success');
     } catch (e) {
-      alert(e?.response?.data?.error?.message || 'Erro ao atualizar');
+      toast(e?.response?.data?.error?.message || 'Erro ao atualizar', 'error');
     }
   }
 
@@ -56,8 +61,9 @@ export default function AdminUsersPage() {
     const newStatus = user.status === 'ACTIVE' ? 'DELETED' : 'ACTIVE';
     try {
       await updateUser.mutateAsync({ id: user.id, status: newStatus });
+      toast(newStatus === 'ACTIVE' ? 'Usuário reativado!' : 'Usuário desativado', 'info');
     } catch (e) {
-      alert(e?.response?.data?.error?.message || 'Erro ao atualizar');
+      toast(e?.response?.data?.error?.message || 'Erro ao atualizar', 'error');
     }
   }
 
@@ -68,9 +74,10 @@ export default function AdminUsersPage() {
         <main className="flex-1 p-8">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-2xl font-bold text-white">Usuários</h1>
-            <Button onClick={() => setCreateModal(true)}>
-              <UserPlus size={18} /> Novo usuário
-            </Button>
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={() => refetch()} loading={isFetching}><RefreshCw size={15} /> Atualizar</Button>
+              <Button onClick={() => setCreateModal(true)}><UserPlus size={18} /> Novo usuário</Button>
+            </div>
           </div>
 
           {/* Tabela */}
