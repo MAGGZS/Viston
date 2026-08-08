@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/authenticate';
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
 import { inspectionRepository } from '../repositories/inspection.repository';
+import { buildHeatmap } from '../services/inspection.service';
 import { ok, created, noContent } from '../utils/response';
 import { NotFoundError, ConflictError } from '../utils/errors';
 import { AuditAction } from '@prisma/client';
@@ -93,17 +94,7 @@ export const buildingController = {
     const dateTo = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
     const calData = await inspectionRepository.getCalendarData(dateFrom, dateTo, req.params.id);
-    const heatmap: Record<string, { count: number; inspectors: string[] }> = {};
-    for (const item of calData) {
-      if (!item.finished_at) continue;
-      const day = item.finished_at.toISOString().split('T')[0];
-      if (!heatmap[day]) heatmap[day] = { count: 0, inspectors: [] };
-      heatmap[day].count++;
-      const inspectorName = item.inspector?.name ?? 'Usuário removido';
-      if (!heatmap[day].inspectors.includes(inspectorName)) {
-        heatmap[day].inspectors.push(inspectorName);
-      }
-    }
+    const heatmap = buildHeatmap(calData);
 
     // Apenas admin vê a chave de compartilhamento
     const payloadBuilding = req.user.role === 'ADMIN' ? building : publicBuilding(building);

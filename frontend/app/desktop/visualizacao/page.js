@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Download, UserCircle, Building2 } from 'luci
 import Link from 'next/link';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
+import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { Badge, Skeleton, Button } from '@/app/components/ui';
 import { useCalendar, useBuildingHistory, useMyBuildings } from '@/app/hooks/useApi';
 
@@ -26,6 +27,7 @@ export default function VisualizacaoPage() {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
+  const [dayModal, setDayModal] = useState(null);
 
   const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
   const hasBuilding = myBuildings.length > 0;
@@ -91,7 +93,8 @@ export default function VisualizacaoPage() {
                   <button onClick={next} className="p-1 text-[#9A9A9A] hover:text-white"><ChevronRight size={18} /></button>
                 </div>
                 {calLoading ? <Skeleton className="h-48 w-full" /> : (
-                  <CalendarHeatmap heatmap={calData?.heatmap ?? {}} month={month} year={year} />
+                  <CalendarHeatmap heatmap={calData?.heatmap ?? {}} month={month} year={year}
+                    onDayClick={(day, info) => setDayModal({ day, info })} />
                 )}
                 <div className="flex items-center gap-1 mt-3 justify-end">
                   <span className="text-[#9A9A9A] text-xs">Menos</span>
@@ -164,6 +167,13 @@ export default function VisualizacaoPage() {
           <p className="text-[#9A9A9A] text-sm mt-2">Esta visualização é otimizada para desktop</p>
         </div>
       </div>
+
+      <DayInspectionsModal
+        open={!!dayModal}
+        onClose={() => setDayModal(null)}
+        day={dayModal?.day}
+        info={dayModal?.info}
+      />
     </RouteGuard>
   );
 }

@@ -7,11 +7,77 @@ import { SubmitInspectionPayload } from '../validators/inspection.validator';
 import { NotFoundError, ConflictError } from '../utils/errors';
 import { floorRank } from '../utils/floorOrder';
 
+export type CalendarDay = {
+  count: number;
+  inspectors: string[];
+  reports: Array<{ id: string; inspector: string; excel_url: string | null; finished_at: Date }>;
+};
+
+/**
+ * Agrupa as vistorias por dia de conclusão.
+ * Cada dia leva os relatórios do dia para o app abrir a prévia e a planilha.
+ */
+export function buildHeatmap(
+  data: Array<{
+    id: string;
+    finished_at: Date | null;
+    excel_url: string | null;
+    inspector: { id: string; name: string } | null;
+  }>
+): Record<string, CalendarDay> {
+  const heatmap: Record<string, CalendarDay> = {};
+
+  for (const item of data) {
+    if (!item.finished_at) continue;
+    const day = item.finished_at.toISOString().split('T')[0];
+    if (!heatmap[day]) heatmap[day] = { count: 0, inspectors: [], reports: [] };
+
+    const inspectorName = item.inspector?.name ?? 'Usuário removido';
+    heatmap[day].count++;
+    if (!heatmap[day].inspectors.includes(inspectorName)) {
+      heatmap[day].inspectors.push(inspectorName);
+    }
+    heatmap[day].reports.push({
+      id: item.id,
+      inspector: inspectorName,
+      excel_url: item.excel_url,
+      finished_at: item.finished_at,
+    });
+  }
+
+  return heatmap;
+}
+
 /** Status do andar derivado da maior prioridade entre as ocorrências relatadas. */
 function deriveFloorStatus(records: Array<{ priority: string }>): FloorStatus {
   if (records.some((r) => r.priority === 'ALTA')) return FloorStatus.PROBLEMA;
   if (records.some((r) => r.priority === 'MEDIA')) return FloorStatus.ATENCAO;
   return FloorStatus.OK;
+}
+
+/**
+ * Gera a planilha do relatório, sobe para o storage e grava a URL.
+ * Usado no envio da vistoria e na regeração manual quando o upload falhou.
+ */
+async function buildAndStoreExcel(reportId: string, userId?: string) {
+  const report = await inspectionRepository.findById(reportId);
+  if (!report) throw new NotFoundError('Relatório');
+
+  const buffer = await generateInspectionExcel(
+    report as Parameters<typeof generateInspectionExcel>[0]
+  );
+  const excelUrl = await storageService.uploadExcel(reportId, buffer);
+  await inspectionRepository.update(reportId, { excel_url: excelUrl });
+
+  await auditRepository.log({
+    user_id: userId,
+    action: AuditAction.GENERATE_EXCEL,
+    entity: 'InspectionReport',
+    entity_id: reportId,
+    metadata: { excel_url: excelUrl },
+  });
+
+  return excelUrl;
 }
 
 export const inspectionService = {
@@ -72,25 +138,54 @@ export const inspectionService = {
 
     // Gerar Excel e fazer upload (síncrono — bloqueia a resposta)
     try {
-      const buffer = await generateInspectionExcel(
-        report as Parameters<typeof generateInspectionExcel>[0]
-      );
-      const excelUrl = await storageService.uploadExcel(report.id, buffer);
-      await inspectionRepository.update(report.id, { excel_url: excelUrl });
-
-      await auditRepository.log({
-        user_id: inspectorId,
-        action: AuditAction.GENERATE_EXCEL,
-        entity: 'InspectionReport',
-        entity_id: report.id,
-        metadata: { excel_url: excelUrl },
-      });
+      await buildAndStoreExcel(report.id, inspectorId);
     } catch (err) {
       console.error('[Excel] Falha na geração:', err);
       // Não bloqueia o envio — relatório fica COMPLETED sem excel_url
+      // e a planilha pode ser gerada depois em POST /inspections/:id/excel
     }
 
     return inspectionRepository.findById(report.id);
+  },
+
+  /** Gera (ou refaz) a planilha de um relatório já concluído. */
+  async generateExcel(id: string, userId: string) {
+    const report = await inspectionRepository.findById(id);
+    if (!report) throw new NotFoundError('Relatório');
+    if (report.status === InspectionStatus.IN_PROGRESS) {
+      throw new ConflictError('Relatório ainda não foi concluído');
+    }
+
+    const excelUrl = await buildAndStoreExcel(id, userId);
+    return { excel_url: excelUrl };
+  },
+
+  /**
+   * Descarta uma vistoria (só ADMIN). Andares e ocorrências saem em cascata
+   * e a planilha é removida do storage.
+   */
+  async remove(id: string, userId: string) {
+    const report = await inspectionRepository.findById(id);
+    if (!report) throw new NotFoundError('Relatório');
+
+    if (report.excel_url) {
+      try {
+        await storageService.removeExcel(report.excel_url);
+      } catch (err) {
+        console.error('[Excel] Falha ao remover planilha do storage:', err);
+        // Arquivo órfão no bucket não impede o descarte do relatório
+      }
+    }
+
+    await inspectionRepository.delete(id);
+
+    await auditRepository.log({
+      user_id: userId,
+      action: AuditAction.DELETE,
+      entity: 'InspectionReport',
+      entity_id: id,
+      metadata: { building_id: report.building_id, date: report.date },
+    });
   },
 
   async findAll(filters: {
@@ -148,20 +243,6 @@ export const inspectionService = {
     }
 
     const data = await inspectionRepository.getCalendarData(dateFrom, dateTo);
-
-    // Agrupar por dia
-    const heatmap: Record<string, { count: number; inspectors: string[] }> = {};
-    for (const item of data) {
-      if (!item.finished_at) continue;
-      const day = item.finished_at.toISOString().split('T')[0];
-      if (!heatmap[day]) heatmap[day] = { count: 0, inspectors: [] };
-      heatmap[day].count++;
-      const inspectorName = item.inspector?.name ?? 'Usuário removido';
-      if (!heatmap[day].inspectors.includes(inspectorName)) {
-        heatmap[day].inspectors.push(inspectorName);
-      }
-    }
-
-    return { date_from: dateFrom, date_to: dateTo, heatmap };
+    return { date_from: dateFrom, date_to: dateTo, heatmap: buildHeatmap(data) };
   },
 };

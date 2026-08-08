@@ -144,6 +144,11 @@ export const inspectionRepository = {
     return prisma.inspectionReport.update({ where: { id }, data });
   },
 
+  /** Apaga o relatório; entradas de andar e ocorrências saem em cascata. */
+  delete(id: string) {
+    return prisma.inspectionReport.delete({ where: { id } });
+  },
+
   getCalendarData(dateFrom: Date, dateTo: Date, buildingId?: string) {
     return prisma.inspectionReport.findMany({
       where: {

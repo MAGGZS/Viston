@@ -1,11 +1,14 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, FileSpreadsheet, SlidersHorizontal } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
+import { CalendarDayCell } from '@/app/components/CalendarDayCell';
+import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { Badge, Button, Modal } from '@/app/components/ui';
 import { useInspections, useCalendar, useMyBuildings, useBuildingHistory } from '@/app/hooks/useApi';
 import { useAuthStore } from '@/app/store/auth';
@@ -57,10 +60,15 @@ function MonthGrid({ heatmap, year, month, onDayClick, compact = false }) {
           const key = format(d, 'yyyy-MM-dd');
           const info = heatmap?.[key];
           return (
-            <div key={key} onClick={() => info?.count && onDayClick?.(key, info)} title={`${key}: ${info?.count ?? 0} inspeção(ões)`}
-              style={{ width: size, height: size, borderRadius: 4, background: heatColor(info?.count), cursor: info?.count ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.15s' }}>
-              <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)' }}>{format(d, 'd')}</span>
-            </div>
+            <CalendarDayCell
+              key={key}
+              dayNumber={format(d, 'd')}
+              dayKey={key}
+              info={info}
+              background={heatColor(info?.count)}
+              size={size}
+              onClick={onDayClick}
+            />
           );
         })}
       </div>
@@ -68,16 +76,33 @@ function MonthGrid({ heatmap, year, month, onDayClick, compact = false }) {
   );
 }
 
+// Clicar no card abre o relatório completo da vistoria
 function InspectionCard({ inspection }) {
+  const router = useRouter();
+  const totalRecords = inspection.floor_form_entries?.reduce(
+    (sum, e) => sum + (e._count?.maintenance_records ?? 0), 0
+  ) ?? 0;
+
   return (
-    <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+    <div
+      onClick={() => router.push(`/historico/${inspection.id}`)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => e.key === 'Enter' && router.push(`/historico/${inspection.id}`)}
+      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer', transition: 'border-color 0.2s, background 0.2s' }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(245,197,24,0.35)'; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <div>
           <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 14 }}>
             {format(new Date(inspection.date), "d 'de' MMMM yyyy", { locale: ptBR })}
           </p>
-          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>{inspection.inspector?.name}</p>
+          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>
+            {inspection.inspector?.name} · {totalRecords} ocorrência{totalRecords !== 1 ? 's' : ''}
+          </p>
         </div>
+        <ChevronRight size={18} color="rgba(255,255,255,0.25)" />
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {inspection.floor_form_entries?.map(e => (
@@ -88,7 +113,7 @@ function InspectionCard({ inspection }) {
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         {inspection.excel_url && (
-          <a href={inspection.excel_url} target="_blank" rel="noreferrer" style={{ flex: 1 }}>
+          <a href={inspection.excel_url} target="_blank" rel="noreferrer" style={{ flex: 1 }} onClick={e => e.stopPropagation()}>
             <Button variant="secondary" style={{ width: '100%', fontSize: 12, padding: '8px 12px' }}>
               <FileSpreadsheet size={13} /> Excel
             </Button>
@@ -320,20 +345,12 @@ export default function HistoricoPage() {
           </div>
         </Modal>
 
-        {selected && (
-          <div style={{ position: 'fixed', bottom: 100, right: 20, background: 'rgba(10,10,20,0.95)', backdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 20, minWidth: 220, zIndex: 50, boxShadow: '0 16px 48px rgba(0,0,0,0.6)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 14 }}>{selected.day}</p>
-              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
-            </div>
-            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginBottom: 10 }}>{selected.info.count} inspeção(ões)</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {selected.info.inspectors?.map((name, i) => (
-                <span key={i} style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)', fontSize: 11, padding: '4px 10px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.1)' }}>{name}</span>
-              ))}
-            </div>
-          </div>
-        )}
+        <DayInspectionsModal
+          open={!!selected}
+          onClose={() => setSelected(null)}
+          day={selected?.day}
+          info={selected?.info}
+        />
 
         {!isDesktop && <BottomNav />}
       </div>

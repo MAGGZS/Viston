@@ -40,6 +40,11 @@ export const RECORD_STATUS = [
   { value: 'CONCLUIDO', label: 'Concluído' },
 ];
 
+/** Rótulo legível de um valor de enum; devolve o próprio valor se não conhecer. */
+export function labelOf(options, value) {
+  return options.find((o) => o.value === value)?.label ?? value ?? '—';
+}
+
 /** Registro em branco usado ao abrir o formulário e ao adicionar mais informações. */
 export function emptyRecord() {
   return {

@@ -243,6 +243,33 @@ export function useSubmitInspection() {
   });
 }
 
+// Descarta a vistoria (só ADMIN) — apaga relatório, ocorrências e planilha
+export function useDeleteInspection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.delete(`/inspections/${id}`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inspections'] });
+      qc.invalidateQueries({ queryKey: ['building-history'] });
+      qc.invalidateQueries({ queryKey: ['building-dashboard'] });
+      qc.invalidateQueries({ queryKey: ['calendar'] });
+    },
+  });
+}
+
+// Gera a planilha de novo quando o upload falhou no envio
+export function useGenerateExcel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post(`/inspections/${id}/excel`).then((r) => r.data),
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: ['inspection', id] });
+      qc.invalidateQueries({ queryKey: ['inspections'] });
+      qc.invalidateQueries({ queryKey: ['building-history'] });
+    },
+  });
+}
+
 // ── Calendar ──────────────────────────────────────────────────────────────────
 export function useCalendar(params) {
   return useQuery({

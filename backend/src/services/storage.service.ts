@@ -19,6 +19,15 @@ export const storageService = {
     return data.publicUrl;
   },
 
+  /** Apaga a planilha do bucket a partir da URL pública gravada no relatório. */
+  async removeExcel(excelUrl: string): Promise<void> {
+    const fileName = decodeURIComponent(excelUrl.split('/').pop() ?? '');
+    if (!fileName) return;
+
+    const { error } = await supabase.storage.from(config.supabase.bucketExcel).remove([fileName]);
+    if (error) throw new Error(`Falha ao remover o Excel: ${error.message}`);
+  },
+
   async uploadPhoto(
     reportId: string,
     floorId: string,

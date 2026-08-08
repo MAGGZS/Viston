@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, ClipboardCheck } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
+import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { Button, Card, Modal, Skeleton } from '@/app/components/ui';
 import { useAuthStore } from '@/app/store/auth';
 import { useCalendar, useMyBuildings } from '@/app/hooks/useApi';
@@ -92,17 +93,12 @@ export default function HomePage() {
           )}
         </div>
 
-        <Modal open={!!dayModal} onClose={() => setDayModal(null)} title={dayModal?.day}>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginBottom: 16 }}>{dayModal?.info?.count} inspeção(ões) realizada(s)</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-            {dayModal?.info?.inspectors?.map((name, i) => (
-              <span key={i} style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)', fontSize: 12, padding: '6px 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.1)' }}>{name}</span>
-            ))}
-          </div>
-          <Button variant="secondary" style={{ width: '100%' }} onClick={() => { router.push(`/historico?date_from=${dayModal?.day}&date_to=${dayModal?.day}`); setDayModal(null); }}>
-            Ver relatórios do dia
-          </Button>
-        </Modal>
+        <DayInspectionsModal
+          open={!!dayModal}
+          onClose={() => setDayModal(null)}
+          day={dayModal?.day}
+          info={dayModal?.info}
+        />
 
         <BottomNav />
       </div>

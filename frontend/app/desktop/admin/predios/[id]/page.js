@@ -3,12 +3,14 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, ArrowLeft, UserCheck, UserMinus, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, ArrowLeft, UserCheck, UserMinus, AlertTriangle, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
+import { CalendarDayCell } from '@/app/components/CalendarDayCell';
+import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { Badge, Skeleton, Button, Modal } from '@/app/components/ui';
-import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember } from '@/app/hooks/useApi';
+import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember, useDeleteInspection } from '@/app/hooks/useApi';
 import { formatShareKey } from '@/app/lib/shareKey';
 import { useToastStore } from '@/app/store/toast';
 
@@ -39,11 +41,14 @@ function MonthGrid({ heatmap, year, month, onDayClick }) {
           const key = format(d, 'yyyy-MM-dd');
           const info = heatmap?.[key];
           return (
-            <div key={key} onClick={() => info?.count && onDayClick?.(key, info)}
-              title={`${key}: ${info?.count ?? 0} inspeção(ões)`}
-              style={{ aspectRatio: '1', borderRadius: 5, background: intensity(info?.count), cursor: info?.count ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 0 }}>
-              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', lineHeight: 1 }}>{format(d, 'd')}</span>
-            </div>
+            <CalendarDayCell
+              key={key}
+              dayNumber={format(d, 'd')}
+              dayKey={key}
+              info={info}
+              background={intensity(info?.count)}
+              onClick={onDayClick}
+            />
           );
         })}
       </div>
@@ -62,11 +67,13 @@ export default function BuildingDashboardPage() {
   const [shareModal, setShareModal] = useState(false);
   const [membersModal, setMembersModal] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(null); // membro a remover
+  const [confirmDiscard, setConfirmDiscard] = useState(null); // vistoria a descartar
 
   const { data, isLoading } = useBuildingDashboard(id);
   const { data: histData, isLoading: histLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useBuildingHistory(id);
   const { data: membersData, isLoading: membersLoading } = useBuildingMembers(membersModal ? id : null);
   const removeMember = useRemoveMember();
+  const deleteInspection = useDeleteInspection();
   const { show: toast } = useToastStore();
   const members = membersData ?? [];
   const rows = histData?.pages?.flatMap((p) => p.inspections) ?? [];
@@ -162,19 +169,20 @@ export default function BuildingDashboardPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[#2A2A2A]">
-                    {['Inspetor', 'Status', 'Data', 'Planilha'].map(h => (
-                      <th key={h} className="text-left px-6 py-3 text-[#9A9A9A] text-xs font-medium">{h}</th>
+                    {['Inspetor', 'Status', 'Data', 'Planilha', ''].map((h, i) => (
+                      <th key={i} className="text-left px-6 py-3 text-[#9A9A9A] text-xs font-medium">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {histLoading && [1,2,3].map(i => (
                     <tr key={i} className="border-b border-[#2A2A2A]">
-                      {[1,2,3,4].map(j => <td key={j} className="px-6 py-3"><Skeleton className="h-4 w-full" /></td>)}
+                      {[1,2,3,4,5].map(j => <td key={j} className="px-6 py-3"><Skeleton className="h-4 w-full" /></td>)}
                     </tr>
                   ))}
                   {rows.map(r => (
-                    <tr key={r.id} className="border-b border-[#2A2A2A] hover:bg-[#1E1E1E] transition-colors">
+                    <tr key={r.id} onClick={() => router.push(`/historico/${r.id}`)}
+                      className="border-b border-[#2A2A2A] hover:bg-[#1E1E1E] transition-colors cursor-pointer">
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-full bg-[#F5C518] flex items-center justify-center">
@@ -191,16 +199,27 @@ export default function BuildingDashboardPage() {
                       </td>
                       <td className="px-6 py-3">
                         {r.excel_url ? (
-                          <a href={r.excel_url} target="_blank" rel="noreferrer"
+                          <a href={r.excel_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
                             className="flex items-center gap-1 text-[#F5C518] text-sm hover:underline">
                             <Download size={13} /> Baixar
                           </a>
                         ) : <span className="text-[#9A9A9A] text-sm">—</span>}
                       </td>
+                      <td className="px-6 py-3 text-right">
+                        <button
+                          onClick={e => { e.stopPropagation(); setConfirmDiscard(r); }}
+                          disabled={deleteInspection.isPending}
+                          title="Descartar vistoria"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.25)', padding: 4, borderRadius: 8 }}
+                          onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.25)'}>
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {!histLoading && rows.length === 0 && (
-                    <tr><td colSpan={4} className="px-6 py-10 text-center text-[#9A9A9A] text-sm">Nenhuma inspeção encontrada</td></tr>
+                    <tr><td colSpan={5} className="px-6 py-10 text-center text-[#9A9A9A] text-sm">Nenhuma inspeção encontrada</td></tr>
                   )}
                 </tbody>
               </table>
@@ -218,26 +237,12 @@ export default function BuildingDashboardPage() {
         <div><p className="text-4xl mb-4">🖥️</p><p className="text-white font-bold">Acesse pelo computador</p></div>
       </div>
 
-      {selected && (
-        <div className="fixed bottom-8 right-8 bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-5 shadow-2xl min-w-64 z-50">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-white font-semibold">{selected.day}</p>
-            <button onClick={() => setSelected(null)} className="text-[#9A9A9A] hover:text-white text-lg leading-none">×</button>
-          </div>
-          <p className="text-[#9A9A9A] text-sm mb-2">{selected.info.count} inspeção(ões)</p>
-          <div className="flex flex-wrap gap-2">
-            {selected.info.inspectors?.map((name, i) => (
-              <span key={i} className="bg-[#2A2A2A] text-white text-xs px-3 py-1 rounded-full">{name}</span>
-            ))}
-          </div>
-          {selected.info.excel_url && (
-            <a href={selected.info.excel_url} target="_blank" rel="noreferrer"
-              className="flex items-center gap-1 text-[#F5C518] text-sm mt-3 hover:underline">
-              <Download size={13} /> Ver planilha
-            </a>
-          )}
-        </div>
-      )}
+      <DayInspectionsModal
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        day={selected?.day}
+        info={selected?.info}
+      />
 
       <Modal open={membersModal} onClose={() => setMembersModal(false)} title="Colaboradores">
         {membersLoading ? (
@@ -297,6 +302,39 @@ export default function BuildingDashboardPage() {
                 }
               }}>
               Remover
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirmação de descarte da vistoria */}
+      <Modal open={!!confirmDiscard} onClose={() => setConfirmDiscard(null)} title="Descartar vistoria">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <AlertTriangle size={18} color="#f87171" style={{ flexShrink: 0, marginTop: 2 }} />
+            <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, lineHeight: 1.6 }}>
+              <p>
+                Descartar a vistoria de <span style={{ color: '#fff', fontWeight: 600 }}>{confirmDiscard?.inspector?.name}</span>
+                {confirmDiscard && ` de ${format(new Date(confirmDiscard.finished_at || confirmDiscard.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`}?
+              </p>
+              <p style={{ marginTop: 10, color: 'rgba(255,255,255,0.5)' }}>
+                Some o relatório, todas as ocorrências registradas e a planilha. Sai também do histórico e do calendário. <span style={{ color: '#f87171' }}>Não tem como desfazer.</span>
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="secondary" style={{ flex: 1 }} onClick={() => setConfirmDiscard(null)}>Cancelar</Button>
+            <Button variant="danger" style={{ flex: 1 }} loading={deleteInspection.isPending}
+              onClick={async () => {
+                try {
+                  await deleteInspection.mutateAsync(confirmDiscard.id);
+                  toast('Vistoria descartada', 'info');
+                  setConfirmDiscard(null);
+                } catch (e) {
+                  toast(e?.response?.data?.error?.message || 'Erro ao descartar', 'error');
+                }
+              }}>
+              Descartar
             </Button>
           </div>
         </div>

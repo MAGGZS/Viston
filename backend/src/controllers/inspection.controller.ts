@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/authenticate';
 import { inspectionService } from '../services/inspection.service';
 import { buildingRepository } from '../repositories/building.repository';
-import { ok, created } from '../utils/response';
+import { ok, created, noContent } from '../utils/response';
 import { NotFoundError } from '../utils/errors';
 import {
   inspectionFiltersSchema,
@@ -31,8 +31,18 @@ export const inspectionController = {
     ok(res, report);
   },
 
+  async remove(req: AuthenticatedRequest, res: Response) {
+    await inspectionService.remove(req.params.id, req.user.id);
+    noContent(res);
+  },
+
   async getExcelUrl(req: AuthenticatedRequest, res: Response) {
     const result = await inspectionService.getExcelUrl(req.params.id);
+    ok(res, result);
+  },
+
+  async generateExcel(req: AuthenticatedRequest, res: Response) {
+    const result = await inspectionService.generateExcel(req.params.id, req.user.id);
     ok(res, result);
   },
 

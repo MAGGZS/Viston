@@ -1,21 +1,18 @@
 'use client';
-import { useState } from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, startOfWeek, addDays } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
+import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 
 const DAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
 function getIntensity(count) {
-  if (!count) return 'bg-[#1E1E1E]';
-  if (count === 1) return 'bg-[#2E2A12]';
-  if (count === 2) return 'bg-[#6B5A00]';
-  if (count === 3) return 'bg-[#A88A00]';
-  return 'bg-[#F5C518]';
+  if (!count) return '#1E1E1E';
+  if (count === 1) return '#2E2A12';
+  if (count === 2) return '#6B5A00';
+  if (count === 3) return '#A88A00';
+  return '#F5C518';
 }
 
 export function CalendarHeatmap({ heatmap = {}, month, year, onDayClick }) {
-  const [tooltip, setTooltip] = useState(null);
-
   const date = new Date(year, month - 1, 1);
   const days = eachDayOfInterval({ start: startOfMonth(date), end: endOfMonth(date) });
   const firstDayOfWeek = getDay(days[0]);
@@ -47,18 +44,15 @@ export function CalendarHeatmap({ heatmap = {}, month, year, onDayClick }) {
               if (!day) return <div key={di} />;
               const key = format(day, 'yyyy-MM-dd');
               const data = heatmap[key];
-              const count = data?.count || 0;
               return (
-                <div
+                <CalendarDayCell
                   key={di}
-                  className={`aspect-square rounded-sm cursor-pointer transition-transform hover:scale-110 ${getIntensity(count)} relative`}
-                  onClick={() => { if (count > 0 && onDayClick) onDayClick(key, data); }}
-                  title={count > 0 ? `${count} inspeção(ões)` : format(day, 'd')}
-                >
-                  <span className="absolute inset-0 flex items-center justify-center text-[9px] text-white/40">
-                    {format(day, 'd')}
-                  </span>
-                </div>
+                  dayNumber={format(day, 'd')}
+                  dayKey={key}
+                  info={data}
+                  background={getIntensity(data?.count || 0)}
+                  onClick={onDayClick}
+                />
               );
             })}
           </div>
