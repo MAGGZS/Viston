@@ -5,6 +5,23 @@ import { inspectionRepository } from '../repositories/inspection.repository';
 import { ok, created, noContent } from '../utils/response';
 import { NotFoundError, ConflictError } from '../utils/errors';
 import { AuditAction } from '@prisma/client';
+import { normalizeShareKey, isValidShareKeyFormat } from '../utils/shareKey';
+
+/** Remove a chave de compartilhamento de respostas destinadas a nao-admins. */
+function publicBuilding(building: { id: string; name: string; description: string | null }) {
+  return { id: building.id, name: building.name, description: building.description };
+}
+
+/** Resolve o predio a partir da chave informada pelo usuário. */
+async function findBuildingByKeyOrFail(rawKey: unknown) {
+  const key = normalizeShareKey(String(rawKey ?? ''));
+  if (!isValidShareKeyFormat(key)) throw new NotFoundError('Prédio');
+
+  const building = await buildingRepository.findByShareKey(key);
+  if (!building) throw new NotFoundError('Prédio');
+
+  return building;
+}
 
 export const buildingController = {
   // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -47,7 +64,7 @@ export const buildingController = {
     const building = await buildingRepository.findById(req.params.id);
     if (!building) throw new NotFoundError('Prédio');
     const floors = await buildingRepository.getFloors(req.params.id);
-    ok(res, { building, floors });
+    ok(res, { building: publicBuilding(building), floors });
   },
 
   async createFloor(req: AuthenticatedRequest, res: Response) {
@@ -88,7 +105,10 @@ export const buildingController = {
       }
     }
 
-    ok(res, { building, inspectorCount, viewerCount, totalInspections, heatmap });
+    // Apenas admin vê a chave de compartilhamento
+    const payloadBuilding = req.user.role === 'ADMIN' ? building : publicBuilding(building);
+
+    ok(res, { building: payloadBuilding, inspectorCount, viewerCount, totalInspections, heatmap });
   },
 
   // ── Histórico do prédio ───────────────────────────────────────────────────
@@ -123,18 +143,24 @@ export const buildingController = {
     noContent(res);
   },
 
+  // ── Vínculo por chave de compartilhamento ─────────────────────────────────
+  /** Consulta prévia: mostra o nome do prédio dono da chave, sem expor o id. */
+  async lookupByKey(req: AuthenticatedRequest, res: Response) {
+    const building = await findBuildingByKeyOrFail(req.query.key);
+    ok(res, { name: building.name, description: building.description });
+  },
+
   // ── Solicitações de acesso ────────────────────────────────────────────────
   async requestAccess(req: AuthenticatedRequest, res: Response) {
-    const building = await buildingRepository.findById(req.params.id);
-    if (!building) throw new NotFoundError('Prédio');
+    const building = await findBuildingByKeyOrFail(req.body?.key);
 
-    const existing = await buildingRepository.findAccessRequest(req.params.id, req.user.id);
-    if (existing) throw new ConflictError('Solicitação já enviada para este prédio');
-
-    const isMember = await buildingRepository.findMember(req.params.id, req.user.id);
+    const isMember = await buildingRepository.findMember(building.id, req.user.id);
     if (isMember) throw new ConflictError('Você já é membro deste prédio');
 
-    const request = await buildingRepository.createAccessRequest(req.params.id, req.user.id);
+    const existing = await buildingRepository.findAccessRequest(building.id, req.user.id);
+    if (existing) throw new ConflictError('Solicitação já enviada para este prédio');
+
+    const request = await buildingRepository.createAccessRequest(building.id, req.user.id);
     created(res, request);
   },
 

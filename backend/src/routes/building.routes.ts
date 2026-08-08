@@ -12,6 +12,8 @@ const anyRole = authorize('ADMIN', 'INSPECTOR', 'VIEWER') as any;
 // ── CRUD (admin) ──────────────────────────────────────────────────────────────
 router.get('/', auth, adminOnly, buildingController.findAll as any);
 router.get('/me', auth, anyRole, buildingController.myBuildings as any);
+// Busca por chave de compartilhamento (antes de qualquer rota com :id)
+router.get('/lookup', auth, anyRole, buildingController.lookupByKey as any);
 router.post('/', auth, adminOnly, buildingController.create as any);
 router.patch('/:id', auth, adminOnly, buildingController.update as any);
 router.delete('/:id', auth, adminOnly, buildingController.remove as any);
@@ -31,7 +33,8 @@ router.delete('/:id/members/me', auth, anyRole, buildingController.leaveBuilding
 router.delete('/:id/members/:userId', auth, adminOnly, buildingController.removeMember as any);
 
 // ── Solicitações de acesso ────────────────────────────────────────────────────
-router.post('/:id/access-requests', auth, anyRole, buildingController.requestAccess as any);
+// Vínculo é feito pela chave de compartilhamento, nunca pelo id do prédio
+router.post('/access-requests', auth, anyRole, buildingController.requestAccess as any);
 router.get('/:id/access-requests', auth, adminOnly, buildingController.getAccessRequests as any);
 router.patch('/:id/access-requests/:requestId', auth, adminOnly, buildingController.reviewAccessRequest as any);
 

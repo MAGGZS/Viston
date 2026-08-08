@@ -7,6 +7,7 @@ import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Button, Input, Modal } from '@/app/components/ui';
 import { useToastStore } from '@/app/store/toast';
 import { useBuildings, useCreateBuilding, useUpdateBuilding, useDeleteBuilding, useCreateFloor, useDeleteFloor, useFloors } from '@/app/hooks/useApi';
+import { formatShareKey } from '@/app/lib/shareKey';
 
 // Modal de confirmação reutilizável
 function ConfirmModal({ open, title, message, confirmLabel = 'Confirmar', confirmVariant = 'danger', onConfirm, onCancel }) {
@@ -354,11 +355,11 @@ export default function AdminPrediosPage() {
         </div>
       </Modal>
 
-      <Modal open={!!shareModal} onClose={() => setShareModal(null)} title="ID do prédio">
-        <p className="text-[#9A9A9A] text-sm mb-4">Compartilhe este ID com inspetores e visualizadores para que possam solicitar acesso ao prédio <span className="text-white font-semibold">{shareModal?.name}</span>.</p>
+      <Modal open={!!shareModal} onClose={() => setShareModal(null)} title="Chave do prédio">
+        <p className="text-[#9A9A9A] text-sm mb-4">Compartilhe esta chave com inspetores e visualizadores para que possam solicitar acesso ao prédio <span className="text-white font-semibold">{shareModal?.name}</span>.</p>
         <div className="bg-[#0D0D0D] border border-[#2A2A2A] rounded-xl p-4 flex items-center justify-between gap-3">
-          <span className="text-[#F5C518] font-mono text-sm break-all">{shareModal?.id}</span>
-          <button onClick={() => { navigator.clipboard.writeText(shareModal?.id); toast('ID copiado!', 'info'); }}
+          <span className="text-[#F5C518] font-mono text-sm tracking-widest break-all">{formatShareKey(shareModal?.share_key)}</span>
+          <button onClick={() => { navigator.clipboard.writeText(formatShareKey(shareModal?.share_key)); toast('Chave copiada!', 'info'); }}
             className="text-xs text-[#9A9A9A] hover:text-white whitespace-nowrap border border-[#2A2A2A] rounded-lg px-3 py-1.5 transition-colors">
             Copiar
           </button>

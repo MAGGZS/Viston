@@ -1,15 +1,23 @@
 import { AuditAction, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { generateShareKey } from '../utils/shareKey';
+
+// Campos seguros para expor a quem nao e admin (nunca inclui share_key).
+const PUBLIC_BUILDING_FIELDS = { id: true, name: true, description: true } as const;
 
 export const buildingRepository = {
   findById(id: string) {
     return prisma.building.findUnique({ where: { id } });
   },
 
+  findByShareKey(shareKey: string) {
+    return prisma.building.findUnique({ where: { share_key: shareKey } });
+  },
+
   getMemberBuildings(userId: string) {
     return prisma.buildingMember.findMany({
       where: { user_id: userId },
-      include: { building: true },
+      include: { building: { select: PUBLIC_BUILDING_FIELDS } },
     });
   },
 
@@ -20,8 +28,22 @@ export const buildingRepository = {
     });
   },
 
-  create(data: { name: string; description?: string; created_by: string }) {
-    return prisma.building.create({ data });
+  /** Cria o predio com uma chave de compartilhamento aleatoria, tentando de novo em caso de colisao. */
+  async create(data: { name: string; description?: string; created_by: string }) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        return await prisma.building.create({
+          data: { ...data, share_key: generateShareKey() },
+        });
+      } catch (err) {
+        const isDuplicateKey =
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === 'P2002' &&
+          String(err.meta?.target ?? '').includes('share_key');
+        if (!isDuplicateKey) throw err;
+      }
+    }
+    throw new Error('Não foi possível gerar uma chave de compartilhamento única');
   },
 
   update(id: string, data: { name?: string; description?: string }) {

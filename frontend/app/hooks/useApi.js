@@ -166,9 +166,19 @@ export function useRemoveMember() {
   });
 }
 
+// Busca o prédio pela chave de compartilhamento (não expõe o id do prédio)
+export function useBuildingByKey(shareKey) {
+  return useQuery({
+    queryKey: ['building-by-key', shareKey],
+    queryFn: () => api.get('/buildings/lookup', { params: { key: shareKey } }).then((r) => r.data),
+    enabled: !!shareKey,
+    retry: false,
+  });
+}
+
 export function useRequestAccess() {
   return useMutation({
-    mutationFn: (buildingId) => api.post(`/buildings/${buildingId}/access-requests`).then((r) => r.data),
+    mutationFn: (shareKey) => api.post('/buildings/access-requests', { key: shareKey }).then((r) => r.data),
   });
 }
 

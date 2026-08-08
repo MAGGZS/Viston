@@ -5,21 +5,32 @@ import { ArrowLeft, Building2, Search } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { FloorForm } from '@/app/components/FloorForm';
 import { Button, Card, Spinner } from '@/app/components/ui';
-import { useFloors, useStartInspection, useSaveFloorForm, useFinishInspection, useMyBuildings, useRequestAccess } from '@/app/hooks/useApi';
+import { useFloors, useBuildingByKey, useStartInspection, useSaveFloorForm, useFinishInspection, useMyBuildings, useRequestAccess } from '@/app/hooks/useApi';
+import { formatShareKey, normalizeShareKey, isCompleteShareKey } from '@/app/lib/shareKey';
 import { useToastStore } from '@/app/store/toast';
 
-// Tela quando não tem vínculo: busca por ID e solicita acesso
+// Tela quando não tem vínculo: busca pela chave do prédio e solicita acesso
 function StepSemVinculo() {
-  const [inputId, setInputId] = useState('');
-  const [searchId, setSearchId] = useState('');
+  const [inputKey, setInputKey] = useState('');
+  const [searchKey, setSearchKey] = useState('');
   const [requested, setRequested] = useState(false);
-  const { data, isLoading, error } = useFloors(searchId);
+  const { data, isLoading, error } = useBuildingByKey(searchKey);
   const requestAccess = useRequestAccess();
   const { show: toast } = useToastStore();
 
+  function handleSearch() {
+    const key = normalizeShareKey(inputKey);
+    if (!isCompleteShareKey(key)) {
+      toast('Chave inválida. Ela tem 12 caracteres.', 'error');
+      return;
+    }
+    setSearchKey(key);
+    setRequested(false);
+  }
+
   async function handleRequest() {
     try {
-      await requestAccess.mutateAsync(searchId);
+      await requestAccess.mutateAsync(searchKey);
       setRequested(true);
       toast('Solicitação enviada! Aguarde a aprovação.', 'success');
     } catch (e) {
@@ -31,27 +42,29 @@ function StepSemVinculo() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 20, padding: 16 }}>
         <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, lineHeight: 1.6 }}>
-          Você não tem vínculo com nenhum prédio. Busque pelo ID fornecido pelo administrador e solicite acesso.
+          Você não tem vínculo com nenhum prédio. Digite a chave fornecida pelo administrador e solicite acesso.
         </p>
       </div>
 
       <Card>
-        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>ID do Prédio</p>
+        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Chave do Prédio</p>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
-            style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 14, outline: 'none' }}
-            placeholder="Cole o ID do prédio..."
-            value={inputId}
-            onChange={e => setInputId(e.target.value)}
+            style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 14, outline: 'none', fontFamily: 'monospace', letterSpacing: '0.08em' }}
+            placeholder="ABCD-EFGH-JKMN"
+            maxLength={14}
+            value={inputKey}
+            onChange={e => setInputKey(formatShareKey(e.target.value))}
+            onKeyDown={e => e.key === 'Enter' && handleSearch()}
           />
-          <Button variant="secondary" onClick={() => { setSearchId(inputId); setRequested(false); }}>
+          <Button variant="secondary" onClick={handleSearch}>
             <Search size={15} />
           </Button>
         </div>
       </Card>
 
       {isLoading && <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}><Spinner /></div>}
-      {error && <p style={{ color: '#f87171', fontSize: 13, textAlign: 'center' }}>Prédio não encontrado</p>}
+      {error && <p style={{ color: '#f87171', fontSize: 13, textAlign: 'center' }}>Chave inválida ou prédio não encontrado</p>}
 
       {data && !requested && (
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -60,8 +73,8 @@ function StepSemVinculo() {
               <Building2 size={18} color="#F5C518" />
             </div>
             <div>
-              <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 15 }}>{data.building?.name}</p>
-              <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>{data.floors?.length} andar(es)</p>
+              <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 15 }}>{data.name}</p>
+              {data.description && <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>{data.description}</p>}
             </div>
           </div>
           <Button onClick={handleRequest} loading={requestAccess.isPending} className="w-full">

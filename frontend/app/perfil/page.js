@@ -10,7 +10,8 @@ import { BottomNav } from '@/app/components/BottomNav';
 import { Button, Input, Card, Modal } from '@/app/components/ui';
 import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
-import { useUpdateMe, useChangePassword, useDeleteMe, useMyBuildings, useLeaveBuilding, useRequestAccess, useFloors } from '@/app/hooks/useApi';
+import { useUpdateMe, useChangePassword, useDeleteMe, useMyBuildings, useLeaveBuilding, useRequestAccess, useBuildingByKey } from '@/app/hooks/useApi';
+import { formatShareKey, normalizeShareKey, isCompleteShareKey } from '@/app/lib/shareKey';
 
 const profileSchema = yup.object({
   name: yup.string().min(2).required('Obrigatório'),
@@ -40,17 +41,17 @@ export default function PerfilPage() {
   const hasBuilding = myBuildings.length > 0;
   const myBuilding = myBuildings[0];
 
-  const [newBuildingId, setNewBuildingId] = useState('');
-  const [searchBuildingId, setSearchBuildingId] = useState('');
+  const [newBuildingKey, setNewBuildingKey] = useState('');
+  const [searchBuildingKey, setSearchBuildingKey] = useState('');
   const [accessRequested, setAccessRequested] = useState(false);
-  const { data: searchedBuilding, isLoading: searchLoading, error: searchError } = useFloors(searchBuildingId);
+  const { data: searchedBuilding, isLoading: searchLoading, error: searchError } = useBuildingByKey(searchBuildingKey);
 
   async function handleLeave() {
     if (!confirm('Tem certeza que deseja sair deste prédio?')) return;
     try {
       await leaveBuilding.mutateAsync(myBuilding.id);
-      setNewBuildingId('');
-      setSearchBuildingId('');
+      setNewBuildingKey('');
+      setSearchBuildingKey('');
       setAccessRequested(false);
       toast('Você saiu do prédio', 'info');
     } catch (e) {
@@ -58,9 +59,19 @@ export default function PerfilPage() {
     }
   }
 
+  function handleSearchBuilding() {
+    const key = normalizeShareKey(newBuildingKey);
+    if (!isCompleteShareKey(key)) {
+      toast('Chave inválida. Ela tem 12 caracteres.', 'error');
+      return;
+    }
+    setSearchBuildingKey(key);
+    setAccessRequested(false);
+  }
+
   async function handleRequestAccess() {
     try {
-      await requestAccess.mutateAsync(searchBuildingId);
+      await requestAccess.mutateAsync(searchBuildingKey);
       setAccessRequested(true);
       toast('Solicitação enviada! Aguarde a aprovação.', 'success');
     } catch (e) {
@@ -133,18 +144,20 @@ export default function PerfilPage() {
               <>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
-                    style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 13, outline: 'none' }}
-                    placeholder="ID do prédio..."
-                    value={newBuildingId}
-                    onChange={e => setNewBuildingId(e.target.value)}
+                    style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 13, outline: 'none', fontFamily: 'monospace', letterSpacing: '0.08em' }}
+                    placeholder="ABCD-EFGH-JKMN"
+                    maxLength={14}
+                    value={newBuildingKey}
+                    onChange={e => setNewBuildingKey(formatShareKey(e.target.value))}
+                    onKeyDown={e => e.key === 'Enter' && handleSearchBuilding()}
                   />
-                  <Button variant="secondary" onClick={() => { setSearchBuildingId(newBuildingId); setAccessRequested(false); }}>Buscar</Button>
+                  <Button variant="secondary" onClick={handleSearchBuilding}>Buscar</Button>
                 </div>
                 {searchLoading && <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Buscando...</p>}
-                {searchError && <p style={{ color: '#f87171', fontSize: 13 }}>Prédio não encontrado</p>}
+                {searchError && <p style={{ color: '#f87171', fontSize: 13 }}>Chave inválida ou prédio não encontrado</p>}
                 {searchedBuilding && (
                   <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <p style={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600, fontSize: 14 }}>{searchedBuilding.building?.name}</p>
+                    <p style={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600, fontSize: 14 }}>{searchedBuilding.name}</p>
                     <Button onClick={handleRequestAccess} loading={requestAccess.isPending} style={{ fontSize: 12, padding: '6px 14px' }}>Conectar-se</Button>
                   </div>
                 )}

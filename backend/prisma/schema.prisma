@@ -86,6 +86,7 @@ model Building {
   id          String  @id @default(uuid())
   name        String
   description String?
+  share_key   String  @unique
   created_by  String?
 
   creator     User?                  @relation("BuildingCreator", fields: [created_by], references: [id], onDelete: SetNull)
