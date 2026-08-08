@@ -3,7 +3,6 @@ import { inspectionRepository } from '../repositories/inspection.repository';
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
 import { generateInspectionExcel } from './excel.service';
 import { storageService } from './storage.service';
-import { syncGoogleForms } from './googleForms.service';
 import { FloorFormPayload } from '../validators/inspection.validator';
 import { NotFoundError, ConflictError } from '../utils/errors';
 import { AuditAction } from '@prisma/client';
@@ -187,13 +186,6 @@ export const inspectionService = {
       // Não bloqueia a finalização — relatório fica COMPLETED sem excel_url
     }
 
-    // Sincronização com Google Forms (assíncrona — não bloqueia a resposta)
-    setImmediate(() => {
-      syncGoogleForms(reportId, inspectorId).catch((err) => {
-        console.error('[GoogleForms] Falha na sincronização automática:', err);
-      });
-    });
-
     return inspectionRepository.findById(reportId);
   },
 
@@ -203,7 +195,6 @@ export const inspectionService = {
     status?: InspectionStatus;
     inspector_id?: string;
     floor_id?: string;
-    google_form_synced?: boolean;
     date_from?: string;
     date_to?: string;
   }) {
@@ -230,16 +221,6 @@ export const inspectionService = {
     if (!report) throw new NotFoundError('Relatório');
     if (!report.excel_url) throw new NotFoundError('Excel ainda não gerado para este relatório');
     return { excel_url: report.excel_url };
-  },
-
-  async manualSyncGoogleForms(reportId: string, userId: string) {
-    const report = await inspectionRepository.findById(reportId);
-    if (!report) throw new NotFoundError('Relatório');
-    if (report.status !== InspectionStatus.COMPLETED) {
-      throw new ConflictError('Só é possível sincronizar relatórios finalizados');
-    }
-    await syncGoogleForms(reportId, userId);
-    return inspectionRepository.findById(reportId);
   },
 
   async getCalendar(params: { month?: number; year?: number; range?: 'semestral' | 'anual' }) {

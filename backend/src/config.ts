@@ -32,17 +32,6 @@ export const config = {
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
 
-  googleForms: {
-    url: process.env.GOOGLE_FORM_URL || '',
-    fields: {
-      itemName: process.env.GOOGLE_FORM_FIELD_ITEM_NAME || 'entry.111111',
-      quantity: process.env.GOOGLE_FORM_FIELD_QUANTITY || 'entry.222222',
-      isMarked: process.env.GOOGLE_FORM_FIELD_IS_MARKED || 'entry.333333',
-      status: process.env.GOOGLE_FORM_FIELD_STATUS || 'entry.444444',
-      observation: process.env.GOOGLE_FORM_FIELD_OBSERVATION || 'entry.555555',
-    },
-  },
-
   cors: {
     /**
      * FRONTEND_URL aceita uma ou várias origens separadas por vírgula.

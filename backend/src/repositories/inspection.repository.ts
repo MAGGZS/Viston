@@ -33,18 +33,16 @@ export const inspectionRepository = {
     inspector_id?: string;
     floor_id?: string;
     building_id?: string;
-    google_form_synced?: boolean;
     date_from?: string;
     date_to?: string;
   }) {
-    const { page, limit, status, inspector_id, floor_id, building_id, google_form_synced, date_from, date_to } = filters;
+    const { page, limit, status, inspector_id, floor_id, building_id, date_from, date_to } = filters;
     const skip = (page - 1) * limit;
 
     const where: Prisma.InspectionReportWhereInput = {
       status: status ?? InspectionStatus.COMPLETED,
       ...(inspector_id && { inspector_id }),
       ...(building_id && { building_id }),
-      ...(google_form_synced !== undefined && { google_form_synced }),
       ...(floor_id && { floors_inspected: { has: floor_id } }),
       ...(date_from || date_to
         ? {

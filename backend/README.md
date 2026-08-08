@@ -118,7 +118,6 @@ Cobertura mínima implementada:
 - Soft delete e anonimização de usuários
 - Validação do checklist por andar (Zod schema)
 - Geração de Excel (ExcelJS)
-- Sincronização com Google Forms (mock do POST externo)
 
 ---
 
@@ -157,8 +156,7 @@ src/
 │   ├── user.service.ts
 │   ├── inspection.service.ts
 │   ├── excel.service.ts
-│   ├── storage.service.ts
-│   └── googleForms.service.ts
+│   └── storage.service.ts
 ├── repositories/             # Acesso ao banco (Prisma)
 │   ├── user.repository.ts
 │   ├── inspection.repository.ts
@@ -215,8 +213,6 @@ Configure todas as variáveis do `.env.example` com os valores de produção. Ve
 | `SUPABASE_SERVICE_ROLE_KEY` | chave local do `supabase start` | service_role key do painel Supabase |
 | `JWT_SECRET` | qualquer string | string aleatória 64+ chars |
 | `JWT_REFRESH_SECRET` | qualquer string | string aleatória 64+ chars (diferente do JWT_SECRET) |
-| `GOOGLE_FORM_URL` | URL do Forms de teste | URL do Forms de produção |
-| `GOOGLE_FORM_FIELD_*` | IDs do Forms de teste | IDs do Forms de produção |
 | `FRONTEND_URL` | `http://localhost:5173` | URL da Vercel (ex: `https://viston.vercel.app`) |
 | `NODE_ENV` | `development` | `production` |
 
@@ -248,7 +244,6 @@ POST   /inspections/:id/finish
 GET    /inspections
 GET    /inspections/:id
 GET    /inspections/:id/excel
-POST   /inspections/:id/sync-google-form
 
 GET    /calendar?month=&year=
 GET    /calendar?range=semestral|anual

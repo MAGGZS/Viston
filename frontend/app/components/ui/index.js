@@ -83,12 +83,6 @@ export function Toggle({ checked, onChange, label }) {
   );
 }
 
-export function StatusBadge({ synced }) {
-  return synced
-    ? <Badge variant="success">✓ Sincronizado</Badge>
-    : <Badge variant="warning">⏳ Pendente</Badge>;
-}
-
 export function Skeleton({ className = '', style = {} }) {
   return <div style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%)', backgroundSize: '200% 100%', borderRadius: 16, animation: 'shimmer 1.4s ease-in-out infinite', ...style }} className={className} />;
 }

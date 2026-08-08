@@ -21,7 +21,6 @@ router.post('/inspections/:id/finish', auth, inspectorOnly, inspectionController
 router.get('/inspections', auth, anyRole, inspectionController.findAll as any);
 router.get('/inspections/:id', auth, anyRole, inspectionController.findById as any);
 router.get('/inspections/:id/excel', auth, anyRole, inspectionController.getExcelUrl as any);
-router.post('/inspections/:id/sync-google-form', auth, inspectorOnly, inspectionController.syncGoogleForms as any);
 
 // ── Calendário ────────────────────────────────────────────────────────────────
 router.get('/calendar', auth, anyRole, inspectionController.getCalendar as any);

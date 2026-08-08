@@ -245,12 +245,6 @@ export default function InspecaoPage() {
                 <h2 style={{ color: 'rgba(255,255,255,0.95)', fontWeight: 700, fontSize: 22 }}>Inspeção Finalizada!</h2>
                 <p style={{ color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>Relatório gerado com sucesso</p>
               </div>
-              <Card className="w-full text-left">
-                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginBottom: 4 }}>Google Forms</p>
-                <p style={{ fontWeight: 600, color: finishedReport?.google_form_synced ? '#4ade80' : '#facc15' }}>
-                  {finishedReport?.google_form_synced ? '✓ Sincronizado' : '⏳ Sincronização pendente'}
-                </p>
-              </Card>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
                 {finishedReport?.excel_url && (
                   <a href={finishedReport.excel_url} target="_blank" rel="noreferrer">

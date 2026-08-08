@@ -76,7 +76,6 @@ export const inspectionFiltersSchema = z.object({
   status: z.enum(['IN_PROGRESS', 'COMPLETED']).optional(),
   inspector_id: z.string().uuid().optional(),
   floor_id: z.string().uuid().optional(),
-  google_form_synced: z.coerce.boolean().optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),
 });

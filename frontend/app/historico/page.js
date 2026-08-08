@@ -2,12 +2,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, FileSpreadsheet, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileSpreadsheet, SlidersHorizontal } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
-import { Badge, Button, Modal, StatusBadge } from '@/app/components/ui';
-import { useInspections, useSyncGoogleForm, useCalendar, useMyBuildings, useBuildingHistory } from '@/app/hooks/useApi';
+import { Badge, Button, Modal } from '@/app/components/ui';
+import { useInspections, useCalendar, useMyBuildings, useBuildingHistory } from '@/app/hooks/useApi';
 import { useAuthStore } from '@/app/store/auth';
 
 const S = {
@@ -68,9 +68,7 @@ function MonthGrid({ heatmap, year, month, onDayClick, compact = false }) {
   );
 }
 
-function InspectionCard({ inspection, onSync }) {
-  const { user } = useAuthStore();
-  const canSync = user?.role === 'ADMIN' || user?.role === 'INSPECTOR';
+function InspectionCard({ inspection }) {
   return (
     <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -80,7 +78,6 @@ function InspectionCard({ inspection, onSync }) {
           </p>
           <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>{inspection.inspector?.name}</p>
         </div>
-        <StatusBadge synced={inspection.google_form_synced} />
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {inspection.floor_form_entries?.map(e => (
@@ -96,11 +93,6 @@ function InspectionCard({ inspection, onSync }) {
               <FileSpreadsheet size={13} /> Excel
             </Button>
           </a>
-        )}
-        {!inspection.google_form_synced && canSync && (
-          <Button variant="secondary" style={{ flex: 1, fontSize: 12, padding: '8px 12px' }} onClick={() => onSync(inspection.id)}>
-            <RefreshCw size={13} /> Reenviar
-          </Button>
         )}
       </div>
     </div>
@@ -152,7 +144,7 @@ export default function HistoricoPage() {
     else setYear(y => y + 1);
   }
 
-  const [filters, setFilters] = useState({ date_from: '', date_to: '', google_form_synced: '' });
+  const [filters, setFilters] = useState({ date_from: '', date_to: '' });
 
   // Prédios do usuário (para mobile)
   const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
@@ -169,13 +161,8 @@ export default function HistoricoPage() {
     hasBuilding ? myBuildingId : null
   );
 
-  const { mutateAsync: syncForm } = useSyncGoogleForm();
   const allInspections = data?.pages?.flatMap(p => p.inspections) || [];
   const buildingInspections = buildingData?.pages?.flatMap(p => p.inspections) || [];
-
-  async function handleSync(id) {
-    try { await syncForm(id); } catch (e) { alert(e?.response?.data?.error?.message || 'Erro'); }
-  }
 
   const listaPanel = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -186,7 +173,7 @@ export default function HistoricoPage() {
           <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
         </div>
       )}
-      {(isAdmin ? allInspections : buildingInspections).map(i => <InspectionCard key={i.id} inspection={i} onSync={handleSync} />)}
+      {(isAdmin ? allInspections : buildingInspections).map(i => <InspectionCard key={i.id} inspection={i} />)}
       {(isAdmin ? hasNextPage : buildingHasNext) && (
         <Button variant="secondary" style={{ width: '100%' }} onClick={() => isAdmin ? fetchNextPage() : buildingFetchNext()} loading={isAdmin ? isFetchingNextPage : buildingFetchingNext}>Carregar mais</Button>
       )}
@@ -290,7 +277,7 @@ export default function HistoricoPage() {
                 <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
               </div>
             )}
-            {buildingInspections.map(i => <InspectionCard key={i.id} inspection={i} onSync={handleSync} />)}
+            {buildingInspections.map(i => <InspectionCard key={i.id} inspection={i} />)}
             {buildingHasNext && (
               <Button variant="secondary" style={{ width: '100%' }} onClick={() => buildingFetchNext()} loading={buildingFetchingNext}>Carregar mais</Button>
             )}
@@ -326,16 +313,8 @@ export default function HistoricoPage() {
                 <input type="date" style={S.input} value={filters[key]} onChange={e => setFilters(f => ({ ...f, [key]: e.target.value }))} />
               </div>
             ))}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={S.label}>Sincronização</label>
-              <select style={S.input} value={filters.google_form_synced} onChange={e => setFilters(f => ({ ...f, google_form_synced: e.target.value }))}>
-                <option value="" style={{ background: '#0e0e1a' }}>Todos</option>
-                <option value="true" style={{ background: '#0e0e1a' }}>Sincronizado</option>
-                <option value="false" style={{ background: '#0e0e1a' }}>Pendente</option>
-              </select>
-            </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-              <Button variant="secondary" style={{ flex: 1 }} onClick={() => { setFilters({ date_from: '', date_to: '', google_form_synced: '' }); setShowFilters(false); }}>Limpar</Button>
+              <Button variant="secondary" style={{ flex: 1 }} onClick={() => { setFilters({ date_from: '', date_to: '' }); setShowFilters(false); }}>Limpar</Button>
               <Button style={{ flex: 1 }} onClick={() => setShowFilters(false)}>Aplicar</Button>
             </div>
           </div>

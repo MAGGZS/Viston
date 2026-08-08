@@ -58,7 +58,6 @@ export async function generateInspectionExcel(report: FullReport): Promise<Buffe
     ['Início', report.started_at ? new Date(report.started_at).toLocaleString('pt-BR') : '-'],
     ['Conclusão', report.finished_at ? new Date(report.finished_at).toLocaleString('pt-BR') : '-'],
     ['Andares Vistoriados', report.floor_form_entries.map((e) => e.floor.label).join(', ')],
-    ['Sync Google Forms', report.google_form_synced ? 'Sim' : 'Não'],
   ];
 
   summaryData.forEach(([campo, valor]) => {

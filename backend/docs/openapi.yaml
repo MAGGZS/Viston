@@ -432,9 +432,6 @@ paths:
           name: floor_id
           schema: { type: string, format: uuid }
         - in: query
-          name: google_form_synced
-          schema: { type: boolean }
-        - in: query
           name: date_from
           schema: { type: string, format: date }
         - in: query
@@ -486,7 +483,7 @@ paths:
   /inspections/{id}/finish:
     post:
       tags: [Inspections]
-      summary: Finalizar inspeção — gera Excel e dispara sync Google Forms (INSPECTOR/ADMIN)
+      summary: Finalizar inspeção — gera Excel (INSPECTOR/ADMIN)
       parameters:
         - in: path
           name: id
@@ -539,24 +536,6 @@ paths:
                   excel_url: { type: string, format: uri }
         '404':
           description: Excel ainda não gerado
-
-  /inspections/{id}/sync-google-form:
-    post:
-      tags: [Inspections]
-      summary: Reenvio manual para Google Forms (INSPECTOR/ADMIN)
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string, format: uuid }
-      responses:
-        '200':
-          description: Sincronização realizada
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/InspectionReport' }
-        '409':
-          description: Relatório não está COMPLETED
 
   /calendar:
     get:

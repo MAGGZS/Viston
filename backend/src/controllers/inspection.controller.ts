@@ -48,11 +48,6 @@ export const inspectionController = {
     ok(res, result);
   },
 
-  async syncGoogleForms(req: AuthenticatedRequest, res: Response) {
-    const report = await inspectionService.manualSyncGoogleForms(req.params.id, req.user.id);
-    ok(res, report);
-  },
-
   async getCalendar(req: AuthenticatedRequest, res: Response) {
     const params = calendarQuerySchema.parse(req.query);
     const result = await inspectionService.getCalendar(params);

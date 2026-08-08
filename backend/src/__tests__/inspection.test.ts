@@ -3,7 +3,6 @@ import { inspectionRepository } from '../repositories/inspection.repository';
 import { buildingRepository } from '../repositories/building.repository';
 import { generateInspectionExcel } from '../services/excel.service';
 import { storageService } from '../services/storage.service';
-import { syncGoogleForms } from '../services/googleForms.service';
 import { ConflictError, NotFoundError } from '../utils/errors';
 import { InspectionStatus } from '@prisma/client';
 
@@ -12,13 +11,11 @@ jest.mock('../repositories/inspection.repository');
 jest.mock('../repositories/building.repository');
 jest.mock('../services/excel.service');
 jest.mock('../services/storage.service');
-jest.mock('../services/googleForms.service');
 
 const mockInspectionRepo = inspectionRepository as jest.Mocked<typeof inspectionRepository>;
 const mockBuildingRepo = buildingRepository as jest.Mocked<typeof buildingRepository>;
 const mockGenerateExcel = generateInspectionExcel as jest.MockedFunction<typeof generateInspectionExcel>;
 const mockStorage = storageService as jest.Mocked<typeof storageService>;
-const mockSyncGoogleForms = syncGoogleForms as jest.MockedFunction<typeof syncGoogleForms>;
 
 const mockBuilding = { id: 'building-1', name: 'Edifício Principal' };
 const mockFloor1 = { id: 'floor-1', building_id: 'building-1', label: '6º Andar', order: 6 };
@@ -103,7 +100,6 @@ describe('inspectionService.finish', () => {
     mockInspectionRepo.update.mockResolvedValue(finishedReport);
     mockGenerateExcel.mockResolvedValue(Buffer.from('excel'));
     mockStorage.uploadExcel.mockResolvedValue('https://storage.example.com/report.xlsx');
-    mockSyncGoogleForms.mockResolvedValue(undefined);
 
     const result = await inspectionService.finish('report-1', 'user-1');
     expect(mockInspectionRepo.update).toHaveBeenCalledWith('report-1', expect.objectContaining({

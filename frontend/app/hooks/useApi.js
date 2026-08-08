@@ -240,14 +240,6 @@ export function useFinishInspection() {
   });
 }
 
-export function useSyncGoogleForm() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id) => api.post(`/inspections/${id}/sync-google-form`).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['inspections'] }),
-  });
-}
-
 // ── Calendar ──────────────────────────────────────────────────────────────────
 export function useCalendar(params) {
   return useQuery({
