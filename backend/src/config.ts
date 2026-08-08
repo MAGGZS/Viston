@@ -44,9 +44,15 @@ export const config = {
   },
 
   cors: {
-    frontendUrl: (() => {
-      const url = process.env.FRONTEND_URL || 'http://localhost:5173';
-      return url.startsWith('http') ? url : `https://${url}`;
-    })(),
+    /**
+     * FRONTEND_URL aceita uma ou várias origens separadas por vírgula.
+     * Ex: "https://viston.vercel.app,http://localhost:3001"
+     * Permite manter a nuvem no ar enquanto se desenvolve localmente.
+     */
+    origins: (process.env.FRONTEND_URL || 'http://localhost:3001')
+      .split(',')
+      .map((url) => url.trim())
+      .filter(Boolean)
+      .map((url) => (url.startsWith('http') ? url : `https://${url}`)),
   },
 };

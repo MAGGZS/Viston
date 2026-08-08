@@ -1,7 +1,31 @@
 import axios from 'axios';
 
+// Backend em produção (Render). Trocar aqui se o serviço mudar de URL.
+const PRODUCTION_API_URL = 'https://viston.onrender.com';
+// Backend local (PORT=4000 no backend/.env, para não colidir com o Next na 3001).
+const LOCAL_API_URL = 'http://localhost:4000';
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
+
+/**
+ * Resolve a URL da API sem precisar trocar configuração ao alternar
+ * entre desenvolvimento e nuvem:
+ *   1. NEXT_PUBLIC_API_URL, se definida (permite sobrescrever quando necessário,
+ *      ex: frontend local apontando para a API de produção)
+ *   2. localhost quando a página está sendo servida de localhost
+ *   3. produção nos demais casos (Vercel, e também no render do servidor)
+ */
+export function resolveApiBaseUrl() {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+
+  if (typeof window !== 'undefined' && LOCAL_HOSTS.includes(window.location.hostname)) {
+    return LOCAL_API_URL;
+  }
+
+  return PRODUCTION_API_URL;
+}
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: resolveApiBaseUrl(),
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -55,7 +79,7 @@ api.interceptors.response.use(
 
       try {
         const { data } = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
+          `${resolveApiBaseUrl()}/auth/refresh`,
           { refresh_token: refreshToken }
         );
         localStorage.setItem('access_token', data.access_token);

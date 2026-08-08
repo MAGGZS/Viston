@@ -14,8 +14,8 @@ const app = express();
 app.use(
   cors({
     origin: config.isProduction
-      ? config.cors.frontendUrl
-      : [config.cors.frontendUrl, 'http://localhost:3000', 'http://localhost:5173'],
+      ? config.cors.origins
+      : [...config.cors.origins, 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'],
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
