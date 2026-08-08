@@ -5,7 +5,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { Logo } from '@/app/components/Logo';
+import { AuthShell } from '@/app/components/AuthShell';
 import { useAuthStore } from '@/app/store/auth';
 import { useCreateUser, useLogin } from '@/app/hooks/useApi';
 
@@ -16,9 +16,6 @@ const schema = yup.object({
 });
 
 const S = {
-  page: { minHeight: '100vh', background: '#080810', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  wrap: { width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32 },
-  card: { width: '100%', background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 28, padding: '28px 24px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' },
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
   label: { fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' },
   input: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 14, padding: '13px 16px', color: 'rgba(255,255,255,0.9)', fontSize: 15, outline: 'none', width: '100%' },
@@ -54,15 +51,17 @@ export default function RegisterPage() {
   ];
 
   return (
-    <div style={S.page}>
-      <div style={S.wrap}>
-        <div className="anim-fade-down" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div className="anim-pop-in"><Logo size={32} /></div>
-          <h1 style={{ color: 'rgba(255,255,255,0.95)', fontSize: 24, fontWeight: 700 }}>Criar conta</h1>
-        </div>
-
-        <div className="anim-fade-up anim-d2" style={S.card}>
-          <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <AuthShell
+      title="Criar conta"
+      subtitle="Depois de entrar, peça a chave do prédio ao administrador para começar a vistoriar."
+      footer={
+        <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: 14 }}>
+          Já tem conta?{' '}
+          <a href="/login" style={{ color: 'rgba(245,197,24,0.85)', fontWeight: 600, textDecoration: 'none' }}>Entrar</a>
+        </p>
+      }
+    >
+      <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             {fields.map(({ name, label, type, placeholder }) => {
               const isPassword = type === 'password';
               const inputStyle = { ...S.input, ...(isPassword ? { paddingRight: 46 } : {}), ...(errors[name] ? { borderColor: 'rgba(239,68,68,0.5)' } : {}) };
@@ -92,17 +91,10 @@ export default function RegisterPage() {
                 <p style={{ color: 'rgb(248,113,113)', fontSize: 13, textAlign: 'center' }}>{apiError}</p>
               </div>
             )}
-            <button type="submit" disabled={isPending} style={{ ...S.btn, opacity: isPending ? 0.6 : 1 }}>
-              {isPending ? 'Criando conta...' : 'Cadastrar'}
-            </button>
-          </form>
-        </div>
-
-        <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: 14 }}>
-          Já tem conta?{' '}
-          <a href="/login" style={{ color: 'rgba(245,197,24,0.85)', fontWeight: 600, textDecoration: 'none' }}>Entrar</a>
-        </p>
-      </div>
-    </div>
+        <button type="submit" disabled={isPending} style={{ ...S.btn, opacity: isPending ? 0.6 : 1 }}>
+          {isPending ? 'Criando conta...' : 'Criar conta'}
+        </button>
+      </form>
+    </AuthShell>
   );
 }

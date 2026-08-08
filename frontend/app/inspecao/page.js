@@ -1,10 +1,11 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Building2, Search } from 'lucide-react';
+import { ArrowLeft, Building2, Check, Search } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { FloorForm } from '@/app/components/FloorForm';
 import { Button, Card, Spinner } from '@/app/components/ui';
+import { M, MRound, MCard, MButton, MButtonSoft, MButtonGhost, MSectionHead, MPill } from '@/app/components/mobile/kit';
 import { useFloors, useBuildingByKey, useSubmitInspection, useMyBuildings, useRequestAccess } from '@/app/hooks/useApi';
 import { formatShareKey, normalizeShareKey, isCompleteShareKey } from '@/app/lib/shareKey';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
@@ -116,45 +117,43 @@ function StepSelectFloors({ building, floors, onStart }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ width: 40, height: 40, background: 'rgba(245,197,24,0.1)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Building2 size={18} color="#F5C518" />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <MCard style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 42, height: 42, background: M.accentSoft, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Building2 size={19} color={M.accent} />
         </div>
-        <div>
-          <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 15 }}>{building.name}</p>
-          {building.description && <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>{building.description}</p>}
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontFamily: M.display, fontWeight: 700, fontSize: 15, color: M.text }}>{building.name}</p>
+          <p style={{ color: M.mute, fontSize: 12, marginTop: 2 }}>Do andar mais alto até o mais baixo</p>
         </div>
-      </div>
+      </MCard>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Selecione os andares</p>
-        <button type="button" onClick={toggleAll}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#F5C518', fontSize: 12, fontWeight: 600 }}>
-          {allSelected ? 'Limpar' : 'Todos'}
-        </button>
-      </div>
-
-      <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>
-        A vistoria começa pelo andar mais alto e desce até o mais baixo.
-      </p>
+      <MSectionHead
+        title="Andares"
+        action={<MPill onClick={toggleAll}>{allSelected ? 'Limpar' : 'Todos'}</MPill>}
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {floors.map(floor => {
           const sel = selectedIds.includes(floor.id);
           return (
             <button key={floor.id} onClick={() => toggle(floor.id)}
-              style={{ padding: 16, borderRadius: 20, border: `2px solid ${sel ? '#F5C518' : 'rgba(255,255,255,0.08)'}`, background: sel ? 'rgba(245,197,24,0.08)' : 'rgba(255,255,255,0.03)', textAlign: 'left', cursor: 'pointer', transition: 'all 0.2s' }}>
-              <Building2 size={18} color={sel ? '#F5C518' : 'rgba(255,255,255,0.3)'} />
-              <p style={{ color: sel ? '#F5C518' : 'rgba(255,255,255,0.8)', fontWeight: 600, fontSize: 13, marginTop: 8 }}>{floor.label}</p>
+              style={{
+                padding: '18px 16px', borderRadius: 20, border: 'none', cursor: 'pointer', textAlign: 'left',
+                background: sel ? M.accent : M.card,
+                color: sel ? '#000' : M.text,
+                fontFamily: M.display, fontWeight: 600, fontSize: 14,
+                transition: 'background 0.15s',
+              }}>
+              {floor.label}
             </button>
           );
         })}
       </div>
 
-      <Button onClick={handleStart} disabled={!selectedIds.length} className="w-full">
-        Iniciar ({selectedIds.length} andar{selectedIds.length !== 1 ? 'es' : ''})
-      </Button>
+      <MButton onClick={handleStart} disabled={!selectedIds.length} style={{ width: '100%', marginTop: 6 }}>
+        Começar {selectedIds.length ? `(${selectedIds.length})` : ''}
+      </MButton>
     </div>
   );
 }
@@ -227,33 +226,32 @@ export default function InspecaoPage() {
 
   return (
     <RouteGuard roles={['ADMIN', 'INSPECTOR']}>
-      <div style={{ minHeight: '100vh', background: '#0D0D0D', paddingBottom: 40 }}>
+      <div style={{ minHeight: '100vh', background: M.bg, paddingBottom: 40 }}>
         {/* Header */}
-        <div style={{ position: 'sticky', top: 0, background: 'rgba(13,13,13,0.95)', backdropFilter: 'blur(12px)', padding: '48px 20px 16px', zIndex: 10 }}>
+        <div style={{ position: 'sticky', top: 0, background: M.bg, padding: '48px 16px 14px', zIndex: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={handleBack}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: 4 }}>
-              <ArrowLeft size={22} />
-            </button>
-            <div>
-              <h1 style={{ color: 'rgba(255,255,255,0.95)', fontWeight: 700, fontSize: 18 }}>
-                {step === 'select' && 'Nova Inspeção'}
+            <MRound label="Voltar" onClick={handleBack}>
+              <ArrowLeft size={19} />
+            </MRound>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h1 style={{ fontFamily: M.display, fontWeight: 700, fontSize: 19, color: M.text }}>
+                {step === 'select' && 'Nova vistoria'}
                 {step === 'form' && currentFloor?.label}
-                {step === 'done' && 'Inspeção Concluída'}
+                {step === 'done' && 'Vistoria enviada'}
               </h1>
               {step === 'form' && (
-                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>Andar {currentIndex + 1} de {floors.length}</p>
+                <p style={{ color: M.mute, fontSize: 12, marginTop: 2 }}>Andar {currentIndex + 1} de {floors.length}</p>
               )}
             </div>
           </div>
           {step === 'form' && (
-            <div style={{ marginTop: 12, height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden' }}>
-              <div style={{ height: '100%', background: '#F5C518', borderRadius: 99, width: `${((currentIndex + 1) / floors.length) * 100}%`, transition: 'width 0.3s' }} />
+            <div style={{ marginTop: 14, height: 4, background: M.chip, borderRadius: 99, overflow: 'hidden' }}>
+              <div style={{ height: '100%', background: M.accent, borderRadius: 99, width: `${((currentIndex + 1) / floors.length) * 100}%`, transition: 'width 0.3s' }} />
             </div>
           )}
         </div>
 
-        <div style={{ padding: '16px 20px' }}>
+        <div style={{ padding: '10px 16px' }}>
           {step === 'select' && (
             <div className="anim-fade-up">
             {buildingsLoading || floorsLoading ? (
@@ -285,24 +283,22 @@ export default function InspecaoPage() {
           )}
 
           {step === 'done' && (
-            <div className="anim-scale-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, paddingTop: 40, textAlign: 'center' }}>
-              <div className="anim-pop-in" style={{ width: 80, height: 80, background: 'rgba(245,197,24,0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: 36 }}>✓</span>
+            <div className="anim-scale-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, paddingTop: 48, textAlign: 'center' }}>
+              <div className="anim-pop-in" style={{ width: 76, height: 76, background: M.accent, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Check size={34} color="#000" strokeWidth={3} />
               </div>
               <div>
-                <h2 style={{ color: 'rgba(255,255,255,0.95)', fontWeight: 700, fontSize: 22 }}>Vistoria enviada!</h2>
-                <p style={{ color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>Relatório gerado e registrado no histórico</p>
+                <h2 style={{ fontFamily: M.display, fontWeight: 700, fontSize: 22, color: M.text }}>Vistoria enviada</h2>
+                <p style={{ color: M.mute, fontSize: 14, marginTop: 6 }}>Relatório e planilha já estão no histórico</p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
                 {finishedReport?.excel_url && (
                   <a href={finishedReport.excel_url} target="_blank" rel="noreferrer">
-                    <Button variant="secondary" className="w-full">📊 Baixar Planilha Excel</Button>
+                    <MButtonSoft style={{ width: '100%' }}>Baixar planilha</MButtonSoft>
                   </a>
                 )}
-                <Button onClick={() => router.push('/historico')} className="w-full">Ver Histórico</Button>
-                <Button variant="ghost" onClick={resetToSelect} className="w-full">
-                  Nova Inspeção
-                </Button>
+                <MButton onClick={() => router.push('/historico')} style={{ width: '100%' }}>Ver histórico</MButton>
+                <MButtonGhost onClick={resetToSelect} style={{ width: '100%' }}>Nova vistoria</MButtonGhost>
               </div>
             </div>
           )}

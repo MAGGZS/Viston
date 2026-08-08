@@ -10,6 +10,7 @@ import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
+import { M, MPage, MTopBar, MRound, MCard, MStats, MButtonSoft, MButtonGhost } from '@/app/components/mobile/kit';
 import { Badge, Button, Modal } from '@/app/components/ui';
 import { useInspections, useCalendar, useMyBuildings, useBuildingHistory } from '@/app/hooks/useApi';
 import { parseReportDate } from '@/app/lib/date';
@@ -128,6 +129,58 @@ function InspectionCard({ inspection, onPreview, onOpenReport }) {
         )}
       </div>
     </div>
+  );
+}
+
+// Cartão do mobile: números primeiro, andares como etiquetas, planilha à mão
+function MobileInspectionCard({ inspection, onOpenReport }) {
+  const entries = inspection.floor_form_entries ?? [];
+  const ocorrencias = entries.reduce((sum, e) => sum + (e._count?.maintenance_records ?? 0), 0);
+  const problemas = entries.filter(e => e.status_geral === 'PROBLEMA').length;
+
+  const chipColor = {
+    OK: { bg: 'rgba(74,222,128,0.12)', fg: '#4ade80' },
+    ATENCAO: { bg: 'rgba(251,191,36,0.12)', fg: '#fbbf24' },
+    PROBLEMA: { bg: 'rgba(248,113,113,0.12)', fg: '#f87171' },
+  };
+
+  return (
+    <MCard onClick={() => onOpenReport(inspection.id)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+        <div>
+          <p style={{ fontFamily: M.display, fontWeight: 700, fontSize: 16, color: M.text, textTransform: 'capitalize' }}>
+            {format(parseReportDate(inspection.date), "d 'de' MMMM", { locale: ptBR })}
+          </p>
+          <p style={{ color: M.mute, fontSize: 12, marginTop: 3 }}>{inspection.inspector?.name}</p>
+        </div>
+        <ChevronRight size={18} color={M.faint} />
+      </div>
+
+      <MStats items={[
+        { value: entries.length, label: 'Andares' },
+        { value: ocorrencias, label: 'Ocorrências' },
+        { value: problemas, label: 'Problemas' },
+      ]} />
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {entries.map(e => {
+          const c = chipColor[e.status_geral] ?? chipColor.OK;
+          return (
+            <span key={e.floor_id} style={{ background: c.bg, color: c.fg, fontSize: 11, fontWeight: 600, padding: '5px 10px', borderRadius: 10 }}>
+              {e.floor?.label || e.floor_id.slice(0, 6)}
+            </span>
+          );
+        })}
+      </div>
+
+      {inspection.excel_url && (
+        <a href={inspection.excel_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>
+          <MButtonSoft style={{ width: '100%' }}>
+            <FileSpreadsheet size={15} /> Baixar planilha
+          </MButtonSoft>
+        </a>
+      )}
+    </MCard>
   );
 }
 
@@ -284,43 +337,50 @@ export default function HistoricoPage() {
   );
 
   const mobileContent = (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '56px 20px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h1 style={{ color: 'rgba(255,255,255,0.95)', fontSize: 22, fontWeight: 700 }}>Histórico</h1>
-        {hasBuilding && (
-          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
-            <SlidersHorizontal size={15} />
-          </button>
-        )}
-      </div>
-      <div style={{ padding: '0 20px', overflowY: 'auto' }}>
-        {buildingsLoading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[1,2,3].map(i => <div key={i} style={{ height: 120, background: 'rgba(255,255,255,0.05)', borderRadius: 20 }} />)}
-          </div>
-        ) : !hasBuilding ? (
-          <div style={{ textAlign: 'center', padding: '80px 0' }}>
-            <p style={{ fontSize: 40, marginBottom: 16 }}>🏢</p>
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>Você não tem ligação a nenhum prédio</p>
-            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, lineHeight: 1.6 }}>Peça ao administrador o ID do prédio e solicite acesso.</p>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {buildingLoading && [1,2,3].map(i => <div key={i} style={{ height: 120, background: 'rgba(255,255,255,0.05)', borderRadius: 20 }} />)}
-            {!buildingLoading && buildingInspections.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '60px 0' }}>
-                <p style={{ fontSize: 36, marginBottom: 12 }}>📋</p>
-                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
-              </div>
-            )}
-            {buildingInspections.map(i => <InspectionCard key={i.id} inspection={i} onOpenReport={setReportId} />)}
-            {buildingHasNext && (
-              <Button variant="secondary" style={{ width: '100%' }} onClick={() => buildingFetchNext()} loading={buildingFetchingNext}>Carregar mais</Button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+    <MPage>
+      <MTopBar
+        eyebrow="Vistorias concluídas"
+        title="Histórico"
+        actions={hasBuilding ? (
+          <MRound label="Filtros" onClick={() => setShowFilters(true)}>
+            <SlidersHorizontal size={17} />
+          </MRound>
+        ) : null}
+      />
+
+      {buildingsLoading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[1, 2, 3].map(i => <div key={i} style={{ height: 128, background: M.card, borderRadius: 26 }} />)}
+        </div>
+      ) : !hasBuilding ? (
+        <MCard style={{ textAlign: 'center', padding: '40px 20px' }}>
+          <p style={{ fontFamily: M.display, fontWeight: 700, fontSize: 16, color: M.text }}>Nenhum prédio vinculado</p>
+          <p style={{ color: M.mute, fontSize: 13, marginTop: 6, lineHeight: 1.6 }}>
+            Peça a chave ao administrador e solicite acesso pelo perfil.
+          </p>
+        </MCard>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {buildingLoading && [1, 2, 3].map(i => <div key={i} style={{ height: 128, background: M.card, borderRadius: 26 }} />)}
+
+          {!buildingLoading && buildingInspections.length === 0 && (
+            <MCard style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <p style={{ color: M.mute, fontSize: 14 }}>Nenhuma vistoria por aqui ainda</p>
+            </MCard>
+          )}
+
+          {buildingInspections.map(i => (
+            <MobileInspectionCard key={i.id} inspection={i} onOpenReport={setReportId} />
+          ))}
+
+          {buildingHasNext && (
+            <MButtonGhost onClick={() => buildingFetchNext()} disabled={buildingFetchingNext} style={{ width: '100%' }}>
+              {buildingFetchingNext ? 'Carregando...' : 'Carregar mais'}
+            </MButtonGhost>
+          )}
+        </div>
+      )}
+    </MPage>
   );
 
   return (

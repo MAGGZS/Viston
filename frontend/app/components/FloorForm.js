@@ -3,7 +3,8 @@ import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Plus, Trash2, CalendarDays, UserRound } from 'lucide-react';
-import { Button, Card, Select, Toggle } from '@/app/components/ui';
+import { Toggle } from '@/app/components/ui';
+import { M, MCard, MSelect, MButton, MButtonSoft } from '@/app/components/mobile/kit';
 import {
   MAINTENANCE_TYPES,
   CATEGORIES,
@@ -47,14 +48,12 @@ function Field({ control, name, label, options, placeholder, error }) {
       control={control}
       name={name}
       render={({ field }) => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <Select
-            label={label}
-            options={[{ value: '', label: placeholder }, ...options]}
-            {...field}
-          />
-          {error && <span style={S.error}>{error}</span>}
-        </div>
+        <MSelect
+          label={label}
+          error={error}
+          options={[{ value: '', label: placeholder }, ...options]}
+          {...field}
+        />
       )}
     />
   );
@@ -87,42 +86,37 @@ export function FloorForm({ floor, inspectorName, initialRecords, onSubmit, isLo
   }
 
   return (
-    <form onSubmit={handleSubmit(submit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Andar em vistoria + lembrete de quem está fazendo */}
-      <Card style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div>
-          <p style={S.label}>Andar - Unidade</p>
-          <p style={{ color: '#F5C518', fontWeight: 700, fontSize: 20, marginTop: 4 }}>{floor?.label}</p>
+    <form onSubmit={handleSubmit(submit)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Quem está vistoriando e quando */}
+      <MCard style={{ display: 'flex', gap: 8 }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <UserRound size={15} color={M.accent} style={{ flexShrink: 0 }} />
+          <span style={{ color: M.mute, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {inspectorName || '—'}
+          </span>
         </div>
-        <div style={S.readonly}>
-          <UserRound size={15} color="rgba(245,197,24,0.8)" />
-          <span>Vistoria feita por <strong style={{ color: 'rgba(255,255,255,0.85)' }}>{inspectorName || '—'}</strong></span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <CalendarDays size={15} color={M.accent} />
+          <span style={{ color: M.mute, fontSize: 13 }}>{today}</span>
         </div>
-        <div>
-          <p style={S.label}>Data de abertura</p>
-          <div style={{ ...S.readonly, marginTop: 6 }}>
-            <CalendarDays size={15} color="rgba(245,197,24,0.8)" />
-            <span>{today}</span>
-          </div>
-        </div>
-      </Card>
+      </MCard>
 
-      <Card>
+      <MCard>
         <Toggle
           checked={!!nothingToReport}
           onChange={(v) => setValue('nothing_to_report', v)}
           label="Nada a relatar neste andar"
         />
-      </Card>
+      </MCard>
 
       {!nothingToReport && fields.map((field, index) => (
-        <Card key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <MCard key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <p style={{ color: '#F5C518', fontWeight: 600, fontSize: 13 }}>Informação {index + 1}</p>
+            <p style={{ fontFamily: M.display, fontWeight: 700, fontSize: 14, color: M.text }}>Ocorrência {index + 1}</p>
             {fields.length > 1 && (
-              <button type="button" onClick={() => remove(index)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.35)', padding: 4 }}>
-                <Trash2 size={16} />
+              <button type="button" onClick={() => remove(index)} aria-label="Remover ocorrência"
+                style={{ background: M.chip, border: 'none', cursor: 'pointer', color: M.mute, padding: 8, borderRadius: 12, display: 'flex' }}>
+                <Trash2 size={15} />
               </button>
             )}
           </div>
@@ -139,18 +133,18 @@ export function FloorForm({ floor, inspectorName, initialRecords, onSubmit, isLo
             options={PRIORITIES} placeholder="Selecione a prioridade"
             error={errors.records?.[index]?.priority?.message} />
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={S.label}>Descrição</label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <span style={{ color: M.mute, fontSize: 12 }}>Descrição</span>
             <textarea
               rows={3}
-              placeholder="Descreva o que foi encontrado..."
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 16, padding: '12px 16px', color: 'rgba(255,255,255,0.9)', fontSize: 14, outline: 'none', width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
+              placeholder="O que foi encontrado?"
+              style={{ background: M.chip, border: 'none', borderRadius: 16, padding: '14px 16px', color: M.text, fontSize: 15, outline: 'none', width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
               {...register(`records.${index}.description`)}
             />
             {errors.records?.[index]?.description && (
-              <span style={S.error}>{errors.records[index].description.message}</span>
+              <span style={{ color: M.danger, fontSize: 12 }}>{errors.records[index].description.message}</span>
             )}
-          </div>
+          </label>
 
           <Field control={control} name={`records.${index}.responsible`} label="Responsável"
             options={RESPONSIBLES} placeholder="Selecione o responsável"
@@ -159,18 +153,18 @@ export function FloorForm({ floor, inspectorName, initialRecords, onSubmit, isLo
           <Field control={control} name={`records.${index}.status`} label="Status"
             options={RECORD_STATUS} placeholder="Selecione o status"
             error={errors.records?.[index]?.status?.message} />
-        </Card>
+        </MCard>
       ))}
 
       {!nothingToReport && (
-        <Button type="button" variant="secondary" onClick={() => append(emptyRecord())} style={{ width: '100%' }}>
-          <Plus size={16} /> Adicionar mais informações
-        </Button>
+        <MButtonSoft onClick={() => append(emptyRecord())} style={{ width: '100%' }}>
+          <Plus size={16} /> Adicionar ocorrência
+        </MButtonSoft>
       )}
 
-      <Button type="submit" loading={isLoading} style={{ width: '100%' }}>
-        {isLast ? '✓ Enviar vistoria' : 'Próximo andar →'}
-      </Button>
+      <MButton type="submit" loading={isLoading} style={{ width: '100%', marginTop: 4 }}>
+        {isLast ? 'Enviar vistoria' : 'Próximo andar'}
+      </MButton>
     </form>
   );
 }

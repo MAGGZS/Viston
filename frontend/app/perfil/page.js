@@ -1,11 +1,13 @@
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { LogOut, ArrowLeft, Building2 } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
+import { Logo } from '@/app/components/Logo';
+import { M, MPage, MTopBar, MRound, MCard, MField, MButton, MButtonGhost, MSectionHead } from '@/app/components/mobile/kit';
 import { BottomNav } from '@/app/components/BottomNav';
 import { Button, Input, Card, Modal } from '@/app/components/ui';
 import { useAuthStore } from '@/app/store/auth';
@@ -24,6 +26,118 @@ const passwordSchema = yup.object({
 });
 
 const ROLE_LABELS = { ADMIN: 'Administrador', INSPECTOR: 'Inspetor', VIEWER: 'Visualizador' };
+
+// Tokens do desktop: chapa escura, folha dourada e filete fino no lugar de cartões
+const DS = {
+  page: '#0A0A11',
+  panel: 'linear-gradient(158deg, #17171F 0%, #0E0E15 62%, #101018 100%)',
+  hairline: 'rgba(255,255,255,0.08)',
+  gold: '#F5C518',
+  goldEdge: 'rgba(245,197,24,0.28)',
+  dim: 'rgba(255,255,255,0.42)',
+  faint: 'rgba(255,255,255,0.22)',
+  danger: '#F87171',
+  mono: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+};
+
+/**
+ * Credencial de acesso: o artefato que representa quem você é dentro do prédio.
+ * O brilho acompanha o cursor, como a luz correndo no relevo de um crachá.
+ */
+function Credential({ user, building }) {
+  const cardRef = useRef(null);
+
+  function handleMove(e) {
+    const el = cardRef.current;
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty('--mx', `${((e.clientX - r.left) / r.width) * 100}%`);
+    el.style.setProperty('--my', `${((e.clientY - r.top) / r.height) * 100}%`);
+    el.style.setProperty('--sheen', '1');
+  }
+
+  const rows = [
+    ['Função', ROLE_LABELS[user?.role] || user?.role || '—'],
+    ['Prédio', building?.name ?? (user?.role === 'ADMIN' ? 'Todos os prédios' : 'Sem vínculo')],
+  ];
+
+  return (
+    <div
+      ref={cardRef}
+      onMouseMove={handleMove}
+      onMouseLeave={() => cardRef.current?.style.setProperty('--sheen', '0')}
+      style={{
+        position: 'sticky',
+        top: 108,
+        background: DS.panel,
+        border: `1px solid ${DS.goldEdge}`,
+        borderRadius: 22,
+        padding: '22px 24px 24px',
+        overflow: 'hidden',
+        boxShadow: '0 24px 60px rgba(0,0,0,0.55)',
+      }}
+    >
+      {/* brilho que segue o cursor */}
+      <div aria-hidden style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'radial-gradient(340px circle at var(--mx, 50%) var(--my, 0%), rgba(245,197,24,0.16), transparent 62%)',
+        opacity: 'var(--sheen, 0)', transition: 'opacity 0.35s ease',
+      }} />
+
+      {/* furo do cordão */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+        <div style={{ width: 66, height: 7, borderRadius: 99, background: '#05050A', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.06)' }} />
+      </div>
+
+      <div style={{ position: 'relative' }}>
+        <p style={{ fontFamily: DS.mono, fontSize: 10, letterSpacing: '0.22em', color: DS.faint, textTransform: 'uppercase' }}>
+          Credencial
+        </p>
+
+        <p style={{
+          fontFamily: 'var(--font-poppins), sans-serif', fontWeight: 900, fontSize: 26, lineHeight: 1.12, marginTop: 10,
+          background: 'linear-gradient(96deg, #F5C518 0%, #FFF3C4 38%, #E0A800 72%, #F5C518 100%)',
+          WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
+        }}>
+          {user?.name ?? ''}
+        </p>
+
+        <p style={{ fontFamily: DS.mono, fontSize: 11, color: DS.dim, marginTop: 8, wordBreak: 'break-all' }}>
+          {user?.email}
+        </p>
+
+        <div style={{ height: 1, background: DS.hairline, margin: '20px 0 4px' }} />
+
+        {rows.map(([label, value]) => (
+          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, padding: '12px 0', borderBottom: `1px solid ${DS.hairline}` }}>
+            <span style={{ fontFamily: DS.mono, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: DS.faint }}>{label}</span>
+            <span style={{ color: 'rgba(255,255,255,0.86)', fontSize: 13, textAlign: 'right' }}>{value}</span>
+          </div>
+        ))}
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 }}>
+          <Logo size={13} style={{ color: 'rgba(255,255,255,0.55)', WebkitTextStroke: '0px' }} />
+          <span style={{ fontFamily: DS.mono, fontSize: 10, color: DS.faint }}>
+            Nº {(user?.id ?? '').slice(0, 8).toUpperCase() || '—'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Linha da folha de dados: rótulo à esquerda, controles à direita, filete entre elas. */
+function SpecRow({ label, hint, children }) {
+  return (
+    <section style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 32, padding: '28px 0', borderTop: `1px solid ${DS.hairline}` }}>
+      <div>
+        <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.62)' }}>{label}</h2>
+        {hint && <p style={{ color: DS.faint, fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>{hint}</p>}
+      </div>
+      <div>{children}</div>
+    </section>
+  );
+}
 
 export default function PerfilPage() {
   const { user, setUser, logout } = useAuthStore();
@@ -116,11 +230,12 @@ export default function PerfilPage() {
     }
   }
 
-  function BuildingSection() {
+  // `bare` remove o cartão: no desktop a seção vive dentro da folha de dados
+  function BuildingSection({ bare = false }) {
     if (user?.role === 'ADMIN') return null;
-    return (
-      <Card>
-        <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Prédio vinculado</h2>
+
+    const content = (
+      <>
         {buildingsLoading ? (
           <div style={{ height: 48, background: 'rgba(255,255,255,0.05)', borderRadius: 12 }} />
         ) : hasBuilding ? (
@@ -170,6 +285,15 @@ export default function PerfilPage() {
             )}
           </div>
         )}
+      </>
+    );
+
+    if (bare) return content;
+
+    return (
+      <Card>
+        <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Prédio vinculado</h2>
+        {content}
       </Card>
     );
   }
@@ -177,120 +301,134 @@ export default function PerfilPage() {
   return (
     <RouteGuard>
       {/* ── DESKTOP ── */}
-      <div className="hidden lg:flex min-h-screen bg-[#0D0D0D]">
-        <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 60, background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', zIndex: 10 }}>
-          <button onClick={() => router.back()} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}
+      <div className="hidden lg:block min-h-screen" style={{ background: DS.page }}>
+        <header style={{ position: 'sticky', top: 0, height: 60, background: 'rgba(10,10,17,0.82)', backdropFilter: 'blur(24px)', borderBottom: `1px solid ${DS.hairline}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', zIndex: 10 }}>
+          <button onClick={() => router.back()} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: 14 }}
             onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.9)'}
             onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}>
-            <ArrowLeft size={18} />
-            <span style={{ fontSize: 14 }}>Voltar</span>
+            <ArrowLeft size={18} /> Voltar
           </button>
-          <span style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 700, fontSize: 15 }}>Perfil</span>
+          <Logo size={16} />
           <button onClick={() => { logout(); router.replace('/login'); }}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}
-            onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+            onMouseEnter={e => e.currentTarget.style.color = DS.danger}
             onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}>
             <LogOut size={16} /> Sair
           </button>
         </header>
 
-        <div style={{ marginTop: 60, width: '100%', maxWidth: 900, margin: '60px auto 0', padding: '40px 32px', display: 'flex', gap: 32, alignItems: 'flex-start' }}>
-          <div style={{ width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16, position: 'sticky', top: 96 }}>
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
-              <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#F5C518', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 24px rgba(245,197,24,0.25)' }}>
-                <span style={{ color: '#000', fontWeight: 900, fontSize: 28 }}>{user?.name?.[0]?.toUpperCase()}</span>
-              </div>
-              <div>
-                <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 700, fontSize: 15 }}>{user?.name}</p>
-                <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>{user?.email}</p>
-              </div>
-              <span style={{ fontSize: 11, background: 'rgba(245,197,24,0.1)', color: '#F5C518', border: '1px solid rgba(245,197,24,0.2)', padding: '4px 12px', borderRadius: 99 }}>
-                {ROLE_LABELS[user?.role] || user?.role}
-              </span>
-            </div>
-          </div>
+        <div style={{ maxWidth: 1060, margin: '0 auto', padding: '48px 32px 80px', display: 'grid', gridTemplateColumns: '320px 1fr', gap: 48, alignItems: 'start' }}>
+          <Credential user={user} building={myBuilding} />
 
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <Card>
-                <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Dados pessoais</h2>
-                <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="flex flex-col gap-4">
+          <div>
+            <h1 style={{ fontFamily: 'var(--font-poppins), sans-serif', fontWeight: 900, fontSize: 30, color: 'rgba(255,255,255,0.94)', letterSpacing: '-0.01em' }}>
+              Sua conta
+            </h1>
+            <p style={{ color: DS.dim, fontSize: 14, marginTop: 6, maxWidth: 460 }}>
+              Estes dados aparecem nos relatórios que você assina e definem seu acesso ao prédio.
+            </p>
+
+            <div style={{ marginTop: 36 }}>
+              <SpecRow label="Identificação" hint="Nome e e-mail que assinam suas vistorias">
+                <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 420 }}>
                   <Input label="Nome" error={profileForm.formState.errors.name?.message} {...profileForm.register('name')} />
                   <Input label="E-mail" type="email" error={profileForm.formState.errors.email?.message} {...profileForm.register('email')} />
-                  <Button type="submit" loading={updateMe.isPending} className="w-full">Salvar</Button>
+                  <Button type="submit" loading={updateMe.isPending} style={{ alignSelf: 'flex-start' }}>Salvar alterações</Button>
                 </form>
-              </Card>
-              <Card>
-                <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Alterar senha</h2>
-                <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="flex flex-col gap-4">
+              </SpecRow>
+
+              <SpecRow label="Senha" hint="Mínimo de 8 caracteres">
+                <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 420 }}>
                   <Input label="Senha atual" type="password" error={passwordForm.formState.errors.current_password?.message} {...passwordForm.register('current_password')} />
                   <Input label="Nova senha" type="password" error={passwordForm.formState.errors.new_password?.message} {...passwordForm.register('new_password')} />
-                  <Button type="submit" loading={changePassword.isPending} className="w-full">Alterar senha</Button>
+                  <Button type="submit" loading={changePassword.isPending} style={{ alignSelf: 'flex-start' }}>Alterar senha</Button>
                 </form>
-              </Card>
+              </SpecRow>
+
+              {user?.role !== 'ADMIN' && (
+                <SpecRow label="Prédio" hint="O prédio que você vistoria">
+                  <div style={{ maxWidth: 460 }}>{BuildingSection({ bare: true })}</div>
+                </SpecRow>
+              )}
+
+              <SpecRow label="Excluir conta" hint="Não dá para desfazer">
+                <div style={{ maxWidth: 460, display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'flex-start' }}>
+                  <p style={{ color: DS.dim, fontSize: 13, lineHeight: 1.6 }}>
+                    Seu acesso é encerrado na hora. As vistorias que você registrou continuam no histórico do prédio, sem o seu nome.
+                  </p>
+                  <Button variant="ghost" onClick={() => setDeleteModal(true)}
+                    style={{ color: DS.danger, padding: '4px 0' }}>
+                    Excluir conta
+                  </Button>
+                </div>
+              </SpecRow>
             </div>
-            <BuildingSection />
-            <Card>
-              <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1.5">Zona de perigo</h2>
-              <p className="text-white/30 text-xs mb-4">A exclusão é irreversível. Seus relatórios serão mantidos de forma anônima.</p>
-              <Button variant="danger" onClick={() => setDeleteModal(true)}>Excluir minha conta</Button>
-            </Card>
           </div>
         </div>
       </div>
 
       {/* ── MOBILE ── */}
-      <div className="lg:hidden min-h-screen pb-28">
-        <div className="px-5 pt-14 pb-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-white/95 text-2xl font-bold tracking-tight">Perfil</h1>
-            <button onClick={() => { logout(); router.replace('/login'); }}
-              className="w-9 h-9 bg-white/5 border border-white/8 rounded-2xl flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/10 transition-all">
-              <LogOut size={16} />
-            </button>
-          </div>
-        </div>
+      <div className="lg:hidden">
+        <MPage>
+          <MTopBar
+            title="Perfil"
+            avatar={
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: M.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: M.display, fontWeight: 700, fontSize: 18, color: '#000' }}>
+                {user?.name?.[0]?.toUpperCase()}
+              </div>
+            }
+            actions={
+              <MRound label="Sair" onClick={() => { logout(); router.replace('/login'); }}>
+                <LogOut size={17} />
+              </MRound>
+            }
+          />
 
-        <div className="px-5 flex flex-col gap-4">
-          <div className="flex items-center gap-4 px-1">
-            <div className="w-16 h-16 rounded-full bg-[#F5C518] flex items-center justify-center shadow-[0_0_20px_rgba(245,197,24,0.25)]">
-              <span className="text-black font-bold text-2xl">{user?.name?.[0]?.toUpperCase()}</span>
-            </div>
-            <div>
-              <p className="text-white/90 font-bold text-base">{user?.name}</p>
-              <span className="text-xs bg-[#F5C518]/10 text-[#F5C518] border border-[#F5C518]/20 px-2.5 py-1 rounded-full mt-1 inline-block">
-                {ROLE_LABELS[user?.role] || user?.role}
-              </span>
-            </div>
-          </div>
+          <MCard style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <p style={{ fontFamily: M.display, fontWeight: 700, fontSize: 18, color: M.text }}>{user?.name}</p>
+            <p style={{ color: M.mute, fontSize: 13 }}>{user?.email}</p>
+            <span style={{ alignSelf: 'flex-start', marginTop: 10, background: M.accentSoft, color: M.accent, fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 10 }}>
+              {ROLE_LABELS[user?.role] || user?.role}
+            </span>
+          </MCard>
 
-          <Card>
-            <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Dados pessoais</h2>
-            <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="flex flex-col gap-4">
-              <Input label="Nome" error={profileForm.formState.errors.name?.message} {...profileForm.register('name')} />
-              <Input label="E-mail" type="email" error={profileForm.formState.errors.email?.message} {...profileForm.register('email')} />
-              <Button type="submit" loading={updateMe.isPending} className="w-full">Salvar</Button>
+          <MSectionHead title="Identificação" />
+          <MCard>
+            <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <MField label="Nome" error={profileForm.formState.errors.name?.message} {...profileForm.register('name')} />
+              <MField label="E-mail" type="email" error={profileForm.formState.errors.email?.message} {...profileForm.register('email')} />
+              <MButton type="submit" loading={updateMe.isPending} style={{ width: '100%' }}>Salvar alterações</MButton>
             </form>
-          </Card>
+          </MCard>
 
-          <Card>
-            <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">Alterar senha</h2>
-            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="flex flex-col gap-4">
-              <Input label="Senha atual" type="password" error={passwordForm.formState.errors.current_password?.message} {...passwordForm.register('current_password')} />
-              <Input label="Nova senha" type="password" error={passwordForm.formState.errors.new_password?.message} {...passwordForm.register('new_password')} />
-              <Button type="submit" loading={changePassword.isPending} className="w-full">Alterar senha</Button>
+          <MSectionHead title="Senha" />
+          <MCard>
+            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <MField label="Senha atual" type="password" error={passwordForm.formState.errors.current_password?.message} {...passwordForm.register('current_password')} />
+              <MField label="Nova senha" type="password" error={passwordForm.formState.errors.new_password?.message} {...passwordForm.register('new_password')} />
+              <MButton type="submit" loading={changePassword.isPending} style={{ width: '100%' }}>Alterar senha</MButton>
             </form>
-          </Card>
+          </MCard>
 
-          <BuildingSection />
+          {user?.role !== 'ADMIN' && (
+            <>
+              <MSectionHead title="Prédio" />
+              <MCard>{BuildingSection({ bare: true })}</MCard>
+            </>
+          )}
 
-          <Card>
-            <h2 className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1.5">Zona de perigo</h2>
-            <p className="text-white/30 text-xs mb-4">A exclusão é irreversível. Seus relatórios serão mantidos de forma anônima.</p>
-            <Button variant="danger" className="w-full" onClick={() => setDeleteModal(true)}>Excluir minha conta</Button>
-          </Card>
-        </div>
-        <BottomNav />
+          <MSectionHead title="Excluir conta" />
+          <MCard>
+            <p style={{ color: M.mute, fontSize: 13, lineHeight: 1.6 }}>
+              Seu acesso é encerrado na hora. As vistorias que você registrou continuam no histórico do prédio, sem o seu nome.
+            </p>
+            <MButtonGhost tone="danger" onClick={() => setDeleteModal(true)} style={{ width: '100%', marginTop: 14 }}>
+              Excluir conta
+            </MButtonGhost>
+          </MCard>
+
+          <BottomNav />
+        </MPage>
       </div>
 
       <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Excluir conta">

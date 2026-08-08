@@ -7,7 +7,7 @@ import { Toast } from '@/app/components/Toast';
 // Poppins Black é a fonte da logo
 const poppins = Poppins({
   subsets: ['latin'],
-  weight: ['900'],
+  weight: ['600', '700', '900'],
   variable: '--font-poppins',
   display: 'swap',
 });
