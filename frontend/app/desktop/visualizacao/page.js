@@ -5,11 +5,13 @@ import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Download, UserCircle, Building2, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { RouteGuard } from '@/app/components/RouteGuard';
+import { Logo } from '@/app/components/Logo';
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { Badge, Skeleton, Button } from '@/app/components/ui';
 import { useCalendar, useBuildingHistory, useMyBuildings } from '@/app/hooks/useApi';
+import { useAuthStore } from '@/app/store/auth';
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success', COMPLETED: 'success' };
@@ -25,6 +27,7 @@ function NoPredioState() {
 }
 
 export default function VisualizacaoPage() {
+  const { user } = useAuthStore();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -60,12 +63,7 @@ export default function VisualizacaoPage() {
       <div className="hidden lg:flex flex-col min-h-screen bg-[#0D0D0D]">
         {/* Header */}
         <header style={{ height: 60, background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 32, height: 32, background: '#F5C518', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 12px rgba(245,197,24,0.3)' }}>
-              <span style={{ color: '#000', fontWeight: 900, fontSize: 13 }}>V</span>
-            </div>
-            <span style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 700, fontSize: 15 }}>Viston</span>
-          </div>
+          <Logo size={18} />
           <Link href="/perfil" style={{ color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}
             onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.9)'}
             onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
@@ -76,7 +74,12 @@ export default function VisualizacaoPage() {
 
         {/* Main */}
         <main className="flex-1 p-8 overflow-auto flex flex-col">
-          <h1 className="text-2xl font-bold text-white mb-8">Visão Geral</h1>
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-white">
+              Olá, <span style={{ color: '#F5C518' }}>{user?.name ?? ''}</span>
+            </h1>
+            <p className="text-[#9A9A9A] text-sm mt-1">Fique por dentro de como anda a estrutura do prédio</p>
+          </div>
 
           {buildingsLoading ? (
             <div className="grid grid-cols-3 gap-6">

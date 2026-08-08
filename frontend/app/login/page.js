@@ -5,6 +5,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { Logo } from '@/app/components/Logo';
 import { useAuthStore } from '@/app/store/auth';
 import { useLogin } from '@/app/hooks/useApi';
 
@@ -16,7 +17,6 @@ const schema = yup.object({
 const S = {
   page: { minHeight: '100vh', background: '#080810', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
   wrap: { width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32 },
-  logo: { width: 60, height: 60, background: '#F5C518', borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 40px rgba(245,197,24,0.3)' },
   card: { width: '100%', background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 28, padding: '28px 24px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' },
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
   label: { fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' },
@@ -50,10 +50,9 @@ export default function LoginPage() {
     <div style={S.page}>
       <div style={S.wrap}>
         <div className="anim-fade-down" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div className="anim-pop-in" style={S.logo}><span style={{ color: '#000', fontSize: 24, fontWeight: 900 }}>V</span></div>
           <div style={{ textAlign: 'center' }}>
-            <h1 style={{ color: 'rgba(255,255,255,0.95)', fontSize: 24, fontWeight: 700, margin: 0 }}>Viston</h1>
-            <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14, marginTop: 4 }}>Sistema de Vistoria Predial</p>
+            <h1 className="anim-pop-in" style={{ margin: 0 }}><Logo size={38} /></h1>
+            <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14, marginTop: 8 }}>Sistema de Vistoria Predial</p>
           </div>
         </div>
 

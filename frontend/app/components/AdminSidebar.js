@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Users, Building2, LogOut } from 'lucide-react';
+import { Logo } from '@/app/components/Logo';
 import { useAuthStore } from '@/app/store/auth';
 
 const items = [
@@ -17,12 +18,7 @@ export function AdminSidebar() {
   return (
     <aside style={{ width: 232, minHeight: '100vh', background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '24px 20px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 36, height: 36, background: '#F5C518', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(245,197,24,0.3)' }}>
-            <span style={{ color: '#000', fontWeight: 900, fontSize: 14 }}>V</span>
-          </div>
-          <span style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 700, fontSize: 16 }}>Viston</span>
-        </div>
+        <Logo size={20} />
       </div>
 
       <div style={{ margin: '0 16px', height: 1, background: 'rgba(255,255,255,0.06)' }} />
