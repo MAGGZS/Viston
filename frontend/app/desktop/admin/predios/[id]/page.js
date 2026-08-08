@@ -9,6 +9,8 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
+import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
+import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Skeleton, Button, Modal } from '@/app/components/ui';
 import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember, useDeleteInspection } from '@/app/hooks/useApi';
 import { formatShareKey } from '@/app/lib/shareKey';
@@ -68,6 +70,8 @@ export default function BuildingDashboardPage() {
   const [membersModal, setMembersModal] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(null); // membro a remover
   const [confirmDiscard, setConfirmDiscard] = useState(null); // vistoria a descartar
+  const [previewId, setPreviewId] = useState(null); // vistoria em prévia
+  const [reportId, setReportId] = useState(null); // relatório completo aberto
 
   const { data, isLoading } = useBuildingDashboard(id);
   const { data: histData, isLoading: histLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useBuildingHistory(id);
@@ -181,7 +185,7 @@ export default function BuildingDashboardPage() {
                     </tr>
                   ))}
                   {rows.map(r => (
-                    <tr key={r.id} onClick={() => router.push(`/historico/${r.id}`)}
+                    <tr key={r.id} onClick={() => setReportId(r.id)}
                       className="border-b border-[#2A2A2A] hover:bg-[#1E1E1E] transition-colors cursor-pointer">
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-2">
@@ -198,12 +202,18 @@ export default function BuildingDashboardPage() {
                         {format(new Date(r.finished_at || r.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                       </td>
                       <td className="px-6 py-3">
-                        {r.excel_url ? (
-                          <a href={r.excel_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
-                            className="flex items-center gap-1 text-[#F5C518] text-sm hover:underline">
-                            <Download size={13} /> Baixar
-                          </a>
-                        ) : <span className="text-[#9A9A9A] text-sm">—</span>}
+                        <div className="flex items-center gap-4">
+                          {r.excel_url ? (
+                            <a href={r.excel_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+                              className="flex items-center gap-1 text-[#F5C518] text-sm hover:underline">
+                              <Download size={13} /> Baixar
+                            </a>
+                          ) : <span className="text-[#9A9A9A] text-sm">—</span>}
+                          <button onClick={e => { e.stopPropagation(); setPreviewId(r.id); }}
+                            className="flex items-center gap-1 text-[#9A9A9A] text-sm hover:text-white transition-colors">
+                            <Eye size={13} /> Prévia
+                          </button>
+                        </div>
                       </td>
                       <td className="px-6 py-3 text-right">
                         <button
@@ -243,6 +253,10 @@ export default function BuildingDashboardPage() {
         day={selected?.day}
         info={selected?.info}
       />
+
+      <InspectionPreviewModal open={!!previewId} onClose={() => setPreviewId(null)} reportId={previewId} />
+
+      <ReportDocumentModal open={!!reportId} onClose={() => setReportId(null)} reportId={reportId} />
 
       <Modal open={membersModal} onClose={() => setMembersModal(false)} title="Colaboradores">
         {membersLoading ? (

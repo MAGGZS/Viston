@@ -1,16 +1,18 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, FileSpreadsheet, SlidersHorizontal } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, FileSpreadsheet, SlidersHorizontal } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
+import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
+import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Button, Modal } from '@/app/components/ui';
 import { useInspections, useCalendar, useMyBuildings, useBuildingHistory } from '@/app/hooks/useApi';
+import { parseReportDate } from '@/app/lib/date';
 import { useAuthStore } from '@/app/store/auth';
 
 const S = {
@@ -77,18 +79,17 @@ function MonthGrid({ heatmap, year, month, onDayClick, compact = false }) {
 }
 
 // Clicar no card abre o relatório completo da vistoria
-function InspectionCard({ inspection }) {
-  const router = useRouter();
+function InspectionCard({ inspection, onPreview, onOpenReport }) {
   const totalRecords = inspection.floor_form_entries?.reduce(
     (sum, e) => sum + (e._count?.maintenance_records ?? 0), 0
   ) ?? 0;
 
   return (
     <div
-      onClick={() => router.push(`/historico/${inspection.id}`)}
+      onClick={() => onOpenReport(inspection.id)}
       role="button"
       tabIndex={0}
-      onKeyDown={e => e.key === 'Enter' && router.push(`/historico/${inspection.id}`)}
+      onKeyDown={e => e.key === 'Enter' && onOpenReport(inspection.id)}
       style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer', transition: 'border-color 0.2s, background 0.2s' }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(245,197,24,0.35)'; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
@@ -96,7 +97,7 @@ function InspectionCard({ inspection }) {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <div>
           <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 14 }}>
-            {format(new Date(inspection.date), "d 'de' MMMM yyyy", { locale: ptBR })}
+            {format(parseReportDate(inspection.date), "d 'de' MMMM yyyy", { locale: ptBR })}
           </p>
           <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>
             {inspection.inspector?.name} · {totalRecords} ocorrência{totalRecords !== 1 ? 's' : ''}
@@ -115,9 +116,15 @@ function InspectionCard({ inspection }) {
         {inspection.excel_url && (
           <a href={inspection.excel_url} target="_blank" rel="noreferrer" style={{ flex: 1 }} onClick={e => e.stopPropagation()}>
             <Button variant="secondary" style={{ width: '100%', fontSize: 12, padding: '8px 12px' }}>
-              <FileSpreadsheet size={13} /> Excel
+              <FileSpreadsheet size={13} /> Baixar planilha
             </Button>
           </a>
+        )}
+        {onPreview && (
+          <Button variant="secondary" style={{ flex: 1, fontSize: 12, padding: '8px 12px' }}
+            onClick={e => { e.stopPropagation(); onPreview(inspection.id); }}>
+            <Eye size={13} /> Prévia
+          </Button>
         )}
       </div>
     </div>
@@ -139,6 +146,8 @@ export default function HistoricoPage() {
 
   const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [previewId, setPreviewId] = useState(null);
+  const [reportId, setReportId] = useState(null);
 
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -198,7 +207,9 @@ export default function HistoricoPage() {
           <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
         </div>
       )}
-      {(isAdmin ? allInspections : buildingInspections).map(i => <InspectionCard key={i.id} inspection={i} />)}
+      {(isAdmin ? allInspections : buildingInspections).map(i => (
+        <InspectionCard key={i.id} inspection={i} onPreview={setPreviewId} onOpenReport={setReportId} />
+      ))}
       {(isAdmin ? hasNextPage : buildingHasNext) && (
         <Button variant="secondary" style={{ width: '100%' }} onClick={() => isAdmin ? fetchNextPage() : buildingFetchNext()} loading={isAdmin ? isFetchingNextPage : buildingFetchingNext}>Carregar mais</Button>
       )}
@@ -302,7 +313,7 @@ export default function HistoricoPage() {
                 <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
               </div>
             )}
-            {buildingInspections.map(i => <InspectionCard key={i.id} inspection={i} />)}
+            {buildingInspections.map(i => <InspectionCard key={i.id} inspection={i} onOpenReport={setReportId} />)}
             {buildingHasNext && (
               <Button variant="secondary" style={{ width: '100%' }} onClick={() => buildingFetchNext()} loading={buildingFetchingNext}>Carregar mais</Button>
             )}
@@ -351,6 +362,10 @@ export default function HistoricoPage() {
           day={selected?.day}
           info={selected?.info}
         />
+
+        <InspectionPreviewModal open={!!previewId} onClose={() => setPreviewId(null)} reportId={previewId} />
+
+        <ReportDocumentModal open={!!reportId} onClose={() => setReportId(null)} reportId={reportId} />
 
         {!isDesktop && <BottomNav />}
       </div>

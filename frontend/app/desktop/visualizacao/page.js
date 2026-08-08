@@ -2,11 +2,12 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Download, UserCircle, Building2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, UserCircle, Building2, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
+import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { Badge, Skeleton, Button } from '@/app/components/ui';
 import { useCalendar, useBuildingHistory, useMyBuildings } from '@/app/hooks/useApi';
 
@@ -28,6 +29,7 @@ export default function VisualizacaoPage() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [dayModal, setDayModal] = useState(null);
+  const [previewId, setPreviewId] = useState(null);
 
   const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
   const hasBuilding = myBuildings.length > 0;
@@ -134,12 +136,18 @@ export default function VisualizacaoPage() {
                           {format(new Date(r.finished_at || r.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
                         </td>
                         <td className="px-6 py-3">
-                          {r.excel_url ? (
-                            <a href={r.excel_url} target="_blank" rel="noreferrer"
-                              className="flex items-center gap-1 text-[#F5C518] text-sm hover:underline">
-                              <Download size={13} /> Baixar
-                            </a>
-                          ) : <span className="text-[#9A9A9A] text-sm">—</span>}
+                          <div className="flex items-center gap-4">
+                            {r.excel_url ? (
+                              <a href={r.excel_url} target="_blank" rel="noreferrer"
+                                className="flex items-center gap-1 text-[#F5C518] text-sm hover:underline">
+                                <Download size={13} /> Baixar
+                              </a>
+                            ) : <span className="text-[#9A9A9A] text-sm">—</span>}
+                            <button onClick={() => setPreviewId(r.id)}
+                              className="flex items-center gap-1 text-[#9A9A9A] text-sm hover:text-white transition-colors">
+                              <Eye size={13} /> Prévia
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -174,6 +182,8 @@ export default function VisualizacaoPage() {
         day={dayModal?.day}
         info={dayModal?.info}
       />
+
+      <InspectionPreviewModal open={!!previewId} onClose={() => setPreviewId(null)} reportId={previewId} />
     </RouteGuard>
   );
 }

@@ -1,3 +1,4 @@
+import ExcelJS from 'exceljs';
 import { generateInspectionExcel } from '../services/excel.service';
 import { InspectionStatus } from '@prisma/client';
 
@@ -66,5 +67,35 @@ describe('generateInspectionExcel', () => {
     // Buffer de xlsx começa com PK (ZIP header)
     expect(buffer[0]).toBe(0x50); // 'P'
     expect(buffer[1]).toBe(0x4b); // 'K'
+  });
+
+  it('monta o documento: prédio no topo, responsável e dia, andares abaixo', async () => {
+    const buffer = await generateInspectionExcel(makeFullReport());
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as any);
+    const ws = wb.getWorksheet('Vistoria')!;
+
+    expect(ws).toBeDefined();
+    expect(ws.getCell('A1').value).toBe('Edifício Principal');
+    expect(String(ws.getCell('A2').value)).toContain('Carlos');
+    expect(String(ws.getCell('A2').value)).toContain('15/01/2024');
+
+    const texto: string[] = [];
+    ws.eachRow((row) => row.eachCell((cell) => texto.push(String(cell.value ?? ''))));
+
+    // Andares como faixa, do mais alto para o mais baixo
+    expect(texto.indexOf('6º Andar')).toBeGreaterThan(-1);
+    expect(texto.indexOf('6º Andar')).toBeLessThan(texto.indexOf('1º Subsolo'));
+
+    // Dados exatos da ocorrência
+    expect(texto).toContain('Ar condicionado');
+    expect(texto).toContain('Corretiva');
+    expect(texto).toContain('Alta');
+    expect(texto).toContain('Split da sala 601 sem gelar');
+    expect(texto).toContain('Alan');
+    expect(texto).toContain('Aberto');
+
+    // Andar sem ocorrência
+    expect(texto).toContain('Nada a relatar neste andar.');
   });
 });

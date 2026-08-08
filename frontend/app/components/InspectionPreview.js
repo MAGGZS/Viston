@@ -1,6 +1,7 @@
 'use client';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { Download, FileSpreadsheet, FileText, X } from 'lucide-react';
+import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Button, Spinner } from '@/app/components/ui';
 import { useInspection, useGenerateExcel } from '@/app/hooks/useApi';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
@@ -18,8 +19,8 @@ const PRIORITY_VARIANT = { ALTA: 'danger', MEDIA: 'warning', BAIXA: 'default' };
  * Prévia de uma vistoria: cabeçalho, ações e a tabela com as mesmas
  * colunas da aba "Ocorrências" da planilha.
  */
-export function InspectionPreview({ report, onNavigate }) {
-  const router = useRouter();
+export function InspectionPreview({ report }) {
+  const [showDocument, setShowDocument] = useState(false);
   const generateExcel = useGenerateExcel();
   const { show: toast } = useToastStore();
 
@@ -62,7 +63,7 @@ export function InspectionPreview({ report, onNavigate }) {
             </Button>
           )}
           <Button variant="secondary" style={{ fontSize: 12, padding: '8px 14px' }}
-            onClick={() => { onNavigate?.(); router.push(`/historico/${report.id}`); }}>
+            onClick={() => setShowDocument(true)}>
             <FileText size={13} /> Relatório completo
           </Button>
         </div>
@@ -106,6 +107,12 @@ export function InspectionPreview({ report, onNavigate }) {
           </div>
         )}
       </div>
+
+      <ReportDocumentModal
+        open={showDocument}
+        onClose={() => setShowDocument(false)}
+        reportId={report.id}
+      />
     </>
   );
 }
@@ -130,7 +137,7 @@ export function InspectionPreviewModal({ open, onClose, reportId }) {
 
         <div style={{ padding: '14px 24px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {isLoading && <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>}
-          {report && <InspectionPreview report={report} onNavigate={onClose} />}
+          {report && <InspectionPreview report={report} />}
         </div>
       </div>
     </div>

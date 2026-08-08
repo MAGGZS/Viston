@@ -60,7 +60,7 @@ export function DayInspectionsModal({ open, onClose, day, info }) {
           )}
 
           {isLoading && <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>}
-          {report && <InspectionPreview report={report} onNavigate={onClose} />}
+          {report && <InspectionPreview report={report} />}
         </div>
       </div>
     </div>
