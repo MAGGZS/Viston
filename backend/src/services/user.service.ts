@@ -61,4 +61,20 @@ export const userService = {
     await this.findById(id);
     await userRepository.softDelete(id);
   },
+
+  /**
+   * Remove definitivamente o usuário do banco.
+   * As inspeções dele são preservadas com inspector_id nulo (ON DELETE SET NULL),
+   * assim como os prédios que ele criou (created_by nulo).
+   */
+  async remove(id: string, requesterId: string) {
+    if (id === requesterId) {
+      throw new ConflictError('Você não pode excluir a própria conta por aqui');
+    }
+
+    const user = await userRepository.findById(id);
+    if (!user) throw new NotFoundError('Usuário');
+
+    await userRepository.hardDelete(id);
+  },
 };

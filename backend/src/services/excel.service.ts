@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs';
 import { InspectionReport, FloorFormEntry, FormItemResponse, Floor, Building, User } from '@prisma/client';
 
 type FullReport = InspectionReport & {
-  inspector: Pick<User, 'id' | 'name' | 'email'>;
+  inspector: Pick<User, 'id' | 'name' | 'email'> | null;
   building: Building;
   floor_form_entries: (FloorFormEntry & {
     floor: Floor;
@@ -54,7 +54,7 @@ export async function generateInspectionExcel(report: FullReport): Promise<Buffe
   const summaryData = [
     ['Prédio', report.building.name],
     ['Data da Vistoria', new Date(report.date).toLocaleDateString('pt-BR')],
-    ['Inspetor', report.inspector.name],
+    ['Inspetor', report.inspector?.name ?? 'Usuário removido'],
     ['Início', report.started_at ? new Date(report.started_at).toLocaleString('pt-BR') : '-'],
     ['Conclusão', report.finished_at ? new Date(report.finished_at).toLocaleString('pt-BR') : '-'],
     ['Andares Vistoriados', report.floor_form_entries.map((e) => e.floor.label).join(', ')],

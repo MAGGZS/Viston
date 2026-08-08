@@ -24,5 +24,6 @@ router.delete('/me', authenticate as any, userController.deleteMe as any);
 // Rotas admin — /:id depois das rotas fixas
 router.get('/', authenticate as any, authorize('ADMIN') as any, userController.findAll as any);
 router.patch('/:id', authenticate as any, authorize('ADMIN') as any, validate(updateUserSchema), userController.update as any);
+router.delete('/:id', authenticate as any, authorize('ADMIN') as any, userController.remove as any);
 
 export default router;

@@ -34,6 +34,10 @@ export const userRepository = {
     return prisma.user.update({ where: { id }, data });
   },
 
+  hardDelete(id: string) {
+    return prisma.user.delete({ where: { id } });
+  },
+
   softDelete(id: string) {
     return prisma.user.update({
       where: { id },

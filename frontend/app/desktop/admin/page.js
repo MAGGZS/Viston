@@ -3,11 +3,11 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { UserPlus, RefreshCw } from 'lucide-react';
+import { UserPlus, RefreshCw, Trash2 } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Button, Input, Select, Modal, Badge, Skeleton } from '@/app/components/ui';
-import { useUsers, useCreateUser, useUpdateUser } from '@/app/hooks/useApi';
+import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/app/hooks/useApi';
 import { useToastStore } from '@/app/store/toast';
 
 const schema = yup.object({
@@ -25,10 +25,12 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [createModal, setCreateModal] = useState(false);
   const [editUser, setEditUser] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const { data, isLoading, refetch, isFetching } = useUsers(page);
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm({
     resolver: yupResolver(schema),
@@ -64,6 +66,16 @@ export default function AdminUsersPage() {
       toast(newStatus === 'ACTIVE' ? 'Usuário reativado!' : 'Usuário desativado', 'info');
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao atualizar', 'error');
+    }
+  }
+
+  async function handleDelete() {
+    try {
+      await deleteUser.mutateAsync(deleteTarget.id);
+      setDeleteTarget(null);
+      toast('Usuário excluído permanentemente', 'success');
+    } catch (e) {
+      toast(e?.response?.data?.error?.message || 'Erro ao excluir usuário', 'error');
     }
   }
 
@@ -138,6 +150,13 @@ export default function AdminUsersPage() {
                         >
                           {u.status === 'ACTIVE' ? 'Desativar' : 'Reativar'}
                         </button>
+                        <button
+                          onClick={() => setDeleteTarget(u)}
+                          title="Excluir permanentemente"
+                          className="text-xs px-3 py-1 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/60 transition-colors flex items-center"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -167,6 +186,21 @@ export default function AdminUsersPage() {
           <p className="text-[#9A9A9A] text-sm mt-2">Acesse pelo computador para gerenciar usuários</p>
         </div>
       </div>
+
+      {/* Modal excluir usuário */}
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Excluir usuário">
+        <div className="flex flex-col gap-4">
+          <p className="text-[#9A9A9A] text-sm">
+            <span className="text-white font-medium">{deleteTarget?.name}</span> será apagado
+            definitivamente do banco de dados. As inspeções feitas por ele continuam no histórico,
+            mas sem inspetor vinculado. Esta ação não pode ser desfeita.
+          </p>
+          <div className="flex gap-3">
+            <Button variant="secondary" className="flex-1" onClick={() => setDeleteTarget(null)}>Cancelar</Button>
+            <Button variant="danger" className="flex-1" onClick={handleDelete} loading={deleteUser.isPending}>Excluir</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Modal criar usuário */}
       <Modal open={createModal} onClose={() => setCreateModal(false)} title="Novo usuário">

@@ -88,7 +88,7 @@ model Building {
   description String?
   created_by  String?
 
-  creator     User?                  @relation("BuildingCreator", fields: [created_by], references: [id])
+  creator     User?                  @relation("BuildingCreator", fields: [created_by], references: [id], onDelete: SetNull)
   floors      Floor[]
   inspections InspectionReport[]
   members     BuildingMember[]
@@ -131,7 +131,7 @@ model Floor {
   building_id String
   label       String
 
-  building          Building           @relation(fields: [building_id], references: [id])
+  building          Building           @relation(fields: [building_id], references: [id], onDelete: Cascade)
   floor_form_entries FloorFormEntry[]
 
   @@unique([building_id, label])
@@ -140,7 +140,7 @@ model Floor {
 
 model InspectionReport {
   id                    String           @id @default(uuid())
-  inspector_id          String
+  inspector_id          String?
   building_id           String
   date                  DateTime         @db.Date
   started_at            DateTime         @default(now())
@@ -152,8 +152,8 @@ model InspectionReport {
   google_form_synced_at DateTime?
   created_at            DateTime         @default(now())
 
-  inspector          User             @relation(fields: [inspector_id], references: [id])
-  building           Building         @relation(fields: [building_id], references: [id])
+  inspector          User?            @relation(fields: [inspector_id], references: [id], onDelete: SetNull)
+  building           Building         @relation(fields: [building_id], references: [id], onDelete: Cascade)
   floor_form_entries FloorFormEntry[]
 
   @@map("inspection_reports")
@@ -168,8 +168,8 @@ model FloorFormEntry {
   photos        String[]    @default([])
   completed_at  DateTime    @default(now())
 
-  report            InspectionReport  @relation(fields: [report_id], references: [id])
-  floor             Floor             @relation(fields: [floor_id], references: [id])
+  report            InspectionReport  @relation(fields: [report_id], references: [id], onDelete: Cascade)
+  floor             Floor             @relation(fields: [floor_id], references: [id], onDelete: Cascade)
   form_item_responses FormItemResponse[]
 
   @@unique([report_id, floor_id])
@@ -186,7 +186,7 @@ model FormItemResponse {
   is_marked           Boolean?
   status              ItemStatus?
 
-  floor_form_entry FloorFormEntry @relation(fields: [floor_form_entry_id], references: [id])
+  floor_form_entry FloorFormEntry @relation(fields: [floor_form_entry_id], references: [id], onDelete: Cascade)
 
   @@map("form_item_responses")
 }

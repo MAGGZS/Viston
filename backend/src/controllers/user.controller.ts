@@ -22,6 +22,11 @@ export const userController = {
     ok(res, user);
   },
 
+  async remove(req: AuthenticatedRequest, res: Response) {
+    await userService.remove(req.params.id, req.user.id);
+    noContent(res);
+  },
+
   async getMe(req: AuthenticatedRequest, res: Response) {
     const user = await userService.findById(req.user.id);
     ok(res, user);

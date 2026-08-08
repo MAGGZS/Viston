@@ -40,6 +40,14 @@ export function useUpdateUser() {
   });
 }
 
+export function useDeleteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.delete(`/users/${id}`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  });
+}
+
 export function useUpdateMe() {
   const qc = useQueryClient();
   return useMutation({

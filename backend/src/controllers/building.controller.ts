@@ -82,8 +82,9 @@ export const buildingController = {
       const day = item.finished_at.toISOString().split('T')[0];
       if (!heatmap[day]) heatmap[day] = { count: 0, inspectors: [] };
       heatmap[day].count++;
-      if (!heatmap[day].inspectors.includes(item.inspector.name)) {
-        heatmap[day].inspectors.push(item.inspector.name);
+      const inspectorName = item.inspector?.name ?? 'Usuário removido';
+      if (!heatmap[day].inspectors.includes(inspectorName)) {
+        heatmap[day].inspectors.push(inspectorName);
       }
     }
 
