@@ -4,31 +4,19 @@ import { inspectionService } from '../services/inspection.service';
 import { buildingRepository } from '../repositories/building.repository';
 import { ok, created } from '../utils/response';
 import { NotFoundError } from '../utils/errors';
-import { inspectionFiltersSchema, calendarQuerySchema } from '../validators/inspection.validator';
+import {
+  inspectionFiltersSchema,
+  calendarQuerySchema,
+  submitInspectionSchema,
+  SubmitInspectionPayload,
+} from '../validators/inspection.validator';
 
 export const inspectionController = {
-  async start(req: AuthenticatedRequest, res: Response) {
-    const report = await inspectionService.start(
-      req.user.id,
-      req.body.building_id,
-      req.body.floor_ids
-    );
+  async submit(req: AuthenticatedRequest, res: Response) {
+    // Parse aqui (e não só no middleware) para aplicar os defaults do schema
+    const payload = submitInspectionSchema.parse(req.body) as SubmitInspectionPayload;
+    const report = await inspectionService.submit(req.user.id, payload);
     created(res, report);
-  },
-
-  async saveFloorForm(req: AuthenticatedRequest, res: Response) {
-    const entry = await inspectionService.saveFloorForm(
-      req.params.id,
-      req.params.floorId,
-      req.body,
-      req.user.id
-    );
-    ok(res, entry);
-  },
-
-  async finish(req: AuthenticatedRequest, res: Response) {
-    const report = await inspectionService.finish(req.params.id, req.user.id);
-    ok(res, report);
   },
 
   async findAll(req: AuthenticatedRequest, res: Response) {

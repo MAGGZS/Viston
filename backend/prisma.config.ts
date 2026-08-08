@@ -1,17 +1,9 @@
-import { defineConfig } from 'prisma/config';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
-import * as dotenv from 'dotenv';
-
-dotenv.config();
+import 'dotenv/config';
+import { defineConfig, env } from 'prisma/config';
 
 export default defineConfig({
-  earlyAccess: true,
   schema: './prisma/schema.prisma',
-  migrate: {
-    async adapter() {
-      const pool = new Pool({ connectionString: process.env.DIRECT_URL });
-      return new PrismaPg(pool);
-    },
-  },
+  // Migrations e introspecção usam a conexão direta (DIRECT_URL),
+  // não o pooler — o pgbouncer não suporta os comandos DDL do migrate.
+  datasource: { url: env('DIRECT_URL') },
 });

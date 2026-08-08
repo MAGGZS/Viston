@@ -59,30 +59,34 @@ components:
         label: { type: string, example: "6º Andar" }
         order: { type: integer, example: 6 }
 
-    FormItemResponse:
+    MaintenanceRecord:
       type: object
       properties:
         id: { type: string, format: uuid }
-        category: { type: string, enum: [MANUTENCAO, LIMPEZA] }
-        item_name: { type: string }
-        has_item: { type: boolean, nullable: true }
-        quantity: { type: integer, nullable: true }
-        is_marked: { type: boolean, nullable: true }
-        status: { type: string, enum: [OK, NOK, NA], nullable: true }
+        maintenance_type:
+          type: string
+          enum: [AR_CONDICIONADO, CIVIL, ELETRICA, EQUIPAMENTO, EVENTOS, HIDRELETRICA, HIGIENIZACAO_LIMPEZA, INFILTRACAO, MARCENARIA, MOVEIS_CADEIRAS, PINTURA, PROJETOR, VAZAMENTO]
+        category: { type: string, enum: [PREVENTIVA, CORRETIVA, EMERGENCIAL, EVENTOS, PROJETOS] }
+        priority: { type: string, enum: [ALTA, MEDIA, BAIXA] }
+        description: { type: string }
+        responsible: { type: string, enum: [Alan, Ailton, Gislaine, Gustavo, Rossi, Felipe, Vanessa] }
+        status: { type: string, enum: [ABERTO, EM_ANDAMENTO, AGUARDANDO_TERCEIRO, CONCLUIDO] }
+        created_at: { type: string, format: date-time }
 
     FloorFormEntry:
       type: object
       properties:
         id: { type: string, format: uuid }
         floor_id: { type: string, format: uuid }
-        status_geral: { type: string, enum: [OK, ATENCAO, PROBLEMA] }
-        observations: { type: array, items: { type: string } }
-        photos: { type: array, items: { type: string, format: uri } }
+        status_geral:
+          type: string
+          enum: [OK, ATENCAO, PROBLEMA]
+          description: Derivado da maior prioridade relatada no andar (ALTA=PROBLEMA, MEDIA=ATENCAO)
         completed_at: { type: string, format: date-time }
         floor: { $ref: '#/components/schemas/Floor' }
-        form_item_responses:
+        maintenance_records:
           type: array
-          items: { $ref: '#/components/schemas/FormItemResponse' }
+          items: { $ref: '#/components/schemas/MaintenanceRecord' }
 
     InspectionReport:
       type: object
@@ -109,73 +113,44 @@ components:
           type: array
           items: { $ref: '#/components/schemas/FloorFormEntry' }
 
-    FloorFormPayload:
+    MaintenanceRecordPayload:
       type: object
-      required: [status_geral, manutencao, limpeza]
+      required: [maintenance_type, category, priority, description, responsible]
       properties:
-        status_geral:
+        maintenance_type:
           type: string
-          enum: [OK, ATENCAO, PROBLEMA]
-        observations:
+          enum: [AR_CONDICIONADO, CIVIL, ELETRICA, EQUIPAMENTO, EVENTOS, HIDRELETRICA, HIGIENIZACAO_LIMPEZA, INFILTRACAO, MARCENARIA, MOVEIS_CADEIRAS, PINTURA, PROJETOR, VAZAMENTO]
+        category: { type: string, enum: [PREVENTIVA, CORRETIVA, EMERGENCIAL, EVENTOS, PROJETOS] }
+        priority: { type: string, enum: [ALTA, MEDIA, BAIXA] }
+        description: { type: string, maxLength: 2000 }
+        responsible: { type: string, enum: [Alan, Ailton, Gislaine, Gustavo, Rossi, Felipe, Vanessa] }
+        status:
+          type: string
+          enum: [ABERTO, EM_ANDAMENTO, AGUARDANDO_TERCEIRO, CONCLUIDO]
+          default: ABERTO
+
+    SubmitInspectionPayload:
+      type: object
+      required: [building_id, floors]
+      description: >
+        Vistoria completa em um único envio. O app mantém os andares em memória
+        e só manda tudo quando o inspetor conclui o último andar.
+      properties:
+        building_id: { type: string, format: uuid }
+        floors:
           type: array
-          items: { type: string }
-          default: []
-        manutencao:
-          type: object
-          required: [cadeiras, tomadas, ar_condicionado, mesas, portas]
-          properties:
-            cadeiras:
-              type: object
-              required: [has_item]
-              properties:
-                has_item: { type: boolean }
-                quantity: { type: integer, description: "Obrigatório se has_item = true" }
-                is_marked: { type: boolean, description: "Obrigatório se has_item = true" }
-            tomadas:
-              type: object
-              required: [has_item]
-              properties:
-                has_item: { type: boolean }
-                quantity: { type: integer }
-                is_marked: { type: boolean }
-            ar_condicionado:
-              type: object
-              required: [status]
-              properties:
-                status: { type: string, enum: [OK, NOK, NA] }
-            mesas:
-              type: object
-              required: [has_item]
-              properties:
-                has_item: { type: boolean }
-                quantity: { type: integer }
-                is_marked: { type: boolean }
-            portas:
-              type: object
-              required: [status]
-              properties:
-                status: { type: string, enum: [OK, NOK, NA] }
-        limpeza:
-          type: object
-          required: [carpete, vidros, cadeiras]
-          properties:
-            carpete:
-              type: object
-              required: [status]
-              properties:
-                status: { type: string, enum: [OK, NOK, NA] }
-            vidros:
-              type: object
-              required: [status]
-              properties:
-                status: { type: string, enum: [OK, NOK, NA] }
-            cadeiras:
-              type: object
-              required: [has_item]
-              properties:
-                has_item: { type: boolean }
-                quantity: { type: integer }
-                is_marked: { type: boolean }
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            required: [floor_id]
+            properties:
+              floor_id: { type: string, format: uuid }
+              records:
+                type: array
+                maxItems: 20
+                default: []
+                items: { $ref: '#/components/schemas/MaintenanceRecordPayload' }
 
 security:
   - BearerAuth: []
@@ -391,27 +366,22 @@ paths:
   /inspections:
     post:
       tags: [Inspections]
-      summary: Iniciar nova inspeção (INSPECTOR/ADMIN)
+      summary: Enviar vistoria completa — grava, gera Excel e publica no histórico (INSPECTOR/ADMIN)
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              required: [building_id, floor_ids]
-              properties:
-                building_id: { type: string, format: uuid }
-                floor_ids:
-                  type: array
-                  items: { type: string, format: uuid }
-                  minItems: 1
-                  maxItems: 12
+            schema: { $ref: '#/components/schemas/SubmitInspectionPayload' }
       responses:
         '201':
-          description: Inspeção iniciada
+          description: Vistoria registrada como COMPLETED
           content:
             application/json:
               schema: { $ref: '#/components/schemas/InspectionReport' }
+        '400':
+          description: Payload inválido
+        '409':
+          description: Andar repetido ou andar que não pertence ao prédio
     get:
       tags: [Inspections]
       summary: Histórico de inspeções (apenas COMPLETED por padrão)
@@ -450,53 +420,6 @@ paths:
                   page: { type: integer }
                   limit: { type: integer }
                   pages: { type: integer }
-
-  /inspections/{id}/floors/{floorId}:
-    patch:
-      tags: [Inspections]
-      summary: Salvar formulário de um andar (INSPECTOR/ADMIN)
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string, format: uuid }
-        - in: path
-          name: floorId
-          required: true
-          schema: { type: string, format: uuid }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/FloorFormPayload' }
-      responses:
-        '200':
-          description: Formulário do andar salvo
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/FloorFormEntry' }
-        '400':
-          description: Payload inválido
-        '409':
-          description: Relatório já finalizado ou andar não pertence à inspeção
-
-  /inspections/{id}/finish:
-    post:
-      tags: [Inspections]
-      summary: Finalizar inspeção — gera Excel (INSPECTOR/ADMIN)
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string, format: uuid }
-      responses:
-        '200':
-          description: Inspeção finalizada
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/InspectionReport' }
-        '409':
-          description: Andares pendentes ou relatório já finalizado
 
   /inspections/{id}:
     get:

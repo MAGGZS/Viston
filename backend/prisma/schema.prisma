@@ -35,15 +35,41 @@ enum FloorStatus {
   PROBLEMA
 }
 
-enum ItemCategory {
-  MANUTENCAO
-  LIMPEZA
+enum MaintenanceType {
+  AR_CONDICIONADO
+  CIVIL
+  ELETRICA
+  EQUIPAMENTO
+  EVENTOS
+  HIDRELETRICA
+  HIGIENIZACAO_LIMPEZA
+  INFILTRACAO
+  MARCENARIA
+  MOVEIS_CADEIRAS
+  PINTURA
+  PROJETOR
+  VAZAMENTO
 }
 
-enum ItemStatus {
-  OK
-  NOK
-  NA
+enum MaintenanceCategory {
+  PREVENTIVA
+  CORRETIVA
+  EMERGENCIAL
+  EVENTOS
+  PROJETOS
+}
+
+enum Priority {
+  ALTA
+  MEDIA
+  BAIXA
+}
+
+enum RecordStatus {
+  ABERTO
+  EM_ANDAMENTO
+  AGUARDANDO_TERCEIRO
+  CONCLUIDO
 }
 
 enum AuditAction {
@@ -161,35 +187,35 @@ model InspectionReport {
 }
 
 model FloorFormEntry {
-  id            String      @id @default(uuid())
-  report_id     String
-  floor_id      String
-  status_geral  FloorStatus
-  observations  String[]    @default([])
-  photos        String[]    @default([])
-  completed_at  DateTime    @default(now())
+  id           String      @id @default(uuid())
+  report_id    String
+  floor_id     String
+  status_geral FloorStatus
+  completed_at DateTime    @default(now())
 
-  report            InspectionReport  @relation(fields: [report_id], references: [id], onDelete: Cascade)
-  floor             Floor             @relation(fields: [floor_id], references: [id], onDelete: Cascade)
-  form_item_responses FormItemResponse[]
+  report              InspectionReport    @relation(fields: [report_id], references: [id], onDelete: Cascade)
+  floor               Floor               @relation(fields: [floor_id], references: [id], onDelete: Cascade)
+  maintenance_records MaintenanceRecord[]
 
   @@unique([report_id, floor_id])
   @@map("floor_form_entries")
 }
 
-model FormItemResponse {
-  id                  String       @id @default(uuid())
+// Uma ocorrência relatada em um andar. O mesmo andar pode ter várias.
+model MaintenanceRecord {
+  id                  String              @id @default(uuid())
   floor_form_entry_id String
-  category            ItemCategory
-  item_name           String
-  has_item            Boolean?
-  quantity            Int?
-  is_marked           Boolean?
-  status              ItemStatus?
+  maintenance_type    MaintenanceType
+  category            MaintenanceCategory
+  priority            Priority
+  description         String
+  responsible         String
+  status              RecordStatus        @default(ABERTO)
+  created_at          DateTime            @default(now())
 
   floor_form_entry FloorFormEntry @relation(fields: [floor_form_entry_id], references: [id], onDelete: Cascade)
 
-  @@map("form_item_responses")
+  @@map("maintenance_records")
 }
 
 model AuditLog {

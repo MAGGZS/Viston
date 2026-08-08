@@ -1,73 +1,71 @@
 import { z } from 'zod';
+import { MaintenanceCategory, MaintenanceType, Priority, RecordStatus } from '@prisma/client';
+import { RESPONSIBLES } from '../utils/maintenanceOptions';
 
-// ── Itens com has_item + sub-campos ──────────────────────────────────────────
-const itemWithSubForm = z
-  .object({
-    has_item: z.boolean({ required_error: 'has_item é obrigatório para este item' }),
-    quantity: z.number().int().nonnegative().optional(),
-    is_marked: z.boolean().optional(),
-    // Rejeitar campos de status em itens com sub-form
-    status: z.undefined({
-      invalid_type_error: 'status não é aplicável a este item',
-    }).optional(),
-  })
-  .superRefine((val, ctx) => {
-    if (val.has_item === true) {
-      if (val.quantity === undefined) {
-        ctx.addIssue({ code: 'custom', path: ['quantity'], message: 'quantity é obrigatório quando has_item = true' });
-      }
-      if (val.is_marked === undefined) {
-        ctx.addIssue({ code: 'custom', path: ['is_marked'], message: 'is_marked é obrigatório quando has_item = true' });
-      }
-    } else {
-      // has_item = false: não deve ter quantity/is_marked
-      if (val.quantity !== undefined) {
-        ctx.addIssue({ code: 'custom', path: ['quantity'], message: 'quantity não deve ser informado quando has_item = false' });
-      }
-      if (val.is_marked !== undefined) {
-        ctx.addIssue({ code: 'custom', path: ['is_marked'], message: 'is_marked não deve ser informado quando has_item = false' });
-      }
-    }
-  });
-
-// ── Itens sem sub-form (só status) ───────────────────────────────────────────
-const itemWithStatus = z
-  .object({
-    status: z.enum(['OK', 'NOK', 'NA'], { required_error: 'status é obrigatório para este item' }),
-    // Rejeitar campos de sub-form em itens de status
-    has_item: z.undefined({ invalid_type_error: 'has_item não é aplicável a este item' }).optional(),
-    quantity: z.undefined({ invalid_type_error: 'quantity não é aplicável a este item' }).optional(),
-    is_marked: z.undefined({ invalid_type_error: 'is_marked não é aplicável a este item' }).optional(),
-  });
-
-// ── Payload completo do andar ─────────────────────────────────────────────────
-export const floorFormSchema = z.object({
-  status_geral: z.enum(['OK', 'ATENCAO', 'PROBLEMA']),
-  observations: z.array(z.string()).default([]),
-  manutencao: z.object({
-    cadeiras: itemWithSubForm,
-    tomadas: itemWithSubForm,
-    ar_condicionado: itemWithStatus,
-    mesas: itemWithSubForm,
-    portas: itemWithStatus,
+// ── Ocorrência relatada em um andar ──────────────────────────────────────────
+export const maintenanceRecordSchema = z.object({
+  maintenance_type: z.enum(
+    [
+      'AR_CONDICIONADO',
+      'CIVIL',
+      'ELETRICA',
+      'EQUIPAMENTO',
+      'EVENTOS',
+      'HIDRELETRICA',
+      'HIGIENIZACAO_LIMPEZA',
+      'INFILTRACAO',
+      'MARCENARIA',
+      'MOVEIS_CADEIRAS',
+      'PINTURA',
+      'PROJETOR',
+      'VAZAMENTO',
+    ],
+    { required_error: 'Tipo de manutenção é obrigatório' }
+  ),
+  category: z.enum(['PREVENTIVA', 'CORRETIVA', 'EMERGENCIAL', 'EVENTOS', 'PROJETOS'], {
+    required_error: 'Categoria é obrigatória',
   }),
-  limpeza: z.object({
-    carpete: itemWithStatus,
-    vidros: itemWithStatus,
-    cadeiras: itemWithSubForm,
-  }),
+  priority: z.enum(['ALTA', 'MEDIA', 'BAIXA'], { required_error: 'Prioridade é obrigatória' }),
+  description: z.string().trim().min(1, 'Descrição é obrigatória').max(2000),
+  responsible: z.enum(RESPONSIBLES, { required_error: 'Responsável é obrigatório' }),
+  status: z
+    .enum(['ABERTO', 'EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO', 'CONCLUIDO'])
+    .default('ABERTO'),
 });
 
-export type FloorFormPayload = z.infer<typeof floorFormSchema>;
+// Tipos escritos à mão: com "strict": false no tsconfig, a inferência do zod
+// marca todo campo como opcional. Aqui o contrato precisa ser explícito.
+export type MaintenanceRecordPayload = {
+  maintenance_type: MaintenanceType;
+  category: MaintenanceCategory;
+  priority: Priority;
+  description: string;
+  responsible: string;
+  status: RecordStatus;
+};
 
-// ── Iniciar inspeção ──────────────────────────────────────────────────────────
-export const startInspectionSchema = z.object({
+// ── Envio único: toda a vistoria chega de uma vez ─────────────────────────────
+export const submitInspectionSchema = z.object({
   building_id: z.string().uuid('building_id deve ser um UUID válido'),
-  floor_ids: z
-    .array(z.string().uuid())
+  floors: z
+    .array(
+      z.object({
+        floor_id: z.string().uuid(),
+        records: z
+          .array(maintenanceRecordSchema)
+          .max(20, 'Máximo de 20 ocorrências por andar')
+          .default([]),
+      })
+    )
     .min(1, 'Selecione ao menos um andar')
-    .max(12, 'Máximo de 12 andares'),
+    .max(20, 'Máximo de 20 andares'),
 });
+
+// Tipo escrito à mão: a inferência aninhada do zod perde os campos obrigatórios aqui.
+export type SubmitInspectionPayload = {
+  building_id: string;
+  floors: Array<{ floor_id: string; records: MaintenanceRecordPayload[] }>;
+};
 
 // ── Filtros de histórico ──────────────────────────────────────────────────────
 export const inspectionFiltersSchema = z.object({

@@ -1,12 +1,14 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Building2, Search } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { FloorForm } from '@/app/components/FloorForm';
 import { Button, Card, Spinner } from '@/app/components/ui';
-import { useFloors, useBuildingByKey, useStartInspection, useSaveFloorForm, useFinishInspection, useMyBuildings, useRequestAccess } from '@/app/hooks/useApi';
+import { useFloors, useBuildingByKey, useSubmitInspection, useMyBuildings, useRequestAccess } from '@/app/hooks/useApi';
 import { formatShareKey, normalizeShareKey, isCompleteShareKey } from '@/app/lib/shareKey';
+import { sortFloorsDesc } from '@/app/lib/floorOrder';
+import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
 
 // Tela quando não tem vínculo: busca pela chave do prédio e solicita acesso
@@ -94,24 +96,23 @@ function StepSemVinculo() {
   );
 }
 
-// Tela com vínculo: seleciona andares do prédio vinculado
+// Tela com vínculo: seleciona andares do prédio vinculado (já listados do maior para o menor)
 function StepSelectFloors({ building, floors, onStart }) {
   const [selectedIds, setSelectedIds] = useState([]);
-  const { mutateAsync: startInspection, isPending } = useStartInspection();
-  const { show: toast } = useToastStore();
+  const allSelected = floors.length > 0 && selectedIds.length === floors.length;
 
   function toggle(id) {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   }
 
-  async function handleStart() {
+  function toggleAll() {
+    setSelectedIds(allSelected ? [] : floors.map(f => f.id));
+  }
+
+  function handleStart() {
     if (!selectedIds.length) return;
-    try {
-      const report = await startInspection({ building_id: building.id, floor_ids: selectedIds });
-      onStart(report, floors.filter(f => selectedIds.includes(f.id)));
-    } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao iniciar inspeção', 'error');
-    }
+    // A vistoria avança do andar mais alto para o mais baixo
+    onStart(floors.filter(f => selectedIds.includes(f.id)));
   }
 
   return (
@@ -126,7 +127,17 @@ function StepSelectFloors({ building, floors, onStart }) {
         </div>
       </div>
 
-      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Selecione os andares</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Selecione os andares</p>
+        <button type="button" onClick={toggleAll}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#F5C518', fontSize: 12, fontWeight: 600 }}>
+          {allSelected ? 'Limpar' : 'Todos'}
+        </button>
+      </div>
+
+      <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>
+        A vistoria começa pelo andar mais alto e desce até o mais baixo.
+      </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {floors.map(floor => {
@@ -141,7 +152,7 @@ function StepSelectFloors({ building, floors, onStart }) {
         })}
       </div>
 
-      <Button onClick={handleStart} loading={isPending} disabled={!selectedIds.length} className="w-full">
+      <Button onClick={handleStart} disabled={!selectedIds.length} className="w-full">
         Iniciar ({selectedIds.length} andar{selectedIds.length !== 1 ? 'es' : ''})
       </Button>
     </div>
@@ -150,10 +161,12 @@ function StepSelectFloors({ building, floors, onStart }) {
 
 export default function InspecaoPage() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const [step, setStep] = useState('select');
-  const [report, setReport] = useState(null);
   const [floors, setFloors] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  // Rascunho em memória: nada vai para o servidor antes do envio final
+  const [drafts, setDrafts] = useState({});
   const [finishedReport, setFinishedReport] = useState(null);
 
   const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
@@ -161,35 +174,54 @@ export default function InspecaoPage() {
   const myBuilding = myBuildings[0];
 
   const { data: floorsData, isLoading: floorsLoading } = useFloors(myBuilding?.id);
+  const orderedFloors = useMemo(() => sortFloorsDesc(floorsData?.floors ?? []), [floorsData]);
 
-  const { mutateAsync: saveFloor, isPending: isSaving } = useSaveFloorForm();
-  const { mutateAsync: finishInspection, isPending: isFinishing } = useFinishInspection();
+  const { mutateAsync: submitInspection, isPending: isSubmitting } = useSubmitInspection();
   const { show: toast } = useToastStore();
 
-  function handleStart(rep, selectedFloors) {
-    setReport(rep);
-    setFloors(selectedFloors);
+  const currentFloor = floors[currentIndex];
+  const isLast = currentIndex === floors.length - 1;
+
+  function handleStart(selectedFloors) {
+    setFloors(sortFloorsDesc(selectedFloors));
     setCurrentIndex(0);
+    setDrafts({});
     setStep('form');
   }
 
-  async function handleFloorSubmit(formData) {
+  function resetToSelect() {
+    setStep('select');
+    setFloors([]);
+    setCurrentIndex(0);
+    setDrafts({});
+    setFinishedReport(null);
+  }
+
+  function handleBack() {
+    if (step !== 'form') return router.back();
+    if (currentIndex > 0) return setCurrentIndex(i => i - 1);
+    resetToSelect();
+  }
+
+  async function handleFloorSubmit(records) {
+    const updated = { ...drafts, [currentFloor.id]: records };
+    setDrafts(updated);
+
+    if (!isLast) {
+      setCurrentIndex(i => i + 1);
+      return;
+    }
+
+    // Último andar: só agora tudo é enviado e vira relatório, Excel, calendário e histórico
     try {
-      await saveFloor({
-        reportId: report.id,
-        floorId: floors[currentIndex].id,
-        ...formData,
-        observations: formData.observations.filter(Boolean),
+      const report = await submitInspection({
+        building_id: myBuilding.id,
+        floors: floors.map(f => ({ floor_id: f.id, records: updated[f.id] ?? [] })),
       });
-      if (currentIndex < floors.length - 1) {
-        setCurrentIndex(i => i + 1);
-      } else {
-        const finished = await finishInspection(report.id);
-        setFinishedReport(finished);
-        setStep('done');
-      }
+      setFinishedReport(report);
+      setStep('done');
     } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao salvar andar', 'error');
+      toast(e?.response?.data?.error?.message || 'Erro ao enviar vistoria', 'error');
     }
   }
 
@@ -199,14 +231,14 @@ export default function InspecaoPage() {
         {/* Header */}
         <div style={{ position: 'sticky', top: 0, background: 'rgba(13,13,13,0.95)', backdropFilter: 'blur(12px)', padding: '48px 20px 16px', zIndex: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => step === 'select' ? router.back() : setStep('select')}
+            <button onClick={handleBack}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: 4 }}>
               <ArrowLeft size={22} />
             </button>
             <div>
               <h1 style={{ color: 'rgba(255,255,255,0.95)', fontWeight: 700, fontSize: 18 }}>
                 {step === 'select' && 'Nova Inspeção'}
-                {step === 'form' && floors[currentIndex]?.label}
+                {step === 'form' && currentFloor?.label}
                 {step === 'done' && 'Inspeção Concluída'}
               </h1>
               {step === 'form' && (
@@ -231,20 +263,23 @@ export default function InspecaoPage() {
             ) : (
               <StepSelectFloors
                 building={myBuilding}
-                floors={floorsData?.floors ?? []}
+                floors={orderedFloors}
                 onStart={handleStart}
               />
             )}
             </div>
           )}
 
-          {step === 'form' && (
+          {step === 'form' && currentFloor && (
             <div className="anim-fade-up">
             <FloorForm
-              floor={floors[currentIndex]}
+              key={currentFloor.id}
+              floor={currentFloor}
+              inspectorName={user?.name}
+              initialRecords={drafts[currentFloor.id]}
               onSubmit={handleFloorSubmit}
-              isLoading={isSaving || isFinishing}
-              isLast={currentIndex === floors.length - 1}
+              isLoading={isSubmitting}
+              isLast={isLast}
             />
             </div>
           )}
@@ -255,8 +290,8 @@ export default function InspecaoPage() {
                 <span style={{ fontSize: 36 }}>✓</span>
               </div>
               <div>
-                <h2 style={{ color: 'rgba(255,255,255,0.95)', fontWeight: 700, fontSize: 22 }}>Inspeção Finalizada!</h2>
-                <p style={{ color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>Relatório gerado com sucesso</p>
+                <h2 style={{ color: 'rgba(255,255,255,0.95)', fontWeight: 700, fontSize: 22 }}>Vistoria enviada!</h2>
+                <p style={{ color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>Relatório gerado e registrado no histórico</p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
                 {finishedReport?.excel_url && (
@@ -265,7 +300,7 @@ export default function InspecaoPage() {
                   </a>
                 )}
                 <Button onClick={() => router.push('/historico')} className="w-full">Ver Histórico</Button>
-                <Button variant="ghost" onClick={() => { setStep('select'); setReport(null); setFloors([]); }} className="w-full">
+                <Button variant="ghost" onClick={resetToSelect} className="w-full">
                   Nova Inspeção
                 </Button>
               </div>

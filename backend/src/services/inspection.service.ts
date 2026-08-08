@@ -1,192 +1,96 @@
-import { InspectionStatus } from '@prisma/client';
-import { inspectionRepository } from '../repositories/inspection.repository';
+import { AuditAction, FloorStatus, InspectionStatus } from '@prisma/client';
+import { inspectionRepository, FloorSubmission } from '../repositories/inspection.repository';
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
 import { generateInspectionExcel } from './excel.service';
 import { storageService } from './storage.service';
-import { FloorFormPayload } from '../validators/inspection.validator';
+import { SubmitInspectionPayload } from '../validators/inspection.validator';
 import { NotFoundError, ConflictError } from '../utils/errors';
-import { AuditAction } from '@prisma/client';
+import { floorRank } from '../utils/floorOrder';
+
+/** Status do andar derivado da maior prioridade entre as ocorrências relatadas. */
+function deriveFloorStatus(records: Array<{ priority: string }>): FloorStatus {
+  if (records.some((r) => r.priority === 'ALTA')) return FloorStatus.PROBLEMA;
+  if (records.some((r) => r.priority === 'MEDIA')) return FloorStatus.ATENCAO;
+  return FloorStatus.OK;
+}
 
 export const inspectionService = {
-  async start(inspectorId: string, buildingId: string, floorIds: string[]) {
-    const building = await buildingRepository.findById(buildingId);
+  /**
+   * Recebe a vistoria completa (todos os andares de uma vez) e grava tudo.
+   * O app segura os dados em memória até o envio final, então aqui não existe rascunho:
+   * o relatório já nasce COMPLETED, com Excel, calendário e histórico.
+   */
+  async submit(inspectorId: string, payload: SubmitInspectionPayload) {
+    const building = await buildingRepository.findById(payload.building_id);
     if (!building) throw new NotFoundError('Prédio');
+
+    const floorIds = payload.floors.map((f) => f.floor_id);
+    if (new Set(floorIds).size !== floorIds.length) {
+      throw new ConflictError('Andar repetido no envio da vistoria');
+    }
 
     const floors = await buildingRepository.findFloorsByIds(floorIds);
     if (floors.length !== floorIds.length) {
       throw new NotFoundError('Um ou mais andares não encontrados');
     }
 
-    // Verificar se todos os andares pertencem ao prédio
-    const invalidFloor = floors.find((f) => f.building_id !== buildingId);
+    const invalidFloor = floors.find((f) => f.building_id !== payload.building_id);
     if (invalidFloor) {
       throw new ConflictError(`Andar "${invalidFloor.label}" não pertence ao prédio selecionado`);
     }
 
-    const report = await inspectionRepository.create({
-      inspector_id: inspectorId,
-      building_id: buildingId,
-      date: new Date(),
-      floors_inspected: floorIds,
-    });
-
-    await auditRepository.log({
-      user_id: inspectorId,
-      action: AuditAction.CREATE,
-      entity: 'InspectionReport',
-      entity_id: report.id,
-    });
-
-    return report;
-  },
-
-  async saveFloorForm(
-    reportId: string,
-    floorId: string,
-    payload: FloorFormPayload,
-    inspectorId: string
-  ) {
-    const report = await inspectionRepository.findById(reportId);
-    if (!report) throw new NotFoundError('Relatório');
-
-    if (report.status === InspectionStatus.COMPLETED) {
-      throw new ConflictError('Relatório já finalizado — não é possível editar');
-    }
-
-    if (!report.floors_inspected.includes(floorId)) {
-      throw new ConflictError('Este andar não faz parte dos andares selecionados para esta inspeção');
-    }
-
-    // Mapear payload para items normalizados
-    const items = [
-      // MANUTENCAO
-      {
-        category: 'MANUTENCAO' as const,
-        item_name: 'Cadeiras',
-        has_item: payload.manutencao.cadeiras.has_item,
-        quantity: payload.manutencao.cadeiras.quantity,
-        is_marked: payload.manutencao.cadeiras.is_marked,
-      },
-      {
-        category: 'MANUTENCAO' as const,
-        item_name: 'Tomadas',
-        has_item: payload.manutencao.tomadas.has_item,
-        quantity: payload.manutencao.tomadas.quantity,
-        is_marked: payload.manutencao.tomadas.is_marked,
-      },
-      {
-        category: 'MANUTENCAO' as const,
-        item_name: 'Ar-condicionado',
-        status: payload.manutencao.ar_condicionado.status,
-      },
-      {
-        category: 'MANUTENCAO' as const,
-        item_name: 'Mesas',
-        has_item: payload.manutencao.mesas.has_item,
-        quantity: payload.manutencao.mesas.quantity,
-        is_marked: payload.manutencao.mesas.is_marked,
-      },
-      {
-        category: 'MANUTENCAO' as const,
-        item_name: 'Portas',
-        status: payload.manutencao.portas.status,
-      },
-      // LIMPEZA
-      {
-        category: 'LIMPEZA' as const,
-        item_name: 'Carpete',
-        status: payload.limpeza.carpete.status,
-      },
-      {
-        category: 'LIMPEZA' as const,
-        item_name: 'Vidros',
-        status: payload.limpeza.vidros.status,
-      },
-      {
-        category: 'LIMPEZA' as const,
-        item_name: 'Cadeiras',
-        has_item: payload.limpeza.cadeiras.has_item,
-        quantity: payload.limpeza.cadeiras.quantity,
-        is_marked: payload.limpeza.cadeiras.is_marked,
-      },
-    ];
-
-    const entry = await inspectionRepository.upsertFloorEntry({
-      report_id: reportId,
-      floor_id: floorId,
-      status_geral: payload.status_geral,
-      observations: payload.observations,
-      photos: [],
-      items,
-    });
-
-    await auditRepository.log({
-      user_id: inspectorId,
-      action: AuditAction.UPDATE,
-      entity: 'FloorFormEntry',
-      entity_id: entry.id,
-      metadata: { report_id: reportId, floor_id: floorId },
-    });
-
-    return entry;
-  },
-
-  async finish(reportId: string, inspectorId: string) {
-    const report = await inspectionRepository.findById(reportId);
-    if (!report) throw new NotFoundError('Relatório');
-
-    if (report.status === InspectionStatus.COMPLETED) {
-      throw new ConflictError('Relatório já foi finalizado');
-    }
-
-    // Verificar se todos os andares selecionados foram preenchidos
-    const completedFloorIds = report.floor_form_entries.map((e) => e.floor_id);
-    const missingFloors = report.floors_inspected.filter(
-      (id) => !completedFloorIds.includes(id)
-    );
-
-    if (missingFloors.length > 0) {
-      throw new ConflictError(
-        `Ainda há ${missingFloors.length} andar(es) não preenchido(s). Finalize todos os andares antes de concluir.`
+    // Ordem decrescente: do andar mais alto para o mais baixo
+    const labelById = new Map(floors.map((f) => [f.id, f.label]));
+    const submissions: FloorSubmission[] = payload.floors
+      .map((floor) => ({
+        floor_id: floor.floor_id,
+        status_geral: deriveFloorStatus(floor.records),
+        records: floor.records,
+      }))
+      .sort(
+        (a, b) =>
+          floorRank(labelById.get(b.floor_id) ?? '') - floorRank(labelById.get(a.floor_id) ?? '')
       );
-    }
 
-    // Marcar como COMPLETED
-    const finished = await inspectionRepository.update(reportId, {
-      status: InspectionStatus.COMPLETED,
-      finished_at: new Date(),
+    const now = new Date();
+    const report = await inspectionRepository.createCompleted({
+      inspector_id: inspectorId,
+      building_id: payload.building_id,
+      date: now,
+      started_at: now,
+      finished_at: now,
+      floors: submissions,
     });
 
     await auditRepository.log({
       user_id: inspectorId,
       action: AuditAction.FINISH_INSPECTION,
       entity: 'InspectionReport',
-      entity_id: reportId,
+      entity_id: report.id,
+      metadata: { floors: submissions.length },
     });
-
-    // Buscar relatório completo para gerar Excel
-    const fullReport = await inspectionRepository.findById(reportId);
-    if (!fullReport) throw new NotFoundError('Relatório');
 
     // Gerar Excel e fazer upload (síncrono — bloqueia a resposta)
     try {
-      const buffer = await generateInspectionExcel(fullReport as Parameters<typeof generateInspectionExcel>[0]);
-      const excelUrl = await storageService.uploadExcel(reportId, buffer);
-      await inspectionRepository.update(reportId, { excel_url: excelUrl });
+      const buffer = await generateInspectionExcel(
+        report as Parameters<typeof generateInspectionExcel>[0]
+      );
+      const excelUrl = await storageService.uploadExcel(report.id, buffer);
+      await inspectionRepository.update(report.id, { excel_url: excelUrl });
 
       await auditRepository.log({
         user_id: inspectorId,
         action: AuditAction.GENERATE_EXCEL,
         entity: 'InspectionReport',
-        entity_id: reportId,
+        entity_id: report.id,
         metadata: { excel_url: excelUrl },
       });
     } catch (err) {
       console.error('[Excel] Falha na geração:', err);
-      // Não bloqueia a finalização — relatório fica COMPLETED sem excel_url
+      // Não bloqueia o envio — relatório fica COMPLETED sem excel_url
     }
 
-    return inspectionRepository.findById(reportId);
+    return inspectionRepository.findById(report.id);
   },
 
   async findAll(filters: {

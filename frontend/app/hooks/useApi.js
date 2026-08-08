@@ -229,24 +229,17 @@ export function useInspection(id) {
   });
 }
 
-export function useStartInspection() {
-  return useMutation({
-    mutationFn: (data) => api.post('/inspections', data).then((r) => r.data),
-  });
-}
-
-export function useSaveFloorForm() {
-  return useMutation({
-    mutationFn: ({ reportId, floorId, ...data }) =>
-      api.patch(`/inspections/${reportId}/floors/${floorId}`, data).then((r) => r.data),
-  });
-}
-
-export function useFinishInspection() {
+// Envio único: a vistoria inteira (todos os andares) vai de uma vez só
+export function useSubmitInspection() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id) => api.post(`/inspections/${id}/finish`).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['inspections'] }),
+    mutationFn: (data) => api.post('/inspections', data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inspections'] });
+      qc.invalidateQueries({ queryKey: ['building-history'] });
+      qc.invalidateQueries({ queryKey: ['building-dashboard'] });
+      qc.invalidateQueries({ queryKey: ['calendar'] });
+    },
   });
 }
 

@@ -113,10 +113,10 @@ npm run test:watch
 ```
 
 Cobertura mínima implementada:
-- Fluxo de finalização de inspeção (start → saveFloor → finish)
+- Envio da vistoria completa em uma única chamada (POST /inspections)
 - RBAC (roles e permissões)
 - Soft delete e anonimização de usuários
-- Validação do checklist por andar (Zod schema)
+- Validação das ocorrências de manutenção por andar (Zod schema)
 - Geração de Excel (ExcelJS)
 
 ---
@@ -172,7 +172,7 @@ src/
 │   └── errorHandler.ts       # Global error handler
 ├── validators/
 │   ├── auth.validator.ts     # Schemas de auth/users
-│   └── inspection.validator.ts # Schema do checklist + filtros
+│   └── inspection.validator.ts # Schema da vistoria (ocorrências) + filtros
 ├── utils/
 │   ├── errors.ts             # Classes de erro padronizadas
 │   ├── jwt.ts                # Sign/verify tokens
@@ -238,9 +238,7 @@ DELETE /users/me
 
 GET    /buildings/:id/floors
 
-POST   /inspections
-PATCH  /inspections/:id/floors/:floorId
-POST   /inspections/:id/finish
+POST   /inspections                        (vistoria completa, já concluída)
 GET    /inspections
 GET    /inspections/:id
 GET    /inspections/:id/excel

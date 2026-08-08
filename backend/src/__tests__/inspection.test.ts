@@ -4,7 +4,7 @@ import { buildingRepository } from '../repositories/building.repository';
 import { generateInspectionExcel } from '../services/excel.service';
 import { storageService } from '../services/storage.service';
 import { ConflictError, NotFoundError } from '../utils/errors';
-import { InspectionStatus } from '@prisma/client';
+import { FloorStatus, InspectionStatus } from '@prisma/client';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 jest.mock('../repositories/inspection.repository');
@@ -17,24 +17,37 @@ const mockBuildingRepo = buildingRepository as jest.Mocked<typeof buildingReposi
 const mockGenerateExcel = generateInspectionExcel as jest.MockedFunction<typeof generateInspectionExcel>;
 const mockStorage = storageService as jest.Mocked<typeof storageService>;
 
-const mockBuilding = { id: 'building-1', name: 'Edifício Principal' };
-const mockFloor1 = { id: 'floor-1', building_id: 'building-1', label: '6º Andar', order: 6 };
-const mockFloor2 = { id: 'floor-2', building_id: 'building-1', label: '5º Andar', order: 5 };
+const BUILDING_ID = '11111111-1111-4111-8111-111111111111';
+const FLOOR_6 = '22222222-2222-4222-8222-222222222222';
+const FLOOR_SUB1 = '33333333-3333-4333-8333-333333333333';
+
+const mockBuilding = { id: BUILDING_ID, name: 'Edifício Principal' };
+const mockFloor6 = { id: FLOOR_6, building_id: BUILDING_ID, label: '6º Andar' };
+const mockFloorSub1 = { id: FLOOR_SUB1, building_id: BUILDING_ID, label: '1º Subsolo' };
+
+function makeRecord(overrides = {}) {
+  return {
+    maintenance_type: 'ELETRICA',
+    category: 'CORRETIVA',
+    priority: 'BAIXA',
+    description: 'Lâmpada queimada',
+    responsible: 'Alan',
+    status: 'ABERTO',
+    ...overrides,
+  } as any;
+}
 
 function makeReport(overrides = {}) {
   return {
     id: 'report-1',
     inspector_id: 'user-1',
-    building_id: 'building-1',
+    building_id: BUILDING_ID,
     date: new Date(),
     started_at: new Date(),
-    finished_at: null,
-    floors_inspected: ['floor-1', 'floor-2'],
-    status: InspectionStatus.IN_PROGRESS,
+    finished_at: new Date(),
+    floors_inspected: [FLOOR_6, FLOOR_SUB1],
+    status: InspectionStatus.COMPLETED,
     excel_url: null,
-    google_form_synced: false,
-    google_form_synced_at: null,
-    created_at: new Date(),
     inspector: { id: 'user-1', name: 'Carlos', email: 'carlos@test.com', role: 'INSPECTOR' },
     building: mockBuilding,
     floor_form_entries: [],
@@ -42,91 +55,134 @@ function makeReport(overrides = {}) {
   } as any;
 }
 
-// ── Testes: inspectionService.start ──────────────────────────────────────────
-describe('inspectionService.start', () => {
-  beforeEach(() => jest.clearAllMocks());
+function payload(floors: any[]) {
+  return { building_id: BUILDING_ID, floors } as any;
+}
 
-  it('cria relatório quando prédio e andares são válidos', async () => {
+// ── Testes: inspectionService.submit ─────────────────────────────────────────
+describe('inspectionService.submit', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGenerateExcel.mockResolvedValue(Buffer.from('excel'));
+    mockStorage.uploadExcel.mockResolvedValue('https://storage.example.com/report.xlsx');
+    mockInspectionRepo.createCompleted.mockResolvedValue(makeReport());
+    mockInspectionRepo.findById.mockResolvedValue(makeReport());
+  });
+
+  it('grava a vistoria inteira já concluída em uma única chamada', async () => {
     mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
-    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor1, mockFloor2] as any);
-    mockInspectionRepo.create.mockResolvedValue(makeReport());
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6, mockFloorSub1] as any);
 
-    const result = await inspectionService.start('user-1', 'building-1', ['floor-1', 'floor-2']);
-    expect(result.status).toBe(InspectionStatus.IN_PROGRESS);
-    expect(mockInspectionRepo.create).toHaveBeenCalledTimes(1);
+    await inspectionService.submit(
+      'user-1',
+      payload([
+        { floor_id: FLOOR_6, records: [makeRecord()] },
+        { floor_id: FLOOR_SUB1, records: [] },
+      ])
+    );
+
+    expect(mockInspectionRepo.createCompleted).toHaveBeenCalledTimes(1);
+    const arg = mockInspectionRepo.createCompleted.mock.calls[0][0];
+    expect(arg.finished_at).toBeInstanceOf(Date);
+  });
+
+  it('ordena os andares do mais alto para o mais baixo', async () => {
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6, mockFloorSub1] as any);
+
+    // Enviado fora de ordem: subsolo primeiro
+    await inspectionService.submit(
+      'user-1',
+      payload([
+        { floor_id: FLOOR_SUB1, records: [] },
+        { floor_id: FLOOR_6, records: [] },
+      ])
+    );
+
+    const arg = mockInspectionRepo.createCompleted.mock.calls[0][0];
+    expect(arg.floors.map((f) => f.floor_id)).toEqual([FLOOR_6, FLOOR_SUB1]);
+  });
+
+  it('deriva o status do andar pela maior prioridade relatada', async () => {
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6, mockFloorSub1] as any);
+
+    await inspectionService.submit(
+      'user-1',
+      payload([
+        { floor_id: FLOOR_6, records: [makeRecord({ priority: 'ALTA' })] },
+        { floor_id: FLOOR_SUB1, records: [makeRecord({ priority: 'MEDIA' })] },
+      ])
+    );
+
+    const arg = mockInspectionRepo.createCompleted.mock.calls[0][0];
+    expect(arg.floors[0].status_geral).toBe(FloorStatus.PROBLEMA);
+    expect(arg.floors[1].status_geral).toBe(FloorStatus.ATENCAO);
   });
 
   it('lança NotFoundError quando prédio não existe', async () => {
     mockBuildingRepo.findById.mockResolvedValue(null);
     await expect(
-      inspectionService.start('user-1', 'invalid-building', ['floor-1'])
+      inspectionService.submit('user-1', payload([{ floor_id: FLOOR_6, records: [] }]))
     ).rejects.toThrow(NotFoundError);
   });
 
   it('lança NotFoundError quando andar não existe', async () => {
     mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
-    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor1] as any); // só 1 de 2
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any); // só 1 de 2
     await expect(
-      inspectionService.start('user-1', 'building-1', ['floor-1', 'floor-invalid'])
+      inspectionService.submit(
+        'user-1',
+        payload([
+          { floor_id: FLOOR_6, records: [] },
+          { floor_id: FLOOR_SUB1, records: [] },
+        ])
+      )
     ).rejects.toThrow(NotFoundError);
   });
 
   it('lança ConflictError quando andar não pertence ao prédio', async () => {
-    const wrongFloor = { ...mockFloor2, building_id: 'other-building' };
     mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
-    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor1, wrongFloor] as any);
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([
+      mockFloor6,
+      { ...mockFloorSub1, building_id: 'other-building' },
+    ] as any);
+
     await expect(
-      inspectionService.start('user-1', 'building-1', ['floor-1', 'floor-2'])
+      inspectionService.submit(
+        'user-1',
+        payload([
+          { floor_id: FLOOR_6, records: [] },
+          { floor_id: FLOOR_SUB1, records: [] },
+        ])
+      )
     ).rejects.toThrow(ConflictError);
   });
-});
 
-// ── Testes: inspectionService.finish ─────────────────────────────────────────
-describe('inspectionService.finish', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('finaliza relatório quando todos os andares estão preenchidos', async () => {
-    const completedReport = makeReport({
-      status: InspectionStatus.IN_PROGRESS,
-      floors_inspected: ['floor-1'],
-      floor_form_entries: [{ floor_id: 'floor-1', form_item_responses: [] }],
-    });
-    const finishedReport = makeReport({ status: InspectionStatus.COMPLETED, finished_at: new Date() });
-
-    mockInspectionRepo.findById
-      .mockResolvedValueOnce(completedReport)
-      .mockResolvedValueOnce(completedReport)
-      .mockResolvedValueOnce(finishedReport);
-    mockInspectionRepo.update.mockResolvedValue(finishedReport);
-    mockGenerateExcel.mockResolvedValue(Buffer.from('excel'));
-    mockStorage.uploadExcel.mockResolvedValue('https://storage.example.com/report.xlsx');
-
-    const result = await inspectionService.finish('report-1', 'user-1');
-    expect(mockInspectionRepo.update).toHaveBeenCalledWith('report-1', expect.objectContaining({
-      status: InspectionStatus.COMPLETED,
-    }));
+  it('lança ConflictError quando o mesmo andar é enviado duas vezes', async () => {
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    await expect(
+      inspectionService.submit(
+        'user-1',
+        payload([
+          { floor_id: FLOOR_6, records: [] },
+          { floor_id: FLOOR_6, records: [] },
+        ])
+      )
+    ).rejects.toThrow(ConflictError);
   });
 
-  it('lança ConflictError quando há andares não preenchidos', async () => {
-    const incompleteReport = makeReport({
-      floors_inspected: ['floor-1', 'floor-2'],
-      floor_form_entries: [{ floor_id: 'floor-1' }], // floor-2 faltando
-    });
-    mockInspectionRepo.findById.mockResolvedValue(incompleteReport);
+  it('conclui a vistoria mesmo se a geração do Excel falhar', async () => {
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
+    mockGenerateExcel.mockRejectedValue(new Error('boom'));
 
-    await expect(inspectionService.finish('report-1', 'user-1')).rejects.toThrow(ConflictError);
-  });
-
-  it('lança ConflictError quando relatório já está COMPLETED', async () => {
-    mockInspectionRepo.findById.mockResolvedValue(
-      makeReport({ status: InspectionStatus.COMPLETED })
+    const result = await inspectionService.submit(
+      'user-1',
+      payload([{ floor_id: FLOOR_6, records: [] }])
     );
-    await expect(inspectionService.finish('report-1', 'user-1')).rejects.toThrow(ConflictError);
-  });
 
-  it('lança NotFoundError quando relatório não existe', async () => {
-    mockInspectionRepo.findById.mockResolvedValue(null);
-    await expect(inspectionService.finish('invalid-id', 'user-1')).rejects.toThrow(NotFoundError);
+    expect(result?.status).toBe(InspectionStatus.COMPLETED);
   });
 });
 

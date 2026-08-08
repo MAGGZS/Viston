@@ -1,7 +1,7 @@
 import { userService } from '../services/user.service';
 import { userRepository } from '../repositories/user.repository';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
-import { floorFormSchema } from '../validators/inspection.validator';
+import { submitInspectionSchema } from '../validators/inspection.validator';
 import { UserStatus } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
@@ -102,68 +102,69 @@ describe('userService.changePassword', () => {
   });
 });
 
-// ── Testes: floorFormSchema (validação do checklist) ─────────────────────────
-describe('floorFormSchema', () => {
+// ── Testes: submitInspectionSchema (envio da vistoria) ───────────────────────
+describe('submitInspectionSchema', () => {
+  const BUILDING_ID = '11111111-1111-4111-8111-111111111111';
+  const FLOOR_ID = '22222222-2222-4222-8222-222222222222';
+
+  const validRecord = {
+    maintenance_type: 'AR_CONDICIONADO',
+    category: 'CORRETIVA',
+    priority: 'ALTA',
+    description: 'Split da sala 601 sem gelar',
+    responsible: 'Alan',
+    status: 'ABERTO',
+  };
+
   const validPayload = {
-    status_geral: 'OK',
-    observations: [],
-    manutencao: {
-      cadeiras: { has_item: true, quantity: 5, is_marked: true },
-      tomadas: { has_item: false },
-      ar_condicionado: { status: 'OK' },
-      mesas: { has_item: true, quantity: 3, is_marked: false },
-      portas: { status: 'NOK' },
-    },
-    limpeza: {
-      carpete: { status: 'NA' },
-      vidros: { status: 'OK' },
-      cadeiras: { has_item: true, quantity: 5, is_marked: true },
-    },
+    building_id: BUILDING_ID,
+    floors: [{ floor_id: FLOOR_ID, records: [validRecord] }],
   };
 
   it('aceita payload válido completo', () => {
-    expect(() => floorFormSchema.parse(validPayload)).not.toThrow();
+    expect(() => submitInspectionSchema.parse(validPayload)).not.toThrow();
   });
 
-  it('rejeita quando has_item está ausente em item com sub-form', () => {
+  it('assume status ABERTO quando não informado', () => {
+    const { status, ...withoutStatus } = validRecord;
+    const parsed = submitInspectionSchema.parse({
+      building_id: BUILDING_ID,
+      floors: [{ floor_id: FLOOR_ID, records: [withoutStatus] }],
+    });
+    expect(parsed.floors[0].records[0].status).toBe('ABERTO');
+  });
+
+  it('aceita andar sem nenhuma ocorrência', () => {
+    expect(() =>
+      submitInspectionSchema.parse({ building_id: BUILDING_ID, floors: [{ floor_id: FLOOR_ID, records: [] }] })
+    ).not.toThrow();
+  });
+
+  it('rejeita envio sem nenhum andar', () => {
+    expect(() => submitInspectionSchema.parse({ building_id: BUILDING_ID, floors: [] })).toThrow();
+  });
+
+  it('rejeita descrição vazia', () => {
     const invalid = {
-      ...validPayload,
-      manutencao: { ...validPayload.manutencao, cadeiras: { quantity: 5, is_marked: true } },
+      building_id: BUILDING_ID,
+      floors: [{ floor_id: FLOOR_ID, records: [{ ...validRecord, description: '   ' }] }],
     };
-    expect(() => floorFormSchema.parse(invalid)).toThrow();
+    expect(() => submitInspectionSchema.parse(invalid)).toThrow();
   });
 
-  it('rejeita quando quantity está ausente com has_item = true', () => {
+  it('rejeita tipo de manutenção inválido', () => {
     const invalid = {
-      ...validPayload,
-      manutencao: { ...validPayload.manutencao, cadeiras: { has_item: true, is_marked: true } },
+      building_id: BUILDING_ID,
+      floors: [{ floor_id: FLOOR_ID, records: [{ ...validRecord, maintenance_type: 'INVALIDO' }] }],
     };
-    expect(() => floorFormSchema.parse(invalid)).toThrow();
+    expect(() => submitInspectionSchema.parse(invalid)).toThrow();
   });
 
-  it('rejeita quando status está ausente em item sem sub-form', () => {
+  it('rejeita responsável fora da lista', () => {
     const invalid = {
-      ...validPayload,
-      manutencao: { ...validPayload.manutencao, ar_condicionado: {} },
+      building_id: BUILDING_ID,
+      floors: [{ floor_id: FLOOR_ID, records: [{ ...validRecord, responsible: 'Fulano' }] }],
     };
-    expect(() => floorFormSchema.parse(invalid)).toThrow();
-  });
-
-  it('rejeita status inválido', () => {
-    const invalid = {
-      ...validPayload,
-      manutencao: { ...validPayload.manutencao, ar_condicionado: { status: 'INVALIDO' } },
-    };
-    expect(() => floorFormSchema.parse(invalid)).toThrow();
-  });
-
-  it('aceita observations como array vazio', () => {
-    const withEmpty = { ...validPayload, observations: [] };
-    expect(() => floorFormSchema.parse(withEmpty)).not.toThrow();
-  });
-
-  it('aceita múltiplas observações', () => {
-    const withObs = { ...validPayload, observations: ['Obs 1', 'Obs 2', 'Obs 3'] };
-    expect(() => floorFormSchema.parse(withObs)).not.toThrow();
+    expect(() => submitInspectionSchema.parse(invalid)).toThrow();
   });
 });

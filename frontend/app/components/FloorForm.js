@@ -1,206 +1,175 @@
 'use client';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { Plus, Trash2 } from 'lucide-react';
-import { Button, Toggle, Card } from '@/app/components/ui';
+import { Plus, Trash2, CalendarDays, UserRound } from 'lucide-react';
+import { Button, Card, Select, Toggle } from '@/app/components/ui';
+import {
+  MAINTENANCE_TYPES,
+  CATEGORIES,
+  PRIORITIES,
+  RESPONSIBLES,
+  RECORD_STATUS,
+  emptyRecord,
+} from '@/app/lib/maintenanceOptions';
 
-const STATUS_OPTIONS = ['OK', 'ATENCAO', 'PROBLEMA'];
-const STATUS_LABELS = { OK: 'OK', ATENCAO: 'Atenção', PROBLEMA: 'Problema' };
-
-function StatusSelector({ value, onChange }) {
-  return (
-    <div className="flex gap-2">
-      {STATUS_OPTIONS.map((s) => (
-        <button
-          key={s}
-          type="button"
-          onClick={() => onChange(s)}
-          className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${
-            value === s
-              ? s === 'OK' ? 'bg-green-500 text-white' : s === 'ATENCAO' ? 'bg-yellow-500 text-black' : 'bg-red-500 text-white'
-              : 'bg-[#2A2A2A] text-[#9A9A9A]'
-          }`}
-        >
-          {STATUS_LABELS[s]}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ItemWithSubForm({ label, register, watch, setValue, prefix, errors }) {
-  const hasItem = watch(`${prefix}.has_item`);
-  return (
-    <div className="flex flex-col gap-3">
-      <Toggle
-        checked={!!hasItem}
-        onChange={(v) => setValue(`${prefix}.has_item`, v)}
-        label={label}
-      />
-      {hasItem && (
-        <div className="ml-4 flex flex-col gap-3 border-l-2 border-[#F5C518]/30 pl-4">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-[#9A9A9A]">Quantidade</label>
-            <input
-              type="number"
-              min="0"
-              className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl px-3 py-2 text-white w-28 focus:outline-none focus:border-[#F5C518]"
-              {...register(`${prefix}.quantity`, { valueAsNumber: true })}
-            />
-            {errors?.[prefix]?.quantity && (
-              <span className="text-xs text-red-400">{errors[prefix].quantity.message}</span>
-            )}
-          </div>
-          <Toggle
-            checked={!!watch(`${prefix}.is_marked`)}
-            onChange={(v) => setValue(`${prefix}.is_marked`, v)}
-            label="Estão marcadas?"
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ItemWithStatus({ label, watch, setValue, prefix }) {
-  const status = watch(`${prefix}.status`);
-  return (
-    <div className="flex flex-col gap-2">
-      <label className="text-sm text-white">{label}</label>
-      <StatusSelector value={status} onChange={(v) => setValue(`${prefix}.status`, v)} />
-    </div>
-  );
-}
+const S = {
+  label: { fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' },
+  error: { fontSize: 12, color: 'rgba(248,113,113,0.9)' },
+  readonly: { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: '12px 16px', color: 'rgba(255,255,255,0.65)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 10 },
+};
 
 const schema = yup.object({
-  status_geral: yup.string().oneOf(['OK', 'ATENCAO', 'PROBLEMA']).required(),
-  observations: yup.array().of(yup.string()),
-  manutencao: yup.object({
-    cadeiras: yup.object({ has_item: yup.boolean().required() }),
-    tomadas: yup.object({ has_item: yup.boolean().required() }),
-    ar_condicionado: yup.object({ status: yup.string().oneOf(['OK','ATENCAO','PROBLEMA']).required('Selecione um status') }),
-    mesas: yup.object({ has_item: yup.boolean().required() }),
-    portas: yup.object({ status: yup.string().oneOf(['OK','ATENCAO','PROBLEMA']).required('Selecione um status') }),
-  }),
-  limpeza: yup.object({
-    carpete: yup.object({ status: yup.string().oneOf(['OK','ATENCAO','PROBLEMA']).required('Selecione um status') }),
-    vidros: yup.object({ status: yup.string().oneOf(['OK','ATENCAO','PROBLEMA']).required('Selecione um status') }),
-    cadeiras: yup.object({ has_item: yup.boolean().required() }),
+  nothing_to_report: yup.boolean(),
+  records: yup.array().when('nothing_to_report', {
+    is: true,
+    then: (s) => s.strip(),
+    otherwise: (s) =>
+      s
+        .of(
+          yup.object({
+            maintenance_type: yup.string().required('Selecione o tipo de manutenção'),
+            category: yup.string().required('Selecione a categoria'),
+            priority: yup.string().required('Selecione a prioridade'),
+            description: yup.string().trim().required('Descreva a ocorrência'),
+            responsible: yup.string().required('Selecione o responsável'),
+            status: yup.string().required('Selecione o status'),
+          })
+        )
+        .min(1, 'Adicione ao menos uma informação'),
   }),
 });
 
-export function FloorForm({ floor, onSubmit, isLoading, isLast }) {
-  const { register, handleSubmit, watch, setValue, control, formState: { errors } } = useForm({
+/** Um droplist do formulário. */
+function Field({ control, name, label, options, placeholder, error }) {
+  return (
+    <Controller
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <Select
+            label={label}
+            options={[{ value: '', label: placeholder }, ...options]}
+            {...field}
+          />
+          {error && <span style={S.error}>{error}</span>}
+        </div>
+      )}
+    />
+  );
+}
+
+export function FloorForm({ floor, inspectorName, initialRecords, onSubmit, isLoading, isLast }) {
+  const {
+    control,
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm({
     resolver: yupResolver(schema),
     defaultValues: {
-      status_geral: 'OK',
-      observations: [''],
-      manutencao: {
-        cadeiras: { has_item: false },
-        tomadas: { has_item: false },
-        ar_condicionado: { status: 'OK' },
-        mesas: { has_item: false },
-        portas: { status: 'OK' },
-      },
-      limpeza: {
-        carpete: { status: 'OK' },
-        vidros: { status: 'OK' },
-
-        cadeiras: { has_item: false },
-      },
+      // Rascunho salvo com zero ocorrências = andar marcado como "nada a relatar"
+      nothing_to_report: Array.isArray(initialRecords) && initialRecords.length === 0,
+      records: initialRecords?.length ? initialRecords : [emptyRecord()],
     },
   });
 
-  const { fields, append, remove } = useFieldArray({ control, name: 'observations' });
+  const { fields, append, remove } = useFieldArray({ control, name: 'records' });
+  const nothingToReport = watch('nothing_to_report');
 
-  const statusGeral = watch('status_geral');
-  const STATUS_GERAL = [
-    { value: 'OK', label: 'OK', color: 'bg-green-500' },
-    { value: 'ATENCAO', label: 'Atenção', color: 'bg-yellow-500' },
-    { value: 'PROBLEMA', label: 'Problema', color: 'bg-red-500' },
-  ];
+  const today = new Date().toLocaleDateString('pt-BR');
+
+  function submit(data) {
+    onSubmit(data.nothing_to_report ? [] : data.records);
+  }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-      {/* Status geral do andar */}
-      <Card>
-        <p className="text-[#9A9A9A] text-xs mb-2">Status geral do andar</p>
-        <div className="flex gap-2">
-          {STATUS_GERAL.map(({ value, label, color }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setValue('status_geral', value)}
-              className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                statusGeral === value ? `${color} text-white` : 'bg-[#2A2A2A] text-[#9A9A9A]'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+    <form onSubmit={handleSubmit(submit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Andar em vistoria + lembrete de quem está fazendo */}
+      <Card style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div>
+          <p style={S.label}>Andar - Unidade</p>
+          <p style={{ color: '#F5C518', fontWeight: 700, fontSize: 20, marginTop: 4 }}>{floor?.label}</p>
+        </div>
+        <div style={S.readonly}>
+          <UserRound size={15} color="rgba(245,197,24,0.8)" />
+          <span>Vistoria feita por <strong style={{ color: 'rgba(255,255,255,0.85)' }}>{inspectorName || '—'}</strong></span>
+        </div>
+        <div>
+          <p style={S.label}>Data de abertura</p>
+          <div style={{ ...S.readonly, marginTop: 6 }}>
+            <CalendarDays size={15} color="rgba(245,197,24,0.8)" />
+            <span>{today}</span>
+          </div>
         </div>
       </Card>
 
-      {/* Manutenção */}
       <Card>
-        <h3 className="text-[#F5C518] font-semibold mb-4">🔧 Manutenção</h3>
-        <div className="flex flex-col gap-5">
-          <ItemWithSubForm label="Cadeiras" prefix="manutencao.cadeiras" register={register} watch={watch} setValue={setValue} errors={errors} />
-          <div className="h-px bg-[#2A2A2A]" />
-          <ItemWithSubForm label="Tomadas" prefix="manutencao.tomadas" register={register} watch={watch} setValue={setValue} errors={errors} />
-          <div className="h-px bg-[#2A2A2A]" />
-          <ItemWithStatus label="Ar-condicionado" prefix="manutencao.ar_condicionado" watch={watch} setValue={setValue} />
-          <div className="h-px bg-[#2A2A2A]" />
-          <ItemWithSubForm label="Mesas" prefix="manutencao.mesas" register={register} watch={watch} setValue={setValue} errors={errors} />
-          <div className="h-px bg-[#2A2A2A]" />
-          <ItemWithStatus label="Portas" prefix="manutencao.portas" watch={watch} setValue={setValue} />
-        </div>
+        <Toggle
+          checked={!!nothingToReport}
+          onChange={(v) => setValue('nothing_to_report', v)}
+          label="Nada a relatar neste andar"
+        />
       </Card>
 
-      {/* Limpeza */}
-      <Card>
-        <h3 className="text-[#F5C518] font-semibold mb-4">🧹 Limpeza</h3>
-        <div className="flex flex-col gap-5">
-          <ItemWithStatus label="Carpete" prefix="limpeza.carpete" watch={watch} setValue={setValue} />
-          <div className="h-px bg-[#2A2A2A]" />
-          <ItemWithStatus label="Vidros" prefix="limpeza.vidros" watch={watch} setValue={setValue} />
-          <div className="h-px bg-[#2A2A2A]" />
-          <ItemWithSubForm label="Cadeiras" prefix="limpeza.cadeiras" register={register} watch={watch} setValue={setValue} errors={errors} />
-        </div>
-      </Card>
+      {!nothingToReport && fields.map((field, index) => (
+        <Card key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <p style={{ color: '#F5C518', fontWeight: 600, fontSize: 13 }}>Informação {index + 1}</p>
+            {fields.length > 1 && (
+              <button type="button" onClick={() => remove(index)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.35)', padding: 4 }}>
+                <Trash2 size={16} />
+              </button>
+            )}
+          </div>
 
-      {/* Observações */}
-      <Card>
-        <h3 className="text-[#F5C518] font-semibold mb-4">📝 Observações</h3>
-        <div className="flex flex-col gap-3">
-          {fields.map((field, index) => (
-            <div key={field.id} className="flex gap-2">
-              <textarea
-                className="flex-1 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl px-3 py-2 text-white placeholder-[#555] focus:outline-none focus:border-[#F5C518] resize-none"
-                rows={2}
-                placeholder="Observação opcional..."
-                {...register(`observations.${index}`)}
-              />
-              {fields.length > 1 && (
-                <button type="button" onClick={() => remove(index)} className="text-[#9A9A9A] hover:text-red-400">
-                  <Trash2 size={18} />
-                </button>
-              )}
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => append('')}
-            className="flex items-center gap-2 text-[#9A9A9A] hover:text-[#F5C518] text-sm transition-colors"
-          >
-            <Plus size={16} /> Adicionar observação
-          </button>
-        </div>
-      </Card>
+          <Field control={control} name={`records.${index}.maintenance_type`} label="Tipo de manutenção"
+            options={MAINTENANCE_TYPES} placeholder="Selecione o tipo"
+            error={errors.records?.[index]?.maintenance_type?.message} />
 
-      <Button type="submit" loading={isLoading} className="w-full">
-        {isLast ? '✓ Finalizar Inspeção' : 'Próximo Andar →'}
+          <Field control={control} name={`records.${index}.category`} label="Categoria"
+            options={CATEGORIES} placeholder="Selecione a categoria"
+            error={errors.records?.[index]?.category?.message} />
+
+          <Field control={control} name={`records.${index}.priority`} label="Prioridade"
+            options={PRIORITIES} placeholder="Selecione a prioridade"
+            error={errors.records?.[index]?.priority?.message} />
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={S.label}>Descrição</label>
+            <textarea
+              rows={3}
+              placeholder="Descreva o que foi encontrado..."
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 16, padding: '12px 16px', color: 'rgba(255,255,255,0.9)', fontSize: 14, outline: 'none', width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
+              {...register(`records.${index}.description`)}
+            />
+            {errors.records?.[index]?.description && (
+              <span style={S.error}>{errors.records[index].description.message}</span>
+            )}
+          </div>
+
+          <Field control={control} name={`records.${index}.responsible`} label="Responsável"
+            options={RESPONSIBLES} placeholder="Selecione o responsável"
+            error={errors.records?.[index]?.responsible?.message} />
+
+          <Field control={control} name={`records.${index}.status`} label="Status"
+            options={RECORD_STATUS} placeholder="Selecione o status"
+            error={errors.records?.[index]?.status?.message} />
+        </Card>
+      ))}
+
+      {!nothingToReport && (
+        <Button type="button" variant="secondary" onClick={() => append(emptyRecord())} style={{ width: '100%' }}>
+          <Plus size={16} /> Adicionar mais informações
+        </Button>
+      )}
+
+      <Button type="submit" loading={isLoading} style={{ width: '100%' }}>
+        {isLast ? '✓ Enviar vistoria' : 'Próximo andar →'}
       </Button>
     </form>
   );

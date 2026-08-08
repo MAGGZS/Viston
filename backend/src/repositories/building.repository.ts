@@ -1,6 +1,7 @@
-import { AuditAction, Prisma } from '@prisma/client';
+import { AuditAction, InspectionStatus, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { generateShareKey } from '../utils/shareKey';
+import { sortFloorsDesc } from '../utils/floorOrder';
 
 // Campos seguros para expor a quem nao e admin (nunca inclui share_key).
 const PUBLIC_BUILDING_FIELDS = { id: true, name: true, description: true } as const;
@@ -54,11 +55,10 @@ export const buildingRepository = {
     return prisma.building.delete({ where: { id } });
   },
 
-  getFloors(buildingId: string) {
-    return prisma.floor.findMany({
-      where: { building_id: buildingId },
-      orderBy: { label: 'asc' },
-    });
+  /** Andares sempre do mais alto para o mais baixo — ordem em que a vistoria acontece. */
+  async getFloors(buildingId: string) {
+    const floors = await prisma.floor.findMany({ where: { building_id: buildingId } });
+    return sortFloorsDesc(floors);
   },
 
   createFloor(data: { building_id: string; label: string }) {
@@ -132,7 +132,10 @@ export const buildingRepository = {
     return Promise.all([
       prisma.buildingMember.count({ where: { building_id: buildingId, role: 'INSPECTOR' } }),
       prisma.buildingMember.count({ where: { building_id: buildingId, role: 'VIEWER' } }),
-      prisma.inspectionReport.count({ where: { building_id: buildingId } }),
+      // Só conta inspeções concluídas — as IN_PROGRESS ainda não viraram relatório
+      prisma.inspectionReport.count({
+        where: { building_id: buildingId, status: InspectionStatus.COMPLETED },
+      }),
     ]);
   },
 };

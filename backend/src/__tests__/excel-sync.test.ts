@@ -1,5 +1,5 @@
 import { generateInspectionExcel } from '../services/excel.service';
-import { InspectionStatus, ItemCategory, ItemStatus } from '@prisma/client';
+import { InspectionStatus } from '@prisma/client';
 
 jest.mock('../repositories/inspection.repository');
 jest.mock('../repositories/building.repository');
@@ -12,11 +12,9 @@ function makeFullReport() {
     date: new Date('2024-01-15'),
     started_at: new Date('2024-01-15T08:00:00Z'),
     finished_at: new Date('2024-01-15T10:00:00Z'),
-    floors_inspected: ['floor-1'],
+    floors_inspected: ['floor-1', 'floor-2'],
     status: InspectionStatus.COMPLETED,
     excel_url: null,
-    google_form_synced: false,
-    google_form_synced_at: null,
     created_at: new Date(),
     inspector: { id: 'user-1', name: 'Carlos', email: 'carlos@test.com', role: 'INSPECTOR' },
     building: { id: 'building-1', name: 'Edifício Principal' },
@@ -25,16 +23,31 @@ function makeFullReport() {
         id: 'entry-1',
         report_id: 'report-1',
         floor_id: 'floor-1',
-        status_geral: 'OK',
-        observations: ['Tudo ok'],
-        photos: [],
+        status_geral: 'PROBLEMA',
         completed_at: new Date(),
-        floor: { id: 'floor-1', building_id: 'building-1', label: '6º Andar', order: 6 },
-        form_item_responses: [
-          { id: 'r1', floor_form_entry_id: 'entry-1', category: ItemCategory.MANUTENCAO, item_name: 'Cadeiras', has_item: true, quantity: 5, is_marked: true, status: null },
-          { id: 'r2', floor_form_entry_id: 'entry-1', category: ItemCategory.MANUTENCAO, item_name: 'Ar-condicionado', has_item: null, quantity: null, is_marked: null, status: ItemStatus.OK },
-          { id: 'r3', floor_form_entry_id: 'entry-1', category: ItemCategory.LIMPEZA, item_name: 'Carpete', has_item: null, quantity: null, is_marked: null, status: ItemStatus.OK },
+        floor: { id: 'floor-1', building_id: 'building-1', label: '6º Andar' },
+        maintenance_records: [
+          {
+            id: 'r1',
+            floor_form_entry_id: 'entry-1',
+            maintenance_type: 'AR_CONDICIONADO',
+            category: 'CORRETIVA',
+            priority: 'ALTA',
+            description: 'Split da sala 601 sem gelar',
+            responsible: 'Alan',
+            status: 'ABERTO',
+            created_at: new Date(),
+          },
         ],
+      },
+      {
+        id: 'entry-2',
+        report_id: 'report-1',
+        floor_id: 'floor-2',
+        status_geral: 'OK',
+        completed_at: new Date(),
+        floor: { id: 'floor-2', building_id: 'building-1', label: '1º Subsolo' },
+        maintenance_records: [],
       },
     ],
   } as any;

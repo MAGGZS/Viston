@@ -1,4 +1,12 @@
-import { InspectionStatus, Prisma } from '@prisma/client';
+import {
+  FloorStatus,
+  InspectionStatus,
+  MaintenanceCategory,
+  MaintenanceType,
+  Prisma,
+  Priority,
+  RecordStatus,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 const reportInclude = {
@@ -7,19 +15,74 @@ const reportInclude = {
   floor_form_entries: {
     include: {
       floor: true,
-      form_item_responses: true,
+      maintenance_records: true,
     },
   },
 } satisfies Prisma.InspectionReportInclude;
 
+export type FloorSubmission = {
+  floor_id: string;
+  status_geral: FloorStatus;
+  records: Array<{
+    maintenance_type: MaintenanceType;
+    category: MaintenanceCategory;
+    priority: Priority;
+    description: string;
+    responsible: string;
+    status: RecordStatus;
+  }>;
+};
+
 export const inspectionRepository = {
-  create(data: {
+  /**
+   * Grava a vistoria inteira de uma vez: relatório já COMPLETED, andares e ocorrências.
+   * Tudo em uma transação — ou entra completo, ou não entra nada.
+   */
+  createCompleted(data: {
     inspector_id: string;
     building_id: string;
     date: Date;
-    floors_inspected: string[];
+    started_at: Date;
+    finished_at: Date;
+    floors: FloorSubmission[];
   }) {
-    return prisma.inspectionReport.create({ data, include: reportInclude });
+    return prisma.$transaction(async (tx) => {
+      const report = await tx.inspectionReport.create({
+        data: {
+          inspector_id: data.inspector_id,
+          building_id: data.building_id,
+          date: data.date,
+          started_at: data.started_at,
+          finished_at: data.finished_at,
+          floors_inspected: data.floors.map((f) => f.floor_id),
+          status: InspectionStatus.COMPLETED,
+        },
+      });
+
+      for (const floor of data.floors) {
+        const entry = await tx.floorFormEntry.create({
+          data: {
+            report_id: report.id,
+            floor_id: floor.floor_id,
+            status_geral: floor.status_geral,
+          },
+        });
+
+        if (floor.records.length > 0) {
+          await tx.maintenanceRecord.createMany({
+            data: floor.records.map((record) => ({
+              floor_form_entry_id: entry.id,
+              ...record,
+            })),
+          });
+        }
+      }
+
+      return tx.inspectionReport.findUniqueOrThrow({
+        where: { id: report.id },
+        include: reportInclude,
+      });
+    });
   },
 
   findById(id: string) {
@@ -63,7 +126,14 @@ export const inspectionRepository = {
         include: {
           inspector: { select: { id: true, name: true, email: true } },
           building: { select: { id: true, name: true } },
-          floor_form_entries: { select: { floor_id: true, status_geral: true } },
+          floor_form_entries: {
+            select: {
+              floor_id: true,
+              status_geral: true,
+              floor: { select: { label: true } },
+              _count: { select: { maintenance_records: true } },
+            },
+          },
         },
       }),
       prisma.inspectionReport.count({ where }),
@@ -72,68 +142,6 @@ export const inspectionRepository = {
 
   update(id: string, data: Prisma.InspectionReportUpdateInput) {
     return prisma.inspectionReport.update({ where: { id }, data });
-  },
-
-  upsertFloorEntry(data: {
-    report_id: string;
-    floor_id: string;
-    status_geral: 'OK' | 'ATENCAO' | 'PROBLEMA';
-    observations: string[];
-    photos: string[];
-    items: Array<{
-      category: 'MANUTENCAO' | 'LIMPEZA';
-      item_name: string;
-      has_item?: boolean;
-      quantity?: number;
-      is_marked?: boolean;
-      status?: 'OK' | 'NOK' | 'NA';
-    }>;
-  }) {
-    return prisma.$transaction(async (tx) => {
-      // Upsert do FloorFormEntry
-      const existing = await tx.floorFormEntry.findUnique({
-        where: { report_id_floor_id: { report_id: data.report_id, floor_id: data.floor_id } },
-      });
-
-      let entry;
-      if (existing) {
-        // Deletar respostas antigas e recriar
-        await tx.formItemResponse.deleteMany({ where: { floor_form_entry_id: existing.id } });
-        entry = await tx.floorFormEntry.update({
-          where: { id: existing.id },
-          data: {
-            status_geral: data.status_geral,
-            observations: data.observations,
-            photos: data.photos,
-            completed_at: new Date(),
-          },
-        });
-      } else {
-        entry = await tx.floorFormEntry.create({
-          data: {
-            report_id: data.report_id,
-            floor_id: data.floor_id,
-            status_geral: data.status_geral,
-            observations: data.observations,
-            photos: data.photos,
-          },
-        });
-      }
-
-      await tx.formItemResponse.createMany({
-        data: data.items.map((item) => ({
-          floor_form_entry_id: entry.id,
-          category: item.category,
-          item_name: item.item_name,
-          has_item: item.has_item ?? null,
-          quantity: item.quantity ?? null,
-          is_marked: item.is_marked ?? null,
-          status: item.status ?? null,
-        })),
-      });
-
-      return entry;
-    });
   },
 
   getCalendarData(dateFrom: Date, dateTo: Date, buildingId?: string) {
