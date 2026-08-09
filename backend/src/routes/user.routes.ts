@@ -3,6 +3,7 @@ import { userController } from '../controllers/user.controller';
 import { authenticate } from '../middlewares/authenticate';
 import { authorize } from '../middlewares/authorize';
 import { validate } from '../middlewares/validate';
+import { sensitiveLimiter } from '../middlewares/rateLimit';
 import {
   createUserSchema,
   updateUserSchema,
@@ -12,8 +13,8 @@ import {
 
 const router = Router();
 
-// Cadastro público
-router.post('/', validate(createUserSchema), userController.create as any);
+// Cadastro público (papel sai sempre como VIEWER — ver user.service)
+router.post('/', sensitiveLimiter, validate(createUserSchema), userController.create as any);
 
 // Próprio usuário — deve vir ANTES de /:id para não ser capturado pelo parâmetro dinâmico
 router.get('/me', authenticate as any, userController.getMe as any);

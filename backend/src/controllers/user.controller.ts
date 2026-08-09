@@ -2,7 +2,6 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/authenticate';
 import { userService } from '../services/user.service';
 import { ok, created, noContent } from '../utils/response';
-import { Role } from '@prisma/client';
 
 export const userController = {
   async create(req: AuthenticatedRequest, res: Response) {

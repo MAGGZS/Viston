@@ -10,9 +10,6 @@ const inspectorOnly = authorize('ADMIN', 'INSPECTOR') as any;
 const anyRole = authorize('ADMIN', 'INSPECTOR', 'VIEWER') as any;
 const auth = authenticate as any;
 
-// ── Buildings ─────────────────────────────────────────────────────────────────
-router.get('/buildings/:id/floors', auth, anyRole, inspectionController.getFloors as any);
-
 // ── Inspeções ─────────────────────────────────────────────────────────────────
 // Envio único: a vistoria inteira chega de uma vez, já concluída
 router.post('/inspections', auth, inspectorOnly, inspectionController.submit as any);

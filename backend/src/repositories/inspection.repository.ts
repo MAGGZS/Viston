@@ -96,16 +96,25 @@ export const inspectionRepository = {
     inspector_id?: string;
     floor_id?: string;
     building_id?: string;
+    /** Restringe aos prédios visíveis ao usuário. `null`/ausente = sem restrição (ADMIN). */
+    building_ids?: string[] | null;
     date_from?: string;
     date_to?: string;
   }) {
-    const { page, limit, status, inspector_id, floor_id, building_id, date_from, date_to } = filters;
+    const { page, limit, status, inspector_id, floor_id, building_id, building_ids, date_from, date_to } =
+      filters;
     const skip = (page - 1) * limit;
+
+    // Filtro pedido e escopo de visibilidade se somam (AND) — pedir um prédio
+    // específico nunca amplia o que o usuário pode ver.
+    const buildingScope: Prisma.InspectionReportWhereInput[] = [];
+    if (building_id) buildingScope.push({ building_id });
+    if (building_ids) buildingScope.push({ building_id: { in: building_ids } });
 
     const where: Prisma.InspectionReportWhereInput = {
       status: status ?? InspectionStatus.COMPLETED,
       ...(inspector_id && { inspector_id }),
-      ...(building_id && { building_id }),
+      ...(buildingScope.length ? { AND: buildingScope } : {}),
       ...(floor_id && { floors_inspected: { has: floor_id } }),
       ...(date_from || date_to
         ? {
@@ -149,12 +158,21 @@ export const inspectionRepository = {
     return prisma.inspectionReport.delete({ where: { id } });
   },
 
-  getCalendarData(dateFrom: Date, dateTo: Date, buildingId?: string) {
+  getCalendarData(
+    dateFrom: Date,
+    dateTo: Date,
+    buildingId?: string,
+    buildingIds?: string[] | null
+  ) {
+    const buildingScope: Prisma.InspectionReportWhereInput[] = [];
+    if (buildingId) buildingScope.push({ building_id: buildingId });
+    if (buildingIds) buildingScope.push({ building_id: { in: buildingIds } });
+
     return prisma.inspectionReport.findMany({
       where: {
         status: InspectionStatus.COMPLETED,
         finished_at: { gte: dateFrom, lte: dateTo },
-        ...(buildingId && { building_id: buildingId }),
+        ...(buildingScope.length ? { AND: buildingScope } : {}),
       },
       select: {
         id: true,

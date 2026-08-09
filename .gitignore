@@ -1,0 +1,24 @@
+# Dependências
+node_modules/
+
+# Build
+dist/
+.next/
+out/
+
+# Ambiente — nunca versionar segredos
+.env
+.env.*
+!.env.example
+*.bak
+
+# Saída de ferramentas de análise (gerada, ~1 MB, reconstruível)
+graphify-out/
+
+# Testes e logs
+coverage/
+*.log
+
+# SO / editor
+.DS_Store
+Thumbs.db

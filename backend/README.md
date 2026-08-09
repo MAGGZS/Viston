@@ -115,9 +115,38 @@ npm run test:watch
 Cobertura mínima implementada:
 - Envio da vistoria completa em uma única chamada (POST /inspections)
 - RBAC (roles e permissões)
+- Isolamento por prédio, exercitando o app Express de verdade via supertest
+  (`__tests__/authorization.test.ts`)
 - Soft delete e anonimização de usuários
 - Validação das ocorrências de manutenção por andar (Zod schema)
 - Geração de Excel (ExcelJS)
+
+---
+
+## Segurança
+
+**Papéis e vínculo.** `ADMIN` enxerga todos os prédios. Para os demais, todo
+acesso a dados de um prédio passa por `requireBuildingMember`: sem
+`BuildingMember`, rota de prédio devolve `403` e relatório devolve `404` — o
+relatório de outro prédio se comporta como inexistente. As listagens
+(`GET /inspections`, `GET /calendar`) são filtradas pelos prédios do usuário.
+
+**Cadastro.** `POST /users` é aberto, mas o schema é `strict` e não tem campo
+`role`: a conta nasce sempre `VIEWER`. Promover é privilégio de um ADMIN em
+`PATCH /users/:id`. O middleware `validate` reescreve `req.body` com o resultado
+do parse, então nenhum campo fora do contrato chega ao service.
+
+**Chave de compartilhamento.** 12 caracteres de um alfabeto de 31 símbolos
+(~59 bits). Só aparece em respostas para ADMIN; as demais rotas devolvem o
+prédio pelos campos públicos (`id`, `name`, `description`).
+
+**Limites por IP.** 300 req/min no geral; 20 tentativas por 15 min em `/auth/*`
+(sucesso não conta); 60/h no cadastro, no `lookup` de chave e no pedido de
+acesso.
+
+**Cabeçalhos.** `helmet` com CSP `default-src 'none'` (a API só devolve JSON),
+`frame-ancestors 'none'`, `Referrer-Policy: no-referrer` e `x-powered-by`
+desligado. `trust proxy` em 1 para o rate limit enxergar o IP real no Render.
 
 ---
 
@@ -168,6 +197,8 @@ src/
 ├── middlewares/
 │   ├── authenticate.ts       # JWT verification
 │   ├── authorize.ts          # RBAC por role
+│   ├── buildingAccess.ts     # Vínculo com o prédio (isolamento entre prédios)
+│   ├── rateLimit.ts          # Limites por IP (geral, auth, rotas sensíveis)
 │   ├── validate.ts           # Zod schema validation
 │   └── errorHandler.ts       # Global error handler
 ├── validators/

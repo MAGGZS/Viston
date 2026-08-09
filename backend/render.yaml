@@ -19,8 +19,6 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: SUPABASE_BUCKET_PHOTOS
-        value: viston-photos
       - key: SUPABASE_BUCKET_EXCEL
         value: viston-excel
       - key: JWT_SECRET
@@ -31,17 +29,5 @@ services:
         value: 15m
       - key: JWT_REFRESH_EXPIRES_IN
         value: 7d
-      - key: GOOGLE_FORM_URL
-        sync: false
-      - key: GOOGLE_FORM_FIELD_ITEM_NAME
-        sync: false
-      - key: GOOGLE_FORM_FIELD_QUANTITY
-        sync: false
-      - key: GOOGLE_FORM_FIELD_IS_MARKED
-        sync: false
-      - key: GOOGLE_FORM_FIELD_STATUS
-        sync: false
-      - key: GOOGLE_FORM_FIELD_OBSERVATION
-        sync: false
       - key: FRONTEND_URL
         sync: false

@@ -3,7 +3,7 @@ import { inspectionRepository } from '../repositories/inspection.repository';
 import { buildingRepository } from '../repositories/building.repository';
 import { generateInspectionExcel } from '../services/excel.service';
 import { storageService } from '../services/storage.service';
-import { ConflictError, NotFoundError } from '../utils/errors';
+import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { FloorStatus, InspectionStatus } from '@prisma/client';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -67,6 +67,8 @@ describe('inspectionService.submit', () => {
     mockStorage.uploadExcel.mockResolvedValue('https://storage.example.com/report.xlsx');
     mockInspectionRepo.createCompleted.mockResolvedValue(makeReport());
     mockInspectionRepo.findById.mockResolvedValue(makeReport());
+    // Inspetor vinculado ao prédio — o caso sem vínculo tem bloco próprio
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'member-1' } as any);
   });
 
   it('grava a vistoria inteira já concluída em uma única chamada', async () => {
@@ -188,11 +190,67 @@ describe('inspectionService.submit', () => {
 
 // ── Testes: inspectionService.findAll (histórico) ────────────────────────────
 describe('inspectionService.findAll', () => {
+  beforeEach(() => jest.clearAllMocks());
+
   it('retorna apenas relatórios COMPLETED por padrão', async () => {
     mockInspectionRepo.findAll.mockResolvedValue([[], 0]);
-    await inspectionService.findAll({ page: 1, limit: 20 });
+    await inspectionService.findAll({ page: 1, limit: 20 }, null);
     expect(mockInspectionRepo.findAll).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1, limit: 20 })
+      expect.objectContaining({ page: 1, limit: 20, building_ids: null })
     );
+  });
+
+  it('restringe a listagem aos prédios visíveis ao usuário', async () => {
+    mockInspectionRepo.findAll.mockResolvedValue([[], 0]);
+    await inspectionService.findAll({ page: 1, limit: 20 }, [BUILDING_ID]);
+    expect(mockInspectionRepo.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({ building_ids: [BUILDING_ID] })
+    );
+  });
+});
+
+// ── Testes: isolamento por prédio ────────────────────────────────────────────
+describe('isolamento por prédio', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGenerateExcel.mockResolvedValue(Buffer.from('excel'));
+    mockStorage.uploadExcel.mockResolvedValue('https://storage.example.com/report.xlsx');
+    mockInspectionRepo.createCompleted.mockResolvedValue(makeReport());
+    mockInspectionRepo.findById.mockResolvedValue(makeReport());
+  });
+
+  it('bloqueia o envio quando o inspetor não é membro do prédio', async () => {
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findMember.mockResolvedValue(null);
+
+    await expect(
+      inspectionService.submit('user-1', payload([{ floor_id: FLOOR_6, records: [] }]), 'INSPECTOR')
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('libera o envio para ADMIN sem exigir vínculo', async () => {
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
+    mockBuildingRepo.findMember.mockResolvedValue(null);
+
+    await inspectionService.submit('user-1', payload([{ floor_id: FLOOR_6, records: [] }]), 'ADMIN');
+
+    expect(mockBuildingRepo.findMember).not.toHaveBeenCalled();
+    expect(mockInspectionRepo.createCompleted).toHaveBeenCalledTimes(1);
+  });
+
+  it('esconde o relatório de quem não é membro do prédio', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue(null);
+
+    await expect(
+      inspectionService.findById('report-1', { id: 'outro', role: 'VIEWER' })
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it('entrega o relatório para o membro do prédio', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1' } as any);
+
+    const report = await inspectionService.findById('report-1', { id: 'user-1', role: 'VIEWER' });
+    expect(report.id).toBe('report-1');
   });
 });

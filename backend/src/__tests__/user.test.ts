@@ -2,6 +2,7 @@ import { userService } from '../services/user.service';
 import { userRepository } from '../repositories/user.repository';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { submitInspectionSchema } from '../validators/inspection.validator';
+import { createUserSchema } from '../validators/auth.validator';
 import { UserStatus } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
@@ -39,7 +40,6 @@ describe('userService.create', () => {
       name: 'Carlos',
       email: 'carlos@test.com',
       password: 'Senha@123',
-      role: 'INSPECTOR' as any,
     });
 
     expect(mockBcrypt.hash).toHaveBeenCalledWith('Senha@123', 10);
@@ -48,11 +48,49 @@ describe('userService.create', () => {
     );
   });
 
+  it('sempre cria como VIEWER, mesmo se o corpo trouxer role', async () => {
+    mockUserRepo.findByEmail.mockResolvedValue(null);
+    (mockBcrypt.hash as jest.Mock).mockResolvedValue('$2b$10$hashed');
+    mockUserRepo.create.mockResolvedValue(makeUser());
+
+    await userService.create({
+      name: 'Carlos',
+      email: 'carlos@test.com',
+      password: 'Senha@123',
+      role: 'ADMIN',
+    } as any);
+
+    expect(mockUserRepo.create).toHaveBeenCalledWith(expect.objectContaining({ role: 'VIEWER' }));
+  });
+
   it('lança ConflictError quando e-mail já existe', async () => {
     mockUserRepo.findByEmail.mockResolvedValue(makeUser());
     await expect(
-      userService.create({ name: 'X', email: 'carlos@test.com', password: 'Senha@123', role: 'INSPECTOR' as any })
+      userService.create({ name: 'X', email: 'carlos@test.com', password: 'Senha@123' })
     ).rejects.toThrow(ConflictError);
+  });
+});
+
+// ── Testes: createUserSchema (cadastro público) ──────────────────────────────
+describe('createUserSchema', () => {
+  it('descarta role enviado no cadastro público', () => {
+    expect(() =>
+      createUserSchema.parse({
+        name: 'Carlos',
+        email: 'carlos@test.com',
+        password: 'Senha@123',
+        role: 'ADMIN',
+      })
+    ).toThrow();
+  });
+
+  it('aceita o cadastro sem role', () => {
+    const parsed = createUserSchema.parse({
+      name: 'Carlos',
+      email: 'carlos@test.com',
+      password: 'Senha@123',
+    });
+    expect(parsed).not.toHaveProperty('role');
   });
 });
 

@@ -21,7 +21,6 @@ export const config = {
   supabase: {
     url: required('SUPABASE_URL'),
     serviceRoleKey: required('SUPABASE_SERVICE_ROLE_KEY'),
-    bucketPhotos: process.env.SUPABASE_BUCKET_PHOTOS || 'viston-photos',
     bucketExcel: process.env.SUPABASE_BUCKET_EXCEL || 'viston-excel',
   },
 

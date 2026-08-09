@@ -4,14 +4,21 @@ import { userRepository } from '../repositories/user.repository';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
 
 export const userService = {
-  async create(data: { name: string; email: string; password: string; role?: Role }) {
+  /**
+   * Cadastro público. O papel é sempre VIEWER — promover para INSPECTOR/ADMIN
+   * é privilégio de um ADMIN via PATCH /users/:id.
+   */
+  async create(data: { name: string; email: string; password: string }) {
     const existing = await userRepository.findByEmail(data.email);
     if (existing) throw new ConflictError('E-mail já cadastrado');
 
-    const role: Role = data.role ?? Role.VIEWER;
-
     const password_hash = await bcrypt.hash(data.password, 10);
-    const user = await userRepository.create({ name: data.name, email: data.email, role, password_hash });
+    const user = await userRepository.create({
+      name: data.name,
+      email: data.email,
+      role: Role.VIEWER,
+      password_hash,
+    });
 
     const { password_hash: _, ...safe } = user;
     return safe;

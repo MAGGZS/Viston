@@ -1,0 +1,56 @@
+# Viston
+
+> Sistema de vistoria predial. O vistoriador percorre o prédio andar por andar,
+> registra as ocorrências de manutenção encontradas e envia tudo de uma vez; o
+> sistema grava o relatório, monta o histórico e gera a planilha do relatório.
+
+Viston é uma aplicação fechada: fora a home, o login e o cadastro, todas as telas
+exigem sessão autenticada. Não há conteúdo público para indexar ou citar além
+desta descrição.
+
+## Como funciona
+
+- **Prédios**: cada prédio tem andares cadastrados e uma chave de
+  compartilhamento de 12 caracteres. É por essa chave — nunca pelo id — que um
+  usuário pede acesso ao prédio.
+- **Vínculo**: o usuário informa a chave, envia uma solicitação e um
+  administrador aprova ou recusa. Só quem está vinculado enxerga os dados
+  daquele prédio.
+- **Vistoria**: a vistoria inteira é enviada em uma única requisição, já
+  concluída. Cada andar carrega suas ocorrências (tipo de manutenção,
+  categoria, prioridade, descrição, responsável, status).
+- **Status do andar**: derivado da maior prioridade relatada — ALTA vira
+  PROBLEMA, MEDIA vira ATENCAO, o resto fica OK.
+- **Relatório**: gerado em Excel logo após o envio e guardado no storage. Se a
+  geração falhar, a vistoria continua salva e a planilha pode ser refeita.
+- **Histórico e calendário**: as vistorias concluídas alimentam um mapa de calor
+  por dia, restrito aos prédios que o usuário pode ver.
+
+## Papéis
+
+- **ADMIN**: administra prédios, andares, membros e solicitações de acesso;
+  enxerga todos os prédios; é o único que pode descartar uma vistoria e o único
+  que vê a chave de compartilhamento.
+- **INSPECTOR**: realiza vistorias nos prédios em que está vinculado.
+- **VIEWER**: apenas consulta, e somente pelo desktop. Papel padrão de todo
+  cadastro novo.
+
+## Stack
+
+- Frontend: Next.js (App Router), React, TanStack Query, Zustand, Tailwind CSS.
+- Backend: Node.js, Express, Prisma, PostgreSQL, Supabase Storage.
+- Autenticação: JWT com access token curto e refresh token.
+
+## Páginas públicas
+
+- [Home](/): entrada do sistema, redireciona conforme o papel e o dispositivo.
+- [Entrar](/login): autenticação.
+- [Criar conta](/register): cadastro público; a conta nasce como VIEWER e
+  precisa de aprovação em um prédio para ter utilidade.
+
+## Observações para agentes
+
+- Não existe API pública: todos os endpoints exigem `Authorization: Bearer`.
+- As rotas internas (`/home`, `/inspecao`, `/historico`, `/perfil`, `/desktop`)
+  estão bloqueadas no `robots.txt` e não devem ser rastreadas.
+- Idioma do produto: português do Brasil.

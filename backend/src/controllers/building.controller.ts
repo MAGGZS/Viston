@@ -77,6 +77,10 @@ export const buildingController = {
   },
 
   async deleteFloor(req: AuthenticatedRequest, res: Response) {
+    // O andar precisa ser do prédio da rota — sem isso o id na URL vira só enfeite
+    const [floor] = await buildingRepository.findFloorsByIds([req.params.floorId]);
+    if (!floor || floor.building_id !== req.params.id) throw new NotFoundError('Andar');
+
     await buildingRepository.deleteFloor(req.params.floorId);
     noContent(res);
   },
@@ -161,7 +165,14 @@ export const buildingController = {
   },
 
   async reviewAccessRequest(req: AuthenticatedRequest, res: Response) {
-    const { status } = req.body; // 'APPROVED' | 'REJECTED'
+    const { status } = req.body as { status: 'APPROVED' | 'REJECTED' };
+
+    // A solicitação precisa ser do prédio da rota — caso contrário um admin
+    // aprovaria acesso a um prédio só informando o id de outra solicitação.
+    const request = await buildingRepository.findAccessRequestById(req.params.requestId);
+    if (!request || request.building_id !== req.params.id) throw new NotFoundError('Solicitação');
+    if (request.status !== 'PENDING') throw new ConflictError('Solicitação já foi revisada');
+
     const updated = await buildingRepository.updateAccessRequest(req.params.requestId, status);
 
     if (status === 'APPROVED') {

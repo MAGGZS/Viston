@@ -1,14 +1,30 @@
 import 'express-async-errors';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { config } from './config';
 import buildingRoutes from './routes/building.routes';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import inspectionRoutes from './routes/inspection.routes';
 import { errorHandler } from './middlewares/errorHandler';
+import { generalLimiter } from './middlewares/rateLimit';
 
 const app = express();
+
+// Render fica atrás de proxy: sem isso o rate limit enxerga um IP só para todos.
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+
+// ── Cabeçalhos de segurança ───────────────────────────────────────────────────
+// A API só devolve JSON: nada para embutir, nada para carregar de outra origem.
+app.use(
+  helmet({
+    contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+    crossOriginResourcePolicy: { policy: 'same-site' },
+    referrerPolicy: { policy: 'no-referrer' },
+  })
+);
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(
@@ -23,8 +39,12 @@ app.use(
 );
 
 // ── Body parsing ──────────────────────────────────────────────────────────────
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Teto da vistoria: 20 andares × 20 ocorrências × 2000 caracteres cabe em 2mb.
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+
+// ── Rate limiting geral (os limites finos ficam nas rotas) ────────────────────
+app.use(generalLimiter);
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {

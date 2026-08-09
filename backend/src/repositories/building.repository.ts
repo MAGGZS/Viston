@@ -22,6 +22,15 @@ export const buildingRepository = {
     });
   },
 
+  /** Ids dos prédios em que o usuário é membro — usado para filtrar listagens. */
+  async getMemberBuildingIds(userId: string): Promise<string[]> {
+    const rows = await prisma.buildingMember.findMany({
+      where: { user_id: userId },
+      select: { building_id: true },
+    });
+    return rows.map((row) => row.building_id);
+  },
+
   findAll(createdBy?: string) {
     return prisma.building.findMany({
       where: createdBy ? { created_by: createdBy } : undefined,
@@ -104,6 +113,10 @@ export const buildingRepository = {
     return prisma.buildingAccessRequest.findUnique({
       where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
     });
+  },
+
+  findAccessRequestById(id: string) {
+    return prisma.buildingAccessRequest.findUnique({ where: { id } });
   },
 
   getAccessRequests(buildingId: string, status?: string) {

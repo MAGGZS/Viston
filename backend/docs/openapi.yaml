@@ -8,10 +8,23 @@ info:
     Todas as rotas (exceto `/auth/login` e `/auth/refresh`) requerem Bearer token JWT.
     
     ## Roles
-    - **ADMIN**: acesso total
+    - **ADMIN**: acesso total, em todos os prédios
     - **INSPECTOR**: criar/finalizar inspeções + leitura
     - **VIEWER**: apenas leitura
-    
+
+    ## Isolamento por prédio
+    Fora o ADMIN, todo acesso a dados de um prédio exige vínculo
+    (`BuildingMember`). Sem vínculo: `403` nas rotas de prédio e `404` nos
+    relatórios — o relatório de outro prédio se comporta como inexistente.
+    Listagens (`/inspections`, `/calendar`) só trazem os prédios do usuário.
+
+    ## Limites de requisição
+    - Geral: 300 req/min por IP
+    - `/auth/*`: 20 tentativas por 15 min (sucesso não conta)
+    - Cadastro, `/buildings/lookup` e pedido de acesso: 60/h por IP
+
+    Estouro devolve `429` com o corpo de erro padrão.
+
     ## Erros padronizados
     Todos os erros seguem o formato: `{ "error": { "code": "string", "message": "string" } }`
   version: 1.0.0
@@ -218,27 +231,36 @@ paths:
   /users:
     post:
       tags: [Users]
-      summary: Criar usuário (ADMIN only)
+      summary: Cadastro público
+      description: |
+        Rota aberta, sem token. A conta nasce sempre com role `VIEWER`;
+        promover é privilégio de um ADMIN via `PATCH /users/{id}`.
+        Campos fora do contrato fazem a requisição falhar com 400.
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [name, email, password, role]
+              additionalProperties: false
+              required: [name, email, password]
               properties:
-                name: { type: string, minLength: 2 }
-                email: { type: string, format: email }
-                password: { type: string, minLength: 8 }
-                role: { type: string, enum: [ADMIN, INSPECTOR, VIEWER] }
+                name: { type: string, minLength: 2, maxLength: 120 }
+                email: { type: string, format: email, maxLength: 160 }
+                password: { type: string, minLength: 8, maxLength: 200 }
       responses:
         '201':
-          description: Usuário criado
+          description: Usuário criado (sempre como VIEWER)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/User' }
+        '400':
+          description: Payload inválido (inclui tentativa de enviar `role`)
         '409':
           description: E-mail já cadastrado
+        '429':
+          description: Limite de cadastros por IP atingido
     get:
       tags: [Users]
       summary: Listar usuários (ADMIN only)

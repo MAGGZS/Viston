@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Eye, FileSpreadsheet, SlidersHorizontal } from 'lucide-react';
@@ -13,6 +13,7 @@ import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { M, MPage, MTopBar, MRound, MCard, MStats, MButtonSoft, MButtonGhost } from '@/app/components/mobile/kit';
 import { Badge, Button, Modal } from '@/app/components/ui';
 import { useInspections, useCalendar, useMyBuildings, useBuildingHistory } from '@/app/hooks/useApi';
+import { useIsDesktop } from '@/app/hooks/useMediaQuery';
 import { parseReportDate } from '@/app/lib/date';
 import { useAuthStore } from '@/app/store/auth';
 
@@ -188,14 +189,7 @@ export default function HistoricoPage() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'ADMIN';
 
-  const [isDesktop, setIsDesktop] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 1024px)');
-    setIsDesktop(mq.matches);
-    const handler = e => setIsDesktop(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
+  const isDesktop = useIsDesktop();
 
   const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState(null);

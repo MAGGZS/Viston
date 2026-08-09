@@ -4,7 +4,7 @@ import { buildingRepository, auditRepository } from '../repositories/building.re
 import { generateInspectionExcel } from './excel.service';
 import { storageService } from './storage.service';
 import { SubmitInspectionPayload } from '../validators/inspection.validator';
-import { NotFoundError, ConflictError } from '../utils/errors';
+import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
 import { floorRank } from '../utils/floorOrder';
 
 export type CalendarDay = {
@@ -48,6 +48,18 @@ export function buildHeatmap(
   return heatmap;
 }
 
+export type Viewer = { id: string; role: string };
+
+/**
+ * O relatório só é visível a quem está vinculado ao prédio dele.
+ * ADMIN passa direto — administra todos os prédios.
+ */
+async function assertCanSeeReport(user: Viewer, buildingId: string) {
+  if (user.role === 'ADMIN') return;
+  const member = await buildingRepository.findMember(buildingId, user.id);
+  if (!member) throw new NotFoundError('Relatório');
+}
+
 /** Status do andar derivado da maior prioridade entre as ocorrências relatadas. */
 function deriveFloorStatus(records: Array<{ priority: string }>): FloorStatus {
   if (records.some((r) => r.priority === 'ALTA')) return FloorStatus.PROBLEMA;
@@ -86,9 +98,19 @@ export const inspectionService = {
    * O app segura os dados em memória até o envio final, então aqui não existe rascunho:
    * o relatório já nasce COMPLETED, com Excel, calendário e histórico.
    */
-  async submit(inspectorId: string, payload: SubmitInspectionPayload) {
+  async submit(
+    inspectorId: string,
+    payload: SubmitInspectionPayload,
+    inspectorRole: string = 'INSPECTOR'
+  ) {
     const building = await buildingRepository.findById(payload.building_id);
     if (!building) throw new NotFoundError('Prédio');
+
+    // Só ADMIN vistoria qualquer prédio; os demais precisam do vínculo.
+    if (inspectorRole !== 'ADMIN') {
+      const member = await buildingRepository.findMember(payload.building_id, inspectorId);
+      if (!member) throw new ForbiddenError('Você não tem acesso a este prédio');
+    }
 
     const floorIds = payload.floors.map((f) => f.floor_id);
     if (new Set(floorIds).size !== floorIds.length) {
@@ -149,12 +171,14 @@ export const inspectionService = {
   },
 
   /** Gera (ou refaz) a planilha de um relatório já concluído. */
-  async generateExcel(id: string, userId: string) {
+  async generateExcel(id: string, user: Viewer) {
     const report = await inspectionRepository.findById(id);
     if (!report) throw new NotFoundError('Relatório');
+    await assertCanSeeReport(user, report.building_id);
     if (report.status === InspectionStatus.IN_PROGRESS) {
       throw new ConflictError('Relatório ainda não foi concluído');
     }
+    const userId = user.id;
 
     const excelUrl = await buildAndStoreExcel(id, userId);
     return { excel_url: excelUrl };
@@ -188,16 +212,19 @@ export const inspectionService = {
     });
   },
 
-  async findAll(filters: {
-    page: number;
-    limit: number;
-    status?: InspectionStatus;
-    inspector_id?: string;
-    floor_id?: string;
-    date_from?: string;
-    date_to?: string;
-  }) {
-    const [inspections, total] = await inspectionRepository.findAll(filters);
+  async findAll(
+    filters: {
+      page: number;
+      limit: number;
+      status?: InspectionStatus;
+      inspector_id?: string;
+      floor_id?: string;
+      date_from?: string;
+      date_to?: string;
+    },
+    buildingIds: string[] | null
+  ) {
+    const [inspections, total] = await inspectionRepository.findAll({ ...filters, building_ids: buildingIds });
     return {
       inspections,
       total,
@@ -207,22 +234,27 @@ export const inspectionService = {
     };
   },
 
-  async findById(id: string) {
+  async findById(id: string, user: Viewer) {
     const report = await inspectionRepository.findById(id);
     if (!report || report.status === InspectionStatus.IN_PROGRESS) {
       throw new NotFoundError('Relatório');
     }
+    await assertCanSeeReport(user, report.building_id);
     return report;
   },
 
-  async getExcelUrl(id: string) {
+  async getExcelUrl(id: string, user: Viewer) {
     const report = await inspectionRepository.findById(id);
     if (!report) throw new NotFoundError('Relatório');
+    await assertCanSeeReport(user, report.building_id);
     if (!report.excel_url) throw new NotFoundError('Excel ainda não gerado para este relatório');
     return { excel_url: report.excel_url };
   },
 
-  async getCalendar(params: { month?: number; year?: number; range?: 'semestral' | 'anual' }) {
+  async getCalendar(
+    params: { month?: number; year?: number; range?: 'semestral' | 'anual' },
+    buildingIds: string[] | null
+  ) {
     const now = new Date();
     let dateFrom: Date;
     let dateTo: Date;
@@ -242,7 +274,7 @@ export const inspectionService = {
       dateTo = new Date(year, month + 1, 0, 23, 59, 59);
     }
 
-    const data = await inspectionRepository.getCalendarData(dateFrom, dateTo);
+    const data = await inspectionRepository.getCalendarData(dateFrom, dateTo, undefined, buildingIds);
     return { date_from: dateFrom, date_to: dateTo, heatmap: buildHeatmap(data) };
   },
 };
