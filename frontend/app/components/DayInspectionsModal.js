@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { X } from 'lucide-react';
@@ -13,11 +13,12 @@ import { useInspection } from '@/app/hooks/useApi';
  */
 export function DayInspectionsModal({ open, onClose, day, info }) {
   const reports = info?.reports ?? [];
-  const [selectedId, setSelectedId] = useState(null);
 
-  useEffect(() => {
-    if (open) setSelectedId(reports[0]?.id ?? null);
-  }, [open, day]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A seleção é derivada, não sincronizada por efeito: quando o dia muda, o id
+  // escolhido deixa de existir na lista e a prévia volta sozinha para o primeiro
+  // relatório — sem render em cascata.
+  const [pickedId, setPickedId] = useState(null);
+  const selectedId = reports.some((r) => r.id === pickedId) ? pickedId : reports[0]?.id ?? null;
 
   const { data: report, isLoading } = useInspection(open ? selectedId : null);
 
@@ -50,7 +51,7 @@ export function DayInspectionsModal({ open, onClose, day, info }) {
               {reports.map((r) => {
                 const active = r.id === selectedId;
                 return (
-                  <button key={r.id} onClick={() => setSelectedId(r.id)}
+                  <button key={r.id} onClick={() => setPickedId(r.id)}
                     style={{ padding: '8px 14px', borderRadius: 12, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: `1px solid ${active ? '#F5C518' : 'rgba(255,255,255,0.1)'}`, background: active ? 'rgba(245,197,24,0.1)' : 'rgba(255,255,255,0.04)', color: active ? '#F5C518' : 'rgba(255,255,255,0.6)' }}>
                     {r.inspector} · {format(new Date(r.finished_at), 'HH:mm')}
                   </button>
