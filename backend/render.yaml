@@ -6,12 +6,13 @@ services:
                      # Trocar para "oregon" se frankfurt não estiver disponível no seu plano
                      # Render regiões: oregon, frankfurt, singapore, ohio
     plan: free
-    # `npm ci` e não `npm install`: o install aceita um node_modules que já
-    # exista (o cache do Render), e quando esse cache tem versões diferentes das
-    # do package-lock o build quebra em erro de tipo. O ci apaga e reconstrói
-    # exatamente o que está no lockfile.
+    # `--include=dev` é obrigatório: NODE_ENV=production (logo abaixo) faz o npm
+    # pular as devDependencies, e é lá que moram `typescript` e os `@types/*`.
+    # Sem eles o import de express fica sem tipo e, como o tsconfig tem
+    # `noImplicitAny: false`, vira `any` calado — o build quebra com dezenas de
+    # "Property 'body' does not exist", longe da causa real.
     # `npm run build` já roda `prisma generate` — não precisa repetir.
-    buildCommand: npm ci && npm run build && npm run prisma:migrate:deploy
+    buildCommand: npm ci --include=dev && npm run build && npm run prisma:migrate:deploy
     startCommand: npm start
     envVars:
       - key: NODE_ENV
