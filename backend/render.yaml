@@ -6,7 +6,12 @@ services:
                      # Trocar para "oregon" se frankfurt não estiver disponível no seu plano
                      # Render regiões: oregon, frankfurt, singapore, ohio
     plan: free
-    buildCommand: npm install && npm run prisma:generate && npm run build && npm run prisma:migrate:deploy
+    # `npm ci` e não `npm install`: o install aceita um node_modules que já
+    # exista (o cache do Render), e quando esse cache tem versões diferentes das
+    # do package-lock o build quebra em erro de tipo. O ci apaga e reconstrói
+    # exatamente o que está no lockfile.
+    # `npm run build` já roda `prisma generate` — não precisa repetir.
+    buildCommand: npm ci && npm run build && npm run prisma:migrate:deploy
     startCommand: npm start
     envVars:
       - key: NODE_ENV
@@ -21,6 +26,8 @@ services:
         sync: false
       - key: SUPABASE_BUCKET_EXCEL
         value: viston-excel
+      - key: SUPABASE_BUCKET_PHOTOS
+        value: viston-photos
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
