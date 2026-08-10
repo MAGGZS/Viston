@@ -4,16 +4,18 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { LogOut, ArrowLeft, Building2 } from 'lucide-react';
+import { LogOut, ArrowLeft, Building2, ChevronRight, KeyRound, Pencil, Trash2, UserRound } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
+import { Avatar } from '@/app/components/Avatar';
+import { AvatarEditorModal } from '@/app/components/AvatarEditorModal';
+import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { Logo } from '@/app/components/Logo';
-import { M, MPage, MTopBar, MRound, MCard, MField, MButton, MButtonGhost, MSectionHead } from '@/app/components/mobile/kit';
+import { M, MPage, MRound, MField, MButton } from '@/app/components/mobile/kit';
 import { BottomNav } from '@/app/components/BottomNav';
 import { Button, Input, Card, Modal } from '@/app/components/ui';
 import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
-import { useUpdateMe, useChangePassword, useDeleteMe, useMyBuildings, useLeaveBuilding, useRequestAccess, useBuildingByKey } from '@/app/hooks/useApi';
-import { formatShareKey, normalizeShareKey, isCompleteShareKey } from '@/app/lib/shareKey';
+import { useUpdateMe, useChangePassword, useDeleteMe, useMyBuildings, useLeaveBuilding } from '@/app/hooks/useApi';
 import { T, R, W, HERO_SURFACE } from '@/app/lib/theme';
 
 const profileSchema = yup.object({
@@ -26,7 +28,94 @@ const passwordSchema = yup.object({
   new_password: yup.string().min(8, 'Mínimo 8 caracteres').required('Obrigatório'),
 });
 
-const ROLE_LABELS = { ADMIN: 'Administrador', INSPECTOR: 'Inspetor', VIEWER: 'Visualizador' };
+const ROLE_LABELS = { ADMIN: 'Administrador', GESTOR: 'Gestor', INSPECTOR: 'Inspetor', VIEWER: 'Visualizador' };
+
+/** Quem administra prédio não se vincula a prédio: a seção de chave não é dele. */
+function ownsBuildings(role) {
+  return role === 'ADMIN' || role === 'GESTOR';
+}
+
+/**
+ * Foto com o botão de troca por cima.
+ *
+ * O lápis fica no canto do círculo, e não numa linha à parte, porque é a foto
+ * que ele edita — separar os dois obriga a explicar por escrito o que a
+ * proximidade já diz.
+ */
+function EditableAvatar({ user, size, onEdit }) {
+  const badge = Math.round(size * 0.3);
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size }}>
+      <Avatar user={user} size={size} />
+      <button
+        onClick={onEdit}
+        aria-label="Trocar foto de perfil"
+        title="Trocar foto de perfil"
+        className="transition-transform duration-150 hover:scale-110"
+        style={{
+          position: 'absolute', right: 0, bottom: 0,
+          width: badge, height: badge, borderRadius: '50%',
+          background: T.chip, border: `2px solid ${T.bg}`, color: T.text,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+        }}
+      >
+        <Pencil size={Math.round(badge * 0.44)} />
+      </button>
+    </div>
+  );
+}
+
+// ── Peças do perfil no telefone ───────────────────────────────────────────────
+// A tela deixou de ser uma pilha de formulários abertos: os campos moram em
+// caixas, e o que fica à vista é só o que a pessoa é e para onde ela pode ir.
+// Formulário aberto ocupa altura mesmo sem ninguém precisar dele.
+
+/** Dado da conta que não se edita aqui — função e prédio. */
+function MobileTile({ label, value }) {
+  return (
+    <div style={{ background: M.card, borderRadius: 20, padding: '14px 16px', minWidth: 0 }}>
+      <p style={{
+        fontFamily: M.display, fontWeight: 600, fontSize: 15, color: M.text,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>
+        {value}
+      </p>
+      <p style={{ color: M.mute, fontSize: 12, marginTop: 3 }}>{label}</p>
+    </div>
+  );
+}
+
+function MobileGroup({ title }) {
+  return (
+    <p style={{ color: M.mute, fontSize: 13, margin: '22px 0 8px 4px' }}>{title}</p>
+  );
+}
+
+/** Linha que abre alguma coisa. Alvo de 56px, que é o mínimo confortável. */
+function MobileRow({ icon: Icon, label, hint, tone, onClick }) {
+  const color = tone === 'danger' ? M.danger : M.text;
+  return (
+    <button
+      onClick={onClick}
+      className="transition-colors duration-150"
+      style={{
+        width: '100%', minHeight: 56, background: M.card, border: 'none', borderRadius: 20,
+        padding: '0 16px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer',
+        textAlign: 'left', marginBottom: 8,
+      }}
+    >
+      <Icon size={18} color={color} strokeWidth={1.8} style={{ flexShrink: 0 }} />
+      <span style={{ flex: 1, minWidth: 0, fontSize: 15, color }}>{label}</span>
+      {hint && (
+        <span style={{ color: M.faint, fontSize: 13, maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {hint}
+        </span>
+      )}
+      <ChevronRight size={18} color={M.faint} style={{ flexShrink: 0 }} />
+    </button>
+  );
+}
 
 // Tokens do desktop desta tela — os mesmos do produto.
 const DS = {
@@ -44,21 +133,16 @@ const DS = {
  * Único cartão do produto com gradiente — cinco pontos de luminância, só para
  * dar volume. Sem brilho, sem borda dourada, sem sombra.
  */
-function Credential({ user, building }) {
+function Credential({ user, building, onEditAvatar }) {
+  const ownerLabel = user?.role === 'GESTOR' ? 'Os que você criou' : 'Todos os prédios';
   const rows = [
     ['Função', ROLE_LABELS[user?.role] || user?.role || '—'],
-    ['Prédio', building?.name ?? (user?.role === 'ADMIN' ? 'Todos os prédios' : 'Sem vínculo')],
+    ['Prédio', building?.name ?? (ownsBuildings(user?.role) ? ownerLabel : 'Sem vínculo')],
   ];
 
   return (
     <div style={{ position: 'sticky', top: 108, background: DS.panel, borderRadius: R.card, padding: 22 }}>
-      <div style={{
-        width: 56, height: 56, borderRadius: '50%', background: T.accent, color: T.onAccent,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: T.display, fontWeight: W.title, fontSize: 22,
-      }}>
-        {user?.name?.[0]?.toUpperCase() ?? '—'}
-      </div>
+      <EditableAvatar user={user} size={56} onEdit={onEditAvatar} />
 
       <p style={{ fontFamily: T.display, fontWeight: W.title, fontSize: 19, lineHeight: 1.2, letterSpacing: '-0.015em', marginTop: 15, color: T.text }}>
         {user?.name ?? ''}
@@ -87,6 +171,90 @@ function Credential({ user, building }) {
   );
 }
 
+/**
+ * As duas árvores da tela (desktop e mobile) ficam no DOM ao mesmo tempo — quem
+ * esconde uma delas é o CSS. Por isso cada uma precisa da própria instância de
+ * `useForm`: registrando o mesmo campo duas vezes, o react-hook-form guarda a
+ * referência do último input montado (o da árvore escondida) e é de lá que ele
+ * lê o valor a cada digitação. Quem editava pelo desktop enviava sempre o valor
+ * antigo — era o que travava a troca de nome do visualizador, que só entra pelo
+ * desktop.
+ */
+function IdentityForm({ variant, user }) {
+  const isMobile = variant === 'mobile';
+  const Field = isMobile ? MField : Input;
+  const setUser = useAuthStore((s) => s.setUser);
+  const { show: toast } = useToastStore();
+  const updateMe = useUpdateMe();
+
+  const form = useForm({
+    resolver: yupResolver(profileSchema),
+    // `values` e não `defaultValues`: o usuário chega depois da primeira
+    // renderização, e os campos precisam acompanhar quando ele chegar.
+    values: { name: user?.name ?? '', email: user?.email ?? '' },
+  });
+
+  async function onSubmit(data) {
+    try {
+      const updated = await updateMe.mutateAsync(data);
+      setUser(updated);
+      toast('Perfil atualizado!', 'success');
+    } catch (e) {
+      toast(e?.response?.data?.error?.message || 'Erro ao atualizar', 'error');
+    }
+  }
+
+  return (
+    <form
+      onSubmit={form.handleSubmit(onSubmit)}
+      style={{ display: 'flex', flexDirection: 'column', gap: 14, ...(isMobile ? {} : { maxWidth: 420 }) }}
+    >
+      <Field label="Nome" error={form.formState.errors.name?.message} {...form.register('name')} />
+      <Field label="E-mail" type="email" error={form.formState.errors.email?.message} {...form.register('email')} />
+      {isMobile ? (
+        <MButton type="submit" loading={updateMe.isPending} style={{ width: '100%' }}>Salvar alterações</MButton>
+      ) : (
+        <Button type="submit" loading={updateMe.isPending} style={{ alignSelf: 'flex-start' }}>Salvar alterações</Button>
+      )}
+    </form>
+  );
+}
+
+/** Troca de senha. Instância própria por árvore, pelo mesmo motivo do IdentityForm. */
+function PasswordForm({ variant }) {
+  const isMobile = variant === 'mobile';
+  const Field = isMobile ? MField : Input;
+  const { show: toast } = useToastStore();
+  const changePassword = useChangePassword();
+
+  const form = useForm({ resolver: yupResolver(passwordSchema) });
+
+  async function onSubmit(data) {
+    try {
+      await changePassword.mutateAsync(data);
+      form.reset();
+      toast('Senha alterada com sucesso!', 'success');
+    } catch (e) {
+      toast(e?.response?.data?.error?.message || 'Senha atual incorreta', 'error');
+    }
+  }
+
+  return (
+    <form
+      onSubmit={form.handleSubmit(onSubmit)}
+      style={{ display: 'flex', flexDirection: 'column', gap: 14, ...(isMobile ? {} : { maxWidth: 420 }) }}
+    >
+      <Field label="Senha atual" type="password" error={form.formState.errors.current_password?.message} {...form.register('current_password')} />
+      <Field label="Nova senha" type="password" error={form.formState.errors.new_password?.message} {...form.register('new_password')} />
+      {isMobile ? (
+        <MButton type="submit" loading={changePassword.isPending} style={{ width: '100%' }}>Alterar senha</MButton>
+      ) : (
+        <Button type="submit" loading={changePassword.isPending} style={{ alignSelf: 'flex-start' }}>Alterar senha</Button>
+      )}
+    </form>
+  );
+}
+
 /** Linha da folha de dados: rótulo à esquerda, controles à direita, filete entre elas. */
 function SpecRow({ label, hint, children }) {
   return (
@@ -101,83 +269,28 @@ function SpecRow({ label, hint, children }) {
 }
 
 export default function PerfilPage() {
-  const { user, setUser, logout } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const { show: toast } = useToastStore();
   const router = useRouter();
   const [deleteModal, setDeleteModal] = useState(false);
+  // Qual caixa do telefone está aberta: 'identity' | 'password' | 'building'
+  const [sheet, setSheet] = useState(null);
+  const [avatarModal, setAvatarModal] = useState(false);
 
-  const updateMe = useUpdateMe();
-  const changePassword = useChangePassword();
   const deleteMe = useDeleteMe();
   const leaveBuilding = useLeaveBuilding();
-  const requestAccess = useRequestAccess();
 
   const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
   const hasBuilding = myBuildings.length > 0;
   const myBuilding = myBuildings[0];
 
-  const [newBuildingKey, setNewBuildingKey] = useState('');
-  const [searchBuildingKey, setSearchBuildingKey] = useState('');
-  const [accessRequested, setAccessRequested] = useState(false);
-  const { data: searchedBuilding, isLoading: searchLoading, error: searchError } = useBuildingByKey(searchBuildingKey);
-
   async function handleLeave() {
     if (!confirm('Tem certeza que deseja sair deste prédio?')) return;
     try {
       await leaveBuilding.mutateAsync(myBuilding.id);
-      setNewBuildingKey('');
-      setSearchBuildingKey('');
-      setAccessRequested(false);
       toast('Você saiu do prédio', 'info');
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao sair do prédio', 'error');
-    }
-  }
-
-  function handleSearchBuilding() {
-    const key = normalizeShareKey(newBuildingKey);
-    if (!isCompleteShareKey(key)) {
-      toast('Chave inválida. Ela tem 12 caracteres.', 'error');
-      return;
-    }
-    setSearchBuildingKey(key);
-    setAccessRequested(false);
-  }
-
-  async function handleRequestAccess() {
-    try {
-      await requestAccess.mutateAsync(searchBuildingKey);
-      setAccessRequested(true);
-      toast('Solicitação enviada! Aguarde a aprovação.', 'success');
-    } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao solicitar acesso', 'error');
-    }
-  }
-
-  const profileForm = useForm({
-    resolver: yupResolver(profileSchema),
-    defaultValues: { name: user?.name || '', email: user?.email || '' },
-  });
-
-  const passwordForm = useForm({ resolver: yupResolver(passwordSchema) });
-
-  async function onProfileSubmit(data) {
-    try {
-      const updated = await updateMe.mutateAsync(data);
-      setUser(updated);
-      toast('Perfil atualizado!', 'success');
-    } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao atualizar', 'error');
-    }
-  }
-
-  async function onPasswordSubmit(data) {
-    try {
-      await changePassword.mutateAsync(data);
-      passwordForm.reset();
-      toast('Senha alterada com sucesso!', 'success');
-    } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Senha atual incorreta', 'error');
     }
   }
 
@@ -193,7 +306,7 @@ export default function PerfilPage() {
 
   // `bare` remove o cartão: no desktop a seção vive dentro da folha de dados
   function BuildingSection({ bare = false }) {
-    if (user?.role === 'ADMIN') return null;
+    if (ownsBuildings(user?.role)) return null;
 
     const content = (
       <>
@@ -216,34 +329,7 @@ export default function PerfilPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 13 }}>Você não está vinculado a nenhum prédio.</p>
-            {!accessRequested ? (
-              <>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    style={{ flex: 1, background: '#232323', borderRadius: 16, padding: '11px 14px', color: 'rgba(255,255,255,0.96)', fontSize: 13, outline: 'none', fontWeight: 600, letterSpacing: '0.18em' }}
-                    placeholder="ABCD-EFGH-JKMN"
-                    maxLength={14}
-                    value={newBuildingKey}
-                    onChange={e => setNewBuildingKey(formatShareKey(e.target.value))}
-                    onKeyDown={e => e.key === 'Enter' && handleSearchBuilding()}
-                  />
-                  <Button variant="secondary" onClick={handleSearchBuilding}>Buscar</Button>
-                </div>
-                {searchLoading && <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 13 }}>Buscando...</p>}
-                {searchError && <p style={{ color: '#f87171', fontSize: 13 }}>Chave inválida ou prédio não encontrado</p>}
-                {searchedBuilding && (
-                  <div style={{ background: '#232323', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14 }}>{searchedBuilding.name}</p>
-                    <Button onClick={handleRequestAccess} loading={requestAccess.isPending} style={{ fontSize: 12, padding: '6px 14px' }}>Conectar-se</Button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 14, padding: 14, textAlign: 'center' }}>
-                <p style={{ color: '#4ade80', fontWeight: 600, fontSize: 14 }}>Solicitação enviada!</p>
-                <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 12, marginTop: 4 }}>Aguarde a aprovação do administrador.</p>
-              </div>
-            )}
+            <JoinBuildingForm />
           </div>
         )}
       </>
@@ -279,7 +365,7 @@ export default function PerfilPage() {
         </header>
 
         <div style={{ maxWidth: 1060, margin: '0 auto', padding: '48px 32px 80px', display: 'grid', gridTemplateColumns: '320px 1fr', gap: 48, alignItems: 'start' }}>
-          <Credential user={user} building={myBuilding} />
+          <Credential user={user} building={myBuilding} onEditAvatar={() => setAvatarModal(true)} />
 
           <div>
             <h1 style={{ fontFamily: 'var(--font-poppins), sans-serif', fontWeight: 900, fontSize: 30, color: 'rgba(255,255,255,0.94)', letterSpacing: '-0.01em' }}>
@@ -291,22 +377,14 @@ export default function PerfilPage() {
 
             <div style={{ marginTop: 36 }}>
               <SpecRow label="Identificação" hint="Nome e e-mail que assinam suas vistorias">
-                <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 420 }}>
-                  <Input label="Nome" error={profileForm.formState.errors.name?.message} {...profileForm.register('name')} />
-                  <Input label="E-mail" type="email" error={profileForm.formState.errors.email?.message} {...profileForm.register('email')} />
-                  <Button type="submit" loading={updateMe.isPending} style={{ alignSelf: 'flex-start' }}>Salvar alterações</Button>
-                </form>
+                <IdentityForm variant="desktop" user={user} />
               </SpecRow>
 
               <SpecRow label="Senha" hint="Mínimo de 8 caracteres">
-                <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 420 }}>
-                  <Input label="Senha atual" type="password" error={passwordForm.formState.errors.current_password?.message} {...passwordForm.register('current_password')} />
-                  <Input label="Nova senha" type="password" error={passwordForm.formState.errors.new_password?.message} {...passwordForm.register('new_password')} />
-                  <Button type="submit" loading={changePassword.isPending} style={{ alignSelf: 'flex-start' }}>Alterar senha</Button>
-                </form>
+                <PasswordForm variant="desktop" />
               </SpecRow>
 
-              {user?.role !== 'ADMIN' && (
+              {!ownsBuildings(user?.role) && (
                 <SpecRow label="Prédio" hint="O prédio que você vistoria">
                   <div style={{ maxWidth: 460 }}>{BuildingSection({ bare: true })}</div>
                 </SpecRow>
@@ -331,66 +409,84 @@ export default function PerfilPage() {
       {/* ── MOBILE ── */}
       <div className="lg:hidden">
         <MPage>
-          <MTopBar
-            title="Perfil"
-            avatar={
-              <div style={{ width: 44, height: 44, borderRadius: '50%', background: M.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: M.display, fontWeight: 600, fontSize: 18, color: '#000' }}>
-                {user?.name?.[0]?.toUpperCase()}
-              </div>
-            }
-            actions={
-              <MRound label="Sair" onClick={() => { logout(); router.replace('/login'); }}>
-                <LogOut size={17} />
-              </MRound>
-            }
-          />
+          {/* Mesmo respiro do topo que o MTopBar dá nas outras telas mobile —
+              sem ele o botão encosta na barra de status do telefone. */}
+          <div style={{ display: 'flex', alignItems: 'center', padding: '52px 0 4px' }}>
+            <MRound label="Voltar" onClick={() => router.back()}>
+              <ArrowLeft size={18} />
+            </MRound>
+          </div>
 
-          <MCard style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 18, color: M.text }}>{user?.name}</p>
-            <p style={{ color: M.mute, fontSize: 13 }}>{user?.email}</p>
-            <span style={{ alignSelf: 'flex-start', marginTop: 10, background: M.accentSoft, color: M.accent, fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 10 }}>
-              {ROLE_LABELS[user?.role] || user?.role}
-            </span>
-          </MCard>
+          {/* Quem é a pessoa, no centro e sem concorrência */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '18px 0 26px' }}>
+            <EditableAvatar user={user} size={88} onEdit={() => setAvatarModal(true)} />
+            <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 21, color: M.text, marginTop: 16 }}>
+              {user?.name}
+            </p>
+            <p style={{ color: M.mute, fontSize: 13, marginTop: 4, wordBreak: 'break-all' }}>
+              {user?.email}
+            </p>
+          </div>
 
-          <MSectionHead title="Identificação" />
-          <MCard>
-            <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <MField label="Nome" error={profileForm.formState.errors.name?.message} {...profileForm.register('name')} />
-              <MField label="E-mail" type="email" error={profileForm.formState.errors.email?.message} {...profileForm.register('email')} />
-              <MButton type="submit" loading={updateMe.isPending} style={{ width: '100%' }}>Salvar alterações</MButton>
-            </form>
-          </MCard>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <MobileTile label="Função" value={ROLE_LABELS[user?.role] || user?.role || '—'} />
+            <MobileTile
+              label="Prédio"
+              value={myBuilding?.name ?? (ownsBuildings(user?.role) ? 'Todos os seus' : 'Sem vínculo')}
+            />
+          </div>
 
-          <MSectionHead title="Senha" />
-          <MCard>
-            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <MField label="Senha atual" type="password" error={passwordForm.formState.errors.current_password?.message} {...passwordForm.register('current_password')} />
-              <MField label="Nova senha" type="password" error={passwordForm.formState.errors.new_password?.message} {...passwordForm.register('new_password')} />
-              <MButton type="submit" loading={changePassword.isPending} style={{ width: '100%' }}>Alterar senha</MButton>
-            </form>
-          </MCard>
-
-          {user?.role !== 'ADMIN' && (
-            <>
-              <MSectionHead title="Prédio" />
-              <MCard>{BuildingSection({ bare: true })}</MCard>
-            </>
+          <MobileGroup title="Conta" />
+          <MobileRow icon={UserRound} label="Identificação" onClick={() => setSheet('identity')} />
+          {!ownsBuildings(user?.role) && (
+            <MobileRow
+              icon={Building2}
+              label="Prédio"
+              hint={hasBuilding ? myBuilding?.name : 'Sem vínculo'}
+              onClick={() => setSheet('building')}
+            />
           )}
 
-          <MSectionHead title="Excluir conta" />
-          <MCard>
-            <p style={{ color: M.mute, fontSize: 13, lineHeight: 1.6 }}>
-              Seu acesso é encerrado na hora. As vistorias que você registrou continuam no histórico do prédio, sem o seu nome.
-            </p>
-            <MButtonGhost tone="danger" onClick={() => setDeleteModal(true)} style={{ width: '100%', marginTop: 14 }}>
-              Excluir conta
-            </MButtonGhost>
-          </MCard>
+          <MobileGroup title="Segurança" />
+          <MobileRow icon={KeyRound} label="Alterar senha" onClick={() => setSheet('password')} />
 
-          <BottomNav />
+          <MobileGroup title="Zona de risco" />
+          <MobileRow icon={Trash2} label="Excluir conta" tone="danger" onClick={() => setDeleteModal(true)} />
+
+          <button
+            onClick={() => { logout(); router.replace('/login'); }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none',
+              cursor: 'pointer', color: M.danger, fontSize: 15, fontWeight: 500,
+              padding: '22px 4px 8px',
+            }}
+          >
+            <LogOut size={18} strokeWidth={1.8} /> Sair
+          </button>
+
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 18 }}>
+            <Logo size={13} style={{ color: M.faint, WebkitTextStroke: '0px' }} />
+          </div>
+
+          {/* O gestor não tem home nem histórico próprios: a barra não é dele. */}
+          {user?.role !== 'GESTOR' && <BottomNav />}
         </MPage>
       </div>
+
+      <AvatarEditorModal open={avatarModal} onClose={() => setAvatarModal(false)} />
+
+      {/* As caixas do telefone: cada linha da lista abre a sua */}
+      <Modal open={sheet === 'identity'} onClose={() => setSheet(null)} title="Identificação">
+        <IdentityForm variant="mobile" user={user} />
+      </Modal>
+
+      <Modal open={sheet === 'password'} onClose={() => setSheet(null)} title="Alterar senha">
+        <PasswordForm variant="mobile" />
+      </Modal>
+
+      <Modal open={sheet === 'building'} onClose={() => setSheet(null)} title="Prédio vinculado">
+        {BuildingSection({ bare: true })}
+      </Modal>
 
       <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Excluir conta">
         <p className="text-white/40 text-sm mb-6">

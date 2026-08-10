@@ -47,7 +47,15 @@ export default function LoginPage() {
     <AuthShell
       title="Entrar"
       subtitle="Acesse as vistorias do prédio em que você trabalha."
-      footer={<p style={S.footer}>Não tem conta?{' '}<a href="/register" style={S.link}>Criar conta</a></p>}
+      footer={
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <p style={S.footer}>Não tem conta?{' '}<a href="/register" style={S.link}>Criar conta</a></p>
+          <p style={S.footer}>
+            Vai administrar um prédio?{' '}
+            <a href="/register/gestor" style={S.link}>Cadastre-se como gestor</a>
+          </p>
+        </div>
+      }
     >
       <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={S.field}>

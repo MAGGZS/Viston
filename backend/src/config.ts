@@ -22,6 +22,7 @@ export const config = {
     url: required('SUPABASE_URL'),
     serviceRoleKey: required('SUPABASE_SERVICE_ROLE_KEY'),
     bucketExcel: process.env.SUPABASE_BUCKET_EXCEL || 'viston-excel',
+    bucketPhotos: process.env.SUPABASE_BUCKET_PHOTOS || 'viston-photos',
   },
 
   jwt: {

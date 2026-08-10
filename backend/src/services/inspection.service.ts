@@ -4,8 +4,10 @@ import { buildingRepository, auditRepository } from '../repositories/building.re
 import { generateInspectionExcel } from './excel.service';
 import { storageService } from './storage.service';
 import { SubmitInspectionPayload } from '../validators/inspection.validator';
+import { isBuildingManager } from '../middlewares/buildingAccess';
 import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
 import { floorRank } from '../utils/floorOrder';
+import { zonedDateOnly, zonedDayKey, zonedParts, zonedRange } from '../utils/timezone';
 
 export type CalendarDay = {
   count: number;
@@ -16,6 +18,9 @@ export type CalendarDay = {
 /**
  * Agrupa as vistorias por dia de conclusão.
  * Cada dia leva os relatórios do dia para o app abrir a prévia e a planilha.
+ *
+ * O dia é o do calendário local (ver utils/timezone): agrupar pelo dia UTC
+ * jogava tudo que foi enviado depois das 21h para o dia seguinte.
  */
 export function buildHeatmap(
   data: Array<{
@@ -29,7 +34,7 @@ export function buildHeatmap(
 
   for (const item of data) {
     if (!item.finished_at) continue;
-    const day = item.finished_at.toISOString().split('T')[0];
+    const day = zonedDayKey(item.finished_at);
     if (!heatmap[day]) heatmap[day] = { count: 0, inspectors: [], reports: [] };
 
     const inspectorName = item.inspector?.name ?? 'Usuário removido';
@@ -52,10 +57,16 @@ export type Viewer = { id: string; role: string };
 
 /**
  * O relatório só é visível a quem está vinculado ao prédio dele.
- * ADMIN passa direto — administra todos os prédios.
+ * Quem administra o prédio (ADMIN, ou o gestor que o criou) passa direto.
  */
 async function assertCanSeeReport(user: Viewer, buildingId: string) {
   if (user.role === 'ADMIN') return;
+
+  if (user.role === 'GESTOR') {
+    const building = await buildingRepository.findById(buildingId);
+    if (building && isBuildingManager(user, building)) return;
+  }
+
   const member = await buildingRepository.findMember(buildingId, user.id);
   if (!member) throw new NotFoundError('Relatório');
 }
@@ -67,25 +78,27 @@ function deriveFloorStatus(records: Array<{ priority: string }>): FloorStatus {
   return FloorStatus.OK;
 }
 
+type FullReport = NonNullable<Awaited<ReturnType<typeof inspectionRepository.findById>>>;
+
 /**
  * Gera a planilha do relatório, sobe para o storage e grava a URL.
  * Usado no envio da vistoria e na regeração manual quando o upload falhou.
+ *
+ * Recebe o relatório já carregado: quem chama sempre acabou de lê-lo (ou de
+ * criá-lo), então buscar de novo aqui seria uma ida ao banco a mais.
  */
-async function buildAndStoreExcel(reportId: string, userId?: string) {
-  const report = await inspectionRepository.findById(reportId);
-  if (!report) throw new NotFoundError('Relatório');
-
+async function buildAndStoreExcel(report: FullReport, userId?: string) {
   const buffer = await generateInspectionExcel(
     report as Parameters<typeof generateInspectionExcel>[0]
   );
-  const excelUrl = await storageService.uploadExcel(reportId, buffer);
-  await inspectionRepository.update(reportId, { excel_url: excelUrl });
+  const excelUrl = await storageService.uploadExcel(report.id, buffer);
+  await inspectionRepository.update(report.id, { excel_url: excelUrl });
 
   await auditRepository.log({
     user_id: userId,
     action: AuditAction.GENERATE_EXCEL,
     entity: 'InspectionReport',
-    entity_id: reportId,
+    entity_id: report.id,
     metadata: { excel_url: excelUrl },
   });
 
@@ -106,8 +119,8 @@ export const inspectionService = {
     const building = await buildingRepository.findById(payload.building_id);
     if (!building) throw new NotFoundError('Prédio');
 
-    // Só ADMIN vistoria qualquer prédio; os demais precisam do vínculo.
-    if (inspectorRole !== 'ADMIN') {
+    // Quem administra o prédio vistoria sem vínculo; os demais precisam dele.
+    if (!isBuildingManager({ id: inspectorId, role: inspectorRole }, building)) {
       const member = await buildingRepository.findMember(payload.building_id, inspectorId);
       if (!member) throw new ForbiddenError('Você não tem acesso a este prédio');
     }
@@ -144,7 +157,9 @@ export const inspectionService = {
     const report = await inspectionRepository.createCompleted({
       inspector_id: inspectorId,
       building_id: payload.building_id,
-      date: now,
+      // `date` é coluna DATE: precisa ser o dia do calendário de quem vistoriou,
+      // não o dia UTC do servidor (senão o envio da noite cai no dia seguinte).
+      date: zonedDateOnly(now),
       started_at: now,
       finished_at: now,
       floors: submissions,
@@ -160,14 +175,14 @@ export const inspectionService = {
 
     // Gerar Excel e fazer upload (síncrono — bloqueia a resposta)
     try {
-      await buildAndStoreExcel(report.id, inspectorId);
+      const excelUrl = await buildAndStoreExcel(report, inspectorId);
+      return { ...report, excel_url: excelUrl };
     } catch (err) {
       console.error('[Excel] Falha na geração:', err);
       // Não bloqueia o envio — relatório fica COMPLETED sem excel_url
       // e a planilha pode ser gerada depois em POST /inspections/:id/excel
+      return report;
     }
-
-    return inspectionRepository.findById(report.id);
   },
 
   /** Gera (ou refaz) a planilha de um relatório já concluído. */
@@ -178,19 +193,23 @@ export const inspectionService = {
     if (report.status === InspectionStatus.IN_PROGRESS) {
       throw new ConflictError('Relatório ainda não foi concluído');
     }
-    const userId = user.id;
 
-    const excelUrl = await buildAndStoreExcel(id, userId);
+    const excelUrl = await buildAndStoreExcel(report, user.id);
     return { excel_url: excelUrl };
   },
 
   /**
-   * Descarta uma vistoria (só ADMIN). Andares e ocorrências saem em cascata
-   * e a planilha é removida do storage.
+   * Descarta uma vistoria (só quem administra o prédio). Andares e ocorrências
+   * saem em cascata e a planilha é removida do storage.
    */
-  async remove(id: string, userId: string) {
+  async remove(id: string, user: Viewer) {
     const report = await inspectionRepository.findById(id);
     if (!report) throw new NotFoundError('Relatório');
+
+    const building = await buildingRepository.findById(report.building_id);
+    if (!building || !isBuildingManager(user, building)) {
+      throw new ForbiddenError('Apenas o gestor do prédio pode descartar a vistoria');
+    }
 
     if (report.excel_url) {
       try {
@@ -204,7 +223,7 @@ export const inspectionService = {
     await inspectionRepository.delete(id);
 
     await auditRepository.log({
-      user_id: userId,
+      user_id: user.id,
       action: AuditAction.DELETE,
       entity: 'InspectionReport',
       entity_id: id,
@@ -255,26 +274,27 @@ export const inspectionService = {
     params: { month?: number; year?: number; range?: 'semestral' | 'anual' },
     buildingIds: string[] | null
   ) {
-    const now = new Date();
-    let dateFrom: Date;
-    let dateTo: Date;
+    // Os limites são do calendário local: o mês fecha às 23:59 do fuso do
+    // usuário, não do UTC — senão a última noite do mês some da contagem.
+    const today = zonedParts();
+    let range: { start: Date; end: Date };
 
     if (params.range === 'anual') {
-      dateFrom = new Date(now.getFullYear(), 0, 1);
-      dateTo = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+      range = zonedRange(today.year, 0, 12);
     } else if (params.range === 'semestral') {
-      const month = now.getMonth();
-      const halfStart = month < 6 ? 0 : 6;
-      dateFrom = new Date(now.getFullYear(), halfStart, 1);
-      dateTo = new Date(now.getFullYear(), halfStart + 6, 0, 23, 59, 59);
+      range = zonedRange(today.year, today.monthIndex < 6 ? 0 : 6, 6);
     } else {
-      const year = params.year ?? now.getFullYear();
-      const month = (params.month ?? now.getMonth() + 1) - 1;
-      dateFrom = new Date(year, month, 1);
-      dateTo = new Date(year, month + 1, 0, 23, 59, 59);
+      const year = params.year ?? today.year;
+      const monthIndex = (params.month ?? today.monthIndex + 1) - 1;
+      range = zonedRange(year, monthIndex, 1);
     }
 
-    const data = await inspectionRepository.getCalendarData(dateFrom, dateTo, undefined, buildingIds);
-    return { date_from: dateFrom, date_to: dateTo, heatmap: buildHeatmap(data) };
+    const data = await inspectionRepository.getCalendarData(
+      range.start,
+      range.end,
+      undefined,
+      buildingIds
+    );
+    return { date_from: range.start, date_to: range.end, heatmap: buildHeatmap(data) };
   },
 };

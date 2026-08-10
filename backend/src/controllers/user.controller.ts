@@ -9,6 +9,11 @@ export const userController = {
     created(res, user);
   },
 
+  async createManager(req: AuthenticatedRequest, res: Response) {
+    const user = await userService.createManager(req.body);
+    created(res, user);
+  },
+
   async findAll(req: AuthenticatedRequest, res: Response) {
     const page = parseInt(String(req.query.page ?? '1'), 10);
     const limit = parseInt(String(req.query.limit ?? '20'), 10);
@@ -33,6 +38,16 @@ export const userController = {
 
   async updateMe(req: AuthenticatedRequest, res: Response) {
     const user = await userService.updateMe(req.user.id, req.body);
+    ok(res, user);
+  },
+
+  async updateAvatar(req: AuthenticatedRequest, res: Response) {
+    const user = await userService.updateAvatar(req.user.id, req.body.image);
+    ok(res, user);
+  },
+
+  async removeAvatar(req: AuthenticatedRequest, res: Response) {
+    const user = await userService.removeAvatar(req.user.id);
     ok(res, user);
   },
 

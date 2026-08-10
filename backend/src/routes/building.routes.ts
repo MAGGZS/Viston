@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { buildingController } from '../controllers/building.controller';
 import { authenticate } from '../middlewares/authenticate';
 import { authorize } from '../middlewares/authorize';
-import { requireBuildingMember } from '../middlewares/buildingAccess';
+import { requireBuildingManager, requireBuildingMember } from '../middlewares/buildingAccess';
 import { validate } from '../middlewares/validate';
 import { sensitiveLimiter } from '../middlewares/rateLimit';
 import {
@@ -11,38 +11,58 @@ import {
   createFloorSchema,
   reviewAccessRequestSchema,
   updateBuildingSchema,
+  updateMemberRoleSchema,
 } from '../validators/auth.validator';
 
 const router = Router();
 
 const auth = authenticate as any;
 const adminOnly = authorize('ADMIN') as any;
-const anyRole = authorize('ADMIN', 'INSPECTOR', 'VIEWER') as any;
-// Leitura de dados do prédio exige vínculo (ADMIN passa direto)
+// Quem pode ser dono de prédio. Só ser GESTOR não basta: as rotas com :id ainda
+// passam por `manager`, que exige ser o gestor daquele prédio.
+const managerRoles = authorize('ADMIN', 'GESTOR') as any;
+const anyRole = authorize('ADMIN', 'GESTOR', 'INSPECTOR', 'VIEWER') as any;
+// Administração do prédio (edição, andares, membros, solicitações)
+const manager = requireBuildingManager() as any;
+// Leitura de dados do prédio exige vínculo (quem administra passa direto)
 const member = requireBuildingMember() as any;
 
-// ── CRUD (admin) ──────────────────────────────────────────────────────────────
+// ── Listagens (antes de qualquer rota com :id) ────────────────────────────────
 router.get('/', auth, adminOnly, buildingController.findAll as any);
+// Painel do admin: números do sistema inteiro
+router.get('/stats', auth, adminOnly, buildingController.getStats as any);
+// Tela inicial do gestor: os prédios que ele criou
+router.get('/managed', auth, managerRoles, buildingController.managedBuildings as any);
 router.get('/me', auth, anyRole, buildingController.myBuildings as any);
-// Busca por chave de compartilhamento (antes de qualquer rota com :id)
+// Busca por chave de compartilhamento
 router.get('/lookup', auth, anyRole, sensitiveLimiter, buildingController.lookupByKey as any);
-router.post('/', auth, adminOnly, validate(createBuildingSchema), buildingController.create as any);
-router.patch('/:id', auth, adminOnly, validate(updateBuildingSchema), buildingController.update as any);
-router.delete('/:id', auth, adminOnly, buildingController.remove as any);
+
+// ── CRUD (gestor do prédio) ───────────────────────────────────────────────────
+router.post('/', auth, managerRoles, validate(createBuildingSchema), buildingController.create as any);
+router.patch('/:id', auth, managerRoles, manager, validate(updateBuildingSchema), buildingController.update as any);
+router.delete('/:id', auth, managerRoles, manager, buildingController.remove as any);
 
 // ── Andares ───────────────────────────────────────────────────────────────────
 router.get('/:id/floors', auth, anyRole, member, buildingController.getFloors as any);
-router.post('/:id/floors', auth, adminOnly, validate(createFloorSchema), buildingController.createFloor as any);
-router.delete('/:id/floors/:floorId', auth, adminOnly, buildingController.deleteFloor as any);
+router.post('/:id/floors', auth, managerRoles, manager, validate(createFloorSchema), buildingController.createFloor as any);
+router.delete('/:id/floors/:floorId', auth, managerRoles, manager, buildingController.deleteFloor as any);
 
 // ── Dashboard e histórico ─────────────────────────────────────────────────────
 router.get('/:id/dashboard', auth, anyRole, member, buildingController.getDashboard as any);
 router.get('/:id/history', auth, anyRole, member, buildingController.getHistory as any);
 
 // ── Membros ───────────────────────────────────────────────────────────────────
-router.get('/:id/members', auth, adminOnly, buildingController.getMembers as any);
+router.get('/:id/members', auth, managerRoles, manager, buildingController.getMembers as any);
 router.delete('/:id/members/me', auth, anyRole, buildingController.leaveBuilding as any);
-router.delete('/:id/members/:userId', auth, adminOnly, buildingController.removeMember as any);
+router.patch(
+  '/:id/members/:userId',
+  auth,
+  managerRoles,
+  manager,
+  validate(updateMemberRoleSchema),
+  buildingController.updateMemberRole as any
+);
+router.delete('/:id/members/:userId', auth, managerRoles, manager, buildingController.removeMember as any);
 
 // ── Solicitações de acesso ────────────────────────────────────────────────────
 // Vínculo é feito pela chave de compartilhamento, nunca pelo id do prédio
@@ -54,11 +74,12 @@ router.post(
   validate(accessRequestSchema),
   buildingController.requestAccess as any
 );
-router.get('/:id/access-requests', auth, adminOnly, buildingController.getAccessRequests as any);
+router.get('/:id/access-requests', auth, managerRoles, manager, buildingController.getAccessRequests as any);
 router.patch(
   '/:id/access-requests/:requestId',
   auth,
-  adminOnly,
+  managerRoles,
+  manager,
   validate(reviewAccessRequestSchema),
   buildingController.reviewAccessRequest as any
 );

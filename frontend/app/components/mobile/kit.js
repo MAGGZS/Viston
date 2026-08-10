@@ -154,21 +154,22 @@ export function MField({ label, error, style = {}, ...props }) {
   );
 }
 
-/** Lista suspensa do formulário de vistoria. */
+/**
+ * Lista suspensa do formulário de vistoria.
+ * Mesma casca do desktop (`.select-field` em globals.css) — no dedo só muda a
+ * altura do alvo.
+ */
 export function MSelect({ label, error, options = [], ...props }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
       {label && <span style={{ color: M.mute, fontSize: 12 }}>{label}</span>}
       <select
-        style={{
-          background: M.chip, border: `1px solid ${error ? 'rgba(248,113,113,0.5)' : 'transparent'}`,
-          borderRadius: 16, padding: '14px 16px', color: M.text, fontSize: 15, outline: 'none', width: '100%',
-          appearance: 'none',
-        }}
+        className={`select-field ${error ? 'is-error' : ''}`}
+        style={{ padding: '14px 40px 14px 16px', fontSize: 15 }}
         {...props}
       >
         {options.map((o) => (
-          <option key={o.value} value={o.value} style={{ background: '#111' }}>{o.label}</option>
+          <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
       {error && <span style={{ color: M.danger, fontSize: 12 }}>{error}</span>}

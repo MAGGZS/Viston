@@ -1,5 +1,6 @@
 'use client';
 import { T, R, W } from '@/app/lib/theme';
+import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 
 /**
  * Componentes compartilhados por desktop e mobile.
@@ -115,26 +116,55 @@ export function Skeleton({ className = '', style = {} }) {
   return <div style={{ background: `linear-gradient(90deg, ${T.chip} 25%, #2E2E2E 50%, ${T.chip} 75%)`, backgroundSize: '200% 100%', borderRadius: R.control, animation: 'shimmer 1.4s ease-in-out infinite', ...style }} className={className} />;
 }
 
-export function Modal({ open, onClose, title, children }) {
-  if (!open) return null;
+/**
+ * `maxWidth` existe para as caixas que listam linhas com controle do lado
+ * direito (colaboradores, solicitações): em 400px o dropdown espreme o nome.
+ * O padrão continua sendo 400 — formulário e confirmação não querem mais.
+ */
+export function Modal({ open, onClose, title, children, maxWidth = 400 }) {
+  const { mounted, closing } = useExitTransition(open);
+
+  // O conteúdo é congelado na saída: quase toda chamada zera o estado no
+  // `onClose` (`setDeleteModal(null)`), e sem isso o texto sumiria antes da
+  // animação acabar.
+  const shownTitle = useKeepWhileClosing(title, open);
+  const shownChildren = useKeepWhileClosing(children, open);
+
+  if (!mounted) return null;
+
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, animation: 'fade-in 0.2s ease both' }}>
+    <div
+      className={closing ? 'anim-fade-out' : 'anim-fade-in'}
+      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+    >
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
-      <div className="anim-scale-in" style={{ position: 'relative', background: T.card, borderRadius: R.card, padding: 22, width: '100%', maxWidth: 400 }}>
-        {title && <h2 style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text, marginBottom: 16 }}>{title}</h2>}
-        {children}
+      <div
+        className={closing ? 'anim-scale-out' : 'anim-scale-in'}
+        style={{ position: 'relative', background: T.card, borderRadius: R.card, padding: 22, width: '100%', maxWidth }}
+      >
+        {shownTitle && <h2 style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text, marginBottom: 16 }}>{shownTitle}</h2>}
+        {shownChildren}
       </div>
     </div>
   );
 }
 
-export function Select({ label, error, options = [], style = {}, ...props }) {
+/**
+ * Lista suspensa. A aparência mora em `.select-field` (globals.css) porque
+ * foco e hover precisam de pseudo-classe; aqui ficam só medida e tipografia,
+ * que acompanham o `Input` ao lado.
+ */
+export function Select({ label, error, options = [], className = '', style = {}, ...props }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {label && <label style={G.label}>{label}</label>}
-      <select style={{ ...G.input, appearance: 'none', ...style }} {...props}>
+      <select
+        className={`select-field ${error ? 'is-error' : ''} ${className}`}
+        style={{ padding: '13px 38px 13px 15px', fontSize: 15, fontWeight: W.body, ...style }}
+        {...props}
+      >
         {options.map((opt) => (
-          <option key={opt.value} value={opt.value} style={{ background: T.card }}>{opt.label}</option>
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
         ))}
       </select>
       {error && <span style={{ fontSize: 12, color: T.danger }}>{error}</span>}

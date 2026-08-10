@@ -1,4 +1,4 @@
-import { AuditAction, InspectionStatus, Prisma } from '@prisma/client';
+import { AuditAction, InspectionStatus, Prisma, Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { generateShareKey } from '../utils/shareKey';
 import { sortFloorsDesc } from '../utils/floorOrder';
@@ -36,6 +36,15 @@ export const buildingRepository = {
       where: createdBy ? { created_by: createdBy } : undefined,
       orderBy: { name: 'asc' },
     });
+  },
+
+  /** Ids dos prédios criados pelo gestor — usado para filtrar listagens. */
+  async getManagedBuildingIds(userId: string): Promise<string[]> {
+    const rows = await prisma.building.findMany({
+      where: { created_by: userId },
+      select: { id: true },
+    });
+    return rows.map((row) => row.id);
   },
 
   /** Cria o predio com uma chave de compartilhamento aleatoria, tentando de novo em caso de colisao. */
@@ -92,13 +101,65 @@ export const buildingRepository = {
   getMembers(buildingId: string) {
     return prisma.buildingMember.findMany({
       where: { building_id: buildingId },
-      include: { user: { select: { id: true, name: true, email: true, role: true } } },
+      include: { user: { select: { id: true, name: true, email: true, role: true, avatar_url: true } } },
     });
   },
 
-  addMember(buildingId: string, userId: string, role: string) {
-    return prisma.buildingMember.create({
-      data: { building_id: buildingId, user_id: userId, role },
+  /**
+   * Vincula o usuário ao prédio.
+   *
+   * Quem entra num prédio entra como VIEWER, e o papel global acompanha —
+   * quem promove para INSPECTOR depois é o gestor, pela tela de colaboradores.
+   */
+  addMember(buildingId: string, userId: string, role: Role = Role.VIEWER) {
+    return prisma.$transaction(async (tx) => {
+      const member = await tx.buildingMember.create({
+        data: { building_id: buildingId, user_id: userId, role },
+        include: { user: { select: { id: true, name: true, email: true, role: true, avatar_url: true } } },
+      });
+
+      if (member.user.role !== Role.INSPECTOR && member.user.role !== Role.VIEWER) {
+        return member;
+      }
+
+      const user = await tx.user.update({
+        where: { id: userId },
+        data: { role },
+        select: { id: true, name: true, email: true, role: true, avatar_url: true },
+      });
+
+      return { ...member, user };
+    });
+  },
+
+  /**
+   * Troca o nível de acesso do membro.
+   *
+   * O papel do vínculo e o papel global do usuário andam juntos: o resto do
+   * sistema (rotas, guardas de tela) lê `users.role`, e é o gestor do prédio
+   * quem decide se a pessoa vistoria ou só acompanha.
+   */
+  updateMemberRole(buildingId: string, userId: string, role: Role) {
+    return prisma.$transaction(async (tx) => {
+      const member = await tx.buildingMember.update({
+        where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
+        data: { role },
+        include: { user: { select: { id: true, name: true, email: true, role: true, avatar_url: true } } },
+      });
+
+      // ADMIN e GESTOR nunca são rebaixados por um vínculo: eles podem integrar
+      // o prédio de outra pessoa sem perder o que são no sistema.
+      if (member.user.role !== Role.INSPECTOR && member.user.role !== Role.VIEWER) {
+        return member;
+      }
+
+      const user = await tx.user.update({
+        where: { id: userId },
+        data: { role },
+        select: { id: true, name: true, email: true, role: true, avatar_url: true },
+      });
+
+      return { ...member, user };
     });
   },
 
@@ -122,7 +183,7 @@ export const buildingRepository = {
   getAccessRequests(buildingId: string, status?: string) {
     return prisma.buildingAccessRequest.findMany({
       where: { building_id: buildingId, ...(status ? { status } : {}) },
-      include: { user: { select: { id: true, name: true, email: true, role: true } } },
+      include: { user: { select: { id: true, name: true, email: true, role: true, avatar_url: true } } },
       orderBy: { requested_at: 'desc' },
     });
   },
@@ -137,8 +198,68 @@ export const buildingRepository = {
     return prisma.buildingAccessRequest.update({
       where: { id },
       data: { status, reviewed_at: new Date() },
-      include: { user: { select: { id: true, name: true, email: true, role: true } } },
+      include: { user: { select: { id: true, name: true, email: true, role: true, avatar_url: true } } },
     });
+  },
+
+  /**
+   * Números do sistema inteiro, para o painel do ADMIN.
+   *
+   * A média de andares sai de uma agregação só: contar andar por prédio no Node
+   * custaria uma consulta por prédio conforme a base cresce.
+   */
+  async getSystemStats() {
+    const [
+      buildings,
+      floors,
+      managers,
+      inspectors,
+      viewers,
+      activeUsers,
+      completedInspections,
+      pendingRequests,
+      biggest,
+    ] = await Promise.all([
+      prisma.building.count(),
+      prisma.floor.count(),
+      prisma.user.count({ where: { role: Role.GESTOR, status: 'ACTIVE' } }),
+      prisma.user.count({ where: { role: Role.INSPECTOR, status: 'ACTIVE' } }),
+      prisma.user.count({ where: { role: Role.VIEWER, status: 'ACTIVE' } }),
+      prisma.user.count({ where: { status: 'ACTIVE' } }),
+      prisma.inspectionReport.count({ where: { status: InspectionStatus.COMPLETED } }),
+      prisma.buildingAccessRequest.count({ where: { status: 'PENDING' } }),
+      prisma.floor.groupBy({
+        by: ['building_id'],
+        _count: { _all: true },
+        orderBy: { _count: { building_id: 'desc' } },
+        take: 5,
+      }),
+    ]);
+
+    const topBuildings = biggest.length
+      ? await prisma.building.findMany({
+          where: { id: { in: biggest.map((row) => row.building_id) } },
+          select: { id: true, name: true },
+        })
+      : [];
+
+    return {
+      buildings,
+      floors,
+      // Uma casa decimal já diz o que a média tem a dizer
+      averageFloors: buildings ? Math.round((floors / buildings) * 10) / 10 : 0,
+      managers,
+      inspectors,
+      viewers,
+      activeUsers,
+      completedInspections,
+      pendingRequests,
+      topBuildings: biggest.map((row) => ({
+        id: row.building_id,
+        name: topBuildings.find((b) => b.id === row.building_id)?.name ?? 'Prédio removido',
+        floors: row._count._all,
+      })),
+    };
   },
 
   getDashboard(buildingId: string) {

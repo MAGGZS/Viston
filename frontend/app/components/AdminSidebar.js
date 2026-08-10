@@ -1,13 +1,15 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Users, Building2, LogOut } from 'lucide-react';
+import { Users, LayoutDashboard, LogOut } from 'lucide-react';
 import { Logo } from '@/app/components/Logo';
 import { useAuthStore } from '@/app/store/auth';
 import { T, R, W } from '@/app/lib/theme';
 
+// O admin não administra mais prédios — isso é do gestor. Aqui ficam os
+// números do sistema e as contas.
 const items = [
-  { href: '/desktop/admin/predios', icon: Building2, label: 'Prédios' },
+  { href: '/desktop/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/desktop/admin', icon: Users, label: 'Usuários' },
 ];
 

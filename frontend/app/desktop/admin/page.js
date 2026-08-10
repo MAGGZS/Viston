@@ -3,29 +3,74 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { UserPlus, RefreshCw, Trash2 } from 'lucide-react';
+import { UserPlus, RefreshCw, Trash2, Pencil } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
+import { Avatar } from '@/app/components/Avatar';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
-import { Button, Input, Select, Modal, Badge, Skeleton } from '@/app/components/ui';
+import { Button, Input, Modal, Badge, Skeleton } from '@/app/components/ui';
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/app/hooks/useApi';
+import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { useToastStore } from '@/app/store/toast';
 
+// Sem `role`: quem define o nível de acesso é o gestor do prédio, depois do
+// vínculo. Conta criada por aqui nasce como visualizadora.
 const schema = yup.object({
   name: yup.string().min(2).required('Obrigatório'),
   email: yup.string().email().required('Obrigatório'),
   password: yup.string().min(8).required('Obrigatório'),
-  role: yup.string().oneOf(['ADMIN', 'INSPECTOR', 'VIEWER']).required(),
 });
 
-const ROLE_LABELS = { ADMIN: 'Admin', INSPECTOR: 'Inspetor', VIEWER: 'Visualizador' };
-const ROLE_VARIANTS = { ADMIN: 'accent', INSPECTOR: 'success', VIEWER: 'default' };
+const renameSchema = yup.object({
+  name: yup.string().min(2, 'Mínimo 2 caracteres').required('Obrigatório'),
+});
+
+const ROLE_LABELS = { ADMIN: 'Admin', GESTOR: 'Gestor', INSPECTOR: 'Inspetor', VIEWER: 'Visualizador' };
+const ROLE_VARIANTS = { ADMIN: 'accent', GESTOR: 'accent', INSPECTOR: 'success', VIEWER: 'default' };
 const STATUS_LABELS = { ACTIVE: 'Ativo', DELETED: 'Removido' };
+
+/** Renomear é a única edição de dados que sobrou para o admin. */
+function RenameUserModal({ user, open, onClose }) {
+  const updateUser = useUpdateUser();
+  const { show: toast } = useToastStore();
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    resolver: yupResolver(renameSchema),
+    defaultValues: { name: user.name },
+  });
+
+  async function onSubmit({ name }) {
+    try {
+      await updateUser.mutateAsync({ id: user.id, name });
+      toast('Nome atualizado!', 'success');
+      onClose();
+    } catch (e) {
+      toast(e?.response?.data?.error?.message || 'Erro ao atualizar', 'error');
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Editar nome">
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+        <p className="text-mute text-sm">
+          O nome assina as vistorias já registradas por <span className="text-white">{user.email}</span>.
+        </p>
+        <Input label="Nome" error={errors.name?.message} {...register('name')} />
+        <div className="flex gap-3 mt-2">
+          <Button variant="secondary" className="flex-1" type="button" onClick={onClose}>Cancelar</Button>
+          <Button className="flex-1" type="submit" loading={updateUser.isPending}>Salvar</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 
 export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [createModal, setCreateModal] = useState(false);
-  const [editUser, setEditUser] = useState(null);
+  const [renameTarget, setRenameTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const { mounted: renameMounted } = useExitTransition(!!renameTarget);
+  const renameUser = useKeepWhileClosing(renameTarget, !!renameTarget);
 
   const { data, isLoading, refetch, isFetching } = useUsers(page);
   const createUser = useCreateUser();
@@ -34,7 +79,6 @@ export default function AdminUsersPage() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm({
     resolver: yupResolver(schema),
-    defaultValues: { role: 'INSPECTOR' },
   });
 
   const { show: toast } = useToastStore();
@@ -47,15 +91,6 @@ export default function AdminUsersPage() {
       toast('Usuário criado!', 'success');
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao criar usuário', 'error');
-    }
-  }
-
-  async function handleRoleChange(userId, role) {
-    try {
-      await updateUser.mutateAsync({ id: userId, role });
-      toast('Role atualizado!', 'success');
-    } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao atualizar', 'error');
     }
   }
 
@@ -85,7 +120,12 @@ export default function AdminUsersPage() {
         <AdminSidebar />
         <main className="flex-1 p-8">
           <div className="flex items-center justify-between mb-8">
-            <h1 className="text-2xl font-semibold text-white">Usuários</h1>
+            <div>
+              <h1 className="text-2xl font-semibold text-white">Usuários</h1>
+              <p className="text-mute text-sm mt-0.5">
+                O nível de acesso é definido pelo gestor do prédio a que a pessoa se vincula.
+              </p>
+            </div>
             <div className="flex gap-3">
               <Button variant="secondary" onClick={() => refetch()} loading={isFetching}><RefreshCw size={15} /> Atualizar</Button>
               <Button onClick={() => setCreateModal(true)}><UserPlus size={18} /> Novo usuário</Button>
@@ -114,9 +154,7 @@ export default function AdminUsersPage() {
                   <tr key={u.id} className={`anim-fade-in anim-d${Math.min(idx + 1, 6)} border-b border-line hover:bg-chip transition-colors`}>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
-                          <span className="text-black text-xs font-semibold">{u.name[0]}</span>
-                        </div>
+                        <Avatar user={u} size={32} />
                         <span className="text-white text-sm">{u.name}</span>
                       </div>
                     </td>
@@ -131,15 +169,13 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
-                        <select
-                          className="bg-chip text-white text-xs rounded-pill px-2 py-1 focus:outline-none"
-                          value={u.role}
-                          onChange={e => handleRoleChange(u.id, e.target.value)}
+                        <button
+                          onClick={() => setRenameTarget(u)}
+                          title="Editar nome"
+                          className="text-xs px-3 py-1 rounded-pill bg-chip text-mute hover:text-white transition-colors flex items-center"
                         >
-                          <option value="ADMIN">Admin</option>
-                          <option value="INSPECTOR">Inspetor</option>
-                          <option value="VIEWER">Visualizador</option>
-                        </select>
+                          <Pencil size={14} />
+                        </button>
                         <button
                           onClick={() => handleStatusToggle(u)}
                           className={`text-xs px-3 py-1 rounded-pill transition-colors ${
@@ -208,17 +244,26 @@ export default function AdminUsersPage() {
           <Input label="Nome" error={errors.name?.message} {...register('name')} />
           <Input label="E-mail" type="email" error={errors.email?.message} {...register('email')} />
           <Input label="Senha" type="password" error={errors.password?.message} {...register('password')} />
-          <Select label="Role" options={[
-            { value: 'INSPECTOR', label: 'Inspetor' },
-            { value: 'VIEWER', label: 'Visualizador' },
-            { value: 'ADMIN', label: 'Administrador' },
-          ]} {...register('role')} />
+          <p className="text-mute text-xs leading-relaxed">
+            A conta nasce como visualizadora. Quem define se ela vistoria é o gestor do prédio,
+            depois que ela se vincular pela chave.
+          </p>
           <div className="flex gap-3 mt-2">
             <Button variant="secondary" className="flex-1" type="button" onClick={() => setCreateModal(false)}>Cancelar</Button>
             <Button className="flex-1" type="submit" loading={createUser.isPending}>Criar</Button>
           </div>
         </form>
       </Modal>
+
+      {/* Segurado montado durante a saída, senão a caixa some num quadro */}
+      {renameMounted && renameUser && (
+        <RenameUserModal
+          key={renameUser.id}
+          user={renameUser}
+          open={!!renameTarget}
+          onClose={() => setRenameTarget(null)}
+        />
+      )}
     </RouteGuard>
   );
 }

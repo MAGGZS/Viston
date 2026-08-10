@@ -14,6 +14,7 @@ import {
   PRIORITY_LABEL,
   RECORD_STATUS_LABEL,
 } from '../utils/maintenanceOptions';
+import { APP_TIMEZONE } from '../utils/timezone';
 
 type FullReport = InspectionReport & {
   inspector: Pick<User, 'id' | 'name' | 'email'> | null;
@@ -187,7 +188,11 @@ export async function generateInspectionExcel(report: FullReport): Promise<Buffe
 
   // ── Rodapé ────────────────────────────────────────────────────────────────
   const footerRow = ws.addRow([
-    `Concluída em ${report.finished_at ? new Date(report.finished_at).toLocaleString('pt-BR') : '—'}  ·  Viston`,
+    `Concluída em ${
+      report.finished_at
+        ? new Date(report.finished_at).toLocaleString('pt-BR', { timeZone: APP_TIMEZONE })
+        : '—'
+    }  ·  Viston`,
   ]);
   ws.mergeCells(`A${footerRow.number}:${LAST_COL}${footerRow.number}`);
   const footerCell = ws.getCell(`A${footerRow.number}`);

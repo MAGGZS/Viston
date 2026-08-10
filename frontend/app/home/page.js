@@ -5,11 +5,13 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
+import { Avatar } from '@/app/components/Avatar';
 import { BottomNav } from '@/app/components/BottomNav';
+import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { Skeleton } from '@/app/components/ui';
-import { M, MPage, MTopBar, MRound, MCard, MStats, MButton, MSectionHead } from '@/app/components/mobile/kit';
+import { M, MPage, MTopBar, MRound, MCard, MStats, MSectionHead } from '@/app/components/mobile/kit';
 import { useAuthStore } from '@/app/store/auth';
 import { useCalendar, useMyBuildings } from '@/app/hooks/useApi';
 
@@ -42,7 +44,7 @@ export default function HomePage() {
   function prevMonth() { if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); }
   function nextMonth() { if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1); }
 
-  const canInspect = user?.role === 'ADMIN' || user?.role === 'INSPECTOR';
+  const canInspect = ['ADMIN', 'GESTOR', 'INSPECTOR'].includes(user?.role);
   const monthLabel = format(new Date(year, month - 1, 1), 'MMMM yyyy', { locale: ptBR });
 
   return (
@@ -53,11 +55,12 @@ export default function HomePage() {
           title="Olá,"
           accent={user?.name?.split(' ')[0]}
           avatar={
-            <button onClick={() => router.push('/perfil')} aria-label="Abrir perfil" style={{
-              width: 44, height: 44, borderRadius: '50%', background: M.accent, border: 'none', cursor: 'pointer',
-              fontFamily: M.display, fontWeight: 600, fontSize: 18, color: '#000', flexShrink: 0,
-            }}>
-              {user?.name?.[0]?.toUpperCase()}
+            <button
+              onClick={() => router.push('/perfil')}
+              aria-label="Abrir perfil"
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, borderRadius: '50%' }}
+            >
+              <Avatar user={user} size={44} />
             </button>
           }
           actions={
@@ -81,12 +84,14 @@ export default function HomePage() {
         )}
 
         {!buildingsLoading && !hasBuilding && (
-          <MCard style={{ marginTop: 12, textAlign: 'center', padding: '32px 20px' }}>
-            <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text }}>Nenhum prédio ainda</p>
-            <p style={{ color: M.mute, fontSize: 13, marginTop: 6, lineHeight: 1.6 }}>
-              Peça a chave ao administrador e solicite acesso pelo perfil.
+          <MCard style={{ marginTop: 12, padding: '28px 20px' }}>
+            <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text, textAlign: 'center' }}>
+              Nenhum prédio ainda
             </p>
-            <MButton onClick={() => router.push('/perfil')} style={{ marginTop: 16 }}>Ir para o perfil</MButton>
+            <p style={{ color: M.mute, fontSize: 13, marginTop: 6, marginBottom: 18, lineHeight: 1.6, textAlign: 'center' }}>
+              Peça a chave ao gestor do prédio e digite abaixo para se conectar.
+            </p>
+            <JoinBuildingForm />
           </MCard>
         )}
 

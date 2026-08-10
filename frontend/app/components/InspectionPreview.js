@@ -4,6 +4,7 @@ import { Download, FileSpreadsheet, FileText, X } from 'lucide-react';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Button, Spinner } from '@/app/components/ui';
 import { useInspection, useGenerateExcel } from '@/app/hooks/useApi';
+import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
 import { MAINTENANCE_TYPES, CATEGORIES, PRIORITIES, RECORD_STATUS, labelOf } from '@/app/lib/maintenanceOptions';
 import { useToastStore } from '@/app/store/toast';
@@ -120,15 +121,18 @@ export function InspectionPreview({ report }) {
 
 /** Casca de modal para abrir a prévia a partir de uma linha de histórico. */
 export function InspectionPreviewModal({ open, onClose, reportId }) {
-  const { data: report, isLoading } = useInspection(open ? reportId : null);
+  const { mounted, closing } = useExitTransition(open);
+  // Segura o id na saída para a prévia não virar esqueleto ao fechar
+  const shownId = useKeepWhileClosing(reportId, open);
+  const { data: report, isLoading } = useInspection(mounted ? shownId : null);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <div className={closing ? 'anim-fade-out' : 'anim-fade-in'} style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
 
-      <div className="anim-scale-in" style={{ position: 'relative', background: T.card, borderRadius: R.card, width: '100%', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+      <div className={closing ? 'anim-scale-out' : 'anim-scale-in'} style={{ position: 'relative', background: T.card, borderRadius: R.card, width: '100%', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '20px 24px 14px', borderBottom: `1px solid ${T.line}` }}>
           <h2 style={{ color: T.text, fontWeight: W.title, fontSize: 16 }}>Prévia da vistoria</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 4 }}>

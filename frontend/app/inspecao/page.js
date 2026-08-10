@@ -225,7 +225,7 @@ export default function InspecaoPage() {
   }
 
   return (
-    <RouteGuard roles={['ADMIN', 'INSPECTOR']}>
+    <RouteGuard roles={['ADMIN', 'GESTOR', 'INSPECTOR']}>
       <div style={{ minHeight: '100vh', background: M.bg, paddingBottom: 40 }}>
         {/* Header */}
         <div style={{ position: 'sticky', top: 0, background: M.bg, padding: '48px 16px 14px', zIndex: 10 }}>

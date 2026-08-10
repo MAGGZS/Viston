@@ -32,6 +32,13 @@ export function useCreateUser() {
   });
 }
 
+// Cadastro público como gestor — o papel vem da rota, nunca do corpo
+export function useCreateManager() {
+  return useMutation({
+    mutationFn: (data) => api.post('/users/managers', data).then((r) => r.data),
+  });
+}
+
 export function useUpdateUser() {
   const qc = useQueryClient();
   return useMutation({
@@ -52,6 +59,23 @@ export function useUpdateMe() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data) => api.patch('/users/me', data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+  });
+}
+
+// Foto de perfil — sobe já recortada pelo app, como data URL
+export function useUpdateAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (image) => api.patch('/users/me/avatar', { image }).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+  });
+}
+
+export function useRemoveAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete('/users/me/avatar').then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
   });
 }
@@ -91,6 +115,22 @@ export function useBuildings() {
   });
 }
 
+// Prédios que o gestor criou — a tela inicial dele
+export function useManagedBuildings() {
+  return useQuery({
+    queryKey: ['managed-buildings'],
+    queryFn: () => api.get('/buildings/managed').then((r) => r.data),
+  });
+}
+
+// Números do sistema inteiro — painel do admin
+export function useSystemStats() {
+  return useQuery({
+    queryKey: ['system-stats'],
+    queryFn: () => api.get('/buildings/stats').then((r) => r.data),
+  });
+}
+
 export function useBuildingDashboard(id) {
   return useQuery({
     queryKey: ['building-dashboard', id],
@@ -110,11 +150,19 @@ export function useBuildingHistory(id, params = {}) {
   });
 }
 
+// As três listagens de prédio (admin, gestor e vínculo) saem juntas do cache:
+// criar ou apagar um prédio mexe em todas elas.
+function invalidateBuildingLists(qc) {
+  qc.invalidateQueries({ queryKey: ['buildings'] });
+  qc.invalidateQueries({ queryKey: ['managed-buildings'] });
+  qc.invalidateQueries({ queryKey: ['system-stats'] });
+}
+
 export function useCreateBuilding() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data) => api.post('/buildings', data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['buildings'] }),
+    onSuccess: () => invalidateBuildingLists(qc),
   });
 }
 
@@ -122,7 +170,7 @@ export function useUpdateBuilding() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...data }) => api.patch(`/buildings/${id}`, data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['buildings'] }),
+    onSuccess: () => invalidateBuildingLists(qc),
   });
 }
 
@@ -130,7 +178,7 @@ export function useDeleteBuilding() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id) => api.delete(`/buildings/${id}`).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['buildings'] }),
+    onSuccess: () => invalidateBuildingLists(qc),
   });
 }
 
@@ -155,6 +203,19 @@ export function useBuildingMembers(id) {
     queryKey: ['building-members', id],
     queryFn: () => api.get(`/buildings/${id}/members`).then((r) => r.data),
     enabled: !!id,
+  });
+}
+
+// Nível de acesso de quem está vinculado ao prédio — só o gestor mexe
+export function useUpdateMemberRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ buildingId, userId, role }) =>
+      api.patch(`/buildings/${buildingId}/members/${userId}`, { role }).then((r) => r.data),
+    onSuccess: (_, { buildingId }) => {
+      qc.invalidateQueries({ queryKey: ['building-members', buildingId] });
+      qc.invalidateQueries({ queryKey: ['building-dashboard', buildingId] });
+    },
   });
 }
 
@@ -271,9 +332,12 @@ export function useGenerateExcel() {
 }
 
 // ── Calendar ──────────────────────────────────────────────────────────────────
+// `params` nulo = ainda não há o que consultar (ex.: usuário sem prédio):
+// sem o `enabled` a tela disparava a busca do mesmo jeito.
 export function useCalendar(params) {
   return useQuery({
     queryKey: ['calendar', params],
     queryFn: () => api.get('/calendar', { params }).then((r) => r.data),
+    enabled: !!params,
   });
 }

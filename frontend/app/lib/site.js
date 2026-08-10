@@ -23,7 +23,7 @@ export const BRAND = {
  * Rotas abertas (aparecem no sitemap e podem ser indexadas).
  * Tudo o que exige login fica de fora e é bloqueado no robots.txt.
  */
-export const PUBLIC_ROUTES = ['/', '/login', '/register'];
+export const PUBLIC_ROUTES = ['/', '/login', '/register', '/register/gestor'];
 
 /** Prefixos que só existem depois do login — nada aqui deve ir para buscador. */
-export const PRIVATE_ROUTE_PREFIXES = ['/home', '/inspecao', '/historico', '/perfil', '/desktop'];
+export const PRIVATE_ROUTE_PREFIXES = ['/home', '/inspecao', '/historico', '/perfil', '/desktop', '/gestor'];

@@ -6,6 +6,7 @@ import { X } from 'lucide-react';
 import { Spinner } from '@/app/components/ui';
 import { InspectionPreview } from '@/app/components/InspectionPreview';
 import { useInspection } from '@/app/hooks/useApi';
+import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { T, R, W } from '@/app/lib/theme';
 
 /**
@@ -13,7 +14,13 @@ import { T, R, W } from '@/app/lib/theme';
  * download e link do relatório completo.
  */
 export function DayInspectionsModal({ open, onClose, day, info }) {
-  const reports = info?.reports ?? [];
+  const { mounted, closing } = useExitTransition(open);
+  // O dia e os relatórios ficam congelados na saída — a tela que abre zera o
+  // estado no `onClose` e a caixa sairia vazia.
+  const shownDay = useKeepWhileClosing(day, open);
+  const shownInfo = useKeepWhileClosing(info, open);
+
+  const reports = shownInfo?.reports ?? [];
 
   // A seleção é derivada, não sincronizada por efeito: quando o dia muda, o id
   // escolhido deixa de existir na lista e a prévia volta sozinha para o primeiro
@@ -21,17 +28,17 @@ export function DayInspectionsModal({ open, onClose, day, info }) {
   const [pickedId, setPickedId] = useState(null);
   const selectedId = reports.some((r) => r.id === pickedId) ? pickedId : reports[0]?.id ?? null;
 
-  const { data: report, isLoading } = useInspection(open ? selectedId : null);
+  const { data: report, isLoading } = useInspection(mounted ? selectedId : null);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
-  const dayLabel = day ? format(new Date(`${day}T12:00:00`), "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : '';
+  const dayLabel = shownDay ? format(new Date(`${shownDay}T12:00:00`), "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : '';
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <div className={closing ? 'anim-fade-out' : 'anim-fade-in'} style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
 
-      <div className="anim-scale-in" style={{ position: 'relative', background: T.card, borderRadius: R.card, width: '100%', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+      <div className={closing ? 'anim-scale-out' : 'anim-scale-in'} style={{ position: 'relative', background: T.card, borderRadius: R.card, width: '100%', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
         {/* Cabeçalho */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '20px 24px 14px', borderBottom: `1px solid ${T.line}` }}>
           <div>

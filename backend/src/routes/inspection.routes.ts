@@ -5,9 +5,10 @@ import { authorize } from '../middlewares/authorize';
 
 const router = Router();
 
-const adminOnly = authorize('ADMIN') as any;
-const inspectorOnly = authorize('ADMIN', 'INSPECTOR') as any;
-const anyRole = authorize('ADMIN', 'INSPECTOR', 'VIEWER') as any;
+// Descarte da vistoria: quem administra o prédio (a posse é conferida no serviço)
+const managerRoles = authorize('ADMIN', 'GESTOR') as any;
+const inspectorOnly = authorize('ADMIN', 'GESTOR', 'INSPECTOR') as any;
+const anyRole = authorize('ADMIN', 'GESTOR', 'INSPECTOR', 'VIEWER') as any;
 const auth = authenticate as any;
 
 // ── Inspeções ─────────────────────────────────────────────────────────────────
@@ -15,8 +16,8 @@ const auth = authenticate as any;
 router.post('/inspections', auth, inspectorOnly, inspectionController.submit as any);
 router.get('/inspections', auth, anyRole, inspectionController.findAll as any);
 router.get('/inspections/:id', auth, anyRole, inspectionController.findById as any);
-// Descarte da vistoria: só ADMIN
-router.delete('/inspections/:id', auth, adminOnly, inspectionController.remove as any);
+// Descarte da vistoria: só o gestor do prédio
+router.delete('/inspections/:id', auth, managerRoles, inspectionController.remove as any);
 router.get('/inspections/:id/excel', auth, anyRole, inspectionController.getExcelUrl as any);
 // Refaz a planilha quando o upload falhou no envio
 router.post('/inspections/:id/excel', auth, inspectorOnly, inspectionController.generateExcel as any);

@@ -9,8 +9,9 @@ export const refreshSchema = z.object({
   refresh_token: z.string().min(1, 'Refresh token obrigatório'),
 });
 
-// Cadastro público: nunca aceita `role`. O papel sai sempre como VIEWER e só um
-// ADMIN pode promover depois, via PATCH /users/:id.
+// Cadastro público: nunca aceita `role`. Quem entra por `POST /users` sai como
+// VIEWER; quem entra por `POST /users/managers` sai como GESTOR. Depois disso o
+// papel só muda pelo gestor do prédio a que a pessoa se vincular.
 export const createUserSchema = z
   .object({
     name: z.string().trim().min(2, 'Nome deve ter ao menos 2 caracteres').max(120),
@@ -21,10 +22,23 @@ export const createUserSchema = z
   })
   .strict();
 
-export const updateUserSchema = z.object({
-  role: z.enum(['ADMIN', 'INSPECTOR', 'VIEWER']).optional(),
-  status: z.enum(['ACTIVE', 'DELETED']).optional(),
-});
+// Edição pelo ADMIN: nome e status. O papel não entra aqui — quem define o
+// nível de acesso é o gestor do prédio, em PATCH /buildings/:id/members/:userId.
+export const updateUserSchema = z
+  .object({
+    name: z.string().trim().min(2, 'Nome deve ter ao menos 2 caracteres').max(120).optional(),
+    status: z.enum(['ACTIVE', 'DELETED']).optional(),
+  })
+  .strict();
+
+// Troca do nível de acesso de um membro do prédio, feita pelo gestor.
+export const updateMemberRoleSchema = z
+  .object({
+    role: z.enum(['INSPECTOR', 'VIEWER'], {
+      required_error: 'Papel deve ser INSPECTOR ou VIEWER',
+    }),
+  })
+  .strict();
 
 export const updateMeSchema = z
   .object({
@@ -66,6 +80,25 @@ export const createFloorSchema = z
 export const accessRequestSchema = z
   .object({
     key: z.string().trim().min(1, 'Chave de compartilhamento é obrigatória').max(40),
+  })
+  .strict();
+
+/**
+ * Foto de perfil, já recortada pelo app e enviada como data URL.
+ *
+ * O recorte acontece no cliente (círculo de 512px), então o que chega aqui é
+ * uma imagem pequena — o teto de 1,5 MB é folga, não expectativa. Só os três
+ * formatos que o `<canvas>` exporta entram.
+ */
+export const updateAvatarSchema = z
+  .object({
+    image: z
+      .string()
+      .regex(
+        /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/,
+        'Formato de imagem inválido'
+      )
+      .max(2_100_000, 'Imagem muito grande'),
   })
   .strict();
 

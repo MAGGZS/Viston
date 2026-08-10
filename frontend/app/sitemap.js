@@ -4,7 +4,7 @@ import { PUBLIC_ROUTES, SITE_URL } from '@/app/lib/site';
  * Só as rotas abertas entram. As telas do sistema exigem login — indexá-las
  * geraria resultados que levam direto para um redirect.
  */
-const PRIORITY = { '/': 1, '/login': 0.6, '/register': 0.6 };
+const PRIORITY = { '/': 1, '/login': 0.6, '/register': 0.6, '/register/gestor': 0.5 };
 
 export default function sitemap() {
   const lastModified = new Date();

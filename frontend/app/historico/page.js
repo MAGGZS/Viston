@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Eye, FileSpreadsheet, SlidersHorizontal } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Eye, FileSpreadsheet, SlidersHorizontal } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
@@ -10,7 +10,7 @@ import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
-import { M, MPage, MTopBar, MRound, MCard, MStats, MButtonSoft, MButtonGhost } from '@/app/components/mobile/kit';
+import { M, MPage, MTopBar, MRound, MCard, MButtonGhost } from '@/app/components/mobile/kit';
 import { Badge, Button, Modal } from '@/app/components/ui';
 import { useInspections, useCalendar, useMyBuildings, useBuildingHistory } from '@/app/hooks/useApi';
 import { useIsDesktop } from '@/app/hooks/useMediaQuery';
@@ -133,54 +133,60 @@ function InspectionCard({ inspection, onPreview, onOpenReport }) {
   );
 }
 
-// Cartão do mobile: números primeiro, andares como etiquetas, planilha à mão
+/**
+ * Cartão do mobile — mesma leitura do desktop: data, quem assinou e quantas
+ * ocorrências, depois os andares como etiquetas.
+ *
+ * Os três números grandes saíram: dois deles (andares e ocorrências) já estavam
+ * na linha de baixo e nas etiquetas, e o bloco empurrava para fora da tela a
+ * lista que a pessoa veio ver. A planilha virou ícone à direita pelo mesmo
+ * motivo — um botão de largura inteira por cartão dominava a rolagem.
+ */
 function MobileInspectionCard({ inspection, onOpenReport }) {
   const entries = inspection.floor_form_entries ?? [];
   const ocorrencias = entries.reduce((sum, e) => sum + (e._count?.maintenance_records ?? 0), 0);
-  const problemas = entries.filter(e => e.status_geral === 'PROBLEMA').length;
-
-  const chipColor = {
-    OK: { bg: 'rgba(74,222,128,0.12)', fg: '#4ade80' },
-    ATENCAO: { bg: 'rgba(251,191,36,0.12)', fg: '#fbbf24' },
-    PROBLEMA: { bg: 'rgba(248,113,113,0.12)', fg: '#f87171' },
-  };
 
   return (
-    <MCard onClick={() => onOpenReport(inspection.id)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <MCard onClick={() => onOpenReport(inspection.id)} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-        <div>
-          <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text, textTransform: 'capitalize' }}>
-            {format(parseReportDate(inspection.date), "d 'de' MMMM", { locale: ptBR })}
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 15, color: M.text, textTransform: 'capitalize' }}>
+            {format(parseReportDate(inspection.date), "d 'de' MMMM yyyy", { locale: ptBR })}
           </p>
-          <p style={{ color: M.mute, fontSize: 12, marginTop: 3 }}>{inspection.inspector?.name}</p>
+          <p style={{ color: M.mute, fontSize: 12, marginTop: 3 }}>
+            {inspection.inspector?.name} · {ocorrencias} ocorrência{ocorrencias !== 1 ? 's' : ''}
+          </p>
         </div>
-        <ChevronRight size={18} color={M.faint} />
-      </div>
 
-      <MStats items={[
-        { value: entries.length, label: 'Andares' },
-        { value: ocorrencias, label: 'Ocorrências' },
-        { value: problemas, label: 'Problemas' },
-      ]} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          {inspection.excel_url && (
+            <a
+              href={inspection.excel_url}
+              target="_blank"
+              rel="noreferrer"
+              onClick={e => e.stopPropagation()}
+              aria-label="Baixar planilha"
+              title="Baixar planilha"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 36, height: 36, borderRadius: 12,
+                background: M.chip, color: M.accent, flexShrink: 0,
+              }}
+            >
+              <Download size={16} />
+            </a>
+          )}
+          <ChevronRight size={18} color={M.faint} />
+        </div>
+      </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {entries.map(e => {
-          const c = chipColor[e.status_geral] ?? chipColor.OK;
-          return (
-            <span key={e.floor_id} style={{ background: c.bg, color: c.fg, fontSize: 11, fontWeight: 600, padding: '5px 10px', borderRadius: 10 }}>
-              {e.floor?.label || e.floor_id.slice(0, 6)}
-            </span>
-          );
-        })}
+        {entries.map(e => (
+          <Badge key={e.floor_id} variant={e.status_geral === 'OK' ? 'success' : e.status_geral === 'ATENCAO' ? 'warning' : 'danger'}>
+            {e.floor?.label || e.floor_id.slice(0, 6)}
+          </Badge>
+        ))}
       </div>
-
-      {inspection.excel_url && (
-        <a href={inspection.excel_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>
-          <MButtonSoft style={{ width: '100%' }}>
-            <FileSpreadsheet size={15} /> Baixar planilha
-          </MButtonSoft>
-        </a>
-      )}
     </MCard>
   );
 }

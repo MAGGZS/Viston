@@ -2,9 +2,11 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Download, UserCircle, Building2, Eye } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Building2, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { RouteGuard } from '@/app/components/RouteGuard';
+import { Avatar } from '@/app/components/Avatar';
+import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { Logo } from '@/app/components/Logo';
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
@@ -19,9 +21,12 @@ const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 's
 function NoPredioState() {
   return (
     <div className="flex flex-col items-center justify-center flex-1 py-24 text-center">
-      <Building2 size={48} className="text-chip mb-4" />
-      <p className="text-white font-semibold text-lg">Você não tem ligação a nenhum prédio</p>
-      <p className="text-mute text-sm mt-2">Peça ao administrador o ID do prédio e solicite acesso.</p>
+      <Building2 size={48} className="anim-pop-in text-chip mb-4" />
+      <p className="anim-fade-up anim-d1 text-white font-semibold text-lg">Você não tem ligação a nenhum prédio</p>
+      <p className="anim-fade-up anim-d2 text-mute text-sm mt-2 mb-6">Peça a chave ao gestor do prédio e digite abaixo para se conectar.</p>
+      <div className="anim-fade-up anim-d3" style={{ width: '100%', maxWidth: 380 }}>
+        <JoinBuildingForm />
+      </div>
     </div>
   );
 }
@@ -62,19 +67,16 @@ export default function VisualizacaoPage() {
     <RouteGuard roles={['INSPECTOR', 'VIEWER']}>
       <div className="hidden lg:flex flex-col min-h-screen bg-page">
         {/* Header */}
-        <header style={{ height: 60, background: '#0B0B0B', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', flexShrink: 0 }}>
+        <header className="anim-fade-down" style={{ height: 60, background: '#0B0B0B', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', flexShrink: 0 }}>
           <Logo size={18} />
-          <Link href="/perfil" style={{ color: 'rgba(255,255,255,0.44)', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}
-            onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.96)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.44)'}
-          >
-            <UserCircle size={28} strokeWidth={1.5} />
+          <Link href="/perfil" aria-label="Abrir perfil" className="transition-transform duration-150 hover:scale-105" style={{ display: 'flex', alignItems: 'center' }}>
+            <Avatar user={user} size={32} />
           </Link>
         </header>
 
         {/* Main */}
         <main className="flex-1 p-8 overflow-auto flex flex-col">
-          <div className="mb-8">
+          <div className="anim-fade-up mb-8">
             <h1 className="text-2xl font-semibold text-white">
               Olá, <span style={{ color: '#F5C518' }}>{user?.name ?? ''}</span>
             </h1>
@@ -91,11 +93,12 @@ export default function VisualizacaoPage() {
           ) : (
             <div className="grid grid-cols-3 gap-6">
               {/* Calendário heatmap */}
-              <div className="col-span-1 bg-card rounded-card p-5">
+              <div className="anim-fade-up anim-d1 col-span-1 bg-card rounded-card p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <button onClick={prev} className="p-1 text-mute hover:text-white"><ChevronLeft size={18} /></button>
-                  <span className="text-white text-sm font-semibold capitalize">{monthLabel}</span>
-                  <button onClick={next} className="p-1 text-mute hover:text-white"><ChevronRight size={18} /></button>
+                  <button onClick={prev} aria-label="Mês anterior" className="p-1 text-mute hover:text-white transition-transform duration-150 hover:-translate-x-0.5"><ChevronLeft size={18} /></button>
+                  {/* `key` no mês: a troca reanima o rótulo, então o clique tem resposta visível */}
+                  <span key={monthLabel} className="anim-fade-in text-white text-sm font-semibold capitalize">{monthLabel}</span>
+                  <button onClick={next} aria-label="Próximo mês" className="p-1 text-mute hover:text-white transition-transform duration-150 hover:translate-x-0.5"><ChevronRight size={18} /></button>
                 </div>
                 {calLoading ? <Skeleton className="h-48 w-full" /> : (
                   <CalendarHeatmap heatmap={calData?.heatmap ?? {}} month={month} year={year}
@@ -111,7 +114,7 @@ export default function VisualizacaoPage() {
               </div>
 
               {/* Tabela de inspeções */}
-              <div className="col-span-2 bg-card rounded-card overflow-hidden">
+              <div className="anim-fade-up anim-d2 col-span-2 bg-card rounded-card overflow-hidden">
                 <div className="px-6 py-4 border-b border-line">
                   <h2 className="text-white font-semibold">Inspeções Recentes — {myBuildings[0]?.name}</h2>
                 </div>
@@ -129,8 +132,8 @@ export default function VisualizacaoPage() {
                         {[1, 2, 3, 4].map((j) => <td key={j} className="px-6 py-3"><Skeleton className="h-4 w-full" /></td>)}
                       </tr>
                     ))}
-                    {rows.map((r) => (
-                      <tr key={r.id} className="border-b border-line hover:bg-chip transition-colors">
+                    {rows.map((r, idx) => (
+                      <tr key={r.id} className={`anim-fade-in anim-d${Math.min(idx + 1, 6)} border-b border-line hover:bg-chip transition-colors`}>
                         <td className="px-6 py-3 text-white text-sm">{r.inspector?.name ?? '—'}</td>
                         <td className="px-6 py-3">
                           <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
@@ -147,7 +150,7 @@ export default function VisualizacaoPage() {
                               </a>
                             ) : <span className="text-mute text-sm">—</span>}
                             <button onClick={() => setPreviewId(r.id)}
-                              className="flex items-center gap-1 text-mute text-sm hover:text-white transition-colors">
+                              className="flex items-center gap-1 text-mute text-sm hover:text-white transition-all duration-150 active:scale-95">
                               <Eye size={13} /> Prévia
                             </button>
                           </div>

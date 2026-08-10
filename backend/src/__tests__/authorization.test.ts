@@ -24,6 +24,8 @@ const REPORT_ID = '99999999-9999-4999-8999-999999999999';
 const tokenViewer = signAccessToken('user-viewer', 'VIEWER');
 const tokenInspector = signAccessToken('user-inspector', 'INSPECTOR');
 const tokenAdmin = signAccessToken('user-admin', 'ADMIN');
+const tokenGestor = signAccessToken('user-gestor', 'GESTOR');
+const tokenOutroGestor = signAccessToken('outro-gestor', 'GESTOR');
 
 const building = {
   id: BUILDING_ID,
@@ -132,6 +134,193 @@ describe('acesso a dados do prédio', () => {
   });
 });
 
+describe('gestão do prédio', () => {
+  // O prédio do fixture é do gestor; quem não é dono dele não administra nada.
+  const doGestor = { ...building, created_by: 'user-gestor' };
+
+  beforeEach(() => {
+    mockBuildingRepo.findById.mockResolvedValue(doGestor as any);
+  });
+
+  it('VIEWER não cria prédio', async () => {
+    const res = await request(app)
+      .post('/buildings')
+      .set('Authorization', `Bearer ${tokenViewer}`)
+      .send({ name: 'Prédio novo' });
+
+    expect(res.status).toBe(403);
+    expect(mockBuildingRepo.create).not.toHaveBeenCalled();
+  });
+
+  it('GESTOR cria prédio em nome próprio', async () => {
+    mockBuildingRepo.create.mockResolvedValue(doGestor as any);
+
+    const res = await request(app)
+      .post('/buildings')
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send({ name: 'Prédio novo' });
+
+    expect(res.status).toBe(201);
+    expect(mockBuildingRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ created_by: 'user-gestor' })
+    );
+  });
+
+  it('GESTOR não administra prédio de outro gestor', async () => {
+    const res = await request(app)
+      .patch(`/buildings/${BUILDING_ID}`)
+      .set('Authorization', `Bearer ${tokenOutroGestor}`)
+      .send({ name: 'Renomeado por fora' });
+
+    expect(res.status).toBe(403);
+    expect(mockBuildingRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('GESTOR vê a chave de compartilhamento do próprio prédio', async () => {
+    mockBuildingRepo.getDashboard.mockResolvedValue([0, 0, 0] as any);
+    mockInspectionRepo.getCalendarData.mockResolvedValue([] as any);
+
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/dashboard`)
+      .set('Authorization', `Bearer ${tokenGestor}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.building.share_key).toBe(building.share_key);
+  });
+
+  it('esconde a chave do gestor de outro prédio que seja membro', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1' } as any);
+    mockBuildingRepo.getDashboard.mockResolvedValue([0, 0, 0] as any);
+    mockInspectionRepo.getCalendarData.mockResolvedValue([] as any);
+
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/dashboard`)
+      .set('Authorization', `Bearer ${tokenOutroGestor}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.building).not.toHaveProperty('share_key');
+  });
+
+  it('aprova a solicitação vinculando como visualizador', async () => {
+    mockBuildingRepo.findAccessRequestById.mockResolvedValue({
+      id: 'req-1',
+      building_id: BUILDING_ID,
+      status: 'PENDING',
+    } as any);
+    mockBuildingRepo.updateAccessRequest.mockResolvedValue({
+      id: 'req-1',
+      user_id: 'user-novo',
+      user: { id: 'user-novo', name: 'Novo', email: 'novo@test.com', role: 'INSPECTOR' },
+    } as any);
+
+    const res = await request(app)
+      .patch(`/buildings/${BUILDING_ID}/access-requests/req-1`)
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send({ status: 'APPROVED' });
+
+    expect(res.status).toBe(200);
+    // Sem terceiro argumento: o vínculo nasce VIEWER, mesmo que a conta já
+    // fosse INSPECTOR em outro prédio.
+    expect(mockBuildingRepo.addMember).toHaveBeenCalledWith(BUILDING_ID, 'user-novo');
+  });
+
+  it('GESTOR troca o nível de acesso do membro', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1' } as any);
+    mockBuildingRepo.updateMemberRole.mockResolvedValue({ id: 'm1', role: 'INSPECTOR' } as any);
+
+    const res = await request(app)
+      .patch(`/buildings/${BUILDING_ID}/members/user-novo`)
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send({ role: 'INSPECTOR' });
+
+    expect(res.status).toBe(200);
+    expect(mockBuildingRepo.updateMemberRole).toHaveBeenCalledWith(
+      BUILDING_ID,
+      'user-novo',
+      'INSPECTOR'
+    );
+  });
+
+  it('recusa promover membro a ADMIN', async () => {
+    const res = await request(app)
+      .patch(`/buildings/${BUILDING_ID}/members/user-novo`)
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send({ role: 'ADMIN' });
+
+    expect(res.status).toBe(400);
+    expect(mockBuildingRepo.updateMemberRole).not.toHaveBeenCalled();
+  });
+
+  it('INSPECTOR não troca o nível de acesso de ninguém', async () => {
+    const res = await request(app)
+      .patch(`/buildings/${BUILDING_ID}/members/user-novo`)
+      .set('Authorization', `Bearer ${tokenInspector}`)
+      .send({ role: 'INSPECTOR' });
+
+    expect(res.status).toBe(403);
+    expect(mockBuildingRepo.updateMemberRole).not.toHaveBeenCalled();
+  });
+});
+
+describe('cadastro de gestor', () => {
+  it('cria a conta como GESTOR pela rota própria', async () => {
+    mockUserRepo.findByEmail.mockResolvedValue(null);
+    mockUserRepo.create.mockResolvedValue({
+      id: 'gestor-novo',
+      name: 'Gestor',
+      email: 'gestor@test.com',
+      role: 'GESTOR',
+      password_hash: 'x',
+    } as any);
+
+    const res = await request(app)
+      .post('/users/managers')
+      .send({ name: 'Gestor', email: 'gestor@test.com', password: 'Senha@123' });
+
+    expect(res.status).toBe(201);
+    expect(mockUserRepo.create).toHaveBeenCalledWith(expect.objectContaining({ role: 'GESTOR' }));
+  });
+});
+
+describe('edição de usuários pelo admin', () => {
+  it('recusa alteração de papel', async () => {
+    const res = await request(app)
+      .patch('/users/user-viewer')
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+      .send({ role: 'ADMIN' });
+
+    expect(res.status).toBe(400);
+    expect(mockUserRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('aceita alteração de nome e status', async () => {
+    mockUserRepo.findById.mockResolvedValue({
+      id: 'user-viewer',
+      name: 'Antigo',
+      email: 'v@test.com',
+      role: 'VIEWER',
+      status: 'ACTIVE',
+      password_hash: 'x',
+    } as any);
+    mockUserRepo.update.mockResolvedValue({
+      id: 'user-viewer',
+      name: 'Novo nome',
+      email: 'v@test.com',
+      role: 'VIEWER',
+      status: 'ACTIVE',
+      password_hash: 'x',
+    } as any);
+
+    const res = await request(app)
+      .patch('/users/user-viewer')
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+      .send({ name: 'Novo nome' });
+
+    expect(res.status).toBe(200);
+    expect(mockUserRepo.update).toHaveBeenCalledWith('user-viewer', { name: 'Novo nome' });
+  });
+});
+
 describe('acesso a relatórios', () => {
   const report = {
     id: REPORT_ID,
@@ -185,12 +374,24 @@ describe('acesso a relatórios', () => {
     );
   });
 
-  it('só ADMIN descarta uma vistoria', async () => {
+  it('INSPECTOR não descarta uma vistoria', async () => {
     const res = await request(app)
       .delete(`/inspections/${REPORT_ID}`)
       .set('Authorization', `Bearer ${tokenInspector}`);
 
     expect(res.status).toBe(403);
+  });
+
+  it('GESTOR não descarta vistoria de prédio de outro gestor', async () => {
+    mockInspectionRepo.findById.mockResolvedValue(report as any);
+    mockBuildingRepo.findById.mockResolvedValue({ ...building, created_by: 'user-gestor' } as any);
+
+    const res = await request(app)
+      .delete(`/inspections/${REPORT_ID}`)
+      .set('Authorization', `Bearer ${tokenOutroGestor}`);
+
+    expect(res.status).toBe(403);
+    expect(mockInspectionRepo.delete).not.toHaveBeenCalled();
   });
 });
 

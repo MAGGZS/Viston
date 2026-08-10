@@ -31,7 +31,7 @@ export const inspectionController = {
   },
 
   async remove(req: AuthenticatedRequest, res: Response) {
-    await inspectionService.remove(req.params.id, req.user.id);
+    await inspectionService.remove(req.params.id, req.user);
     noContent(res);
   },
 

@@ -7,10 +7,11 @@ import {
   Priority,
   RecordStatus,
 } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma';
 
 const reportInclude = {
-  inspector: { select: { id: true, name: true, email: true, role: true } },
+  inspector: { select: { id: true, name: true, email: true, role: true, avatar_url: true } },
   building: true,
   floor_form_entries: {
     include: {
@@ -59,23 +60,24 @@ export const inspectionRepository = {
         },
       });
 
-      for (const floor of data.floors) {
-        const entry = await tx.floorFormEntry.create({
-          data: {
-            report_id: report.id,
-            floor_id: floor.floor_id,
-            status_geral: floor.status_geral,
-          },
-        });
+      // Os ids das entradas saem daqui para que andares e ocorrências entrem em
+      // duas chamadas, e não em duas por andar (eram até 40 idas ao banco).
+      const entries = data.floors.map((floor) => ({ id: randomUUID(), floor }));
 
-        if (floor.records.length > 0) {
-          await tx.maintenanceRecord.createMany({
-            data: floor.records.map((record) => ({
-              floor_form_entry_id: entry.id,
-              ...record,
-            })),
-          });
-        }
+      await tx.floorFormEntry.createMany({
+        data: entries.map(({ id, floor }) => ({
+          id,
+          report_id: report.id,
+          floor_id: floor.floor_id,
+          status_geral: floor.status_geral,
+        })),
+      });
+
+      const records = entries.flatMap(({ id, floor }) =>
+        floor.records.map((record) => ({ floor_form_entry_id: id, ...record }))
+      );
+      if (records.length > 0) {
+        await tx.maintenanceRecord.createMany({ data: records });
       }
 
       return tx.inspectionReport.findUniqueOrThrow({
@@ -133,7 +135,7 @@ export const inspectionRepository = {
         take: limit,
         orderBy: { finished_at: 'desc' },
         include: {
-          inspector: { select: { id: true, name: true, email: true } },
+          inspector: { select: { id: true, name: true, email: true, avatar_url: true } },
           building: { select: { id: true, name: true } },
           floor_form_entries: {
             select: {

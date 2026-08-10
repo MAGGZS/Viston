@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/authenticate';
+import { isBuildingManager } from '../middlewares/buildingAccess';
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
 import { inspectionRepository } from '../repositories/inspection.repository';
 import { buildHeatmap } from '../services/inspection.service';
@@ -7,6 +8,7 @@ import { ok, created, noContent } from '../utils/response';
 import { NotFoundError, ConflictError } from '../utils/errors';
 import { AuditAction } from '@prisma/client';
 import { normalizeShareKey, isValidShareKeyFormat } from '../utils/shareKey';
+import { zonedParts, zonedRange } from '../utils/timezone';
 
 /** Remove a chave de compartilhamento de respostas destinadas a nao-admins. */
 function publicBuilding(building: { id: string; name: string; description: string | null }) {
@@ -35,6 +37,19 @@ export const buildingController = {
     const memberships = await buildingRepository.getMemberBuildings(req.user.id);
     const buildings = memberships.map((m: any) => m.building);
     ok(res, buildings);
+  },
+
+  /** Prédios que o gestor criou — a tela inicial dele. */
+  async managedBuildings(req: AuthenticatedRequest, res: Response) {
+    const buildings = await buildingRepository.findAll(
+      req.user.role === 'ADMIN' ? undefined : req.user.id
+    );
+    ok(res, buildings);
+  },
+
+  /** Números do sistema inteiro — painel do ADMIN. */
+  async getStats(req: AuthenticatedRequest, res: Response) {
+    ok(res, await buildingRepository.getSystemStats());
   },
 
   async create(req: AuthenticatedRequest, res: Response) {
@@ -92,16 +107,17 @@ export const buildingController = {
 
     const [inspectorCount, viewerCount, totalInspections] = await buildingRepository.getDashboard(req.params.id);
 
-    // Calendário: últimos 12 meses
-    const now = new Date();
-    const dateFrom = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-    const dateTo = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    // Calendário: últimos 12 meses, fechando pelo calendário local (ver utils/timezone)
+    const today = zonedParts();
+    const { start, end } = zonedRange(today.year, today.monthIndex - 11, 12);
 
-    const calData = await inspectionRepository.getCalendarData(dateFrom, dateTo, req.params.id);
+    const calData = await inspectionRepository.getCalendarData(start, end, req.params.id);
     const heatmap = buildHeatmap(calData);
 
-    // Apenas admin vê a chave de compartilhamento
-    const payloadBuilding = req.user.role === 'ADMIN' ? building : publicBuilding(building);
+    // Só quem administra o prédio vê a chave de compartilhamento
+    const payloadBuilding = isBuildingManager(req.user, building)
+      ? building
+      : publicBuilding(building);
 
     ok(res, { building: payloadBuilding, inspectorCount, viewerCount, totalInspections, heatmap });
   },
@@ -129,6 +145,29 @@ export const buildingController = {
   async removeMember(req: AuthenticatedRequest, res: Response) {
     await buildingRepository.removeMemberSelf(req.params.id, req.params.userId);
     noContent(res);
+  },
+
+  /** O gestor define o nível de acesso de quem está vinculado ao prédio. */
+  async updateMemberRole(req: AuthenticatedRequest, res: Response) {
+    const member = await buildingRepository.findMember(req.params.id, req.params.userId);
+    if (!member) throw new NotFoundError('Vínculo');
+
+    const { role } = req.body as { role: 'INSPECTOR' | 'VIEWER' };
+    const updated = await buildingRepository.updateMemberRole(
+      req.params.id,
+      req.params.userId,
+      role
+    );
+
+    await auditRepository.log({
+      user_id: req.user.id,
+      action: AuditAction.UPDATE,
+      entity: 'BuildingMember',
+      entity_id: member.id,
+      metadata: { building_id: req.params.id, user_id: req.params.userId, role },
+    });
+
+    ok(res, updated);
   },
 
   async leaveBuilding(req: AuthenticatedRequest, res: Response) {
@@ -175,8 +214,9 @@ export const buildingController = {
 
     const updated = await buildingRepository.updateAccessRequest(req.params.requestId, status);
 
+    // Entra sempre como visualizador — o gestor promove depois, se quiser.
     if (status === 'APPROVED') {
-      await buildingRepository.addMember(req.params.id, updated.user_id, updated.user.role);
+      await buildingRepository.addMember(req.params.id, updated.user_id);
     }
 
     ok(res, updated);

@@ -1,20 +1,21 @@
 'use client';
 import { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, ArrowLeft, UserCheck, UserMinus, AlertTriangle, Trash2 } from 'lucide-react';
-import Link from 'next/link';
+import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, UserCheck, UserMinus, AlertTriangle, Trash2, Check, X } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
-import { AdminSidebar } from '@/app/components/AdminSidebar';
+import { Avatar } from '@/app/components/Avatar';
+import { GestorHeader } from '@/app/components/GestorHeader';
 import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Skeleton, Button, Modal } from '@/app/components/ui';
-import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember, useDeleteInspection } from '@/app/hooks/useApi';
+import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember, useUpdateMemberRole, useDeleteInspection, useAccessRequests, useReviewAccessRequest } from '@/app/hooks/useApi';
 import { formatShareKey } from '@/app/lib/shareKey';
 import { useToastStore } from '@/app/store/toast';
+import { useAuthStore } from '@/app/store/auth';
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success', COMPLETED: 'success' };
@@ -58,16 +59,144 @@ function MonthGrid({ heatmap, year, month, onDayClick }) {
   );
 }
 
+/**
+ * Linha de colaborador.
+ *
+ * O nível de acesso é decisão do gestor: quem se vincula entra como
+ * visualizador e só sobe para inspetor por aqui.
+ */
+function MemberRow({ member, buildingId, onRemove, className = '' }) {
+  const updateRole = useUpdateMemberRole();
+  const { show: toast } = useToastStore();
 
-export default function BuildingDashboardPage() {
+  async function handleRoleChange(role) {
+    try {
+      await updateRole.mutateAsync({ buildingId, userId: member.user_id, role });
+      toast(role === 'INSPECTOR' ? 'Agora é inspetor' : 'Agora é visualizador', 'success');
+    } catch (e) {
+      toast(e?.response?.data?.error?.message || 'Erro ao alterar nível de acesso', 'error', e);
+    }
+  }
+
+  return (
+    <div className={`flex items-center gap-3 bg-chip rounded-control px-4 py-3 ${className}`}>
+      <Avatar user={member.user} size={32} />
+      <div className="flex-1 min-w-0">
+        <p className="text-white text-sm font-medium truncate">{member.user?.name}</p>
+        <p className="text-mute text-xs truncate">{member.user?.email}</p>
+      </div>
+      <select
+        // `select-field` traz seta, foco e lista escura; aqui só o que muda:
+        // fundo um nível acima (a linha já é chip) e medida de controle miúdo.
+        className="select-field select-field--raised flex-shrink-0"
+        style={{
+          width: 148, flexBasis: 148,
+          padding: '7px 32px 7px 12px', fontSize: 12,
+          backgroundPosition: 'right 10px center', backgroundSize: '13px 13px',
+        }}
+        aria-label={`Nível de acesso de ${member.user?.name}`}
+        value={member.role === 'INSPECTOR' ? 'INSPECTOR' : 'VIEWER'}
+        disabled={updateRole.isPending}
+        onChange={(e) => handleRoleChange(e.target.value)}
+      >
+        <option value="VIEWER">Visualizador</option>
+        <option value="INSPECTOR">Inspetor</option>
+      </select>
+      <button
+        onClick={onRemove}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.26)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0 }}
+        onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.26)'}
+        title="Remover vínculo">
+        <UserMinus size={15} />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * O gestor no topo da lista de colaboradores.
+ *
+ * Ele não é um BuildingMember — é o criador do prédio, então não vem de
+ * `getMembers`. Como esta tela só abre para o gestor dono (guarda de rota no
+ * front, `requireBuildingManager` no back), o usuário logado é ele.
+ */
+function ManagerRow({ user }) {
+  return (
+    <div className="anim-fade-up flex items-center gap-3 rounded-control px-4 py-3"
+      style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)' }}>
+      <Avatar user={user} size={32} />
+      <div className="flex-1 min-w-0">
+        <p className="text-white text-sm font-semibold truncate">{user?.name}</p>
+        <p className="text-mute text-xs truncate">{user?.email}</p>
+      </div>
+      <span className="text-xs font-semibold px-3 py-1.5 rounded-pill text-accent flex-shrink-0"
+        style={{ background: 'rgba(245,197,24,0.13)' }}>
+        Gestor
+      </span>
+    </div>
+  );
+}
+
+/** Uma solicitação pendente: quem pediu, quando, e as duas saídas. */
+function RequestRow({ request, buildingId, className = '' }) {
+  const review = useReviewAccessRequest();
+  const { show: toast } = useToastStore();
+
+  async function handle(status) {
+    try {
+      await review.mutateAsync({ buildingId, requestId: request.id, status });
+      toast(
+        status === 'APPROVED' ? 'Acesso aprovado! Entrou como visualizador.' : 'Solicitação rejeitada',
+        status === 'APPROVED' ? 'success' : 'info'
+      );
+    } catch (e) {
+      toast(e?.response?.data?.error?.message || 'Erro ao revisar solicitação', 'error', e);
+    }
+  }
+
+  return (
+    <div className={`flex items-center gap-3 bg-chip rounded-control px-4 py-3 ${className}`}>
+      <Avatar user={request.user} size={32} />
+      <div className="flex-1 min-w-0">
+        <p className="text-white text-sm font-medium truncate">{request.user?.name}</p>
+        <p className="text-mute text-xs truncate">{request.user?.email}</p>
+      </div>
+      <span className="text-faint text-xs whitespace-nowrap">
+        {format(new Date(request.requested_at), 'dd/MM/yyyy', { locale: ptBR })}
+      </span>
+      <button
+        onClick={() => handle('APPROVED')}
+        disabled={review.isPending}
+        title="Aprovar"
+        aria-label={`Aprovar ${request.user?.name}`}
+        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-pill bg-accent text-black transition-all duration-150 hover:scale-105 active:scale-95 disabled:opacity-50 flex-shrink-0"
+      >
+        <Check size={13} /> Aprovar
+      </button>
+      <button
+        onClick={() => handle('REJECTED')}
+        disabled={review.isPending}
+        title="Rejeitar"
+        aria-label={`Rejeitar ${request.user?.name}`}
+        className="flex items-center justify-center w-8 h-8 rounded-pill bg-card text-danger transition-all duration-150 hover:scale-110 active:scale-95 disabled:opacity-50 flex-shrink-0"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
+
+export default function GestorBuildingPage() {
   const { id } = useParams();
-  const router = useRouter();
+  const { user } = useAuthStore();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [selected, setSelected] = useState(null);
   const [shareModal, setShareModal] = useState(false);
   const [membersModal, setMembersModal] = useState(false);
+  const [requestsModal, setRequestsModal] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(null); // membro a remover
   const [confirmDiscard, setConfirmDiscard] = useState(null); // vistoria a descartar
   const [previewId, setPreviewId] = useState(null); // vistoria em prévia
@@ -76,6 +205,9 @@ export default function BuildingDashboardPage() {
   const { data, isLoading } = useBuildingDashboard(id);
   const { data: histData, isLoading: histLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useBuildingHistory(id);
   const { data: membersData, isLoading: membersLoading } = useBuildingMembers(membersModal ? id : null);
+  // Buscado sempre, e não só com o modal aberto: sem isso o gestor teria de
+  // abrir a caixa para descobrir que existe alguém esperando aprovação.
+  const { data: requests = [], isLoading: requestsLoading } = useAccessRequests(id);
   const removeMember = useRemoveMember();
   const deleteInspection = useDeleteInspection();
   const { show: toast } = useToastStore();
@@ -90,32 +222,31 @@ export default function BuildingDashboardPage() {
   function next() { if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1); }
 
   return (
-    <RouteGuard roles={['ADMIN']}>
-      <div className="hidden lg:flex min-h-screen bg-page">
-        <AdminSidebar />
+    <RouteGuard roles={['GESTOR']}>
+      <div className="hidden lg:flex flex-col min-h-screen bg-page">
+        <GestorHeader back="/gestor" />
         <main className="flex-1 p-8 overflow-auto">
 
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-4">
-              <button onClick={() => router.push('/desktop/admin/predios')}
-                className="w-9 h-9 flex items-center justify-center bg-chip rounded-control text-mute hover:text-white transition-colors">
-                <ArrowLeft size={16} />
-              </button>
-              <div>
-                {isLoading ? <div className="h-7 w-48 bg-chip rounded animate-pulse" /> : (
-                  <h1 className="text-2xl font-semibold text-white">{data?.building?.name}</h1>
-                )}
-                {data?.building?.description && (
-                  <p className="text-mute text-sm mt-0.5">{data.building.description}</p>
-                )}
-              </div>
+          <div className="anim-fade-down flex items-center justify-between mb-8">
+            <div>
+              {isLoading ? <div className="h-7 w-48 bg-chip rounded animate-pulse" /> : (
+                <h1 className="text-2xl font-semibold text-white">{data?.building?.name}</h1>
+              )}
+              {data?.building?.description && (
+                <p className="text-mute text-sm mt-0.5">{data.building.description}</p>
+              )}
             </div>
             <div className="flex items-center gap-3">
-              <Link href={`/desktop/admin/predios/${id}/solicitacoes`}
-                className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-white transition-colors">
+              <button onClick={() => setRequestsModal(true)}
+                className="relative flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-white transition-colors">
                 <Users size={15} /> Solicitações
-              </Link>
+                {requests.length > 0 && (
+                  <span className="anim-pop-in flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-accent text-black text-xs font-semibold">
+                    {requests.length}
+                  </span>
+                )}
+              </button>
               <button onClick={() => setMembersModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-white transition-colors">
                 <UserCheck size={15} /> Colaboradores
@@ -189,9 +320,7 @@ export default function BuildingDashboardPage() {
                       className="border-b border-line hover:bg-chip transition-colors cursor-pointer">
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center">
-                            <span className="text-black text-xs font-semibold">{r.inspector?.name?.[0]}</span>
-                          </div>
+                          <Avatar user={r.inspector} size={28} />
                           <span className="text-white text-sm">{r.inspector?.name}</span>
                         </div>
                       </td>
@@ -258,40 +387,50 @@ export default function BuildingDashboardPage() {
 
       <ReportDocumentModal open={!!reportId} onClose={() => setReportId(null)} reportId={reportId} />
 
-      <Modal open={membersModal} onClose={() => setMembersModal(false)} title="Colaboradores">
-        {membersLoading ? (
+      <Modal open={membersModal} onClose={() => setMembersModal(false)} title="Colaboradores" maxWidth={560}>
+        <div className="flex flex-col gap-2">
+          <ManagerRow user={user} />
+
+          {membersLoading ? (
+            [1,2,3].map(i => <div key={i} className="h-12 bg-chip rounded-control animate-pulse" />)
+          ) : members.length === 0 ? (
+            <p className="text-mute text-sm text-center py-6">Ninguém mais vinculado a este prédio</p>
+          ) : (
+            members.map((m, idx) => (
+              <MemberRow
+                key={m.id}
+                member={m}
+                buildingId={id}
+                className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
+                onRemove={() => setConfirmRemove(m)}
+              />
+            ))
+          )}
+        </div>
+      </Modal>
+
+      <Modal open={requestsModal} onClose={() => setRequestsModal(false)} title="Solicitações de acesso" maxWidth={560}>
+        {requestsLoading ? (
           <div className="flex flex-col gap-3">
             {[1,2,3].map(i => <div key={i} className="h-12 bg-card rounded-control animate-pulse" />)}
           </div>
-        ) : members.length === 0 ? (
-          <p className="text-mute text-sm text-center py-6">Nenhum colaborador vinculado</p>
+        ) : requests.length === 0 ? (
+          <p className="text-mute text-sm text-center py-6">Nenhuma solicitação pendente</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {members.map((m) => (
-              <div key={m.id} className="flex items-center gap-3 bg-chip rounded-control px-4 py-3">
-                <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
-                  <span className="text-black text-xs font-semibold">{m.user?.name?.[0]}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-medium truncate">{m.user?.name}</p>
-                  <p className="text-mute text-xs truncate">{m.user?.email}</p>
-                </div>
-                <span className="text-xs font-semibold px-2 py-1 rounded-pill" style={{ background: m.role === 'INSPECTOR' ? 'rgba(245,197,24,0.1)' : 'rgba(99,102,241,0.1)', color: m.role === 'INSPECTOR' ? '#F5C518' : '#a5b4fc' }}>
-                  {m.role === 'INSPECTOR' ? 'Inspetor' : 'Visualizador'}
-                </span>
-                <button
-                  onClick={() => setConfirmRemove(m)}
-                  disabled={removeMember.isPending}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.26)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0 }}
-                  onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.26)'}
-                  title="Remover vínculo">
-                  <UserMinus size={15} />
-                </button>
-              </div>
+            {requests.map((r, idx) => (
+              <RequestRow
+                key={r.id}
+                request={r}
+                buildingId={id}
+                className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
+              />
             ))}
           </div>
         )}
+        <p className="text-faint text-xs mt-4 leading-relaxed">
+          Quem é aprovado entra como visualizador. O nível de acesso muda em Colaboradores.
+        </p>
       </Modal>
 
       {/* Confirmação de desvinculo */}

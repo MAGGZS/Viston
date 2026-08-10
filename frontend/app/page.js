@@ -15,10 +15,16 @@ export default function RootPage() {
       return;
     }
 
+    // O gestor tem uma área só dele, sem sidebar e igual nos dois tamanhos
+    if (user?.role === 'GESTOR') {
+      router.replace('/gestor');
+      return;
+    }
+
     const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
 
     if (isDesktop) {
-      if (user?.role === 'ADMIN') router.replace('/desktop/admin');
+      if (user?.role === 'ADMIN') router.replace('/desktop/admin/dashboard');
       else router.replace('/desktop/visualizacao');
     } else {
       router.replace('/home');

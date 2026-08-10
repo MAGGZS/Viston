@@ -55,10 +55,16 @@ export default function RegisterPage() {
       title="Criar conta"
       subtitle="Depois de entrar, peça a chave do prédio ao administrador para começar a vistoriar."
       footer={
-        <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 14 }}>
-          Já tem conta?{' '}
-          <a href="/login" style={{ color: 'rgba(245,197,24,0.85)', fontWeight: 600, textDecoration: 'none' }}>Entrar</a>
-        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 14 }}>
+            Já tem conta?{' '}
+            <a href="/login" style={{ color: 'rgba(245,197,24,0.85)', fontWeight: 600, textDecoration: 'none' }}>Entrar</a>
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 13 }}>
+            Vai administrar um prédio?{' '}
+            <a href="/register/gestor" style={{ color: 'rgba(245,197,24,0.85)', fontWeight: 600, textDecoration: 'none' }}>Cadastre-se como gestor</a>
+          </p>
+        </div>
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>

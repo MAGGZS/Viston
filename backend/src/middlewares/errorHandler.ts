@@ -35,6 +35,15 @@ export function errorHandler(
       return;
     }
 
+    // Corrida entre duas gravações do mesmo valor único (ex.: dois cadastros
+    // com o mesmo e-mail no mesmo instante): é conflito, não erro do servidor.
+    if (err.code === 'P2002') {
+      res.status(409).json({
+        error: { code: 'CONFLICT', message: 'Já existe um registro com esses dados' },
+      });
+      return;
+    }
+
     if (err.code === 'P2003') {
       res.status(409).json({
         error: {
