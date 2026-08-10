@@ -4,11 +4,19 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Users, Building2, LogOut } from 'lucide-react';
 import { Logo } from '@/app/components/Logo';
 import { useAuthStore } from '@/app/store/auth';
+import { T, R, W } from '@/app/lib/theme';
 
 const items = [
   { href: '/desktop/admin/predios', icon: Building2, label: 'Prédios' },
   { href: '/desktop/admin', icon: Users, label: 'Usuários' },
 ];
+
+const itemBase = {
+  display: 'flex', alignItems: 'center', gap: 10,
+  padding: '10px 12px', borderRadius: 14,
+  fontFamily: T.display, fontSize: 13, textDecoration: 'none',
+  transition: 'background-color 0.15s, color 0.15s',
+};
 
 export function AdminSidebar() {
   const pathname = usePathname();
@@ -16,31 +24,42 @@ export function AdminSidebar() {
   const router = useRouter();
 
   return (
-    <aside style={{ width: 232, minHeight: '100vh', background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '24px 20px 20px' }}>
-        <Logo size={20} />
+    <aside style={{ width: 208, minHeight: '100vh', background: T.bg, borderRight: `1px solid ${T.line}`, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '22px 18px 20px' }}>
+        <Logo size={19} />
       </div>
 
-      <div style={{ margin: '0 16px', height: 1, background: 'rgba(255,255,255,0.06)' }} />
-
-      <nav style={{ flex: 1, padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <nav style={{ flex: 1, padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {items.map(({ href, icon: Icon, label }) => {
-          const active = href === '/desktop/admin'
-            ? pathname === href
-            : pathname.startsWith(href);
+          const active = href === '/desktop/admin' ? pathname === href : pathname.startsWith(href);
           return (
-            <Link key={href} href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 14, fontSize: 14, fontWeight: 500, textDecoration: 'none', transition: 'all 0.2s', background: active ? 'rgba(245,197,24,0.1)' : 'transparent', color: active ? '#F5C518' : 'rgba(255,255,255,0.35)', border: active ? '1px solid rgba(245,197,24,0.15)' : '1px solid transparent' }}>
-              <Icon size={17} strokeWidth={active ? 2.5 : 1.8} />
+            <Link
+              key={href}
+              href={href}
+              style={{
+                ...itemBase,
+                fontWeight: active ? W.strong : W.body,
+                background: active ? T.accent : 'transparent',
+                color: active ? T.onAccent : T.mute,
+              }}
+              onMouseEnter={e => { if (!active) e.currentTarget.style.background = T.chip; }}
+              onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}
+            >
+              <Icon size={16} strokeWidth={active ? 2.2 : 1.8} />
               {label}
             </Link>
           );
         })}
       </nav>
 
-      <div style={{ padding: '10px 10px 24px' }}>
-        <div style={{ margin: '0 6px 10px', height: 1, background: 'rgba(255,255,255,0.06)' }} />
-        <button onClick={() => { logout(); router.replace('/login'); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 14, fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.3)', background: 'transparent', border: 'none', cursor: 'pointer', width: '100%', transition: 'all 0.2s' }}>
-          <LogOut size={17} strokeWidth={1.8} />
+      <div style={{ padding: '0 12px 22px' }}>
+        <button
+          onClick={() => { logout(); router.replace('/login'); }}
+          style={{ ...itemBase, fontWeight: W.body, color: T.mute, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' }}
+          onMouseEnter={e => { e.currentTarget.style.background = T.chip; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+        >
+          <LogOut size={16} strokeWidth={1.8} />
           Sair
         </button>
       </div>

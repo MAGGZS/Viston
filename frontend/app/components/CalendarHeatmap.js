@@ -1,15 +1,17 @@
 'use client';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
 import { CalendarDayCell } from '@/app/components/CalendarDayCell';
+import { T } from '@/app/lib/theme';
 
 const DAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
+/** Rampa de intensidade: quantas vistorias aconteceram no dia. */
 function getIntensity(count) {
-  if (!count) return '#1E1E1E';
+  if (!count) return T.chip;
   if (count === 1) return '#2E2A12';
   if (count === 2) return '#6B5A00';
   if (count === 3) return '#A88A00';
-  return '#F5C518';
+  return T.accent;
 }
 
 export function CalendarHeatmap({ heatmap = {}, month, year, onDayClick }) {
@@ -32,7 +34,7 @@ export function CalendarHeatmap({ heatmap = {}, month, year, onDayClick }) {
       {/* Cabeçalho dos dias */}
       <div className="grid grid-cols-7 mb-1">
         {DAYS.map((d, i) => (
-          <div key={i} className="text-center text-[10px] text-[#9A9A9A]">{d}</div>
+          <div key={i} className="text-center text-[11px]" style={{ color: T.mute }}>{d}</div>
         ))}
       </div>
 

@@ -6,6 +6,7 @@ import { X } from 'lucide-react';
 import { Spinner } from '@/app/components/ui';
 import { InspectionPreview } from '@/app/components/InspectionPreview';
 import { useInspection } from '@/app/hooks/useApi';
+import { T, R, W } from '@/app/lib/theme';
 
 /**
  * Detalhes de um dia do calendário: quem vistoriou, prévia da planilha,
@@ -28,18 +29,18 @@ export function DayInspectionsModal({ open, onClose, day, info }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)' }} onClick={onClose} />
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
 
-      <div className="anim-scale-in" style={{ position: 'relative', background: 'rgba(10,10,20,0.94)', backdropFilter: 'blur(32px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 24, width: '100%', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}>
+      <div className="anim-scale-in" style={{ position: 'relative', background: T.card, borderRadius: R.card, width: '100%', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
         {/* Cabeçalho */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '20px 24px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '20px 24px 14px', borderBottom: `1px solid ${T.line}` }}>
           <div>
-            <h2 style={{ color: 'rgba(255,255,255,0.95)', fontWeight: 700, fontSize: 16, textTransform: 'capitalize' }}>{dayLabel}</h2>
-            <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>
+            <h2 style={{ color: T.text, fontWeight: W.title, fontSize: 16, textTransform: 'capitalize' }}>{dayLabel}</h2>
+            <p style={{ color: T.mute, fontSize: 12, marginTop: 2 }}>
               {reports.length} vistoria{reports.length !== 1 ? 's' : ''} neste dia
             </p>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: 4 }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 4 }}>
             <X size={18} />
           </button>
         </div>
@@ -52,7 +53,7 @@ export function DayInspectionsModal({ open, onClose, day, info }) {
                 const active = r.id === selectedId;
                 return (
                   <button key={r.id} onClick={() => setPickedId(r.id)}
-                    style={{ padding: '8px 14px', borderRadius: 12, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: `1px solid ${active ? '#F5C518' : 'rgba(255,255,255,0.1)'}`, background: active ? 'rgba(245,197,24,0.1)' : 'rgba(255,255,255,0.04)', color: active ? '#F5C518' : 'rgba(255,255,255,0.6)' }}>
+                    style={{ padding: '8px 14px', borderRadius: R.pill, cursor: 'pointer', fontSize: 12, fontWeight: W.strong, border: 'none', background: active ? T.accent : T.chip, color: active ? T.onAccent : T.text }}>
                     {r.inspector} · {format(new Date(r.finished_at), 'HH:mm')}
                   </button>
                 );

@@ -81,11 +81,11 @@ export default function AdminUsersPage() {
 
   return (
     <RouteGuard roles={['ADMIN']}>
-      <div className="hidden lg:flex min-h-screen bg-[#0D0D0D]">
+      <div className="hidden lg:flex min-h-screen bg-page">
         <AdminSidebar />
         <main className="flex-1 p-8">
           <div className="flex items-center justify-between mb-8">
-            <h1 className="text-2xl font-bold text-white">Usuários</h1>
+            <h1 className="text-2xl font-semibold text-white">Usuários</h1>
             <div className="flex gap-3">
               <Button variant="secondary" onClick={() => refetch()} loading={isFetching}><RefreshCw size={15} /> Atualizar</Button>
               <Button onClick={() => setCreateModal(true)}><UserPlus size={18} /> Novo usuário</Button>
@@ -93,34 +93,34 @@ export default function AdminUsersPage() {
           </div>
 
           {/* Tabela */}
-          <div className="bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A] overflow-hidden">
+          <div className="bg-card rounded-card overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-[#2A2A2A]">
+                <tr className="border-b border-line">
                   {['Nome', 'E-mail', 'Role', 'Status', 'Ações'].map(h => (
-                    <th key={h} className="text-left px-6 py-4 text-[#9A9A9A] text-sm font-medium">{h}</th>
+                    <th key={h} className="text-left px-6 py-4 text-mute text-sm font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {isLoading && [1,2,3,4].map(i => (
-                  <tr key={i} className="border-b border-[#2A2A2A]">
+                  <tr key={i} className="border-b border-line">
                     {[1,2,3,4,5].map(j => (
                       <td key={j} className="px-6 py-4"><Skeleton className="h-4 w-full" /></td>
                     ))}
                   </tr>
                 ))}
                 {data?.users?.map((u, idx) => (
-                  <tr key={u.id} className={`anim-fade-in anim-d${Math.min(idx + 1, 6)} border-b border-[#2A2A2A] hover:bg-[#1E1E1E] transition-colors`}>
+                  <tr key={u.id} className={`anim-fade-in anim-d${Math.min(idx + 1, 6)} border-b border-line hover:bg-chip transition-colors`}>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#F5C518] flex items-center justify-center">
-                          <span className="text-black text-xs font-bold">{u.name[0]}</span>
+                        <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
+                          <span className="text-black text-xs font-semibold">{u.name[0]}</span>
                         </div>
                         <span className="text-white text-sm">{u.name}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-[#9A9A9A] text-sm">{u.email}</td>
+                    <td className="px-6 py-4 text-mute text-sm">{u.email}</td>
                     <td className="px-6 py-4">
                       <Badge variant={ROLE_VARIANTS[u.role]}>{ROLE_LABELS[u.role]}</Badge>
                     </td>
@@ -132,7 +132,7 @@ export default function AdminUsersPage() {
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
                         <select
-                          className="bg-[#2A2A2A] text-white text-xs rounded-lg px-2 py-1 focus:outline-none"
+                          className="bg-chip text-white text-xs rounded-pill px-2 py-1 focus:outline-none"
                           value={u.role}
                           onChange={e => handleRoleChange(u.id, e.target.value)}
                         >
@@ -142,10 +142,10 @@ export default function AdminUsersPage() {
                         </select>
                         <button
                           onClick={() => handleStatusToggle(u)}
-                          className={`text-xs px-3 py-1 rounded-lg transition-colors ${
+                          className={`text-xs px-3 py-1 rounded-pill transition-colors ${
                             u.status === 'ACTIVE'
-                              ? 'bg-red-900/30 text-red-400 hover:bg-red-900/50'
-                              : 'bg-green-900/30 text-green-400 hover:bg-green-900/50'
+                              ? 'bg-danger-soft text-danger hover:bg-danger-soft'
+                              : 'bg-chip text-ink hover:bg-chip'
                           }`}
                         >
                           {u.status === 'ACTIVE' ? 'Desativar' : 'Reativar'}
@@ -153,7 +153,7 @@ export default function AdminUsersPage() {
                         <button
                           onClick={() => setDeleteTarget(u)}
                           title="Excluir permanentemente"
-                          className="text-xs px-3 py-1 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/60 transition-colors flex items-center"
+                          className="text-xs px-3 py-1 rounded-pill bg-danger-soft text-danger transition-colors flex items-center"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -166,8 +166,8 @@ export default function AdminUsersPage() {
 
             {/* Paginação */}
             {data && data.total > data.limit && (
-              <div className="flex items-center justify-between px-6 py-4 border-t border-[#2A2A2A]">
-                <p className="text-[#9A9A9A] text-sm">{data.total} usuários</p>
+              <div className="flex items-center justify-between px-6 py-4 border-t border-line">
+                <p className="text-mute text-sm">{data.total} usuários</p>
                 <div className="flex gap-2">
                   <Button variant="secondary" onClick={() => setPage(p => p - 1)} disabled={page === 1}>Anterior</Button>
                   <Button variant="secondary" onClick={() => setPage(p => p + 1)} disabled={page * data.limit >= data.total}>Próxima</Button>
@@ -179,18 +179,18 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Mobile: redirecionar para home */}
-      <div className="lg:hidden flex items-center justify-center min-h-screen bg-[#0D0D0D] p-6 text-center">
+      <div className="lg:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
         <div>
           <p className="text-4xl mb-4">🖥️</p>
-          <p className="text-white font-bold text-lg">Painel Admin</p>
-          <p className="text-[#9A9A9A] text-sm mt-2">Acesse pelo computador para gerenciar usuários</p>
+          <p className="text-white font-semibold text-lg">Painel Admin</p>
+          <p className="text-mute text-sm mt-2">Acesse pelo computador para gerenciar usuários</p>
         </div>
       </div>
 
       {/* Modal excluir usuário */}
       <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Excluir usuário">
         <div className="flex flex-col gap-4">
-          <p className="text-[#9A9A9A] text-sm">
+          <p className="text-mute text-sm">
             <span className="text-white font-medium">{deleteTarget?.name}</span> será apagado
             definitivamente do banco de dados. As inspeções feitas por ele continuam no histórico,
             mas sem inspetor vinculado. Esta ação não pode ser desfeita.

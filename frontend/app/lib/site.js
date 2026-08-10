@@ -14,7 +14,7 @@ export const SITE_DESCRIPTION =
 
 /** Cores da identidade — repetidas em manifest, theme-color e nas imagens geradas. */
 export const BRAND = {
-  background: '#080810',
+  background: '#0B0B0B',
   accent: '#F5C518',
   foreground: '#FFFFFF',
 };

@@ -13,7 +13,14 @@ export function useMediaQuery(query) {
     (onChange) => {
       const mq = window.matchMedia(query);
       mq.addEventListener('change', onChange);
-      return () => mq.removeEventListener('change', onChange);
+      // Rede de segurança: em alguns contextos o `change` não chega e o React
+      // fica preso no valor antigo enquanto o CSS já reagiu. O snapshot só muda
+      // ao cruzar o breakpoint, então isso não gera render a mais.
+      window.addEventListener('resize', onChange);
+      return () => {
+        mq.removeEventListener('change', onChange);
+        window.removeEventListener('resize', onChange);
+      };
     },
     [query]
   );

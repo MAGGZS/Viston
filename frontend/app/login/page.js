@@ -16,14 +16,14 @@ const schema = yup.object({
 
 const S = {
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
-  label: { fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' },
-  input: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 14, padding: '13px 16px', color: 'rgba(255,255,255,0.9)', fontSize: 15, outline: 'none', width: '100%' },
+  label: { fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.44)' },
+  input: { background: '#232323', border: '1px solid transparent', borderRadius: 16, padding: '13px 16px', color: 'rgba(255,255,255,0.96)', fontSize: 15, outline: 'none', width: '100%' },
   inputWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
-  eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center' },
-  btn: { width: '100%', background: '#F5C518', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 14, border: 'none', cursor: 'pointer', marginTop: 4, boxShadow: '0 0 20px rgba(245,197,24,0.2)' },
-  errBox: { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, padding: '10px 14px', textAlign: 'center' },
-  footer: { color: 'rgba(255,255,255,0.25)', fontSize: 14 },
-  link: { color: 'rgba(245,197,24,0.85)', fontWeight: 600, textDecoration: 'none' },
+  eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: 'rgba(255,255,255,0.44)', display: 'flex', alignItems: 'center' },
+  btn: { width: '100%', background: '#F5C518', color: '#000', fontWeight: 500, fontSize: 15, padding: '14px', borderRadius: 16, border: 'none', cursor: 'pointer', marginTop: 4 },
+  errBox: { background: 'rgba(248,113,113,0.13)', borderRadius: 16, padding: '11px 14px', textAlign: 'center' },
+  footer: { color: 'rgba(255,255,255,0.26)', fontSize: 14 },
+  link: { color: '#F5C518', fontWeight: 500, textDecoration: 'none' },
 };
 
 export default function LoginPage() {
@@ -52,8 +52,8 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={S.field}>
           <label style={S.label}>E-mail</label>
-          <input type="email" placeholder="seu@email.com" style={{ ...S.input, ...(errors.email ? { borderColor: 'rgba(239,68,68,0.5)' } : {}) }} {...register('email')} />
-          {errors.email && <span style={{ fontSize: 12, color: 'rgb(248,113,113)' }}>{errors.email.message}</span>}
+          <input type="email" placeholder="seu@email.com" style={{ ...S.input, ...(errors.email ? { borderColor: 'rgba(248,113,113,0.5)' } : {}) }} {...register('email')} />
+          {errors.email && <span style={{ fontSize: 12, color: '#F87171' }}>{errors.email.message}</span>}
         </div>
         <div style={S.field}>
           <label style={S.label}>Senha</label>
@@ -61,7 +61,7 @@ export default function LoginPage() {
             <input
               type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
-              style={{ ...S.input, paddingRight: 46, ...(errors.password ? { borderColor: 'rgba(239,68,68,0.5)' } : {}) }}
+              style={{ ...S.input, paddingRight: 46, ...(errors.password ? { borderColor: 'rgba(248,113,113,0.5)' } : {}) }}
               {...register('password')}
             />
             <button type="button" onClick={() => setShowPassword(v => !v)} style={S.eyeBtn}
@@ -69,9 +69,9 @@ export default function LoginPage() {
               {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
             </button>
           </div>
-          {errors.password && <span style={{ fontSize: 12, color: 'rgb(248,113,113)' }}>{errors.password.message}</span>}
+          {errors.password && <span style={{ fontSize: 12, color: '#F87171' }}>{errors.password.message}</span>}
         </div>
-        {apiError && <div style={S.errBox}><p style={{ color: 'rgb(248,113,113)', fontSize: 13 }}>{apiError}</p></div>}
+        {apiError && <div style={S.errBox}><p style={{ color: '#F87171', fontSize: 13 }}>{apiError}</p></div>}
         <button type="submit" disabled={isPending} style={{ ...S.btn, opacity: isPending ? 0.6 : 1 }}>
           {isPending ? 'Entrando...' : 'Entrar'}
         </button>

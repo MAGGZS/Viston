@@ -30,60 +30,60 @@ export default function SolicitacoesPage() {
 
   return (
     <RouteGuard roles={['ADMIN']}>
-      <div className="hidden lg:flex min-h-screen bg-[#0D0D0D]">
+      <div className="hidden lg:flex min-h-screen bg-page">
         <AdminSidebar />
         <main className="flex-1 p-8 overflow-auto">
           <div className="flex items-center gap-4 mb-8">
             <button onClick={() => router.push(`/desktop/admin/predios/${id}`)}
-              className="w-9 h-9 flex items-center justify-center bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl text-[#9A9A9A] hover:text-white transition-colors">
+              className="w-9 h-9 flex items-center justify-center bg-chip rounded-control text-mute hover:text-white transition-colors">
               <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-white">Solicitações de Acesso</h1>
-              {dash?.building?.name && <p className="text-[#9A9A9A] text-sm mt-0.5">{dash.building.name}</p>}
+              <h1 className="text-2xl font-semibold text-white">Solicitações de Acesso</h1>
+              {dash?.building?.name && <p className="text-mute text-sm mt-0.5">{dash.building.name}</p>}
             </div>
           </div>
 
-          <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl overflow-hidden">
+          <div className="bg-card rounded-card overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-[#2A2A2A]">
+                <tr className="border-b border-line">
                   {['Usuário', 'E-mail', 'Perfil', 'Solicitado em', 'Ações'].map(h => (
-                    <th key={h} className="text-left px-6 py-4 text-[#9A9A9A] text-sm font-medium">{h}</th>
+                    <th key={h} className="text-left px-6 py-4 text-mute text-sm font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {isLoading && [1,2,3].map(i => (
-                  <tr key={i} className="border-b border-[#2A2A2A]">
+                  <tr key={i} className="border-b border-line">
                     {[1,2,3,4,5].map(j => <td key={j} className="px-6 py-4"><Skeleton className="h-4 w-full" /></td>)}
                   </tr>
                 ))}
                 {requests.map(r => (
-                  <tr key={r.id} className="border-b border-[#2A2A2A] hover:bg-[#1E1E1E] transition-colors">
+                  <tr key={r.id} className="border-b border-line hover:bg-chip transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#F5C518] flex items-center justify-center">
-                          <span className="text-black text-xs font-bold">{r.user?.name?.[0]}</span>
+                        <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
+                          <span className="text-black text-xs font-semibold">{r.user?.name?.[0]}</span>
                         </div>
                         <span className="text-white text-sm">{r.user?.name}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-[#9A9A9A] text-sm">{r.user?.email}</td>
+                    <td className="px-6 py-4 text-mute text-sm">{r.user?.email}</td>
                     <td className="px-6 py-4">
                       <Badge variant={ROLE_VARIANT[r.user?.role]}>{ROLE_LABEL[r.user?.role]}</Badge>
                     </td>
-                    <td className="px-6 py-4 text-[#9A9A9A] text-sm">
+                    <td className="px-6 py-4 text-mute text-sm">
                       {format(new Date(r.requested_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
                         <button onClick={() => handle(r.id, 'APPROVED')} disabled={review.isPending}
-                          className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-green-900/30 text-green-400 hover:bg-green-900/50 transition-colors disabled:opacity-50">
+                          className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-pill bg-accent text-black transition-colors disabled:opacity-50">
                           <Check size={13} /> Aprovar
                         </button>
                         <button onClick={() => handle(r.id, 'REJECTED')} disabled={review.isPending}
-                          className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors disabled:opacity-50">
+                          className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-pill bg-chip text-danger transition-colors disabled:opacity-50">
                           <X size={13} /> Rejeitar
                         </button>
                       </div>
@@ -91,7 +91,7 @@ export default function SolicitacoesPage() {
                   </tr>
                 ))}
                 {!isLoading && requests.length === 0 && (
-                  <tr><td colSpan={5} className="px-6 py-12 text-center text-[#9A9A9A]">Nenhuma solicitação pendente</td></tr>
+                  <tr><td colSpan={5} className="px-6 py-12 text-center text-mute">Nenhuma solicitação pendente</td></tr>
                 )}
               </tbody>
             </table>
@@ -99,8 +99,8 @@ export default function SolicitacoesPage() {
         </main>
       </div>
 
-      <div className="lg:hidden flex items-center justify-center min-h-screen bg-[#0D0D0D] p-6 text-center">
-        <div><p className="text-4xl mb-4">🖥️</p><p className="text-white font-bold">Acesse pelo computador</p></div>
+      <div className="lg:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
+        <div><p className="text-4xl mb-4">🖥️</p><p className="text-white font-semibold">Acesse pelo computador</p></div>
       </div>
     </RouteGuard>
   );

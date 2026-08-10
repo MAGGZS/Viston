@@ -18,17 +18,17 @@ import { parseReportDate } from '@/app/lib/date';
 import { useAuthStore } from '@/app/store/auth';
 
 const S = {
-  page: { minHeight: '100vh', background: '#080810' },
-  label: { fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' },
-  input: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 14, outline: 'none', width: '100%' },
+  page: { minHeight: '100vh', background: '#0B0B0B' },
+  label: { fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.44)' },
+  input: { background: '#232323', border: 'none', borderRadius: 16, padding: '11px 14px', color: 'rgba(255,255,255,0.96)', fontSize: 14, outline: 'none', width: '100%' },
 };
 
 function NoPredioState({ isMobile }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '80px 0' : '120px 0', textAlign: 'center' }}>
       <p style={{ fontSize: 40, marginBottom: 16 }}>🏢</p>
-      <p style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>Você não tem ligação a nenhum prédio</p>
-      <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, lineHeight: 1.6 }}>Peça ao administrador o ID do prédio e solicite acesso.</p>
+      <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>Você não tem ligação a nenhum prédio</p>
+      <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 13, lineHeight: 1.6 }}>Peça ao administrador o ID do prédio e solicite acesso.</p>
     </div>
   );
 }
@@ -36,10 +36,10 @@ function NoPredioState({ isMobile }) {
 const DAYS_LABEL = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
 function heatColor(count) {
-  if (!count) return 'rgba(255,255,255,0.05)';
-  if (count === 1) return 'rgba(245,197,24,0.2)';
-  if (count === 2) return 'rgba(245,197,24,0.4)';
-  if (count === 3) return 'rgba(245,197,24,0.65)';
+  if (!count) return '#232323';
+  if (count === 1) return '#2E2A12';
+  if (count === 2) return '#6B5A00';
+  if (count === 3) return '#A88A00';
   return '#F5C518';
 }
 
@@ -51,12 +51,12 @@ function MonthGrid({ heatmap, year, month, onDayClick, compact = false }) {
   return (
     <div>
       {!compact && (
-        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, marginBottom: 8, textTransform: 'capitalize' }}>
+        <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 11, fontWeight: 600, marginBottom: 8, textTransform: 'capitalize' }}>
           {format(new Date(year, month - 1), 'MMMM', { locale: ptBR })}
         </p>
       )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap, marginBottom: gap }}>
-        {DAYS_LABEL.map((d, i) => <span key={i} style={{ textAlign: 'center', fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>{d}</span>)}
+        {DAYS_LABEL.map((d, i) => <span key={i} style={{ textAlign: 'center', fontSize: 9, color: 'rgba(255,255,255,0.26)' }}>{d}</span>)}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap }}>
         {blanks.map((_, i) => <div key={`b${i}`} />)}
@@ -92,20 +92,20 @@ function InspectionCard({ inspection, onPreview, onOpenReport }) {
       role="button"
       tabIndex={0}
       onKeyDown={e => e.key === 'Enter' && onOpenReport(inspection.id)}
-      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer', transition: 'border-color 0.2s, background 0.2s' }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(245,197,24,0.35)'; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+      style={{ background: M.card, borderRadius: 26, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer', transition: 'background 0.15s' }}
+      onMouseEnter={e => { e.currentTarget.style.background = M.chip; }}
+      onMouseLeave={e => { e.currentTarget.style.background = M.card; }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <div>
-          <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 14 }}>
+          <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14 }}>
             {format(parseReportDate(inspection.date), "d 'de' MMMM yyyy", { locale: ptBR })}
           </p>
-          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>
+          <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 12, marginTop: 2 }}>
             {inspection.inspector?.name} · {totalRecords} ocorrência{totalRecords !== 1 ? 's' : ''}
           </p>
         </div>
-        <ChevronRight size={18} color="rgba(255,255,255,0.25)" />
+        <ChevronRight size={18} color="rgba(255,255,255,0.26)" />
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {inspection.floor_form_entries?.map(e => (
@@ -149,7 +149,7 @@ function MobileInspectionCard({ inspection, onOpenReport }) {
     <MCard onClick={() => onOpenReport(inspection.id)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
         <div>
-          <p style={{ fontFamily: M.display, fontWeight: 700, fontSize: 16, color: M.text, textTransform: 'capitalize' }}>
+          <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text, textTransform: 'capitalize' }}>
             {format(parseReportDate(inspection.date), "d 'de' MMMM", { locale: ptBR })}
           </p>
           <p style={{ color: M.mute, fontSize: 12, marginTop: 3 }}>{inspection.inspector?.name}</p>
@@ -247,11 +247,11 @@ export default function HistoricoPage() {
 
   const listaPanel = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {(isAdmin ? isLoading : buildingLoading) && [1, 2, 3].map(i => <div key={i} style={{ height: 120, background: 'rgba(255,255,255,0.05)', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />)}
+      {(isAdmin ? isLoading : buildingLoading) && [1, 2, 3].map(i => <div key={i} style={{ height: 120, background: '#232323', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />)}
       {!(isAdmin ? isLoading : buildingLoading) && (isAdmin ? allInspections : buildingInspections).length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
           <p style={{ fontSize: 36, marginBottom: 12 }}>📋</p>
-          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
+          <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
         </div>
       )}
       {(isAdmin ? allInspections : buildingInspections).map(i => (
@@ -267,33 +267,33 @@ export default function HistoricoPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={prevCal} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 10, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.5)', display: 'flex' }}><ChevronLeft size={16} /></button>
-          <span style={{ color: 'rgba(255,255,255,0.8)', fontWeight: 600, fontSize: 14, textTransform: 'capitalize', minWidth: 160, textAlign: 'center' }}>{navLabel}</span>
-          <button onClick={nextCal} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 10, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.5)', display: 'flex' }}><ChevronRight size={16} /></button>
+          <button onClick={prevCal} style={{ background: '#232323', borderRadius: 10, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.44)', display: 'flex' }}><ChevronLeft size={16} /></button>
+          <span style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14, textTransform: 'capitalize', minWidth: 160, textAlign: 'center' }}>{navLabel}</span>
+          <button onClick={nextCal} style={{ background: '#232323', borderRadius: 10, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.44)', display: 'flex' }}><ChevronRight size={16} /></button>
         </div>
-        <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 3, gap: 2 }}>
+        <div style={{ display: 'flex', background: '#232323', borderRadius: 12, padding: 3, gap: 2 }}>
           {MODES.map(m => (
-            <button key={m} onClick={() => setCalMode(m)} style={{ padding: '5px 12px', borderRadius: 9, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: calMode === m ? '#F5C518' : 'transparent', color: calMode === m ? '#000' : 'rgba(255,255,255,0.4)', transition: 'all 0.2s' }}>{m}</button>
+            <button key={m} onClick={() => setCalMode(m)} style={{ padding: '5px 12px', borderRadius: 9, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: calMode === m ? '#F5C518' : 'transparent', color: calMode === m ? '#000' : 'rgba(255,255,255,0.44)', transition: 'all 0.2s' }}>{m}</button>
           ))}
         </div>
       </div>
       {calLoading ? (
-        <div style={{ height: 200, background: 'rgba(255,255,255,0.05)', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />
+        <div style={{ height: 200, background: '#232323', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: calMode === 'Mensal' ? '1fr' : calMode === 'Semestral' ? 'repeat(auto-fill, minmax(200px, 1fr))' : 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16 }}>
           {calMonths.map(m => (
-            <div key={m} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 16 }}>
+            <div key={m} style={{ background: '#232323', borderRadius: 26, padding: 16 }}>
               <MonthGrid heatmap={heatmap} year={year} month={m} onDayClick={(day, info) => setSelected({ day, info })} compact={calMode !== 'Mensal'} />
             </div>
           ))}
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11 }}>Menos</span>
-        {['rgba(255,255,255,0.05)', 'rgba(245,197,24,0.2)', 'rgba(245,197,24,0.4)', 'rgba(245,197,24,0.65)', '#F5C518'].map((c, i) => (
+        <span style={{ color: 'rgba(255,255,255,0.26)', fontSize: 11 }}>Menos</span>
+        {['#232323', '#2E2A12', '#6B5A00', '#A88A00', '#F5C518'].map((c, i) => (
           <div key={i} style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
         ))}
-        <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11 }}>Mais</span>
+        <span style={{ color: 'rgba(255,255,255,0.26)', fontSize: 11 }}>Mais</span>
       </div>
     </div>
   );
@@ -301,14 +301,14 @@ export default function HistoricoPage() {
   const desktopContent = (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '32px 32px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h1 style={{ color: 'rgba(255,255,255,0.95)', fontSize: 22, fontWeight: 700 }}>Histórico</h1>
+        <h1 style={{ color: 'rgba(255,255,255,0.96)', fontSize: 22, fontWeight: 600 }}>Histórico</h1>
         {!isAdmin && hasBuilding && (
-          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
+          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: '#232323', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.44)', cursor: 'pointer' }}>
             <SlidersHorizontal size={15} />
           </button>
         )}
         {isAdmin && (
-          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
+          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: '#232323', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.44)', cursor: 'pointer' }}>
             <SlidersHorizontal size={15} />
           </button>
         )}
@@ -348,7 +348,7 @@ export default function HistoricoPage() {
         </div>
       ) : !hasBuilding ? (
         <MCard style={{ textAlign: 'center', padding: '40px 20px' }}>
-          <p style={{ fontFamily: M.display, fontWeight: 700, fontSize: 16, color: M.text }}>Nenhum prédio vinculado</p>
+          <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text }}>Nenhum prédio vinculado</p>
           <p style={{ color: M.mute, fontSize: 13, marginTop: 6, lineHeight: 1.6 }}>
             Peça a chave ao administrador e solicite acesso pelo perfil.
           </p>

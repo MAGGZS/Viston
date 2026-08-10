@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { T, R, W } from '@/app/lib/theme';
 
 /**
  * Quadradinho de um dia no calendário.
@@ -33,7 +34,7 @@ export function CalendarDayCell({ dayNumber, dayKey, info, background, size, onC
           transform: hover ? 'scale(1.12)' : 'scale(1)',
         }}
       >
-        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)', lineHeight: 1 }}>{dayNumber}</span>
+        <span style={{ fontSize: 11, color: count >= 4 ? T.onAccent : 'rgba(255,255,255,0.44)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{dayNumber}</span>
       </div>
 
       {hover && hasData && (
@@ -46,23 +47,21 @@ export function CalendarDayCell({ dayNumber, dayKey, info, background, size, onC
             zIndex: 40,
             minWidth: 168,
             maxWidth: 240,
-            background: 'rgba(10,10,20,0.97)',
-            border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: 12,
-            padding: '10px 12px',
-            boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
+            background: T.chip,
+            borderRadius: R.pill,
+            padding: '11px 13px',
             pointerEvents: 'none',
           }}
         >
-          <p style={{ color: '#F5C518', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>
+          <p style={{ color: T.accent, fontSize: 11, fontWeight: W.strong, marginBottom: 6 }}>
             {count} vistoria{count !== 1 ? 's' : ''}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {(info.inspectors ?? []).map((name, i) => (
-              <span key={i} style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, lineHeight: 1.4 }}>{name}</span>
+              <span key={i} style={{ color: T.text, fontSize: 11, lineHeight: 1.4 }}>{name}</span>
             ))}
           </div>
-          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 6 }}>Clique para ver o relatório</p>
+          <p style={{ color: T.faint, fontSize: 11, marginTop: 6 }}>Clique para ver o relatório</p>
         </div>
       )}
     </div>

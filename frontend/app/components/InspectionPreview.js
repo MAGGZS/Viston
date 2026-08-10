@@ -7,10 +7,11 @@ import { useInspection, useGenerateExcel } from '@/app/hooks/useApi';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
 import { MAINTENANCE_TYPES, CATEGORIES, PRIORITIES, RECORD_STATUS, labelOf } from '@/app/lib/maintenanceOptions';
 import { useToastStore } from '@/app/store/toast';
+import { T, R, W } from '@/app/lib/theme';
 
 const S = {
-  th: { textAlign: 'left', padding: '8px 10px', color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' },
-  td: { padding: '8px 10px', color: 'rgba(255,255,255,0.8)', fontSize: 12, borderTop: '1px solid rgba(255,255,255,0.06)', verticalAlign: 'top' },
+  th: { textAlign: 'left', padding: '10px 12px', color: T.mute, fontSize: 11, fontWeight: W.body, whiteSpace: 'nowrap' },
+  td: { padding: '10px 12px', color: T.text, fontSize: 12, borderTop: `1px solid ${T.line}`, verticalAlign: 'top' },
 };
 
 const PRIORITY_VARIANT = { ALTA: 'danger', MEDIA: 'warning', BAIXA: 'default' };
@@ -45,8 +46,8 @@ export function InspectionPreview({ report }) {
     <>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
         <div>
-          <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 14 }}>{report.building?.name}</p>
-          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>
+          <p style={{ color: T.text, fontWeight: W.title, fontSize: 14 }}>{report.building?.name}</p>
+          <p style={{ color: T.mute, fontSize: 12 }}>
             Vistoria feita por {report.inspector?.name ?? 'Usuário removido'} · {entries.length} andar{entries.length !== 1 ? 'es' : ''} · {rows.length} ocorrência{rows.length !== 1 ? 's' : ''}
           </p>
         </div>
@@ -70,19 +71,19 @@ export function InspectionPreview({ report }) {
       </div>
 
       <div>
-        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+        <p style={{ color: T.text, fontSize: 14, fontWeight: W.title, marginBottom: 10 }}>
           Prévia da planilha
         </p>
 
         {rows.length === 0 ? (
-          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, padding: '16px 0' }}>
+          <p style={{ color: T.mute, fontSize: 13, padding: '16px 0' }}>
             Nenhuma ocorrência relatada nesta vistoria.
           </p>
         ) : (
-          <div style={{ overflowX: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16 }}>
+          <div style={{ overflowX: 'auto', background: T.chip, borderRadius: R.control }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
               <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                <tr>
                   {['Andar', 'Tipo de manutenção', 'Categoria', 'Prioridade', 'Descrição', 'Responsável', 'Status'].map((h) => (
                     <th key={h} style={S.th}>{h}</th>
                   ))}
@@ -125,12 +126,12 @@ export function InspectionPreviewModal({ open, onClose, reportId }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)' }} onClick={onClose} />
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
 
-      <div className="anim-scale-in" style={{ position: 'relative', background: 'rgba(10,10,20,0.94)', backdropFilter: 'blur(32px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 24, width: '100%', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '20px 24px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <h2 style={{ color: 'rgba(255,255,255,0.95)', fontWeight: 700, fontSize: 16 }}>Prévia da vistoria</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: 4 }}>
+      <div className="anim-scale-in" style={{ position: 'relative', background: T.card, borderRadius: R.card, width: '100%', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '20px 24px 14px', borderBottom: `1px solid ${T.line}` }}>
+          <h2 style={{ color: T.text, fontWeight: W.title, fontSize: 16 }}>Prévia da vistoria</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 4 }}>
             <X size={18} />
           </button>
         </div>

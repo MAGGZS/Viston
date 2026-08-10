@@ -19,9 +19,9 @@ const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 's
 function NoPredioState() {
   return (
     <div className="flex flex-col items-center justify-center flex-1 py-24 text-center">
-      <Building2 size={48} className="text-[#2A2A2A] mb-4" />
+      <Building2 size={48} className="text-chip mb-4" />
       <p className="text-white font-semibold text-lg">Você não tem ligação a nenhum prédio</p>
-      <p className="text-[#9A9A9A] text-sm mt-2">Peça ao administrador o ID do prédio e solicite acesso.</p>
+      <p className="text-mute text-sm mt-2">Peça ao administrador o ID do prédio e solicite acesso.</p>
     </div>
   );
 }
@@ -60,13 +60,13 @@ export default function VisualizacaoPage() {
 
   return (
     <RouteGuard roles={['INSPECTOR', 'VIEWER']}>
-      <div className="hidden lg:flex flex-col min-h-screen bg-[#0D0D0D]">
+      <div className="hidden lg:flex flex-col min-h-screen bg-page">
         {/* Header */}
-        <header style={{ height: 60, background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', flexShrink: 0 }}>
+        <header style={{ height: 60, background: '#0B0B0B', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', flexShrink: 0 }}>
           <Logo size={18} />
-          <Link href="/perfil" style={{ color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}
-            onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.9)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+          <Link href="/perfil" style={{ color: 'rgba(255,255,255,0.44)', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.96)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.44)'}
           >
             <UserCircle size={28} strokeWidth={1.5} />
           </Link>
@@ -75,79 +75,79 @@ export default function VisualizacaoPage() {
         {/* Main */}
         <main className="flex-1 p-8 overflow-auto flex flex-col">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="text-2xl font-semibold text-white">
               Olá, <span style={{ color: '#F5C518' }}>{user?.name ?? ''}</span>
             </h1>
-            <p className="text-[#9A9A9A] text-sm mt-1">Fique por dentro de como anda a estrutura do prédio</p>
+            <p className="text-mute text-sm mt-1">Fique por dentro de como anda a estrutura do prédio</p>
           </div>
 
           {buildingsLoading ? (
             <div className="grid grid-cols-3 gap-6">
-              <div className="col-span-1 h-64 bg-[#1A1A1A] rounded-2xl animate-pulse" />
-              <div className="col-span-2 h-64 bg-[#1A1A1A] rounded-2xl animate-pulse" />
+              <div className="col-span-1 h-64 bg-card rounded-card animate-pulse" />
+              <div className="col-span-2 h-64 bg-card rounded-card animate-pulse" />
             </div>
           ) : !hasBuilding ? (
             <NoPredioState />
           ) : (
             <div className="grid grid-cols-3 gap-6">
               {/* Calendário heatmap */}
-              <div className="col-span-1 bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A] p-5">
+              <div className="col-span-1 bg-card rounded-card p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <button onClick={prev} className="p-1 text-[#9A9A9A] hover:text-white"><ChevronLeft size={18} /></button>
+                  <button onClick={prev} className="p-1 text-mute hover:text-white"><ChevronLeft size={18} /></button>
                   <span className="text-white text-sm font-semibold capitalize">{monthLabel}</span>
-                  <button onClick={next} className="p-1 text-[#9A9A9A] hover:text-white"><ChevronRight size={18} /></button>
+                  <button onClick={next} className="p-1 text-mute hover:text-white"><ChevronRight size={18} /></button>
                 </div>
                 {calLoading ? <Skeleton className="h-48 w-full" /> : (
                   <CalendarHeatmap heatmap={calData?.heatmap ?? {}} month={month} year={year}
                     onDayClick={(day, info) => setDayModal({ day, info })} />
                 )}
                 <div className="flex items-center gap-1 mt-3 justify-end">
-                  <span className="text-[#9A9A9A] text-xs">Menos</span>
-                  {['bg-[#1E1E1E]', 'bg-[#2E2A12]', 'bg-[#6B5A00]', 'bg-[#A88A00]', 'bg-[#F5C518]'].map((c, i) => (
+                  <span className="text-mute text-xs">Menos</span>
+                  {['bg-chip', 'bg-[#2E2A12]', 'bg-[#6B5A00]', 'bg-[#A88A00]', 'bg-accent'].map((c, i) => (
                     <div key={i} className={`w-3 h-3 rounded-sm ${c}`} />
                   ))}
-                  <span className="text-[#9A9A9A] text-xs">Mais</span>
+                  <span className="text-mute text-xs">Mais</span>
                 </div>
               </div>
 
               {/* Tabela de inspeções */}
-              <div className="col-span-2 bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A] overflow-hidden">
-                <div className="px-6 py-4 border-b border-[#2A2A2A]">
+              <div className="col-span-2 bg-card rounded-card overflow-hidden">
+                <div className="px-6 py-4 border-b border-line">
                   <h2 className="text-white font-semibold">Inspeções Recentes — {myBuildings[0]?.name}</h2>
                 </div>
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-[#2A2A2A]">
+                    <tr className="border-b border-line">
                       {['Inspetor', 'Status', 'Data', 'Excel'].map((h) => (
-                        <th key={h} className="text-left px-6 py-3 text-[#9A9A9A] text-xs font-medium">{h}</th>
+                        <th key={h} className="text-left px-6 py-3 text-mute text-xs font-medium">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {inspLoading && [1, 2, 3].map((i) => (
-                      <tr key={i} className="border-b border-[#2A2A2A]">
+                      <tr key={i} className="border-b border-line">
                         {[1, 2, 3, 4].map((j) => <td key={j} className="px-6 py-3"><Skeleton className="h-4 w-full" /></td>)}
                       </tr>
                     ))}
                     {rows.map((r) => (
-                      <tr key={r.id} className="border-b border-[#2A2A2A] hover:bg-[#1E1E1E] transition-colors">
+                      <tr key={r.id} className="border-b border-line hover:bg-chip transition-colors">
                         <td className="px-6 py-3 text-white text-sm">{r.inspector?.name ?? '—'}</td>
                         <td className="px-6 py-3">
                           <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
                         </td>
-                        <td className="px-6 py-3 text-[#9A9A9A] text-sm">
+                        <td className="px-6 py-3 text-mute text-sm">
                           {format(new Date(r.finished_at || r.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
                         </td>
                         <td className="px-6 py-3">
                           <div className="flex items-center gap-4">
                             {r.excel_url ? (
                               <a href={r.excel_url} target="_blank" rel="noreferrer"
-                                className="flex items-center gap-1 text-[#F5C518] text-sm hover:underline">
+                                className="flex items-center gap-1 text-accent text-sm hover:underline">
                                 <Download size={13} /> Baixar
                               </a>
-                            ) : <span className="text-[#9A9A9A] text-sm">—</span>}
+                            ) : <span className="text-mute text-sm">—</span>}
                             <button onClick={() => setPreviewId(r.id)}
-                              className="flex items-center gap-1 text-[#9A9A9A] text-sm hover:text-white transition-colors">
+                              className="flex items-center gap-1 text-mute text-sm hover:text-white transition-colors">
                               <Eye size={13} /> Prévia
                             </button>
                           </div>
@@ -155,12 +155,12 @@ export default function VisualizacaoPage() {
                       </tr>
                     ))}
                     {!inspLoading && rows.length === 0 && (
-                      <tr><td colSpan={4} className="px-6 py-10 text-center text-[#9A9A9A] text-sm">Nenhuma inspeção encontrada</td></tr>
+                      <tr><td colSpan={4} className="px-6 py-10 text-center text-mute text-sm">Nenhuma inspeção encontrada</td></tr>
                     )}
                   </tbody>
                 </table>
                 {hasNextPage && (
-                  <div className="px-6 py-4 border-t border-[#2A2A2A] flex justify-center">
+                  <div className="px-6 py-4 border-t border-line flex justify-center">
                     <Button variant="secondary" onClick={() => fetchNextPage()} loading={isFetchingNextPage}>Carregar mais</Button>
                   </div>
                 )}
@@ -171,11 +171,11 @@ export default function VisualizacaoPage() {
       </div>
 
       {/* Mobile fallback */}
-      <div className="lg:hidden flex items-center justify-center min-h-screen bg-[#0D0D0D] p-6 text-center">
+      <div className="lg:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
         <div>
           <p className="text-4xl mb-4">📱</p>
-          <p className="text-white font-bold text-lg">Use o app mobile</p>
-          <p className="text-[#9A9A9A] text-sm mt-2">Esta visualização é otimizada para desktop</p>
+          <p className="text-white font-semibold text-lg">Use o app mobile</p>
+          <p className="text-mute text-sm mt-2">Esta visualização é otimizada para desktop</p>
         </div>
       </div>
 

@@ -26,7 +26,7 @@ export default function RootPage() {
   }, [isLoading, user, router]);
 
   return (
-    <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center">
+    <div className="min-h-screen bg-page flex items-center justify-center">
       <div className="w-9 h-9 bg-[#F5C518] rounded-xl flex items-center justify-center animate-pulse">
         <span className="text-black font-black text-sm">V</span>
       </div>

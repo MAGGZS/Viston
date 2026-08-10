@@ -1,23 +1,15 @@
 'use client';
+import { T } from '@/app/lib/theme';
 
 /**
- * Kit visual do mobile: preto chapado, cartões arredondados, amarelo só no que é ação.
- * Usado apenas nos blocos mobile — o desktop mantém o visual antigo.
+ * Componentes das telas mobile.
+ *
+ * As cores vieram daqui originalmente e hoje valem para o produto inteiro:
+ * moram em app/lib/theme.js. `M` continua exportado porque as telas mobile
+ * o usam em dezenas de lugares.
  */
 
-export const M = {
-  bg: '#0B0B0B',
-  card: '#171717',
-  chip: '#232323',
-  line: 'rgba(255,255,255,0.07)',
-  accent: '#F5C518',
-  accentSoft: 'rgba(245,197,24,0.13)',
-  text: 'rgba(255,255,255,0.96)',
-  mute: 'rgba(255,255,255,0.44)',
-  faint: 'rgba(255,255,255,0.26)',
-  danger: '#F87171',
-  display: 'var(--font-poppins), sans-serif',
-};
+export const M = T;
 
 /** Tela: fundo preto e espaço para a barra inferior. */
 export function MPage({ children, pad = true }) {
@@ -35,7 +27,7 @@ export function MTopBar({ eyebrow, title, accent, actions, avatar }) {
       {avatar}
       <div style={{ flex: 1, minWidth: 0 }}>
         {eyebrow && <p style={{ color: M.faint, fontSize: 12, marginBottom: 2 }}>{eyebrow}</p>}
-        <h1 style={{ fontFamily: M.display, fontWeight: 700, fontSize: 22, color: M.text, letterSpacing: '-0.01em', lineHeight: 1.15 }}>
+        <h1 style={{ fontFamily: M.display, fontWeight: 600, fontSize: 22, color: M.text, letterSpacing: '-0.01em', lineHeight: 1.15 }}>
           {title}{accent && <span style={{ color: M.accent }}> {accent}</span>}
         </h1>
       </div>
@@ -77,7 +69,7 @@ export function MStats({ items }) {
     <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, 1fr)`, gap: 8 }}>
       {items.map(({ value, label }) => (
         <div key={label} style={{ background: M.chip, borderRadius: 16, padding: '12px 8px', textAlign: 'center' }}>
-          <p style={{ fontFamily: M.display, fontWeight: 700, fontSize: 17, color: M.text, lineHeight: 1.1 }}>{value}</p>
+          <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 17, color: M.text, lineHeight: 1.1 }}>{value}</p>
           <p style={{ color: M.mute, fontSize: 11, marginTop: 3 }}>{label}</p>
         </div>
       ))}
@@ -125,7 +117,7 @@ export function MButtonGhost({ children, onClick, type = 'button', tone = 'neutr
 export function MSectionHead({ title, action }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '26px 0 12px' }}>
-      <h2 style={{ fontFamily: M.display, fontWeight: 700, fontSize: 16, color: M.text }}>{title}</h2>
+      <h2 style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text }}>{title}</h2>
       {action}
     </div>
   );

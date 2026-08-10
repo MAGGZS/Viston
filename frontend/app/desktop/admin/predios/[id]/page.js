@@ -20,7 +20,7 @@ const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHE
 const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success', COMPLETED: 'success' };
 
 function intensity(count) {
-  if (!count) return '#1E1E1E';
+  if (!count) return '#232323';
   if (count === 1) return '#2E2A12';
   if (count === 2) return '#6B5A00';
   if (count === 3) return '#A88A00';
@@ -34,7 +34,7 @@ function MonthGrid({ heatmap, year, month, onDayClick }) {
     <div style={{ width: '100%' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 6 }}>
         {['D','S','T','Q','Q','S','S'].map((d, i) => (
-          <div key={i} style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.25)', fontWeight: 600, padding: '2px 0' }}>{d}</div>
+          <div key={i} style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.26)', fontWeight: 600, padding: '2px 0' }}>{d}</div>
         ))}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
@@ -91,7 +91,7 @@ export default function BuildingDashboardPage() {
 
   return (
     <RouteGuard roles={['ADMIN']}>
-      <div className="hidden lg:flex min-h-screen bg-[#0D0D0D]">
+      <div className="hidden lg:flex min-h-screen bg-page">
         <AdminSidebar />
         <main className="flex-1 p-8 overflow-auto">
 
@@ -99,29 +99,29 @@ export default function BuildingDashboardPage() {
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-4">
               <button onClick={() => router.push('/desktop/admin/predios')}
-                className="w-9 h-9 flex items-center justify-center bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl text-[#9A9A9A] hover:text-white transition-colors">
+                className="w-9 h-9 flex items-center justify-center bg-chip rounded-control text-mute hover:text-white transition-colors">
                 <ArrowLeft size={16} />
               </button>
               <div>
-                {isLoading ? <div className="h-7 w-48 bg-[#2A2A2A] rounded animate-pulse" /> : (
-                  <h1 className="text-2xl font-bold text-white">{data?.building?.name}</h1>
+                {isLoading ? <div className="h-7 w-48 bg-chip rounded animate-pulse" /> : (
+                  <h1 className="text-2xl font-semibold text-white">{data?.building?.name}</h1>
                 )}
                 {data?.building?.description && (
-                  <p className="text-[#9A9A9A] text-sm mt-0.5">{data.building.description}</p>
+                  <p className="text-mute text-sm mt-0.5">{data.building.description}</p>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-3">
               <Link href={`/desktop/admin/predios/${id}/solicitacoes`}
-                className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl text-[#9A9A9A] text-sm hover:text-white transition-colors">
+                className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-white transition-colors">
                 <Users size={15} /> Solicitações
               </Link>
               <button onClick={() => setMembersModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl text-[#9A9A9A] text-sm hover:text-white transition-colors">
+                className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-white transition-colors">
                 <UserCheck size={15} /> Colaboradores
               </button>
               <button onClick={() => setShareModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl text-[#9A9A9A] text-sm hover:text-white transition-colors">
+                className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-white transition-colors">
                 <Share2 size={15} /> Compartilhar ID
               </button>
             </div>
@@ -134,14 +134,14 @@ export default function BuildingDashboardPage() {
               { icon: Users, label: 'Inspetores', value: data?.inspectorCount },
               { icon: Eye, label: 'Visualizadores', value: data?.viewerCount },
             ].map(({ icon: Icon, label, value }, idx) => (
-              <div key={label} className={`anim-fade-up anim-d${idx + 1} bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-5 flex items-center gap-4 hover:border-[#3A3A3A] transition-all duration-200`}>
-                <div className="w-10 h-10 bg-[#F5C518]/10 rounded-xl flex items-center justify-center">
-                  <Icon size={18} className="text-[#F5C518]" />
+              <div key={label} className={`anim-fade-up anim-d${idx + 1} bg-card rounded-card p-5 flex items-center gap-4 transition-all duration-200`}>
+                <div className="w-10 h-10 bg-accent-soft rounded-control flex items-center justify-center">
+                  <Icon size={18} className="text-accent" />
                 </div>
                 <div>
-                  <p className="text-[#9A9A9A] text-xs">{label}</p>
-                  {isLoading ? <div className="h-6 w-12 bg-[#2A2A2A] rounded animate-pulse mt-1" /> : (
-                    <p className="text-white text-xl font-bold">{value ?? 0}</p>
+                  <p className="text-mute text-xs">{label}</p>
+                  {isLoading ? <div className="h-6 w-12 bg-chip rounded animate-pulse mt-1" /> : (
+                    <p className="text-white text-xl font-semibold">{value ?? 0}</p>
                   )}
                 </div>
               </div>
@@ -150,47 +150,47 @@ export default function BuildingDashboardPage() {
 
           {/* Calendário + Histórico */}
           <div className="anim-fade-up anim-d4 grid grid-cols-3 gap-6">
-            <div className="col-span-1 bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-5">
+            <div className="col-span-1 bg-card rounded-card p-5">
               <div className="flex items-center justify-between mb-4">
-                <button onClick={prev} className="p-1 text-[#9A9A9A] hover:text-white"><ChevronLeft size={16} /></button>
+                <button onClick={prev} className="p-1 text-mute hover:text-white"><ChevronLeft size={16} /></button>
                 <span className="text-white text-sm font-semibold capitalize">{monthLabel}</span>
-                <button onClick={next} className="p-1 text-[#9A9A9A] hover:text-white"><ChevronRight size={16} /></button>
+                <button onClick={next} className="p-1 text-mute hover:text-white"><ChevronRight size={16} /></button>
               </div>
               <MonthGrid heatmap={heatmap} year={year} month={month} onDayClick={(day, info) => setSelected({ day, info })} />
               <div className="flex items-center gap-1 mt-4 justify-end">
-                <span className="text-[#9A9A9A] text-xs">Menos</span>
-                {['#1E1E1E','#2E2A12','#6B5A00','#A88A00','#F5C518'].map((c, i) => (
+                <span className="text-mute text-xs">Menos</span>
+                {['#232323','#2E2A12','#6B5A00','#A88A00','#F5C518'].map((c, i) => (
                   <div key={i} style={{ background: c }} className="w-3 h-3 rounded-sm" />
                 ))}
-                <span className="text-[#9A9A9A] text-xs">Mais</span>
+                <span className="text-mute text-xs">Mais</span>
               </div>
             </div>
 
-            <div className="col-span-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl overflow-hidden">
-              <div className="px-6 py-4 border-b border-[#2A2A2A]">
+            <div className="col-span-2 bg-card rounded-card overflow-hidden">
+              <div className="px-6 py-4 border-b border-line">
                 <h2 className="text-white font-semibold">Histórico de Inspeções</h2>
               </div>
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[#2A2A2A]">
+                  <tr className="border-b border-line">
                     {['Inspetor', 'Status', 'Data', 'Planilha', ''].map((h, i) => (
-                      <th key={i} className="text-left px-6 py-3 text-[#9A9A9A] text-xs font-medium">{h}</th>
+                      <th key={i} className="text-left px-6 py-3 text-mute text-xs font-medium">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {histLoading && [1,2,3].map(i => (
-                    <tr key={i} className="border-b border-[#2A2A2A]">
+                    <tr key={i} className="border-b border-line">
                       {[1,2,3,4,5].map(j => <td key={j} className="px-6 py-3"><Skeleton className="h-4 w-full" /></td>)}
                     </tr>
                   ))}
                   {rows.map(r => (
                     <tr key={r.id} onClick={() => setReportId(r.id)}
-                      className="border-b border-[#2A2A2A] hover:bg-[#1E1E1E] transition-colors cursor-pointer">
+                      className="border-b border-line hover:bg-chip transition-colors cursor-pointer">
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-[#F5C518] flex items-center justify-center">
-                            <span className="text-black text-xs font-bold">{r.inspector?.name?.[0]}</span>
+                          <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center">
+                            <span className="text-black text-xs font-semibold">{r.inspector?.name?.[0]}</span>
                           </div>
                           <span className="text-white text-sm">{r.inspector?.name}</span>
                         </div>
@@ -198,19 +198,19 @@ export default function BuildingDashboardPage() {
                       <td className="px-6 py-3">
                         <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
                       </td>
-                      <td className="px-6 py-3 text-[#9A9A9A] text-sm">
+                      <td className="px-6 py-3 text-mute text-sm">
                         {format(new Date(r.finished_at || r.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                       </td>
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-4">
                           {r.excel_url ? (
                             <a href={r.excel_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
-                              className="flex items-center gap-1 text-[#F5C518] text-sm hover:underline">
+                              className="flex items-center gap-1 text-accent text-sm hover:underline">
                               <Download size={13} /> Baixar
                             </a>
-                          ) : <span className="text-[#9A9A9A] text-sm">—</span>}
+                          ) : <span className="text-mute text-sm">—</span>}
                           <button onClick={e => { e.stopPropagation(); setPreviewId(r.id); }}
-                            className="flex items-center gap-1 text-[#9A9A9A] text-sm hover:text-white transition-colors">
+                            className="flex items-center gap-1 text-mute text-sm hover:text-white transition-colors">
                             <Eye size={13} /> Prévia
                           </button>
                         </div>
@@ -220,21 +220,21 @@ export default function BuildingDashboardPage() {
                           onClick={e => { e.stopPropagation(); setConfirmDiscard(r); }}
                           disabled={deleteInspection.isPending}
                           title="Descartar vistoria"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.25)', padding: 4, borderRadius: 8 }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.26)', padding: 4, borderRadius: 8 }}
                           onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-                          onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.25)'}>
+                          onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.26)'}>
                           <Trash2 size={15} />
                         </button>
                       </td>
                     </tr>
                   ))}
                   {!histLoading && rows.length === 0 && (
-                    <tr><td colSpan={5} className="px-6 py-10 text-center text-[#9A9A9A] text-sm">Nenhuma inspeção encontrada</td></tr>
+                    <tr><td colSpan={5} className="px-6 py-10 text-center text-mute text-sm">Nenhuma inspeção encontrada</td></tr>
                   )}
                 </tbody>
               </table>
               {hasNextPage && (
-                <div className="px-6 py-4 border-t border-[#2A2A2A] flex justify-center">
+                <div className="px-6 py-4 border-t border-line flex justify-center">
                   <Button variant="secondary" onClick={() => fetchNextPage()} loading={isFetchingNextPage}>Carregar mais</Button>
                 </div>
               )}
@@ -243,8 +243,8 @@ export default function BuildingDashboardPage() {
         </main>
       </div>
 
-      <div className="lg:hidden flex items-center justify-center min-h-screen bg-[#0D0D0D] p-6 text-center">
-        <div><p className="text-4xl mb-4">🖥️</p><p className="text-white font-bold">Acesse pelo computador</p></div>
+      <div className="lg:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
+        <div><p className="text-4xl mb-4">🖥️</p><p className="text-white font-semibold">Acesse pelo computador</p></div>
       </div>
 
       <DayInspectionsModal
@@ -261,30 +261,30 @@ export default function BuildingDashboardPage() {
       <Modal open={membersModal} onClose={() => setMembersModal(false)} title="Colaboradores">
         {membersLoading ? (
           <div className="flex flex-col gap-3">
-            {[1,2,3].map(i => <div key={i} className="h-12 bg-[#1A1A1A] rounded-xl animate-pulse" />)}
+            {[1,2,3].map(i => <div key={i} className="h-12 bg-card rounded-control animate-pulse" />)}
           </div>
         ) : members.length === 0 ? (
-          <p className="text-[#9A9A9A] text-sm text-center py-6">Nenhum colaborador vinculado</p>
+          <p className="text-mute text-sm text-center py-6">Nenhum colaborador vinculado</p>
         ) : (
           <div className="flex flex-col gap-2">
             {members.map((m) => (
-              <div key={m.id} className="flex items-center gap-3 bg-[#0D0D0D] border border-[#2A2A2A] rounded-xl px-4 py-3">
-                <div className="w-8 h-8 rounded-full bg-[#F5C518] flex items-center justify-center flex-shrink-0">
-                  <span className="text-black text-xs font-bold">{m.user?.name?.[0]}</span>
+              <div key={m.id} className="flex items-center gap-3 bg-chip rounded-control px-4 py-3">
+                <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
+                  <span className="text-black text-xs font-semibold">{m.user?.name?.[0]}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-white text-sm font-medium truncate">{m.user?.name}</p>
-                  <p className="text-[#9A9A9A] text-xs truncate">{m.user?.email}</p>
+                  <p className="text-mute text-xs truncate">{m.user?.email}</p>
                 </div>
-                <span className="text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: m.role === 'INSPECTOR' ? 'rgba(245,197,24,0.1)' : 'rgba(99,102,241,0.1)', color: m.role === 'INSPECTOR' ? '#F5C518' : '#a5b4fc' }}>
+                <span className="text-xs font-semibold px-2 py-1 rounded-pill" style={{ background: m.role === 'INSPECTOR' ? 'rgba(245,197,24,0.1)' : 'rgba(99,102,241,0.1)', color: m.role === 'INSPECTOR' ? '#F5C518' : '#a5b4fc' }}>
                   {m.role === 'INSPECTOR' ? 'Inspetor' : 'Visualizador'}
                 </span>
                 <button
                   onClick={() => setConfirmRemove(m)}
                   disabled={removeMember.isPending}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.25)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.26)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0 }}
                   onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.25)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.26)'}
                   title="Remover vínculo">
                   <UserMinus size={15} />
                 </button>
@@ -299,7 +299,7 @@ export default function BuildingDashboardPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <AlertTriangle size={18} color="#f87171" style={{ flexShrink: 0, marginTop: 2 }} />
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, lineHeight: 1.6 }}>
+            <p style={{ color: 'rgba(255,255,255,0.96)', fontSize: 14, lineHeight: 1.6 }}>
               Tem certeza que deseja remover o vínculo de <span style={{ color: '#fff', fontWeight: 600 }}>{confirmRemove?.user?.name}</span> com este prédio? O usuário perderá o acesso imediatamente.
             </p>
           </div>
@@ -326,12 +326,12 @@ export default function BuildingDashboardPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <AlertTriangle size={18} color="#f87171" style={{ flexShrink: 0, marginTop: 2 }} />
-            <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, lineHeight: 1.6 }}>
+            <div style={{ color: 'rgba(255,255,255,0.96)', fontSize: 14, lineHeight: 1.6 }}>
               <p>
                 Descartar a vistoria de <span style={{ color: '#fff', fontWeight: 600 }}>{confirmDiscard?.inspector?.name}</span>
                 {confirmDiscard && ` de ${format(new Date(confirmDiscard.finished_at || confirmDiscard.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`}?
               </p>
-              <p style={{ marginTop: 10, color: 'rgba(255,255,255,0.5)' }}>
+              <p style={{ marginTop: 10, color: 'rgba(255,255,255,0.44)' }}>
                 Some o relatório, todas as ocorrências registradas e a planilha. Sai também do histórico e do calendário. <span style={{ color: '#f87171' }}>Não tem como desfazer.</span>
               </p>
             </div>
@@ -355,11 +355,11 @@ export default function BuildingDashboardPage() {
       </Modal>
 
       <Modal open={shareModal} onClose={() => setShareModal(false)} title="Compartilhar chave do prédio">
-        <p className="text-[#9A9A9A] text-sm mb-4">Compartilhe esta chave com inspetores e visualizadores para que possam solicitar acesso.</p>
-        <div className="bg-[#0D0D0D] border border-[#2A2A2A] rounded-xl p-4 flex items-center justify-between gap-3">
-          <span className="text-[#F5C518] font-mono text-sm tracking-widest break-all">{shareKey}</span>
+        <p className="text-mute text-sm mb-4">Compartilhe esta chave com inspetores e visualizadores para que possam solicitar acesso.</p>
+        <div className="bg-chip rounded-control p-4 flex items-center justify-between gap-3">
+          <span className="text-accent font-semibold text-sm break-all" style={{ letterSpacing: "0.18em" }}>{shareKey}</span>
           <button onClick={() => { navigator.clipboard.writeText(shareKey); toast('Chave copiada!', 'info'); }}
-            className="text-xs text-[#9A9A9A] hover:text-white whitespace-nowrap border border-[#2A2A2A] rounded-lg px-3 py-1.5 transition-colors">
+            className="text-xs text-mute hover:text-white whitespace-nowrap rounded-pill px-3 py-1.5 transition-colors">
             Copiar
           </button>
         </div>

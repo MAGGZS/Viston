@@ -5,10 +5,13 @@ import { AuthProvider } from '@/app/lib/AuthProvider';
 import { Toast } from '@/app/components/Toast';
 import { BRAND, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from '@/app/lib/site';
 
-// Poppins Black é a fonte da logo
+/**
+ * Uma família para o produto inteiro. Os quatro pesos carregam a hierarquia:
+ * 900 é exclusivo do wordmark, 600 titula, 500 é ação e 400 é corpo.
+ */
 const poppins = Poppins({
   subsets: ['latin'],
-  weight: ['600', '700', '900'],
+  weight: ['400', '500', '600', '900'],
   variable: '--font-poppins',
   display: 'swap',
 });

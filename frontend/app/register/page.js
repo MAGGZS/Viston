@@ -17,11 +17,11 @@ const schema = yup.object({
 
 const S = {
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
-  label: { fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' },
-  input: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 14, padding: '13px 16px', color: 'rgba(255,255,255,0.9)', fontSize: 15, outline: 'none', width: '100%' },
+  label: { fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.44)' },
+  input: { background: '#232323', border: '1px solid transparent', borderRadius: 16, padding: '13px 16px', color: 'rgba(255,255,255,0.96)', fontSize: 15, outline: 'none', width: '100%' },
   inputWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
-  eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center' },
-  btn: { width: '100%', background: '#F5C518', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 14, border: 'none', cursor: 'pointer', marginTop: 4, boxShadow: '0 0 20px rgba(245,197,24,0.2)' },
+  eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: 'rgba(255,255,255,0.44)', display: 'flex', alignItems: 'center' },
+  btn: { width: '100%', background: '#F5C518', color: '#000', fontWeight: 500, fontSize: 15, padding: '14px', borderRadius: 16, border: 'none', cursor: 'pointer', marginTop: 4 },
 };
 
 export default function RegisterPage() {
@@ -55,7 +55,7 @@ export default function RegisterPage() {
       title="Criar conta"
       subtitle="Depois de entrar, peça a chave do prédio ao administrador para começar a vistoriar."
       footer={
-        <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: 14 }}>
+        <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 14 }}>
           Já tem conta?{' '}
           <a href="/login" style={{ color: 'rgba(245,197,24,0.85)', fontWeight: 600, textDecoration: 'none' }}>Entrar</a>
         </p>
@@ -64,7 +64,7 @@ export default function RegisterPage() {
       <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             {fields.map(({ name, label, type, placeholder }) => {
               const isPassword = type === 'password';
-              const inputStyle = { ...S.input, ...(isPassword ? { paddingRight: 46 } : {}), ...(errors[name] ? { borderColor: 'rgba(239,68,68,0.5)' } : {}) };
+              const inputStyle = { ...S.input, ...(isPassword ? { paddingRight: 46 } : {}), ...(errors[name] ? { borderColor: 'rgba(248,113,113,0.5)' } : {}) };
               return (
                 <div key={name} style={S.field}>
                   <label style={S.label}>{label}</label>
@@ -82,13 +82,13 @@ export default function RegisterPage() {
                       </button>
                     )}
                   </div>
-                  {errors[name] && <span style={{ fontSize: 12, color: 'rgb(248,113,113)' }}>{errors[name].message}</span>}
+                  {errors[name] && <span style={{ fontSize: 12, color: '#F87171' }}>{errors[name].message}</span>}
                 </div>
               );
             })}
             {apiError && (
-              <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, padding: '10px 14px' }}>
-                <p style={{ color: 'rgb(248,113,113)', fontSize: 13, textAlign: 'center' }}>{apiError}</p>
+              <div style={{ background: 'rgba(248,113,113,0.13)', borderRadius: 16, padding: '11px 14px' }}>
+                <p style={{ color: '#F87171', fontSize: 13, textAlign: 'center' }}>{apiError}</p>
               </div>
             )}
         <button type="submit" disabled={isPending} style={{ ...S.btn, opacity: isPending ? 0.6 : 1 }}>

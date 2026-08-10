@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -14,6 +14,7 @@ import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
 import { useUpdateMe, useChangePassword, useDeleteMe, useMyBuildings, useLeaveBuilding, useRequestAccess, useBuildingByKey } from '@/app/hooks/useApi';
 import { formatShareKey, normalizeShareKey, isCompleteShareKey } from '@/app/lib/shareKey';
+import { T, R, W, HERO_SURFACE } from '@/app/lib/theme';
 
 const profileSchema = yup.object({
   name: yup.string().min(2).required('Obrigatório'),
@@ -27,100 +28,60 @@ const passwordSchema = yup.object({
 
 const ROLE_LABELS = { ADMIN: 'Administrador', INSPECTOR: 'Inspetor', VIEWER: 'Visualizador' };
 
-// Tokens do desktop: chapa escura, folha dourada e filete fino no lugar de cartões
+// Tokens do desktop desta tela — os mesmos do produto.
 const DS = {
-  page: '#0A0A11',
-  panel: 'linear-gradient(158deg, #17171F 0%, #0E0E15 62%, #101018 100%)',
-  hairline: 'rgba(255,255,255,0.08)',
-  gold: '#F5C518',
-  goldEdge: 'rgba(245,197,24,0.28)',
-  dim: 'rgba(255,255,255,0.42)',
-  faint: 'rgba(255,255,255,0.22)',
-  danger: '#F87171',
-  mono: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+  page: T.bg,
+  panel: HERO_SURFACE,
+  hairline: T.line,
+  gold: T.accent,
+  dim: T.mute,
+  faint: T.faint,
+  danger: T.danger,
 };
 
 /**
- * Credencial de acesso: o artefato que representa quem você é dentro do prédio.
- * O brilho acompanha o cursor, como a luz correndo no relevo de um crachá.
+ * Credencial de acesso: quem você é dentro do prédio.
+ * Único cartão do produto com gradiente — cinco pontos de luminância, só para
+ * dar volume. Sem brilho, sem borda dourada, sem sombra.
  */
 function Credential({ user, building }) {
-  const cardRef = useRef(null);
-
-  function handleMove(e) {
-    const el = cardRef.current;
-    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const r = el.getBoundingClientRect();
-    el.style.setProperty('--mx', `${((e.clientX - r.left) / r.width) * 100}%`);
-    el.style.setProperty('--my', `${((e.clientY - r.top) / r.height) * 100}%`);
-    el.style.setProperty('--sheen', '1');
-  }
-
   const rows = [
     ['Função', ROLE_LABELS[user?.role] || user?.role || '—'],
     ['Prédio', building?.name ?? (user?.role === 'ADMIN' ? 'Todos os prédios' : 'Sem vínculo')],
   ];
 
   return (
-    <div
-      ref={cardRef}
-      onMouseMove={handleMove}
-      onMouseLeave={() => cardRef.current?.style.setProperty('--sheen', '0')}
-      style={{
-        position: 'sticky',
-        top: 108,
-        background: DS.panel,
-        border: `1px solid ${DS.goldEdge}`,
-        borderRadius: 22,
-        padding: '22px 24px 24px',
-        overflow: 'hidden',
-        boxShadow: '0 24px 60px rgba(0,0,0,0.55)',
-      }}
-    >
-      {/* brilho que segue o cursor */}
-      <div aria-hidden style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(340px circle at var(--mx, 50%) var(--my, 0%), rgba(245,197,24,0.16), transparent 62%)',
-        opacity: 'var(--sheen, 0)', transition: 'opacity 0.35s ease',
-      }} />
-
-      {/* furo do cordão */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-        <div style={{ width: 66, height: 7, borderRadius: 99, background: '#05050A', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.06)' }} />
+    <div style={{ position: 'sticky', top: 108, background: DS.panel, borderRadius: R.card, padding: 22 }}>
+      <div style={{
+        width: 56, height: 56, borderRadius: '50%', background: T.accent, color: T.onAccent,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: T.display, fontWeight: W.title, fontSize: 22,
+      }}>
+        {user?.name?.[0]?.toUpperCase() ?? '—'}
       </div>
 
-      <div style={{ position: 'relative' }}>
-        <p style={{ fontFamily: DS.mono, fontSize: 10, letterSpacing: '0.22em', color: DS.faint, textTransform: 'uppercase' }}>
-          Credencial
-        </p>
+      <p style={{ fontFamily: T.display, fontWeight: W.title, fontSize: 19, lineHeight: 1.2, letterSpacing: '-0.015em', marginTop: 15, color: T.text }}>
+        {user?.name ?? ''}
+      </p>
 
-        <p style={{
-          fontFamily: 'var(--font-poppins), sans-serif', fontWeight: 900, fontSize: 26, lineHeight: 1.12, marginTop: 10,
-          background: 'linear-gradient(96deg, #F5C518 0%, #FFF3C4 38%, #E0A800 72%, #F5C518 100%)',
-          WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
-        }}>
-          {user?.name ?? ''}
-        </p>
+      <p style={{ fontSize: 12, color: DS.dim, marginTop: 3, wordBreak: 'break-all' }}>
+        {user?.email}
+      </p>
 
-        <p style={{ fontFamily: DS.mono, fontSize: 11, color: DS.dim, marginTop: 8, wordBreak: 'break-all' }}>
-          {user?.email}
-        </p>
+      <div style={{ height: 1, background: DS.hairline, margin: '18px 0 4px' }} />
 
-        <div style={{ height: 1, background: DS.hairline, margin: '20px 0 4px' }} />
-
-        {rows.map(([label, value]) => (
-          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, padding: '12px 0', borderBottom: `1px solid ${DS.hairline}` }}>
-            <span style={{ fontFamily: DS.mono, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: DS.faint }}>{label}</span>
-            <span style={{ color: 'rgba(255,255,255,0.86)', fontSize: 13, textAlign: 'right' }}>{value}</span>
-          </div>
-        ))}
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 }}>
-          <Logo size={13} style={{ color: 'rgba(255,255,255,0.55)', WebkitTextStroke: '0px' }} />
-          <span style={{ fontFamily: DS.mono, fontSize: 10, color: DS.faint }}>
-            Nº {(user?.id ?? '').slice(0, 8).toUpperCase() || '—'}
-          </span>
+      {rows.map(([label, value]) => (
+        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, padding: '12px 0', borderBottom: `1px solid ${DS.hairline}` }}>
+          <span style={{ fontSize: 11, color: DS.faint }}>{label}</span>
+          <span style={{ color: T.text, fontSize: 13, fontWeight: W.strong, textAlign: 'right' }}>{value}</span>
         </div>
+      ))}
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 }}>
+        <Logo size={13} style={{ color: DS.dim, WebkitTextStroke: '0px' }} />
+        <span style={{ fontSize: 11, color: DS.faint, fontVariantNumeric: 'tabular-nums', letterSpacing: '0.06em' }}>
+          Nº {(user?.id ?? '').slice(0, 8).toUpperCase() || '—'}
+        </span>
       </div>
     </div>
   );
@@ -131,7 +92,7 @@ function SpecRow({ label, hint, children }) {
   return (
     <section style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 32, padding: '28px 0', borderTop: `1px solid ${DS.hairline}` }}>
       <div>
-        <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.62)' }}>{label}</h2>
+        <h2 style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text }}>{label}</h2>
         {hint && <p style={{ color: DS.faint, fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>{hint}</p>}
       </div>
       <div>{children}</div>
@@ -237,14 +198,14 @@ export default function PerfilPage() {
     const content = (
       <>
         {buildingsLoading ? (
-          <div style={{ height: 48, background: 'rgba(255,255,255,0.05)', borderRadius: 12 }} />
+          <div style={{ height: 48, background: '#232323', borderRadius: 12 }} />
         ) : hasBuilding ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
               <Building2 size={18} color="#F5C518" />
               <div>
-                <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, fontSize: 14 }}>{myBuilding.name}</p>
-                {myBuilding.description && <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>{myBuilding.description}</p>}
+                <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14 }}>{myBuilding.name}</p>
+                {myBuilding.description && <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 12, marginTop: 2 }}>{myBuilding.description}</p>}
               </div>
             </div>
             <button onClick={handleLeave} disabled={leaveBuilding.isPending}
@@ -254,12 +215,12 @@ export default function PerfilPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Você não está vinculado a nenhum prédio.</p>
+            <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 13 }}>Você não está vinculado a nenhum prédio.</p>
             {!accessRequested ? (
               <>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
-                    style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 14px', color: 'rgba(255,255,255,0.85)', fontSize: 13, outline: 'none', fontFamily: 'monospace', letterSpacing: '0.08em' }}
+                    style={{ flex: 1, background: '#232323', borderRadius: 16, padding: '11px 14px', color: 'rgba(255,255,255,0.96)', fontSize: 13, outline: 'none', fontWeight: 600, letterSpacing: '0.18em' }}
                     placeholder="ABCD-EFGH-JKMN"
                     maxLength={14}
                     value={newBuildingKey}
@@ -268,11 +229,11 @@ export default function PerfilPage() {
                   />
                   <Button variant="secondary" onClick={handleSearchBuilding}>Buscar</Button>
                 </div>
-                {searchLoading && <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Buscando...</p>}
+                {searchLoading && <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 13 }}>Buscando...</p>}
                 {searchError && <p style={{ color: '#f87171', fontSize: 13 }}>Chave inválida ou prédio não encontrado</p>}
                 {searchedBuilding && (
-                  <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <p style={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600, fontSize: 14 }}>{searchedBuilding.name}</p>
+                  <div style={{ background: '#232323', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14 }}>{searchedBuilding.name}</p>
                     <Button onClick={handleRequestAccess} loading={requestAccess.isPending} style={{ fontSize: 12, padding: '6px 14px' }}>Conectar-se</Button>
                   </div>
                 )}
@@ -280,7 +241,7 @@ export default function PerfilPage() {
             ) : (
               <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 14, padding: 14, textAlign: 'center' }}>
                 <p style={{ color: '#4ade80', fontWeight: 600, fontSize: 14 }}>Solicitação enviada!</p>
-                <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 4 }}>Aguarde a aprovação do administrador.</p>
+                <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 12, marginTop: 4 }}>Aguarde a aprovação do administrador.</p>
               </div>
             )}
           </div>
@@ -302,17 +263,17 @@ export default function PerfilPage() {
     <RouteGuard>
       {/* ── DESKTOP ── */}
       <div className="hidden lg:block min-h-screen" style={{ background: DS.page }}>
-        <header style={{ position: 'sticky', top: 0, height: 60, background: 'rgba(10,10,17,0.82)', backdropFilter: 'blur(24px)', borderBottom: `1px solid ${DS.hairline}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', zIndex: 10 }}>
-          <button onClick={() => router.back()} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: 14 }}
-            onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.9)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}>
+        <header style={{ position: 'sticky', top: 0, height: 60, background: 'rgba(10,10,17,0.82)', borderBottom: `1px solid ${DS.hairline}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', zIndex: 10 }}>
+          <button onClick={() => router.back()} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.44)', fontSize: 14 }}
+            onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.96)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.44)'}>
             <ArrowLeft size={18} /> Voltar
           </button>
           <Logo size={16} />
           <button onClick={() => { logout(); router.replace('/login'); }}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.44)', fontSize: 13 }}
             onMouseEnter={e => e.currentTarget.style.color = DS.danger}
-            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}>
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.44)'}>
             <LogOut size={16} /> Sair
           </button>
         </header>
@@ -373,7 +334,7 @@ export default function PerfilPage() {
           <MTopBar
             title="Perfil"
             avatar={
-              <div style={{ width: 44, height: 44, borderRadius: '50%', background: M.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: M.display, fontWeight: 700, fontSize: 18, color: '#000' }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: M.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: M.display, fontWeight: 600, fontSize: 18, color: '#000' }}>
                 {user?.name?.[0]?.toUpperCase()}
               </div>
             }
@@ -385,7 +346,7 @@ export default function PerfilPage() {
           />
 
           <MCard style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <p style={{ fontFamily: M.display, fontWeight: 700, fontSize: 18, color: M.text }}>{user?.name}</p>
+            <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 18, color: M.text }}>{user?.name}</p>
             <p style={{ color: M.mute, fontSize: 13 }}>{user?.email}</p>
             <span style={{ alignSelf: 'flex-start', marginTop: 10, background: M.accentSoft, color: M.accent, fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 10 }}>
               {ROLE_LABELS[user?.role] || user?.role}

@@ -55,7 +55,7 @@ export default function HomePage() {
           avatar={
             <button onClick={() => router.push('/perfil')} aria-label="Abrir perfil" style={{
               width: 44, height: 44, borderRadius: '50%', background: M.accent, border: 'none', cursor: 'pointer',
-              fontFamily: M.display, fontWeight: 700, fontSize: 18, color: '#000', flexShrink: 0,
+              fontFamily: M.display, fontWeight: 600, fontSize: 18, color: '#000', flexShrink: 0,
             }}>
               {user?.name?.[0]?.toUpperCase()}
             </button>
@@ -74,7 +74,7 @@ export default function HomePage() {
               <ClipboardCheck size={22} color="#000" />
             </div>
             <div>
-              <p style={{ fontFamily: M.display, fontWeight: 700, fontSize: 17, color: '#000' }}>Nova vistoria</p>
+              <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 17, color: '#000' }}>Nova vistoria</p>
               <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginTop: 2 }}>Andar por andar, do topo ao subsolo</p>
             </div>
           </MCard>
@@ -82,7 +82,7 @@ export default function HomePage() {
 
         {!buildingsLoading && !hasBuilding && (
           <MCard style={{ marginTop: 12, textAlign: 'center', padding: '32px 20px' }}>
-            <p style={{ fontFamily: M.display, fontWeight: 700, fontSize: 16, color: M.text }}>Nenhum prédio ainda</p>
+            <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text }}>Nenhum prédio ainda</p>
             <p style={{ color: M.mute, fontSize: 13, marginTop: 6, lineHeight: 1.6 }}>
               Peça a chave ao administrador e solicite acesso pelo perfil.
             </p>

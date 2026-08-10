@@ -13,11 +13,12 @@ import {
   RECORD_STATUS,
   emptyRecord,
 } from '@/app/lib/maintenanceOptions';
+import { T, R, W } from '@/app/lib/theme';
 
 const S = {
-  label: { fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' },
-  error: { fontSize: 12, color: 'rgba(248,113,113,0.9)' },
-  readonly: { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: '12px 16px', color: 'rgba(255,255,255,0.65)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 10 },
+  label: { fontSize: 11, fontWeight: W.body, color: T.mute },
+  error: { fontSize: 12, color: T.danger },
+  readonly: { background: T.chip, borderRadius: R.control, padding: '13px 15px', color: T.mute, fontSize: 14, display: 'flex', alignItems: 'center', gap: 10 },
 };
 
 const schema = yup.object({
@@ -112,7 +113,7 @@ export function FloorForm({ floor, inspectorName, initialRecords, onSubmit, isLo
       {!nothingToReport && fields.map((field, index) => (
         <MCard key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <p style={{ fontFamily: M.display, fontWeight: 700, fontSize: 14, color: M.text }}>Ocorrência {index + 1}</p>
+            <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 14, color: M.text }}>Ocorrência {index + 1}</p>
             {fields.length > 1 && (
               <button type="button" onClick={() => remove(index)} aria-label="Remover ocorrência"
                 style={{ background: M.chip, border: 'none', cursor: 'pointer', color: M.mute, padding: 8, borderRadius: 12, display: 'flex' }}>
