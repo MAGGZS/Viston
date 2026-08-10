@@ -13,6 +13,10 @@ const schema = yup.object({
   name: yup.string().min(2, 'Mínimo 2 caracteres').required('Obrigatório'),
   email: yup.string().email('E-mail inválido').required('Obrigatório'),
   password: yup.string().min(8, 'Mínimo 8 caracteres').required('Obrigatório'),
+  password_confirmation: yup
+    .string()
+    .oneOf([yup.ref('password')], 'As senhas não coincidem')
+    .required('Obrigatório'),
 });
 
 const S = {
@@ -32,7 +36,9 @@ export default function RegisterPage() {
   const { register, handleSubmit, formState: { errors } } = useForm({ resolver: yupResolver(schema) });
   const [showPassword, setShowPassword] = useState(false);
 
-  async function onSubmit(data) {
+  // A confirmação fica no formulário: o cadastro público recusa campo que não
+  // conheça (`.strict()` no back), então ela não pode ir junto.
+  async function onSubmit({ password_confirmation, ...data }) {
     try {
       await createUser.mutateAsync(data);
       const res = await loginMutation.mutateAsync({ email: data.email, password: data.password });
@@ -48,6 +54,7 @@ export default function RegisterPage() {
     { name: 'name', label: 'Nome', type: 'text', placeholder: 'Seu nome completo' },
     { name: 'email', label: 'E-mail', type: 'email', placeholder: 'seu@email.com' },
     { name: 'password', label: 'Senha', type: 'password', placeholder: 'Mínimo 8 caracteres' },
+    { name: 'password_confirmation', label: 'Confirmar senha', type: 'password', placeholder: 'Repita a senha' },
   ];
 
   return (

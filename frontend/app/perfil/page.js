@@ -26,6 +26,10 @@ const profileSchema = yup.object({
 const passwordSchema = yup.object({
   current_password: yup.string().required('Obrigatório'),
   new_password: yup.string().min(8, 'Mínimo 8 caracteres').required('Obrigatório'),
+  new_password_confirmation: yup
+    .string()
+    .oneOf([yup.ref('new_password')], 'As senhas não coincidem')
+    .required('Obrigatório'),
 });
 
 const ROLE_LABELS = { ADMIN: 'Administrador', GESTOR: 'Gestor', INSPECTOR: 'Inspetor', VIEWER: 'Visualizador' };
@@ -229,7 +233,8 @@ function PasswordForm({ variant }) {
 
   const form = useForm({ resolver: yupResolver(passwordSchema) });
 
-  async function onSubmit(data) {
+  // A confirmação existe só para o dedo errar menos; a API recebe as duas senhas.
+  async function onSubmit({ new_password_confirmation, ...data }) {
     try {
       await changePassword.mutateAsync(data);
       form.reset();
@@ -246,6 +251,7 @@ function PasswordForm({ variant }) {
     >
       <Field label="Senha atual" type="password" error={form.formState.errors.current_password?.message} {...form.register('current_password')} />
       <Field label="Nova senha" type="password" error={form.formState.errors.new_password?.message} {...form.register('new_password')} />
+      <Field label="Confirmar nova senha" type="password" error={form.formState.errors.new_password_confirmation?.message} {...form.register('new_password_confirmation')} />
       {isMobile ? (
         <MButton type="submit" loading={changePassword.isPending} style={{ width: '100%' }}>Alterar senha</MButton>
       ) : (

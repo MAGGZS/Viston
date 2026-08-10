@@ -18,6 +18,10 @@ const schema = yup.object({
   name: yup.string().min(2).required('Obrigatório'),
   email: yup.string().email().required('Obrigatório'),
   password: yup.string().min(8).required('Obrigatório'),
+  password_confirmation: yup
+    .string()
+    .oneOf([yup.ref('password')], 'As senhas não coincidem')
+    .required('Obrigatório'),
 });
 
 const renameSchema = yup.object({
@@ -83,7 +87,8 @@ export default function AdminUsersPage() {
 
   const { show: toast } = useToastStore();
 
-  async function onCreateSubmit(data) {
+  // A confirmação não vai para a API: o cadastro recusa campo desconhecido.
+  async function onCreateSubmit({ password_confirmation, ...data }) {
     try {
       await createUser.mutateAsync(data);
       reset();
@@ -244,6 +249,7 @@ export default function AdminUsersPage() {
           <Input label="Nome" error={errors.name?.message} {...register('name')} />
           <Input label="E-mail" type="email" error={errors.email?.message} {...register('email')} />
           <Input label="Senha" type="password" error={errors.password?.message} {...register('password')} />
+          <Input label="Confirmar senha" type="password" error={errors.password_confirmation?.message} {...register('password_confirmation')} />
           <p className="text-mute text-xs leading-relaxed">
             A conta nasce como visualizadora. Quem define se ela vistoria é o gestor do prédio,
             depois que ela se vincular pela chave.
