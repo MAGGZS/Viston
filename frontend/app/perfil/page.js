@@ -32,7 +32,7 @@ const passwordSchema = yup.object({
     .required('Obrigatório'),
 });
 
-const ROLE_LABELS = { ADMIN: 'Administrador', GESTOR: 'Gestor', INSPECTOR: 'Inspetor', VIEWER: 'Visualizador' };
+const ROLE_LABELS = { ADMIN: 'Administrador', GESTOR: 'Gestor', INSPECTOR: 'Inspetor', VIEWER: 'Visualizador', NONE: 'Sem vínculo' };
 
 /** Quem administra prédio não se vincula a prédio: a seção de chave não é dele. */
 function ownsBuildings(role) {

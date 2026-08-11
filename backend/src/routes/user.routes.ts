@@ -14,7 +14,7 @@ import {
 
 const router = Router();
 
-// Cadastro público (papel sai sempre como VIEWER — ver user.service)
+// Cadastro público (nasce sem nível de acesso — ver user.service)
 router.post('/', sensitiveLimiter, validate(createUserSchema), userController.create as any);
 // Cadastro público de gestor — mesma validação, papel decidido pela rota
 router.post('/managers', sensitiveLimiter, validate(createUserSchema), userController.createManager as any);

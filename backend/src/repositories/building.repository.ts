@@ -110,6 +110,7 @@ export const buildingRepository = {
    *
    * Quem entra num prédio entra como VIEWER, e o papel global acompanha —
    * quem promove para INSPECTOR depois é o gestor, pela tela de colaboradores.
+   * É aqui que a conta sem nível de acesso (NONE) ganha o primeiro papel.
    */
   addMember(buildingId: string, userId: string, role: Role = Role.VIEWER) {
     return prisma.$transaction(async (tx) => {
@@ -118,7 +119,7 @@ export const buildingRepository = {
         include: { user: { select: { id: true, name: true, email: true, role: true, avatar_url: true } } },
       });
 
-      if (member.user.role !== Role.INSPECTOR && member.user.role !== Role.VIEWER) {
+      if (member.user.role === Role.ADMIN || member.user.role === Role.GESTOR) {
         return member;
       }
 
@@ -149,7 +150,7 @@ export const buildingRepository = {
 
       // ADMIN e GESTOR nunca são rebaixados por um vínculo: eles podem integrar
       // o prédio de outra pessoa sem perder o que são no sistema.
-      if (member.user.role !== Role.INSPECTOR && member.user.role !== Role.VIEWER) {
+      if (member.user.role === Role.ADMIN || member.user.role === Role.GESTOR) {
         return member;
       }
 
@@ -174,6 +175,17 @@ export const buildingRepository = {
       await tx.buildingAccessRequest.deleteMany({
         where: { building_id: buildingId, user_id: userId },
       });
+
+      // O nível de acesso vem do vínculo: sem prédio nenhum, a conta volta ao
+      // estado de recém-criada. O filtro por papel poupa ADMIN e GESTOR, que
+      // existem independente de vínculo.
+      const remaining = await tx.buildingMember.count({ where: { user_id: userId } });
+      if (remaining === 0) {
+        await tx.user.updateMany({
+          where: { id: userId, role: { in: [Role.INSPECTOR, Role.VIEWER] } },
+          data: { role: Role.NONE },
+        });
+      }
 
       return member;
     });

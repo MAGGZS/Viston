@@ -8,7 +8,9 @@ const router = Router();
 // Descarte da vistoria: quem administra o prédio (a posse é conferida no serviço)
 const managerRoles = authorize('ADMIN', 'GESTOR') as any;
 const inspectorOnly = authorize('ADMIN', 'GESTOR', 'INSPECTOR') as any;
-const anyRole = authorize('ADMIN', 'GESTOR', 'INSPECTOR', 'VIEWER') as any;
+// Inclui NONE: a conta sem vínculo abre o histórico e o calendário, que já
+// vêm vazios porque a listagem é filtrada pelos prédios do usuário.
+const anyRole = authorize('ADMIN', 'GESTOR', 'INSPECTOR', 'VIEWER', 'NONE') as any;
 const auth = authenticate as any;
 
 // ── Inspeções ─────────────────────────────────────────────────────────────────

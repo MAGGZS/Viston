@@ -26,6 +26,8 @@ const tokenInspector = signAccessToken('user-inspector', 'INSPECTOR');
 const tokenAdmin = signAccessToken('user-admin', 'ADMIN');
 const tokenGestor = signAccessToken('user-gestor', 'GESTOR');
 const tokenOutroGestor = signAccessToken('outro-gestor', 'GESTOR');
+// Conta recém-criada: ainda sem vínculo, e por isso sem nível de acesso
+const tokenSemVinculo = signAccessToken('user-sem-vinculo', 'NONE');
 
 const building = {
   id: BUILDING_ID,
@@ -64,13 +66,13 @@ describe('cadastro público', () => {
     expect(mockUserRepo.create).not.toHaveBeenCalled();
   });
 
-  it('cria a conta como VIEWER quando o payload é válido', async () => {
+  it('cria a conta sem nível de acesso quando o payload é válido', async () => {
     mockUserRepo.findByEmail.mockResolvedValue(null);
     mockUserRepo.create.mockResolvedValue({
       id: 'novo',
       name: 'Novo',
       email: 'novo@test.com',
-      role: 'VIEWER',
+      role: 'NONE',
       password_hash: 'x',
     } as any);
 
@@ -79,7 +81,7 @@ describe('cadastro público', () => {
       .send({ name: 'Novo', email: 'novo@test.com', password: 'Senha@123' });
 
     expect(res.status).toBe(201);
-    expect(mockUserRepo.create).toHaveBeenCalledWith(expect.objectContaining({ role: 'VIEWER' }));
+    expect(mockUserRepo.create).toHaveBeenCalledWith(expect.objectContaining({ role: 'NONE' }));
     expect(res.body).not.toHaveProperty('password_hash');
   });
 });
@@ -437,6 +439,62 @@ describe('acesso a relatórios', () => {
 
     expect(res.status).toBe(403);
     expect(mockInspectionRepo.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('conta sem nível de acesso', () => {
+  it('lista os próprios prédios (vazio) e o histórico', async () => {
+    mockBuildingRepo.getMemberBuildings.mockResolvedValue([] as any);
+    mockBuildingRepo.getMemberBuildingIds.mockResolvedValue([]);
+    mockInspectionRepo.findAll.mockResolvedValue([[], 0]);
+
+    const buildings = await request(app)
+      .get('/buildings/me')
+      .set('Authorization', `Bearer ${tokenSemVinculo}`);
+    const inspections = await request(app)
+      .get('/inspections')
+      .set('Authorization', `Bearer ${tokenSemVinculo}`);
+
+    expect(buildings.status).toBe(200);
+    expect(inspections.status).toBe(200);
+    expect(mockInspectionRepo.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({ building_ids: [] })
+    );
+  });
+
+  it('pede vínculo pela chave do prédio', async () => {
+    mockBuildingRepo.findByShareKey.mockResolvedValue(building as any);
+    mockBuildingRepo.findMember.mockResolvedValue(null);
+    mockBuildingRepo.findAccessRequest.mockResolvedValue(null);
+    mockBuildingRepo.createAccessRequest.mockResolvedValue({ id: 'req-1', status: 'PENDING' } as any);
+
+    const res = await request(app)
+      .post('/buildings/access-requests')
+      .set('Authorization', `Bearer ${tokenSemVinculo}`)
+      .send({ key: building.share_key });
+
+    expect(res.status).toBe(201);
+    expect(mockBuildingRepo.createAccessRequest).toHaveBeenCalledWith(BUILDING_ID, 'user-sem-vinculo');
+  });
+
+  it('não envia vistoria', async () => {
+    const res = await request(app)
+      .post('/inspections')
+      .set('Authorization', `Bearer ${tokenSemVinculo}`)
+      .send({ building_id: BUILDING_ID, entries: [] });
+
+    expect(res.status).toBe(403);
+    expect(mockInspectionRepo.createCompleted).not.toHaveBeenCalled();
+  });
+
+  it('não vê os dados de um prédio', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue(null);
+
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/dashboard`)
+      .set('Authorization', `Bearer ${tokenSemVinculo}`);
+
+    expect(res.status).toBe(403);
   });
 });
 

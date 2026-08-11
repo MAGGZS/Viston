@@ -21,7 +21,10 @@ const adminOnly = authorize('ADMIN') as any;
 // Quem pode ser dono de prédio. Só ser GESTOR não basta: as rotas com :id ainda
 // passam por `manager`, que exige ser o gestor daquele prédio.
 const managerRoles = authorize('ADMIN', 'GESTOR') as any;
-const anyRole = authorize('ADMIN', 'GESTOR', 'INSPECTOR', 'VIEWER') as any;
+// Qualquer conta autenticada, inclusive a que ainda não tem nível de acesso
+// (NONE): é por aqui que ela consulta a chave e pede vínculo. O que exige
+// prédio continua barrado por `member`/`manager`, que conferem o vínculo real.
+const anyRole = authorize('ADMIN', 'GESTOR', 'INSPECTOR', 'VIEWER', 'NONE') as any;
 // Administração do prédio (edição, andares, membros, solicitações)
 const manager = requireBuildingManager() as any;
 // Leitura de dados do prédio exige vínculo (quem administra passa direto)

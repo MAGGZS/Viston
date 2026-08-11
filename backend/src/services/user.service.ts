@@ -36,11 +36,12 @@ async function register(
 
 export const userService = {
   /**
-   * Cadastro público comum. O papel sai sempre como VIEWER: quem define o nível
-   * de acesso de verdade é o gestor do prédio, depois do vínculo.
+   * Cadastro público comum. A conta nasce sem nível de acesso: só a tela
+   * inicial, o histórico e o perfil. Vira VIEWER quando o gestor aprova o
+   * vínculo com um prédio.
    */
   create(data: { name: string; email: string; password: string }) {
-    return register(data, 'VIEWER');
+    return register(data, 'NONE');
   },
 
   /**

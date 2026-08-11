@@ -28,8 +28,8 @@ const renameSchema = yup.object({
   name: yup.string().min(2, 'Mínimo 2 caracteres').required('Obrigatório'),
 });
 
-const ROLE_LABELS = { ADMIN: 'Admin', GESTOR: 'Gestor', INSPECTOR: 'Inspetor', VIEWER: 'Visualizador' };
-const ROLE_VARIANTS = { ADMIN: 'accent', GESTOR: 'accent', INSPECTOR: 'success', VIEWER: 'default' };
+const ROLE_LABELS = { ADMIN: 'Admin', GESTOR: 'Gestor', INSPECTOR: 'Inspetor', VIEWER: 'Visualizador', NONE: 'Sem vínculo' };
+const ROLE_VARIANTS = { ADMIN: 'accent', GESTOR: 'accent', INSPECTOR: 'success', VIEWER: 'default', NONE: 'default' };
 const STATUS_LABELS = { ACTIVE: 'Ativo', DELETED: 'Removido' };
 
 /** Renomear é a única edição de dados que sobrou para o admin. */

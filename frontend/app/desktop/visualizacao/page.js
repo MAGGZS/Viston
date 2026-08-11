@@ -64,7 +64,7 @@ export default function VisualizacaoPage() {
   const monthLabel = format(new Date(year, month - 1), 'MMMM yyyy', { locale: ptBR });
 
   return (
-    <RouteGuard roles={['INSPECTOR', 'VIEWER']}>
+    <RouteGuard roles={['INSPECTOR', 'VIEWER', 'NONE']}>
       <div className="hidden lg:flex flex-col min-h-screen bg-page">
         {/* Header */}
         <header className="anim-fade-down" style={{ height: 60, background: '#0B0B0B', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', flexShrink: 0 }}>

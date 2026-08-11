@@ -8,6 +8,7 @@ import { BottomNav } from '@/app/components/BottomNav';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
+import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { M, MPage, MTopBar, MRound, MCard, MButtonGhost } from '@/app/components/mobile/kit';
@@ -28,7 +29,10 @@ function NoPredioState({ isMobile }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '80px 0' : '120px 0', textAlign: 'center' }}>
       <p style={{ fontSize: 40, marginBottom: 16 }}>🏢</p>
       <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>Você não tem ligação a nenhum prédio</p>
-      <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 13, lineHeight: 1.6 }}>Peça ao administrador o ID do prédio e solicite acesso.</p>
+      <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 13, lineHeight: 1.6, marginBottom: 20 }}>Peça a chave ao gestor do prédio e digite abaixo para se conectar.</p>
+      <div style={{ width: '100%', maxWidth: 380 }}>
+        <JoinBuildingForm />
+      </div>
     </div>
   );
 }

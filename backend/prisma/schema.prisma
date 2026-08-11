@@ -18,6 +18,9 @@ enum Role {
   GESTOR
   INSPECTOR
   VIEWER
+  // Conta recém-criada, ainda sem vínculo com prédio nenhum: só a tela inicial,
+  // o histórico e o perfil. Vira VIEWER quando o vínculo é aprovado.
+  NONE
 }
 
 enum UserStatus {
@@ -94,7 +97,7 @@ model User {
   name          String
   email         String     @unique
   password_hash String
-  role          Role       @default(INSPECTOR)
+  role          Role       @default(NONE)
   avatar_url    String?
   status        UserStatus @default(ACTIVE)
   created_at    DateTime   @default(now())

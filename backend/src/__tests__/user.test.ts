@@ -48,7 +48,7 @@ describe('userService.create', () => {
     );
   });
 
-  it('sempre cria como VIEWER, mesmo se o corpo trouxer role', async () => {
+  it('sempre cria sem nível de acesso, mesmo se o corpo trouxer role', async () => {
     mockUserRepo.findByEmail.mockResolvedValue(null);
     (mockBcrypt.hash as jest.Mock).mockResolvedValue('$2b$10$hashed');
     mockUserRepo.create.mockResolvedValue(makeUser());
@@ -60,7 +60,7 @@ describe('userService.create', () => {
       role: 'ADMIN',
     } as any);
 
-    expect(mockUserRepo.create).toHaveBeenCalledWith(expect.objectContaining({ role: 'VIEWER' }));
+    expect(mockUserRepo.create).toHaveBeenCalledWith(expect.objectContaining({ role: 'NONE' }));
   });
 
   it('lança ConflictError quando e-mail já existe', async () => {
