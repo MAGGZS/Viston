@@ -1,5 +1,6 @@
 'use client';
 import { T } from '@/app/lib/theme';
+import { Select } from '@/app/components/ui';
 
 /**
  * Componentes das telas mobile.
@@ -156,23 +157,20 @@ export function MField({ label, error, style = {}, ...props }) {
 
 /**
  * Lista suspensa do formulário de vistoria.
- * Mesma casca do desktop (`.select-field` em globals.css) — no dedo só muda a
- * altura do alvo.
+ * Mesma lista do desktop (`Select`, em components/ui) — no dedo só muda a
+ * altura do alvo e o tamanho do rótulo.
  */
 export function MSelect({ label, error, options = [], ...props }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
       {label && <span style={{ color: M.mute, fontSize: 12 }}>{label}</span>}
-      <select
-        className={`select-field ${error ? 'is-error' : ''}`}
+      <Select
+        options={options}
+        error={error}
         style={{ padding: '14px 40px 14px 16px', fontSize: 15 }}
+        aria-label={label}
         {...props}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
-      {error && <span style={{ color: M.danger, fontSize: 12 }}>{error}</span>}
-    </label>
+      />
+    </div>
   );
 }

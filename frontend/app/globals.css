@@ -150,52 +150,77 @@ input:-webkit-autofill:focus {
 }
 
 /**
- * Lista suspensa do sistema.
+ * Lista suspensa do produto.
  *
- * `appearance: none` é obrigatório — a seta nativa do Windows vem cinza-claro
- * em caixa branca e destoa de tudo. Só que tirar a seta sem repor nenhuma deixa
- * o campo idêntico a um de texto, sem nada indicando que ele abre; por isso a
- * seta volta como imagem de fundo, no mesmo tom dos rótulos secundários.
- *
- * `color-scheme: dark` é o que faz a lista aberta pelo navegador nascer escura.
- * Ela é desenhada pelo sistema operacional, fora do alcance do CSS da página:
- * sem isso, um painel branco abre por cima da interface escura.
+ * O `<select>` nativo saiu de cena: o painel que ele abre é desenhado pelo
+ * sistema operacional — caixa branca, seleção azul, queda animada — e nenhuma
+ * regra de CSS alcança aquilo. O gatilho abaixo é um botão com semântica de
+ * combobox e a lista é marcação da página, então as duas partes usam as cores,
+ * o raio e o peso do resto do sistema.
  */
-.select-field {
-  appearance: none;
-  -webkit-appearance: none;
-  color-scheme: dark;
-  cursor: pointer;
+.select-trigger {
+  position: relative;
+  display: flex;
+  align-items: center;
   width: 100%;
+  cursor: pointer;
+  text-align: left;
   color: var(--color-ink);
   background-color: var(--color-chip);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-opacity='0.44' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 15px 15px;
   border: 1px solid transparent;
   border-radius: var(--radius-control);
   outline: none;
   transition: border-color 0.2s, background-color 0.2s;
 }
 
-.select-field:hover:not(:disabled) { background-color: #2A2A2A; }
+.select-trigger:hover:not(:disabled) { background-color: #2A2A2A; }
 
 /* Dourado no foco, como nos demais campos — teclado enxerga onde está */
-.select-field:focus-visible { border-color: rgba(245, 197, 24, 0.5); }
+.select-trigger:focus-visible { border-color: rgba(245, 197, 24, 0.5); }
 
-.select-field:disabled { opacity: 0.5; cursor: default; }
+/* Aberta, a borda dourada fica: o gatilho e a lista formam um bloco só */
+.select-trigger.is-open { border-color: rgba(245, 197, 24, 0.5); }
 
-.select-field option {
-  background: var(--color-card);
-  color: var(--color-ink);
-}
+.select-trigger:disabled { opacity: 0.5; cursor: default; }
 
-.select-field.is-error { border-color: rgba(248, 113, 113, 0.5); }
+.select-trigger.is-error { border-color: rgba(248, 113, 113, 0.5); }
 
 /* Sobre superfície que já é chip (linha de colaborador): sobe um nível de cor */
-.select-field--raised { background-color: var(--color-card); }
-.select-field--raised:hover:not(:disabled) { background-color: #1F1F1F; }
+.select-trigger--raised { background-color: var(--color-card); }
+.select-trigger--raised:hover:not(:disabled) { background-color: #1F1F1F; }
+
+/**
+ * A lista abre pronta, sem percurso: ela nasce a seis pixels do gatilho que o
+ * dedo acabou de tocar, e animar essa distância só atrasa a leitura.
+ */
+.select-list {
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  padding: 6px;
+  overflow-y: auto;
+  z-index: 60;
+}
+
+.select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-pill);
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Um realce só: o item sob o cursor ou sob as setas do teclado */
+.select-option.is-active { background: var(--color-chip); }
+
+.select-option.is-selected { color: var(--color-accent); }
 
 /* Números que alinham em coluna ou se comparam de relance */
 .num { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }

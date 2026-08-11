@@ -11,11 +11,16 @@ import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
-import { Badge, Skeleton, Button, Modal } from '@/app/components/ui';
+import { Badge, Skeleton, Button, Modal, Select } from '@/app/components/ui';
 import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember, useUpdateMemberRole, useDeleteInspection, useAccessRequests, useReviewAccessRequest } from '@/app/hooks/useApi';
 import { formatShareKey } from '@/app/lib/shareKey';
 import { useToastStore } from '@/app/store/toast';
 import { useAuthStore } from '@/app/store/auth';
+
+const ROLE_OPTIONS = [
+  { value: 'VIEWER', label: 'Visualizador' },
+  { value: 'INSPECTOR', label: 'Inspetor' },
+];
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success', COMPLETED: 'success' };
@@ -85,23 +90,17 @@ function MemberRow({ member, buildingId, onRemove, className = '' }) {
         <p className="text-white text-sm font-medium truncate">{member.user?.name}</p>
         <p className="text-mute text-xs truncate">{member.user?.email}</p>
       </div>
-      <select
-        // `select-field` traz seta, foco e lista escura; aqui só o que muda:
-        // fundo um nível acima (a linha já é chip) e medida de controle miúdo.
-        className="select-field select-field--raised flex-shrink-0"
-        style={{
-          width: 148, flexBasis: 148,
-          padding: '7px 32px 7px 12px', fontSize: 12,
-          backgroundPosition: 'right 10px center', backgroundSize: '13px 13px',
-        }}
+      {/* `raised` sobe o fundo um nível, porque a linha inteira já é chip */}
+      <Select
+        raised
+        className="flex-shrink-0"
+        style={{ width: 148, flexBasis: 148, padding: '7px 30px 7px 12px', fontSize: 12 }}
         aria-label={`Nível de acesso de ${member.user?.name}`}
+        options={ROLE_OPTIONS}
         value={member.role === 'INSPECTOR' ? 'INSPECTOR' : 'VIEWER'}
         disabled={updateRole.isPending}
         onChange={(e) => handleRoleChange(e.target.value)}
-      >
-        <option value="VIEWER">Visualizador</option>
-        <option value="INSPECTOR">Inspetor</option>
-      </select>
+      />
       <button
         onClick={onRemove}
         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.26)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0 }}

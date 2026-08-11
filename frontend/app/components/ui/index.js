@@ -1,4 +1,7 @@
 'use client';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Check, ChevronDown } from 'lucide-react';
 import { T, R, W } from '@/app/lib/theme';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 
@@ -149,24 +152,206 @@ export function Modal({ open, onClose, title, children, maxWidth = 400 }) {
   );
 }
 
+/** Espaço mínimo abaixo do gatilho para a lista abrir para baixo. */
+const LIST_MIN_SPACE = 180;
+const LIST_MAX_HEIGHT = 260;
+
 /**
- * Lista suspensa. A aparência mora em `.select-field` (globals.css) porque
- * foco e hover precisam de pseudo-classe; aqui ficam só medida e tipografia,
- * que acompanham o `Input` ao lado.
+ * Lista suspensa própria — ver `.select-trigger` e `.select-list` no globals.css.
+ *
+ * A lista vai para um portal preso ao `body` e posicionada em coordenadas de
+ * tela: dentro do fluxo, qualquer ancestral com `overflow: hidden` (as linhas de
+ * colaborador, as tabelas) cortaria o painel na primeira opção.
+ *
+ * O foco não sai do gatilho enquanto a lista está aberta. É ele quem escuta as
+ * setas e aponta o item corrente por `aria-activedescendant` — o mesmo desenho
+ * que o `<select>` nativo usa, e que evita ter de devolver o foco na hora de
+ * fechar.
+ *
+ * `onChange` recebe um evento com `target.value`, como o campo nativo entregava:
+ * quem chama (react-hook-form incluso) não precisa saber que a lista mudou.
  */
-export function Select({ label, error, options = [], className = '', style = {}, ...props }) {
+export function Select({
+  label,
+  error,
+  options = [],
+  value,
+  onChange,
+  onBlur,
+  name,
+  disabled = false,
+  placeholder = 'Selecione',
+  raised = false,
+  className = '',
+  style = {},
+  triggerId,
+  'aria-label': ariaLabel,
+}) {
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [box, setBox] = useState(null);
+  const triggerRef = useRef(null);
+  const listRef = useRef(null);
+  const listId = useId();
+
+  const selectedIndex = options.findIndex((o) => String(o.value) === String(value));
+  const selected = options[selectedIndex];
+
+  const place = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const below = window.innerHeight - rect.bottom;
+    const dropUp = below < LIST_MIN_SPACE && rect.top > below;
+    const room = (dropUp ? rect.top : below) - 12;
+
+    setBox({
+      left: rect.left,
+      width: rect.width,
+      maxHeight: Math.min(LIST_MAX_HEIGHT, room),
+      ...(dropUp
+        ? { bottom: window.innerHeight - rect.top + 6 }
+        : { top: rect.bottom + 6 }),
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    place();
+    // `true` na captura: a rolagem que importa costuma ser a de um contêiner
+    // interno, e ela não borbulha até a janela.
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, place]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointerDown = (e) => {
+      if (triggerRef.current?.contains(e.target) || listRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+    };
+  }, [open]);
+
+  // Item corrente sempre visível quando a navegação é por teclado
+  useEffect(() => {
+    if (!open || activeIndex < 0) return;
+    listRef.current?.children[activeIndex]?.scrollIntoView({ block: 'nearest' });
+  }, [open, activeIndex]);
+
+  function openList(startIndex) {
+    if (disabled) return;
+    setActiveIndex(startIndex);
+    setOpen(true);
+  }
+
+  function commit(index) {
+    const option = options[index];
+    setOpen(false);
+    if (!option || String(option.value) === String(value)) return;
+    onChange?.({ target: { name, value: option.value } });
+  }
+
+  function handleKeyDown(e) {
+    const step = (delta) => {
+      e.preventDefault();
+      const from = activeIndex >= 0 ? activeIndex : selectedIndex;
+      const next = Math.min(options.length - 1, Math.max(0, from + delta));
+      if (open) setActiveIndex(next);
+      else openList(Math.max(0, from));
+    };
+
+    switch (e.key) {
+      case 'ArrowDown': return step(1);
+      case 'ArrowUp': return step(-1);
+      case 'Home': e.preventDefault(); return open ? setActiveIndex(0) : openList(0);
+      case 'End': e.preventDefault(); return open ? setActiveIndex(options.length - 1) : openList(options.length - 1);
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        if (open) commit(activeIndex);
+        else openList(selectedIndex >= 0 ? selectedIndex : 0);
+        return;
+      case 'Escape':
+        if (open) { e.preventDefault(); setOpen(false); }
+        return;
+      case 'Tab':
+        setOpen(false);
+        return;
+      default:
+        return;
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {label && <label style={G.label}>{label}</label>}
-      <select
-        className={`select-field ${error ? 'is-error' : ''} ${className}`}
+
+      <button
+        type="button"
+        id={triggerId}
+        ref={triggerRef}
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-activedescendant={open && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        className={`select-trigger ${raised ? 'select-trigger--raised' : ''} ${open ? 'is-open' : ''} ${error ? 'is-error' : ''} ${className}`}
         style={{ padding: '13px 38px 13px 15px', fontSize: 15, fontWeight: W.body, ...style }}
-        {...props}
+        onClick={() => (open ? setOpen(false) : openList(selectedIndex >= 0 ? selectedIndex : 0))}
+        onKeyDown={handleKeyDown}
+        onBlur={onBlur}
       >
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
+        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: selected ? T.text : T.faint }}>
+          {selected?.label ?? placeholder}
+        </span>
+        <ChevronDown
+          size={15}
+          strokeWidth={2.2}
+          style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: T.mute, pointerEvents: 'none', flexShrink: 0 }}
+        />
+      </button>
+
+      {open && box && createPortal(
+        <div
+          id={listId}
+          ref={listRef}
+          role="listbox"
+          aria-label={ariaLabel ?? label}
+          className="select-list"
+          style={{ position: 'fixed', ...box }}
+        >
+          {options.map((opt, i) => (
+            <button
+              key={opt.value}
+              id={`${listId}-${i}`}
+              type="button"
+              role="option"
+              aria-selected={i === selectedIndex}
+              className={`select-option ${i === activeIndex ? 'is-active' : ''} ${i === selectedIndex ? 'is-selected' : ''}`}
+              style={{ fontSize: 14, fontWeight: W.body, fontFamily: 'inherit' }}
+              onMouseEnter={() => setActiveIndex(i)}
+              onClick={() => commit(i)}
+            >
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
+              {i === selectedIndex && <Check size={14} strokeWidth={2.4} style={{ flexShrink: 0 }} />}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+
       {error && <span style={{ fontSize: 12, color: T.danger }}>{error}</span>}
     </div>
   );
