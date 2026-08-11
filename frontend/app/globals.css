@@ -222,5 +222,17 @@ input:-webkit-autofill:focus {
 
 .select-option.is-selected { color: var(--color-accent); }
 
+/**
+ * Linha do perfil.
+ *
+ * O cartão inteiro é o alvo, então é ele quem responde ao cursor. A seta anda
+ * dois pixels junto: é o mesmo gesto de "isto abre" que a linha já promete, só
+ * que antes do clique.
+ */
+.profile-row { transition: background-color 0.15s ease; }
+.profile-row:hover { background-color: var(--color-chip); }
+.profile-row__chevron { transition: transform 0.15s ease; }
+.profile-row:hover .profile-row__chevron { transform: translateX(2px); }
+
 /* Números que alinham em coluna ou se comparam de relance */
 .num { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
