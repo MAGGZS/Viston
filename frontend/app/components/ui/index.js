@@ -184,6 +184,8 @@ export function Select({
   raised = false,
   className = '',
   style = {},
+  wrapperClassName = '',
+  wrapperStyle = {},
   triggerId,
   'aria-label': ariaLabel,
 }) {
@@ -196,6 +198,13 @@ export function Select({
 
   const selectedIndex = options.findIndex((o) => String(o.value) === String(value));
   const selected = options[selectedIndex];
+
+  // Controle miúdo (a linha de colaborador) pede item miúdo: opção com a altura
+  // do formulário ao lado de um gatilho de 34px faz a lista parecer outra peça.
+  const compact = (style.fontSize ?? 15) <= 13;
+  const optionStyle = compact
+    ? { padding: '7px 10px', fontSize: 12 }
+    : { padding: '10px 12px', fontSize: 14 };
 
   const place = useCallback(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
@@ -293,7 +302,9 @@ export function Select({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    // Medida de largura vai no invólucro, não no gatilho: aqui dentro o eixo
+    // principal é vertical, e um `flexBasis` no botão viraria altura.
+    <div className={wrapperClassName} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, ...wrapperStyle }}>
       {label && <label style={G.label}>{label}</label>}
 
       <button
@@ -340,7 +351,7 @@ export function Select({
               role="option"
               aria-selected={i === selectedIndex}
               className={`select-option ${i === activeIndex ? 'is-active' : ''} ${i === selectedIndex ? 'is-selected' : ''}`}
-              style={{ fontSize: 14, fontWeight: W.body, fontFamily: 'inherit' }}
+              style={{ ...optionStyle, fontWeight: W.body, fontFamily: 'inherit' }}
               onMouseEnter={() => setActiveIndex(i)}
               onClick={() => commit(i)}
             >

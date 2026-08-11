@@ -93,8 +93,9 @@ function MemberRow({ member, buildingId, onRemove, className = '' }) {
       {/* `raised` sobe o fundo um nível, porque a linha inteira já é chip */}
       <Select
         raised
-        className="flex-shrink-0"
-        style={{ width: 148, flexBasis: 148, padding: '7px 30px 7px 12px', fontSize: 12 }}
+        wrapperClassName="flex-shrink-0"
+        wrapperStyle={{ width: 148, flexBasis: 148 }}
+        style={{ padding: '7px 30px 7px 12px', fontSize: 12 }}
         aria-label={`Nível de acesso de ${member.user?.name}`}
         options={ROLE_OPTIONS}
         value={member.role === 'INSPECTOR' ? 'INSPECTOR' : 'VIEWER'}
