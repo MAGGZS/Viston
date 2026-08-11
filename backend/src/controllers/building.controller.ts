@@ -191,8 +191,12 @@ export const buildingController = {
     const isMember = await buildingRepository.findMember(building.id, req.user.id);
     if (isMember) throw new ConflictError('Você já é membro deste prédio');
 
+    // Só um pedido em aberto barra outro: solicitação já resolvida (recusada, ou
+    // aprovada de um vínculo desfeito depois) não pode travar o prédio para sempre.
     const existing = await buildingRepository.findAccessRequest(building.id, req.user.id);
-    if (existing) throw new ConflictError('Solicitação já enviada para este prédio');
+    if (existing?.status === 'PENDING') {
+      throw new ConflictError('Solicitação já enviada para este prédio');
+    }
 
     const request = await buildingRepository.createAccessRequest(building.id, req.user.id);
     created(res, request);

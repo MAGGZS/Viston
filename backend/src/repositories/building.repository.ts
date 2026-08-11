@@ -164,8 +164,18 @@ export const buildingRepository = {
   },
 
   removeMemberSelf(buildingId: string, userId: string) {
-    return prisma.buildingMember.delete({
-      where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
+    return prisma.$transaction(async (tx) => {
+      const member = await tx.buildingMember.delete({
+        where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
+      });
+
+      // Sem o vínculo, a solicitação aprovada não representa mais nada — e, se
+      // ficasse, bloquearia um pedido futuro para o mesmo prédio.
+      await tx.buildingAccessRequest.deleteMany({
+        where: { building_id: buildingId, user_id: userId },
+      });
+
+      return member;
     });
   },
 
@@ -188,9 +198,18 @@ export const buildingRepository = {
     });
   },
 
+  /**
+   * Abre a solicitação de acesso do usuário ao prédio.
+   *
+   * Upsert porque o par prédio/usuário é único: uma solicitação já resolvida
+   * (recusada, ou aprovada de um vínculo que não existe mais) é reaberta em vez
+   * de barrar o novo pedido.
+   */
   createAccessRequest(buildingId: string, userId: string) {
-    return prisma.buildingAccessRequest.create({
-      data: { building_id: buildingId, user_id: userId },
+    return prisma.buildingAccessRequest.upsert({
+      where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
+      create: { building_id: buildingId, user_id: userId },
+      update: { status: 'PENDING', requested_at: new Date(), reviewed_at: null },
     });
   },
 

@@ -224,6 +224,51 @@ describe('gestão do prédio', () => {
     expect(mockBuildingRepo.addMember).toHaveBeenCalledWith(BUILDING_ID, 'user-novo');
   });
 
+  it('ex-membro solicita acesso de novo ao mesmo prédio', async () => {
+    mockBuildingRepo.findByShareKey.mockResolvedValue(building as any);
+    mockBuildingRepo.findMember.mockResolvedValue(null);
+    // Sobrou do vínculo anterior: aprovada, mas o usuário já saiu do prédio.
+    mockBuildingRepo.findAccessRequest.mockResolvedValue({ id: 'req-1', status: 'APPROVED' } as any);
+    mockBuildingRepo.createAccessRequest.mockResolvedValue({ id: 'req-1', status: 'PENDING' } as any);
+
+    const res = await request(app)
+      .post('/buildings/access-requests')
+      .set('Authorization', `Bearer ${tokenViewer}`)
+      .send({ key: building.share_key });
+
+    expect(res.status).toBe(201);
+    expect(mockBuildingRepo.createAccessRequest).toHaveBeenCalledWith(BUILDING_ID, 'user-viewer');
+  });
+
+  it('solicitação recusada não trava um novo pedido', async () => {
+    mockBuildingRepo.findByShareKey.mockResolvedValue(building as any);
+    mockBuildingRepo.findMember.mockResolvedValue(null);
+    mockBuildingRepo.findAccessRequest.mockResolvedValue({ id: 'req-1', status: 'REJECTED' } as any);
+    mockBuildingRepo.createAccessRequest.mockResolvedValue({ id: 'req-1', status: 'PENDING' } as any);
+
+    const res = await request(app)
+      .post('/buildings/access-requests')
+      .set('Authorization', `Bearer ${tokenViewer}`)
+      .send({ key: building.share_key });
+
+    expect(res.status).toBe(201);
+    expect(mockBuildingRepo.createAccessRequest).toHaveBeenCalled();
+  });
+
+  it('recusa segundo pedido enquanto o gestor não revisa o primeiro', async () => {
+    mockBuildingRepo.findByShareKey.mockResolvedValue(building as any);
+    mockBuildingRepo.findMember.mockResolvedValue(null);
+    mockBuildingRepo.findAccessRequest.mockResolvedValue({ id: 'req-1', status: 'PENDING' } as any);
+
+    const res = await request(app)
+      .post('/buildings/access-requests')
+      .set('Authorization', `Bearer ${tokenViewer}`)
+      .send({ key: building.share_key });
+
+    expect(res.status).toBe(409);
+    expect(mockBuildingRepo.createAccessRequest).not.toHaveBeenCalled();
+  });
+
   it('GESTOR troca o nível de acesso do membro', async () => {
     mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1' } as any);
     mockBuildingRepo.updateMemberRole.mockResolvedValue({ id: 'm1', role: 'INSPECTOR' } as any);
