@@ -7,6 +7,15 @@
 -- O que isso custa, e esta assumido: o gestor deixa de poder vistoriar, porque
 -- inspection_reports.inspector_id aponta para `users` e ele sai de la.
 
+-- ── 0. Desarmar o gatilho antigo ────────────────────────────────────────────
+-- Ele guarda a regra "predio nunca fica sem gestor" olhando building_members, e
+-- o passo 2 esvazia justamente as linhas GESTOR de la. Com o gatilho armado, o
+-- DELETE dispara a excecao e a migration inteira aborta — junto com o deploy.
+-- A mesma regra e rearmada no passo 7, ja sobre building_managers.
+DROP TRIGGER IF EXISTS "building_members_keep_gestor_on_delete" ON "building_members";
+DROP TRIGGER IF EXISTS "building_members_keep_gestor_on_demote" ON "building_members";
+DROP FUNCTION IF EXISTS check_building_keeps_gestor();
+
 -- ── 1. As duas tabelas novas ────────────────────────────────────────────────
 CREATE TABLE "managers" (
   "id"            TEXT NOT NULL DEFAULT (gen_random_uuid())::text,
@@ -97,11 +106,7 @@ ALTER TABLE "building_members"
   ALTER COLUMN "role" TYPE "BuildingRole" USING "role"::text::"BuildingRole";
 DROP TYPE "BuildingRole_old";
 
--- ── 7. O gatilho do ultimo gestor muda de tabela ────────────────────────────
-DROP TRIGGER IF EXISTS "building_members_keep_gestor_on_delete" ON "building_members";
-DROP TRIGGER IF EXISTS "building_members_keep_gestor_on_demote" ON "building_members";
-DROP FUNCTION IF EXISTS check_building_keeps_gestor();
-
+-- ── 7. O gatilho do ultimo gestor, agora sobre building_managers ────────────
 -- Sem rebaixamento agora: em building_managers estar na linha ja e ser gestor,
 -- entao so o DELETE pode deixar o predio sem ninguem.
 --
