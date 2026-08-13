@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/app/store/auth';
-import { isAdmin, managedBuildings } from '@/app/lib/roles';
+import { isAdmin, isManagerAccount } from '@/app/lib/roles';
 
 export default function RootPage() {
   const { user, isLoading } = useAuthStore();
@@ -16,10 +16,10 @@ export default function RootPage() {
       return;
     }
 
-    // Quem administra algum prédio tem uma área só dele, sem sidebar e igual
-    // nos dois tamanhos. É o vínculo que diz isso agora, não o papel da conta:
-    // a mesma pessoa pode gerir um prédio e vistoriar outro.
-    if (managedBuildings(user).length > 0) {
+    // A conta de gestor tem uma área só dela, sem sidebar e igual nos dois
+    // tamanhos — inclusive quando ainda não cadastrou prédio nenhum, que é
+    // justamente onde ela cadastra o primeiro.
+    if (isManagerAccount(user)) {
       router.replace('/gestor');
       return;
     }

@@ -16,9 +16,17 @@ import { useAuthStore } from '@/app/store/auth';
  */
 function refreshProfile() {
   return api
-    .get('/users/me')
+    .get('/auth/me')
     .then(({ data }) => useAuthStore.getState().setUser(data))
     .catch(() => {});
+}
+
+/**
+ * Caminho da conta própria: gestor e usuário são tabelas diferentes, e perfil,
+ * senha e foto de cada um vivem em rotas diferentes.
+ */
+function accountPath() {
+  return useAuthStore.getState().user?.kind === 'MANAGER' ? '/managers/me' : '/users/me';
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -32,7 +40,7 @@ export function useLogin() {
 export function useMe() {
   return useQuery({
     queryKey: ['me'],
-    queryFn: () => api.get('/users/me').then((r) => r.data),
+    queryFn: () => api.get('/auth/me').then((r) => r.data),
   });
 }
 
@@ -51,11 +59,11 @@ export function useCreateUser() {
   });
 }
 
-// Cadastro pela tela de gestor. A conta sai igual à do cadastro comum: gestor
-// é o que se vira ao criar um prédio, não uma marca na conta.
+// Cadastro de gestor. Cria a conta na tabela de gestores — é outro tipo de
+// conta, não um usuário com uma marca a mais.
 export function useCreateManager() {
   return useMutation({
-    mutationFn: (data) => api.post('/users/managers', data).then((r) => r.data),
+    mutationFn: (data) => api.post('/managers', data).then((r) => r.data),
   });
 }
 
@@ -78,7 +86,7 @@ export function useDeleteUser() {
 export function useUpdateMe() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data) => api.patch('/users/me', data).then((r) => r.data),
+    mutationFn: (data) => api.patch(accountPath(), data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
   });
 }
@@ -87,7 +95,7 @@ export function useUpdateMe() {
 export function useUpdateAvatar() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (image) => api.patch('/users/me/avatar', { image }).then((r) => r.data),
+    mutationFn: (image) => api.patch(`${accountPath()}/avatar`, { image }).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
   });
 }
@@ -95,20 +103,20 @@ export function useUpdateAvatar() {
 export function useRemoveAvatar() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.delete('/users/me/avatar').then((r) => r.data),
+    mutationFn: () => api.delete(`${accountPath()}/avatar`).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
   });
 }
 
 export function useChangePassword() {
   return useMutation({
-    mutationFn: (data) => api.patch('/users/me/password', data).then((r) => r.data),
+    mutationFn: (data) => api.patch(`${accountPath()}/password`, data).then((r) => r.data),
   });
 }
 
 export function useDeleteMe() {
   return useMutation({
-    mutationFn: () => api.delete('/users/me').then((r) => r.data),
+    mutationFn: () => api.delete(accountPath()).then((r) => r.data),
   });
 }
 
@@ -231,11 +239,45 @@ export function useDeleteFloor() {
   });
 }
 
+// Devolve `{ managers, members }`: as duas naturezas de quem está no prédio —
+// contas de gestor e usuários com papel — porque a tela é uma só.
 export function useBuildingMembers(id) {
   return useQuery({
     queryKey: ['building-members', id],
     queryFn: () => api.get(`/buildings/${id}/members`).then((r) => r.data),
     enabled: !!id,
+  });
+}
+
+/** Adiciona outro gestor ao prédio pelo e-mail da conta de gestor dele. */
+export function useAddBuildingManager() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ buildingId, email }) =>
+      api.post(`/buildings/${buildingId}/managers`, { email }).then((r) => r.data),
+    onSuccess: (_, { buildingId }) =>
+      qc.invalidateQueries({ queryKey: ['building-members', buildingId] }),
+  });
+}
+
+/** Tira um gestor do prédio. O último não sai — a API recusa com 409. */
+export function useRemoveBuildingManager() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ buildingId, managerId }) =>
+      api.delete(`/buildings/${buildingId}/managers/${managerId}`).then((r) => r.data),
+    onSuccess: (_, { buildingId }) => {
+      qc.invalidateQueries({ queryKey: ['building-members', buildingId] });
+      return refreshProfile();
+    },
+  });
+}
+
+/** Lista de gestores — painel do admin. */
+export function useManagers(page = 1) {
+  return useQuery({
+    queryKey: ['managers', page],
+    queryFn: () => api.get('/managers', { params: { page, limit: 20 } }).then((r) => r.data),
   });
 }
 

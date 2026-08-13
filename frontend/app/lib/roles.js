@@ -1,17 +1,26 @@
 /**
- * O que a pessoa pode fazer — lido dos vínculos, nunca de um papel na conta.
+ * O que a conta é — e o que ela pode fazer em cada prédio.
  *
- * `user.role` responde uma pergunta só: é o ADMIN do sistema? Todo o resto —
- * gerir, vistoriar, só acompanhar — depende de qual prédio se está olhando, e
- * vem de `user.memberships`, que a API entrega no login e em `/users/me`.
+ * O sistema tem dois tipos de conta, em tabelas diferentes:
  *
- * A mesma conta pode ser gestora de um prédio e visualizadora de outro. É por
- * isso que quase toda função aqui aceita um `buildingId`: perguntar "o que essa
- * pessoa é" sem dizer onde não tem resposta.
+ *   MANAGER  gestor. Cadastra prédios e administra quem entra neles. Não
+ *            vistoria: o relatório aponta para a tabela de usuários, e ele não
+ *            está lá.
+ *   USER     todo o resto. Sem papel na conta; o que ela pode fazer vem do
+ *            vínculo com cada prédio (INSPECTOR ou VIEWER). O ADMIN é um USER
+ *            com `role: 'ADMIN'` — conta de suporte, sem prédio próprio.
+ *
+ * `user.kind` diz o tipo, e `user.memberships` traz os prédios: para o gestor,
+ * os que ele administra (papel 'GESTOR'); para o usuário, os vínculos dele.
+ * Os dois chegam no mesmo formato de propósito, para as telas não bifurcarem.
  */
 
+export function isManagerAccount(user) {
+  return user?.kind === 'MANAGER';
+}
+
 export function isAdmin(user) {
-  return user?.role === 'ADMIN';
+  return user?.kind !== 'MANAGER' && user?.role === 'ADMIN';
 }
 
 export function memberships(user) {
@@ -19,7 +28,7 @@ export function memberships(user) {
 }
 
 /**
- * Papel da pessoa naquele prédio: 'GESTOR', 'INSPECTOR', 'VIEWER' ou null.
+ * Papel da conta naquele prédio: 'GESTOR', 'INSPECTOR', 'VIEWER' ou null.
  * O ADMIN passa por todos como gestor — é a conta de suporte do sistema.
  */
 export function roleIn(user, buildingId) {
@@ -28,14 +37,19 @@ export function roleIn(user, buildingId) {
   return memberships(user).find((m) => m.building_id === buildingId)?.role ?? null;
 }
 
-/** Os prédios que a pessoa administra. */
+/** Os prédios que a conta administra. Só gestor e admin têm algum. */
 export function managedBuildings(user) {
   return memberships(user).filter((m) => m.role === 'GESTOR');
 }
 
-/** Administra ao menos um prédio — é o que manda a pessoa para a área do gestor. */
+/**
+ * É uma conta de gestão — a que tem a área própria, sem barra inferior.
+ *
+ * Vale para o gestor mesmo sem prédio nenhum: a conta recém-criada precisa
+ * chegar à tela que a deixa cadastrar o primeiro.
+ */
 export function isManager(user) {
-  return isAdmin(user) || managedBuildings(user).length > 0;
+  return isManagerAccount(user) || isAdmin(user);
 }
 
 export function managesBuilding(user, buildingId) {
@@ -43,15 +57,18 @@ export function managesBuilding(user, buildingId) {
 }
 
 /**
- * Pode vistoriar. Com prédio, é o papel naquele prédio; sem prédio, é se existe
- * algum em que ela vistorie.
+ * Pode vistoriar.
+ *
+ * Nunca o gestor: a vistoria é assinada por uma conta de usuário, e ele não é
+ * uma. Com prédio, é o papel naquele prédio; sem prédio, é se existe algum em
+ * que ela vistorie.
  */
 export function canInspect(user, buildingId) {
-  if (buildingId) {
-    const role = roleIn(user, buildingId);
-    return role === 'GESTOR' || role === 'INSPECTOR';
-  }
-  return isAdmin(user) || memberships(user).some((m) => m.role !== 'VIEWER');
+  if (isManagerAccount(user)) return false;
+  if (isAdmin(user)) return true;
+
+  if (buildingId) return roleIn(user, buildingId) === 'INSPECTOR';
+  return memberships(user).some((m) => m.role === 'INSPECTOR');
 }
 
 /**
@@ -62,7 +79,7 @@ export function canInspect(user, buildingId) {
  * app normalmente até se vincular a algum prédio.
  */
 export function isViewerOnly(user) {
-  if (isAdmin(user)) return false;
+  if (isManagerAccount(user) || isAdmin(user)) return false;
   const list = memberships(user);
   return list.length > 0 && list.every((m) => m.role === 'VIEWER');
 }
@@ -73,12 +90,14 @@ export function hasNoBuilding(user) {
 }
 
 /**
- * Os papéis que a pessoa ocupa, para as guardas de rota que pensam por papel
+ * Os papéis que a conta ocupa, para as guardas de rota que pensam por papel
  * ('quem vistoria em algum lugar entra aqui'). Quem não tem vínculo responde
  * 'NONE', que é o estado da conta recém-criada.
  */
 export function effectiveRoles(user) {
   if (isAdmin(user)) return ['ADMIN'];
+  if (isManagerAccount(user)) return ['GESTOR'];
+
   const roles = [...new Set(memberships(user).map((m) => m.role))];
   return roles.length > 0 ? roles : ['NONE'];
 }
@@ -91,17 +110,18 @@ const LABELS = {
 };
 
 /**
- * Como a função aparece no perfil e na lista do admin.
+ * Como a função aparece no perfil.
  *
- * Com vínculos em papéis diferentes, mostra o de maior alcance: é o que a
- * pessoa reconhece como "o que eu sou aqui". O prédio específico, quando
- * importa, a tela já mostra ao lado.
+ * Para o gestor a resposta é o tipo da conta, e não um papel de prédio. Para o
+ * usuário com vínculos em papéis diferentes, mostra o de maior alcance — é o
+ * que a pessoa reconhece como "o que eu sou aqui".
  */
 export function roleLabel(user) {
   if (isAdmin(user)) return LABELS.ADMIN;
+  if (isManagerAccount(user)) return LABELS.GESTOR;
 
   const roles = memberships(user).map((m) => m.role);
-  for (const role of ['GESTOR', 'INSPECTOR', 'VIEWER']) {
+  for (const role of ['INSPECTOR', 'VIEWER']) {
     if (roles.includes(role)) return LABELS[role];
   }
   return 'Sem vínculo';
@@ -110,8 +130,18 @@ export function roleLabel(user) {
 /** Mesma leitura, para a lista do admin, que recebe só os papéis. */
 export function rolesLabel(buildingRoles = [], accountRole) {
   if (accountRole === 'ADMIN') return LABELS.ADMIN;
-  for (const role of ['GESTOR', 'INSPECTOR', 'VIEWER']) {
+  for (const role of ['INSPECTOR', 'VIEWER']) {
     if (buildingRoles.includes(role)) return LABELS[role];
   }
   return 'Sem vínculo';
+}
+
+/**
+ * Prefixo da API para as rotas de conta própria.
+ *
+ * Perfil, senha e foto existem para os dois tipos, em caminhos diferentes —
+ * `/users/me` e `/managers/me` —, porque são tabelas diferentes.
+ */
+export function accountPath(user) {
+  return isManagerAccount(user) ? '/managers/me' : '/users/me';
 }

@@ -12,20 +12,18 @@ import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Skeleton, Button, Modal, Select } from '@/app/components/ui';
-import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember, useUpdateMemberRole, useDeleteInspection, useAccessRequests, useReviewAccessRequest } from '@/app/hooks/useApi';
+import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember, useUpdateMemberRole, useDeleteInspection, useAccessRequests, useReviewAccessRequest, useAddBuildingManager, useRemoveBuildingManager } from '@/app/hooks/useApi';
 import { formatShareKey } from '@/app/lib/shareKey';
 import { useToastStore } from '@/app/store/toast';
 
+// Gestor não está aqui: é outro tipo de conta, e entra pelo e-mail (ver
+// AddManagerForm). Membro só vai de visualizador a inspetor e volta.
 const ROLE_OPTIONS = [
   { value: 'VIEWER', label: 'Visualizador' },
   { value: 'INSPECTOR', label: 'Inspetor' },
-  // Promover a gestor é como a gestão se divide ou se transfere. Um prédio pode
-  // ter mais de um; o que ele não pode é ficar sem nenhum.
-  { value: 'GESTOR', label: 'Gestor' },
 ];
 
 const ROLE_TOAST = {
-  GESTOR: 'Agora é gestor do prédio',
   INSPECTOR: 'Agora é inspetor',
   VIEWER: 'Agora é visualizador',
 };
@@ -73,17 +71,13 @@ function MonthGrid({ heatmap, year, month, onDayClick }) {
 }
 
 /**
- * Linha de colaborador.
+ * Linha de colaborador — usuário vinculado ao prédio.
  *
  * O papel é decisão do gestor: quem se vincula entra como visualizador e sobe
- * daqui. O gestor aparece nesta mesma lista — ele é um vínculo como os outros,
- * e é isso que permite ter dois gestores ou passar a gestão adiante.
- *
- * `soleManager` marca o último gestor do prédio: rebaixá-lo ou removê-lo
- * deixaria o prédio sem ninguém que possa administrá-lo, então os dois
- * controles ficam travados (a API também recusa, com 409).
+ * daqui. Virar gestor não passa por esta linha, porque gestor é outro tipo de
+ * conta.
  */
-function MemberRow({ member, buildingId, soleManager, onRemove, className = '' }) {
+function MemberRow({ member, buildingId, onRemove, className = '' }) {
   const updateRole = useUpdateMemberRole();
   const { show: toast } = useToastStore();
 
@@ -96,17 +90,8 @@ function MemberRow({ member, buildingId, soleManager, onRemove, className = '' }
     }
   }
 
-  const travado = soleManager
-    ? 'Este é o único gestor do prédio. Promova outro colaborador a gestor antes.'
-    : null;
-
   return (
-    <div
-      className={`flex items-center gap-3 rounded-control px-4 py-3 ${className}`}
-      style={member.role === 'GESTOR'
-        ? { background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)' }
-        : { background: '#232323' }}
-    >
+    <div className={`flex items-center gap-3 bg-chip rounded-control px-4 py-3 ${className}`}>
       <Avatar user={member.user} size={32} />
       <div className="flex-1 min-w-0">
         <p className="text-white text-sm font-medium truncate">{member.user?.name}</p>
@@ -119,22 +104,107 @@ function MemberRow({ member, buildingId, soleManager, onRemove, className = '' }
         wrapperStyle={{ width: 148, flexBasis: 148 }}
         style={{ padding: '7px 30px 7px 12px', fontSize: 12 }}
         aria-label={`Papel de ${member.user?.name} neste prédio`}
-        title={travado ?? undefined}
         options={ROLE_OPTIONS}
         value={member.role}
-        disabled={updateRole.isPending || soleManager}
+        disabled={updateRole.isPending}
         onChange={(e) => handleRoleChange(e.target.value)}
       />
       <button
         onClick={onRemove}
-        disabled={soleManager}
-        style={{ background: 'none', border: 'none', cursor: soleManager ? 'not-allowed' : 'pointer', color: 'rgba(255,255,255,0.26)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0, opacity: soleManager ? 0.4 : 1 }}
-        onMouseEnter={e => { if (!soleManager) e.currentTarget.style.color = '#f87171'; }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.26)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0 }}
+        onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
         onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.26)'}
-        title={travado ?? 'Remover vínculo'}>
+        title="Remover vínculo">
         <UserMinus size={15} />
       </button>
     </div>
+  );
+}
+
+/**
+ * Linha de gestor. Conta própria, não um vínculo com papel — por isso não tem
+ * seletor: ou a pessoa administra o prédio, ou não está aqui.
+ *
+ * `sole` marca o último gestor: tirá-lo deixaria o prédio sem ninguém que possa
+ * administrá-lo, então o controle fica travado (a API também recusa, com 409).
+ */
+function ManagerRow({ link, buildingId, sole, className = '' }) {
+  const removeManager = useRemoveBuildingManager();
+  const { show: toast } = useToastStore();
+
+  async function handleRemove() {
+    try {
+      await removeManager.mutateAsync({ buildingId, managerId: link.manager_id });
+      toast('Gestor removido do prédio', 'info');
+    } catch (e) {
+      toast(e?.response?.data?.error?.message || 'Erro ao remover gestor', 'error', e);
+    }
+  }
+
+  return (
+    <div className={`flex items-center gap-3 rounded-control px-4 py-3 ${className}`}
+      style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)' }}>
+      <Avatar user={link.manager} size={32} />
+      <div className="flex-1 min-w-0">
+        <p className="text-white text-sm font-semibold truncate">{link.manager?.name}</p>
+        <p className="text-mute text-xs truncate">{link.manager?.email}</p>
+      </div>
+      <span className="text-xs font-semibold px-3 py-1.5 rounded-pill text-accent flex-shrink-0"
+        style={{ background: 'rgba(245,197,24,0.13)' }}>
+        Gestor
+      </span>
+      <button
+        onClick={handleRemove}
+        disabled={sole || removeManager.isPending}
+        style={{ background: 'none', border: 'none', cursor: sole ? 'not-allowed' : 'pointer', color: 'rgba(255,255,255,0.26)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0, opacity: sole ? 0.4 : 1 }}
+        onMouseEnter={e => { if (!sole) e.currentTarget.style.color = '#f87171'; }}
+        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.26)'}
+        title={sole ? 'Este é o único gestor do prédio. Adicione outro antes.' : 'Tirar da gestão'}>
+        <UserMinus size={15} />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Adiciona outro gestor pelo e-mail da conta de gestor dele.
+ *
+ * É o caminho de dividir e de transferir a gestão: quem quer sair adiciona o
+ * substituto antes, porque a saída do último é recusada. O e-mail precisa ser
+ * de uma conta de gestor — conta de usuário comum não administra prédio.
+ */
+function AddManagerForm({ buildingId }) {
+  const [email, setEmail] = useState('');
+  const addManager = useAddBuildingManager();
+  const { show: toast } = useToastStore();
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    try {
+      await addManager.mutateAsync({ buildingId, email: email.trim() });
+      setEmail('');
+      toast('Gestor adicionado ao prédio', 'success');
+    } catch (err) {
+      toast(err?.response?.data?.error?.message || 'Erro ao adicionar gestor', 'error', err);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex gap-2 mt-1">
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="E-mail da conta de gestor"
+        aria-label="E-mail do gestor a adicionar"
+        className="flex-1 bg-chip rounded-control px-4 py-2.5 text-sm text-white outline-none"
+        style={{ border: '1px solid transparent' }}
+      />
+      <Button type="submit" loading={addManager.isPending} style={{ flexShrink: 0 }}>
+        Adicionar
+      </Button>
+    </form>
   );
 }
 
@@ -210,8 +280,8 @@ export default function GestorBuildingPage() {
   const removeMember = useRemoveMember();
   const deleteInspection = useDeleteInspection();
   const { show: toast } = useToastStore();
-  const members = membersData ?? [];
-  const managerCount = members.filter((m) => m.role === 'GESTOR').length;
+  const managers = membersData?.managers ?? [];
+  const members = membersData?.members ?? [];
   const rows = histData?.pages?.flatMap((p) => p.inspections) ?? [];
 
   const heatmap = data?.heatmap ?? {};
@@ -388,28 +458,49 @@ export default function GestorBuildingPage() {
       <ReportDocumentModal open={!!reportId} onClose={() => setReportId(null)} reportId={reportId} />
 
       <Modal open={membersModal} onClose={() => setMembersModal(false)} title="Colaboradores" maxWidth={560}>
-        <div className="flex flex-col gap-2">
-          {membersLoading ? (
-            [1,2,3].map(i => <div key={i} className="h-12 bg-chip rounded-control animate-pulse" />)
-          ) : members.length === 0 ? (
-            <p className="text-mute text-sm text-center py-6">Ninguém vinculado a este prédio</p>
-          ) : (
-            members.map((m, idx) => (
-              <MemberRow
-                key={m.id}
-                member={m}
-                buildingId={id}
-                soleManager={m.role === 'GESTOR' && managerCount === 1}
-                className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
-                onRemove={() => setConfirmRemove(m)}
-              />
-            ))
-          )}
-        </div>
-        <p className="text-faint text-xs mt-4 leading-relaxed">
-          Um prédio pode ter mais de um gestor — é assim que a gestão se divide ou passa adiante.
-          O que ele não pode é ficar sem nenhum.
-        </p>
+        {membersLoading ? (
+          <div className="flex flex-col gap-2">
+            {[1,2,3].map(i => <div key={i} className="h-12 bg-chip rounded-control animate-pulse" />)}
+          </div>
+        ) : (
+          <>
+            {/* Gestores primeiro: são as contas que administram o prédio */}
+            <p className="text-mute text-xs mb-2">Gestão</p>
+            <div className="flex flex-col gap-2">
+              {managers.map((link, idx) => (
+                <ManagerRow
+                  key={link.id}
+                  link={link}
+                  buildingId={id}
+                  sole={managers.length === 1}
+                  className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
+                />
+              ))}
+            </div>
+            <AddManagerForm buildingId={id} />
+            <p className="text-faint text-xs mt-2 leading-relaxed">
+              Gestor é uma conta própria: informe o e-mail de quem já tem cadastro de gestor.
+              Um prédio pode ter mais de um — o que ele não pode é ficar sem nenhum.
+            </p>
+
+            <p className="text-mute text-xs mt-6 mb-2">Quem vistoria e quem acompanha</p>
+            <div className="flex flex-col gap-2">
+              {members.length === 0 ? (
+                <p className="text-mute text-sm text-center py-6">Nenhum usuário vinculado a este prédio</p>
+              ) : (
+                members.map((m, idx) => (
+                  <MemberRow
+                    key={m.id}
+                    member={m}
+                    buildingId={id}
+                    className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
+                    onRemove={() => setConfirmRemove(m)}
+                  />
+                ))
+              )}
+            </div>
+          </>
+        )}
       </Modal>
 
       <Modal open={requestsModal} onClose={() => setRequestsModal(false)} title="Solicitações de acesso" maxWidth={560}>

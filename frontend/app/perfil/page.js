@@ -16,7 +16,7 @@ import { Button, Modal } from '@/app/components/ui';
 import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
 import { useUpdateMe, useChangePassword, useDeleteMe, useMyBuildings, useLeaveBuilding } from '@/app/hooks/useApi';
-import { isManager, roleLabel } from '@/app/lib/roles';
+import { isManager, isManagerAccount, roleLabel } from '@/app/lib/roles';
 import { T, R, W, NUM, HERO_SURFACE } from '@/app/lib/theme';
 
 const profileSchema = yup.object({
