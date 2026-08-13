@@ -46,25 +46,29 @@ DROP TYPE "Role";
 --    quem ja e o unico gestor e uma operacao legitima, e sem o `TG_OP` abaixo
 --    ela estouraria. Por isso o UPDATE tem gatilho proprio, com a condicao
 --    olhando o valor novo — o WHEN de um gatilho combinado nao pode ler NEW.
+-- c) Num BEFORE UPDATE, devolver OLD nao e "seguir em frente": e mandar gravar
+--    OLD no lugar de NEW. O rebaixamento legitimo viraria um no-op mudo, sem
+--    erro nenhum — pior que bloquear. Por isso o retorno depende do TG_OP.
 CREATE OR REPLACE FUNCTION check_building_keeps_gestor()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- O predio inteiro esta indo embora: o vinculo vai junto, e tudo bem.
-  IF NOT EXISTS (SELECT 1 FROM buildings WHERE id = OLD.building_id) THEN
-    RETURN OLD;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM building_members
-    WHERE building_id = OLD.building_id
-      AND role = 'GESTOR'
-      AND id <> OLD.id
-  ) THEN
+  -- O predio inteiro esta indo embora (cascade): o vinculo vai junto, e tudo bem.
+  IF EXISTS (SELECT 1 FROM buildings WHERE id = OLD.building_id)
+     AND NOT EXISTS (
+       SELECT 1 FROM building_members
+       WHERE building_id = OLD.building_id
+         AND role = 'GESTOR'
+         AND id <> OLD.id
+     )
+  THEN
     RAISE EXCEPTION 'O predio % ficaria sem gestor', OLD.building_id
       USING ERRCODE = 'restrict_violation';
   END IF;
 
-  RETURN OLD;
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
