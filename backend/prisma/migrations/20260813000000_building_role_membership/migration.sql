@@ -30,6 +30,15 @@ ON CONFLICT ("building_id", "user_id") DO UPDATE SET "role" = 'GESTOR';
 -- membership, e o unico indice existente comeca por building_id.
 CREATE INDEX IF NOT EXISTS "building_members_user_id_idx" ON "building_members" ("user_id");
 
+-- 4. Escopo de listagem por predio.
+--
+-- inspection_reports so tinha a chave primaria: o historico do predio e o
+-- calendario varriam a tabela inteira. A coluna de ordenacao e `finished_at`
+-- (repositories/inspection.repository.ts), nao `date` — o calendario tambem
+-- filtra faixa por `finished_at`, entao um indice so serve aos dois caminhos.
+CREATE INDEX IF NOT EXISTS "inspection_reports_building_id_finished_at_idx"
+  ON "inspection_reports" ("building_id", "finished_at" DESC);
+
 -- 4. Trilha de auditoria por predio.
 --
 -- Sem esta coluna o gestor nao consegue separar o historico do predio dele do

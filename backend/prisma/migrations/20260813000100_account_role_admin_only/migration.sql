@@ -27,3 +27,55 @@ ALTER TABLE "building_members"
 
 -- 3. O enum antigo misturava os dois eixos; sem coluna apontando para ele, sai.
 DROP TYPE "Role";
+
+-- 4. Predio nunca fica sem gestor — agora tambem no banco.
+--
+-- A aplicacao ja recusa antes (409 em rebaixar/remover/sair do ultimo gestor, e
+-- em apagar a conta que e a unica gestora de algum predio). Isto aqui e a rede
+-- embaixo: pega o caminho que a aplicacao nao viu, o cascade de conta apagada e
+-- qualquer UPDATE feito na mao pelo painel do Supabase.
+--
+-- Dois detalhes que o gatilho tem de acertar, e que a versao ingenua erra:
+--
+-- a) Apagar o predio apaga os vinculos em cascata. Sem a checagem de que o
+--    predio ainda existe, o gatilho dispararia no meio da cascata e o predio
+--    passaria a ser impossivel de excluir. Quando a cascata roda, a linha do
+--    predio ja saiu, entao o EXISTS abaixo responde falso e o vinculo passa.
+--
+-- b) UPDATE OF role dispara mesmo quando o valor nao muda. Promover a GESTOR
+--    quem ja e o unico gestor e uma operacao legitima, e sem o `TG_OP` abaixo
+--    ela estouraria. Por isso o UPDATE tem gatilho proprio, com a condicao
+--    olhando o valor novo — o WHEN de um gatilho combinado nao pode ler NEW.
+CREATE OR REPLACE FUNCTION check_building_keeps_gestor()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- O predio inteiro esta indo embora: o vinculo vai junto, e tudo bem.
+  IF NOT EXISTS (SELECT 1 FROM buildings WHERE id = OLD.building_id) THEN
+    RETURN OLD;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM building_members
+    WHERE building_id = OLD.building_id
+      AND role = 'GESTOR'
+      AND id <> OLD.id
+  ) THEN
+    RAISE EXCEPTION 'O predio % ficaria sem gestor', OLD.building_id
+      USING ERRCODE = 'restrict_violation';
+  END IF;
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER building_members_keep_gestor_on_delete
+  BEFORE DELETE ON building_members
+  FOR EACH ROW
+  WHEN (OLD.role = 'GESTOR')
+  EXECUTE FUNCTION check_building_keeps_gestor();
+
+CREATE TRIGGER building_members_keep_gestor_on_demote
+  BEFORE UPDATE OF role ON building_members
+  FOR EACH ROW
+  WHEN (OLD.role = 'GESTOR' AND NEW.role <> 'GESTOR')
+  EXECUTE FUNCTION check_building_keeps_gestor();
