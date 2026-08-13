@@ -6,7 +6,9 @@ import { sortFloorsDesc } from '../utils/floorOrder';
 // Campos seguros para expor a quem nao e gestor (nunca inclui share_key).
 const PUBLIC_BUILDING_FIELDS = { id: true, name: true, description: true } as const;
 
-const MEMBER_USER_FIELDS = {
+// Serve para usuario e para gestor: as duas tabelas tem as mesmas colunas de
+// identificacao, e a tela de colaboradores mostra os dois lado a lado.
+const ACCOUNT_FIELDS = {
   id: true,
   name: true,
   email: true,
@@ -22,6 +24,76 @@ export const buildingRepository = {
     return prisma.building.findUnique({ where: { share_key: shareKey } });
   },
 
+  // ── Gestores ───────────────────────────────────────────────────────────────
+  /** O vínculo de gestão, que é o que autoriza tudo que altera o prédio. */
+  findManagerLink(buildingId: string, managerId: string) {
+    return prisma.buildingManager.findUnique({
+      where: { building_id_manager_id: { building_id: buildingId, manager_id: managerId } },
+    });
+  },
+
+  async getManagedBuildingIds(managerId: string): Promise<string[]> {
+    const rows = await prisma.buildingManager.findMany({
+      where: { manager_id: managerId },
+      select: { building_id: true },
+    });
+    return rows.map((row) => row.building_id);
+  },
+
+  /** Gestores do prédio, para a tela de colaboradores. */
+  getManagers(buildingId: string) {
+    return prisma.buildingManager.findMany({
+      where: { building_id: buildingId },
+      include: { manager: { select: ACCOUNT_FIELDS } },
+      orderBy: { joined_at: 'asc' },
+    });
+  },
+
+  /** Quantos gestores o prédio tem — usado para nunca deixá-lo sem nenhum. */
+  countManagers(buildingId: string) {
+    return prisma.buildingManager.count({ where: { building_id: buildingId } });
+  },
+
+  addManager(buildingId: string, managerId: string) {
+    return prisma.buildingManager.create({
+      data: { building_id: buildingId, manager_id: managerId },
+      include: { manager: { select: ACCOUNT_FIELDS } },
+    });
+  },
+
+  removeManager(buildingId: string, managerId: string) {
+    return prisma.buildingManager.delete({
+      where: { building_id_manager_id: { building_id: buildingId, manager_id: managerId } },
+    });
+  },
+
+  /**
+   * Prédios em que o gestor é o único.
+   *
+   * Consultado antes de desfazer a gestão ou apagar a conta: prédio sem gestor
+   * não tem quem aprove solicitação, promova inspetor ou cadastre andar — só
+   * sobra o ADMIN, que é suporte e não dono.
+   */
+  async findBuildingsWhereSoleManager(managerId: string) {
+    const managed = await prisma.buildingManager.findMany({
+      where: { manager_id: managerId },
+      include: { building: { select: { id: true, name: true } } },
+    });
+    if (managed.length === 0) return [];
+
+    const counts = await prisma.buildingManager.groupBy({
+      by: ['building_id'],
+      where: { building_id: { in: managed.map((m) => m.building_id) } },
+      _count: { _all: true },
+    });
+
+    const soleIds = new Set(
+      counts.filter((c) => c._count._all <= 1).map((c) => c.building_id)
+    );
+    return managed.filter((m) => soleIds.has(m.building_id)).map((m) => m.building);
+  },
+
+  // ── Membros (usuarios comuns) ──────────────────────────────────────────────
   /** Ids dos prédios em que o usuário tem vínculo — usado para filtrar listagens. */
   async getMemberBuildingIds(userId: string): Promise<string[]> {
     const rows = await prisma.buildingMember.findMany({
@@ -34,8 +106,7 @@ export const buildingRepository = {
   /**
    * Vínculos do usuário no formato que o app lê: id do prédio, nome e papel.
    *
-   * É o que substitui `users.role` no frontend — as telas perguntam "o que essa
-   * pessoa é neste prédio", e não mais "o que ela é no sistema".
+   * É o que o frontend usa para saber o que a pessoa pode fazer em cada prédio.
    */
   async getUserMemberships(userId: string) {
     const rows = await prisma.buildingMember.findMany({
@@ -55,7 +126,7 @@ export const buildingRepository = {
 
   /**
    * Papel de várias contas de uma vez, para a lista do admin.
-   * Uma consulta só: uma por usuário estoura conforme a página cresce.
+   * Uma consulta só: uma por usuário estoura conforme a base cresce.
    */
   async getMembershipsByUserIds(userIds: string[]) {
     if (userIds.length === 0) return new Map<string, BuildingRole[]>();
@@ -74,51 +145,77 @@ export const buildingRepository = {
     return byUser;
   },
 
-  /** Todos os prédios (ADMIN) ou só os que o usuário administra. */
+  findMember(buildingId: string, userId: string) {
+    return prisma.buildingMember.findUnique({
+      where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
+    });
+  },
+
+  /** Colaboradores do prédio — só usuários; os gestores saem de `getManagers`. */
+  getMembers(buildingId: string) {
+    return prisma.buildingMember.findMany({
+      where: { building_id: buildingId },
+      include: { user: { select: ACCOUNT_FIELDS } },
+      orderBy: [{ role: 'asc' }, { joined_at: 'asc' }],
+    });
+  },
+
+  /**
+   * Vincula o usuário ao prédio.
+   *
+   * Quem entra por solicitação entra como VIEWER; promover a INSPECTOR é decisão
+   * do gestor, na tela de colaboradores. Não existe promover a gestor por aqui:
+   * gestor é outro tipo de conta.
+   */
+  addMember(buildingId: string, userId: string, role: BuildingRole = BuildingRole.VIEWER) {
+    return prisma.buildingMember.create({
+      data: { building_id: buildingId, user_id: userId, role },
+      include: { user: { select: ACCOUNT_FIELDS } },
+    });
+  },
+
+  updateMemberRole(buildingId: string, userId: string, role: BuildingRole) {
+    return prisma.buildingMember.update({
+      where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
+      data: { role },
+      include: { user: { select: ACCOUNT_FIELDS } },
+    });
+  },
+
+  /**
+   * Desfaz o vínculo do usuário com o prédio.
+   *
+   * A solicitação aprovada sai junto: sem o vínculo ela não representa mais nada
+   * e, se ficasse, bloquearia um pedido futuro para o mesmo prédio.
+   */
+  removeMember(buildingId: string, userId: string) {
+    return prisma.$transaction(async (tx) => {
+      const member = await tx.buildingMember.delete({
+        where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
+      });
+
+      await tx.buildingAccessRequest.deleteMany({
+        where: { building_id: buildingId, user_id: userId },
+      });
+
+      return member;
+    });
+  },
+
+  // ── Predios ────────────────────────────────────────────────────────────────
+  /** Todos os prédios (ADMIN) ou só os que aquele gestor administra. */
   findAll(managedBy?: string) {
     return prisma.building.findMany({
-      where: managedBy
-        ? { members: { some: { user_id: managedBy, role: BuildingRole.GESTOR } } }
-        : undefined,
+      where: managedBy ? { managers: { some: { manager_id: managedBy } } } : undefined,
       orderBy: { name: 'asc' },
     });
   },
 
   /**
-   * Prédios em que o usuário é o único gestor.
+   * Cria o prédio e registra o gestor, numa transação só.
    *
-   * Consultado antes de desfazer um vínculo ou apagar uma conta: prédio sem
-   * gestor não tem quem aprove solicitação, promova inspetor ou cadastre andar
-   * — só sobra o ADMIN, que é suporte e não dono.
-   */
-  async findBuildingsWhereSoleManager(userId: string) {
-    const managed = await prisma.buildingMember.findMany({
-      where: { user_id: userId, role: BuildingRole.GESTOR },
-      include: { building: { select: { id: true, name: true } } },
-    });
-    if (managed.length === 0) return [];
-
-    const counts = await prisma.buildingMember.groupBy({
-      by: ['building_id'],
-      where: {
-        building_id: { in: managed.map((m) => m.building_id) },
-        role: BuildingRole.GESTOR,
-      },
-      _count: { _all: true },
-    });
-
-    const soleIds = new Set(
-      counts.filter((c) => c._count._all <= 1).map((c) => c.building_id)
-    );
-    return managed.filter((m) => soleIds.has(m.building_id)).map((m) => m.building);
-  },
-
-  /**
-   * Cria o prédio e vincula o criador como GESTOR, numa transação só.
-   *
-   * Os dois passos são um só fato: prédio que existe sem gestor é o estado que
-   * esta mudança veio eliminar. `created_by` continua sendo gravado, mas só como
-   * histórico de quem cadastrou.
+   * Os dois passos são um só fato: prédio que existe sem gestor não tem quem o
+   * administre. `created_by` é gravado como histórico de quem cadastrou.
    *
    * A chave de compartilhamento é aleatória, e a colisão é rara o bastante para
    * ser tratada tentando de novo.
@@ -131,12 +228,8 @@ export const buildingRepository = {
             data: { ...data, share_key: generateShareKey() },
           });
 
-          await tx.buildingMember.create({
-            data: {
-              building_id: building.id,
-              user_id: data.created_by,
-              role: BuildingRole.GESTOR,
-            },
+          await tx.buildingManager.create({
+            data: { building_id: building.id, manager_id: data.created_by },
           });
 
           return building;
@@ -178,72 +271,6 @@ export const buildingRepository = {
     return prisma.floor.findMany({ where: { id: { in: ids } } });
   },
 
-  // ── Membros ────────────────────────────────────────────────────────────────
-  findMember(buildingId: string, userId: string) {
-    return prisma.buildingMember.findUnique({
-      where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
-    });
-  },
-
-  /** Quantos gestores o prédio tem — usado para nunca deixá-lo sem nenhum. */
-  countManagers(buildingId: string) {
-    return prisma.buildingMember.count({
-      where: { building_id: buildingId, role: BuildingRole.GESTOR },
-    });
-  },
-
-  /** Colaboradores do prédio, gestores primeiro. */
-  getMembers(buildingId: string) {
-    return prisma.buildingMember.findMany({
-      where: { building_id: buildingId },
-      include: { user: { select: MEMBER_USER_FIELDS } },
-      orderBy: [{ role: 'asc' }, { joined_at: 'asc' }],
-    });
-  },
-
-  /**
-   * Vincula o usuário ao prédio.
-   *
-   * Quem entra por solicitação entra como VIEWER; quem promove depois é o gestor,
-   * pela tela de colaboradores. Nada aqui toca `users.role`: o vínculo é o papel,
-   * e a mesma conta pode ter papéis diferentes em prédios diferentes.
-   */
-  addMember(buildingId: string, userId: string, role: BuildingRole = BuildingRole.VIEWER) {
-    return prisma.buildingMember.create({
-      data: { building_id: buildingId, user_id: userId, role },
-      include: { user: { select: MEMBER_USER_FIELDS } },
-    });
-  },
-
-  /** Troca o papel do membro dentro do prédio. */
-  updateMemberRole(buildingId: string, userId: string, role: BuildingRole) {
-    return prisma.buildingMember.update({
-      where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
-      data: { role },
-      include: { user: { select: MEMBER_USER_FIELDS } },
-    });
-  },
-
-  /**
-   * Desfaz o vínculo do usuário com o prédio.
-   *
-   * A solicitação aprovada sai junto: sem o vínculo ela não representa mais nada
-   * e, se ficasse, bloquearia um pedido futuro para o mesmo prédio.
-   */
-  removeMember(buildingId: string, userId: string) {
-    return prisma.$transaction(async (tx) => {
-      const member = await tx.buildingMember.delete({
-        where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
-      });
-
-      await tx.buildingAccessRequest.deleteMany({
-        where: { building_id: buildingId, user_id: userId },
-      });
-
-      return member;
-    });
-  },
-
   // ── Solicitações de acesso ─────────────────────────────────────────────────
   findAccessRequest(buildingId: string, userId: string) {
     return prisma.buildingAccessRequest.findUnique({
@@ -258,7 +285,7 @@ export const buildingRepository = {
   getAccessRequests(buildingId: string, status?: string) {
     return prisma.buildingAccessRequest.findMany({
       where: { building_id: buildingId, ...(status ? { status } : {}) },
-      include: { user: { select: MEMBER_USER_FIELDS } },
+      include: { user: { select: ACCOUNT_FIELDS } },
       orderBy: { requested_at: 'desc' },
     });
   },
@@ -282,19 +309,16 @@ export const buildingRepository = {
     return prisma.buildingAccessRequest.update({
       where: { id },
       data: { status, reviewed_at: new Date() },
-      include: { user: { select: MEMBER_USER_FIELDS } },
+      include: { user: { select: ACCOUNT_FIELDS } },
     });
   },
 
   /**
    * Números do sistema inteiro, para o painel do ADMIN.
    *
-   * Gestor, inspetor e visualizador são contados por vínculo distinto: a mesma
-   * conta pode ser gestora de um prédio e inspetora de outro, e aparece nas duas
-   * contagens — que é o que o painel quer dizer.
-   *
-   * A média de andares sai de uma agregação só: contar andar por prédio no Node
-   * custaria uma consulta por prédio conforme a base cresce.
+   * Gestor agora é uma conta, e não um papel: a contagem sai da tabela própria.
+   * Inspetor e visualizador continuam vindo do vínculo, contando conta distinta
+   * — a mesma pessoa pode vistoriar um prédio e acompanhar outro.
    */
   async getSystemStats() {
     const [
@@ -310,7 +334,7 @@ export const buildingRepository = {
     ] = await Promise.all([
       prisma.building.count(),
       prisma.floor.count(),
-      countDistinctMembers(BuildingRole.GESTOR),
+      prisma.manager.count({ where: { status: 'ACTIVE' } }),
       countDistinctMembers(BuildingRole.INSPECTOR),
       countDistinctMembers(BuildingRole.VIEWER),
       prisma.user.count({ where: { status: 'ACTIVE' } }),
@@ -366,31 +390,36 @@ export const buildingRepository = {
   },
 };
 
-/** Contas distintas que ocupam um papel em pelo menos um prédio. */
+/** Contas de usuário distintas que ocupam um papel em pelo menos um prédio. */
 async function countDistinctMembers(role: BuildingRole): Promise<number> {
-  const rows = await prisma.buildingMember.groupBy({
-    by: ['user_id'],
-    where: { role },
-  });
+  const rows = await prisma.buildingMember.groupBy({ by: ['user_id'], where: { role } });
   return rows.length;
 }
 
 export const auditRepository = {
+  /**
+   * Registra a ação.
+   *
+   * `user_id` e `manager_id` são excludentes: quem agiu é uma conta de usuário
+   * ou uma de gestor, e elas vivem em tabelas diferentes.
+   */
   log(data: {
     user_id?: string;
+    manager_id?: string;
     building_id?: string;
     action: AuditAction;
     entity?: string;
     entity_id?: string;
     metadata?: Record<string, unknown>;
   }) {
-    const { user_id, building_id, metadata, ...rest } = data;
+    const { user_id, manager_id, building_id, metadata, ...rest } = data;
     return prisma.auditLog
       .create({
         data: {
           ...rest,
           metadata: metadata as Prisma.InputJsonValue | undefined,
           ...(user_id ? { user: { connect: { id: user_id } } } : {}),
+          ...(manager_id ? { manager: { connect: { id: manager_id } } } : {}),
           // O prédio dá ao gestor uma trilha só do que é dele — sem isto o
           // histórico é do sistema inteiro ou de ninguém.
           ...(building_id ? { building: { connect: { id: building_id } } } : {}),
@@ -402,3 +431,8 @@ export const auditRepository = {
       });
   },
 };
+
+/** Monta os campos de autoria do log a partir de quem fez a requisição. */
+export function actorAudit(actor: { id: string; kind: string }) {
+  return actor.kind === 'MANAGER' ? { manager_id: actor.id } : { user_id: actor.id };
+}

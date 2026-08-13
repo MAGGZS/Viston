@@ -3,6 +3,7 @@ import request from 'supertest';
 // Os repositórios são trocados por mocks: o alvo aqui é a cadeia de middlewares
 // (autenticação, vínculo com o prédio, papel dentro dele), não o acesso ao banco.
 jest.mock('../repositories/building.repository');
+jest.mock('../repositories/manager.repository');
 jest.mock('../repositories/inspection.repository');
 jest.mock('../repositories/user.repository');
 jest.mock('../services/excel.service');
@@ -12,19 +13,22 @@ import app from '../app';
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
 import { inspectionRepository } from '../repositories/inspection.repository';
 import { userRepository } from '../repositories/user.repository';
+import { managerRepository } from '../repositories/manager.repository';
 import { signAccessToken } from '../utils/jwt';
 
 const mockBuildingRepo = buildingRepository as jest.Mocked<typeof buildingRepository>;
 const mockInspectionRepo = inspectionRepository as jest.Mocked<typeof inspectionRepository>;
 const mockUserRepo = userRepository as jest.Mocked<typeof userRepository>;
+const mockManagerRepo = managerRepository as jest.Mocked<typeof managerRepository>;
 
 const BUILDING_ID = '11111111-1111-4111-8111-111111111111';
 const FLOOR_ID = '44444444-4444-4444-8444-444444444444';
 const REPORT_ID = '99999999-9999-4999-8999-999999999999';
 
-// Toda conta comum nasce e permanece NONE: o que ela pode fazer não está no
-// token, está no vínculo com o prédio — que cada teste monta com `findMember`.
-const tokenGestor = signAccessToken('user-gestor', 'NONE');
+// Gestor é outro tipo de conta: o token dele diz MANAGER, e o que ele
+// administra sai de `findManagerLink`. Usuário comum é sempre NONE, e o que ele
+// pode fazer sai de `findMember`.
+const tokenGestor = signAccessToken('gestor-1', 'NONE', 'MANAGER');
 const tokenInspector = signAccessToken('user-inspector', 'NONE');
 const tokenViewer = signAccessToken('user-viewer', 'NONE');
 const tokenSemVinculo = signAccessToken('user-sem-vinculo', 'NONE');
@@ -37,16 +41,30 @@ const building = {
   name: 'Edifício Principal',
   description: 'Sede',
   share_key: 'ABCD23456789',
-  created_by: 'user-gestor',
+  created_by: 'gestor-1',
 };
 
-/** Vínculo do usuário logado com o prédio da rota — a fonte de toda autorização. */
-function comoMembro(role: 'GESTOR' | 'INSPECTOR' | 'VIEWER') {
+/** Vínculo do usuário logado com o prédio da rota. */
+function comoMembro(role: 'INSPECTOR' | 'VIEWER') {
   mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role } as any);
+}
+
+/**
+ * A conta de gestor logada administra o prédio da rota.
+ *
+ * O mock responde por conta, e não um valor fixo: quem pergunta pelo vínculo de
+ * *outro* gestor (ao adicioná-lo, por exemplo) precisa receber `null`.
+ */
+function comoGestorDoPredio() {
+  mockBuildingRepo.findManagerLink.mockImplementation(
+    ((_buildingId: string, managerId: string) =>
+      Promise.resolve(managerId === 'gestor-1' ? { id: 'bm1' } : null)) as any
+  );
 }
 
 function semVinculo() {
   mockBuildingRepo.findMember.mockResolvedValue(null);
+  mockBuildingRepo.findManagerLink.mockResolvedValue(null);
 }
 
 /** Envio de vistoria que passa pelo schema — para testar autorização, não validação. */
@@ -116,23 +134,40 @@ describe('cadastro público', () => {
     expect(res.body).not.toHaveProperty('password_hash');
   });
 
-  it('a tela de gestor cria a mesma conta comum', async () => {
-    // Gestor deixou de ser marca na conta: quem cria o prédio vira gestor dele.
+  it('o cadastro de gestor cria a conta na tabela de gestores', async () => {
+    // Gestor é outro tipo de conta: não entra em `users`, e por isso não tem
+    // papel nenhum para receber.
     mockUserRepo.findByEmail.mockResolvedValue(null);
-    mockUserRepo.create.mockResolvedValue({
+    mockManagerRepo.findByEmail.mockResolvedValue(null);
+    mockManagerRepo.create.mockResolvedValue({
       id: 'gestor-novo',
       name: 'Gestor',
       email: 'gestor@test.com',
-      role: 'NONE',
       password_hash: 'x',
     } as any);
 
     const res = await request(app)
-      .post('/users/managers')
+      .post('/managers')
       .send({ name: 'Gestor', email: 'gestor@test.com', password: 'Senha@123' });
 
     expect(res.status).toBe(201);
-    expect(mockUserRepo.create).toHaveBeenCalledWith(expect.objectContaining({ role: 'NONE' }));
+    expect(mockManagerRepo.create).toHaveBeenCalled();
+    expect(mockUserRepo.create).not.toHaveBeenCalled();
+    expect(res.body).not.toHaveProperty('password_hash');
+  });
+
+  it('recusa cadastrar gestor com e-mail que já é de um usuário', async () => {
+    // O e-mail é único entre as duas tabelas: o login procura nas duas, e o
+    // mesmo endereço nos dois lugares deixaria a entrada ambígua.
+    mockUserRepo.findByEmail.mockResolvedValue({ id: 'user-1' } as any);
+    mockManagerRepo.findByEmail.mockResolvedValue(null);
+
+    const res = await request(app)
+      .post('/managers')
+      .send({ name: 'Gestor', email: 'view@test.com', password: 'Senha@123' });
+
+    expect(res.status).toBe(409);
+    expect(mockManagerRepo.create).not.toHaveBeenCalled();
   });
 });
 
@@ -181,26 +216,46 @@ describe('acesso a dados do prédio', () => {
 });
 
 describe('criação de prédio', () => {
-  it('qualquer conta cria prédio, e quem cria vira o gestor dele', async () => {
-    // Não existe mais promoção prévia: a conta sem vínculo nenhum cria o
-    // primeiro prédio e sai dele como gestora (ver buildingRepository.create).
+  it('a conta de gestor cria o prédio e já fica como gestora dele', async () => {
     mockBuildingRepo.create.mockResolvedValue(building as any);
 
+    const res = await request(app)
+      .post('/buildings')
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send({ name: 'Prédio novo' });
+
+    expect(res.status).toBe(201);
+    expect(mockBuildingRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ created_by: 'gestor-1' })
+    );
+  });
+
+  it('conta de usuário não cadastra prédio', async () => {
+    // `building_managers.manager_id` aponta para `managers`, e o usuário comum
+    // não está lá: deixar passar criaria um prédio sem gestor.
     const res = await request(app)
       .post('/buildings')
       .set('Authorization', `Bearer ${tokenSemVinculo}`)
       .send({ name: 'Prédio novo' });
 
-    expect(res.status).toBe(201);
-    expect(mockBuildingRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ created_by: 'user-sem-vinculo' })
-    );
+    expect(res.status).toBe(403);
+    expect(mockBuildingRepo.create).not.toHaveBeenCalled();
+  });
+
+  it('nem o ADMIN cadastra prédio', async () => {
+    const res = await request(app)
+      .post('/buildings')
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+      .send({ name: 'Prédio novo' });
+
+    expect(res.status).toBe(403);
+    expect(mockBuildingRepo.create).not.toHaveBeenCalled();
   });
 });
 
 describe('gestão do prédio', () => {
   it('o gestor do prédio edita o prédio', async () => {
-    comoMembro('GESTOR');
+    comoGestorDoPredio();
     mockBuildingRepo.update.mockResolvedValue(building as any);
 
     const res = await request(app)
@@ -239,7 +294,7 @@ describe('gestão do prédio', () => {
   });
 
   it('o gestor vê a chave de compartilhamento do prédio', async () => {
-    comoMembro('GESTOR');
+    comoGestorDoPredio();
     mockBuildingRepo.getDashboard.mockResolvedValue([0, 0, 0] as any);
     mockInspectionRepo.getCalendarData.mockResolvedValue([] as any);
 
@@ -266,7 +321,7 @@ describe('gestão do prédio', () => {
   });
 
   it('aprova a solicitação vinculando como visualizador', async () => {
-    comoMembro('GESTOR');
+    comoGestorDoPredio();
     mockBuildingRepo.findAccessRequestById.mockResolvedValue({
       id: 'req-1',
       building_id: BUILDING_ID,
@@ -320,7 +375,9 @@ describe('gestão do prédio', () => {
 
 describe('papel dentro do prédio', () => {
   it('o gestor promove um membro a inspetor', async () => {
-    comoMembro('GESTOR');
+    comoGestorDoPredio();
+    // O alvo da promoção precisa existir como membro do prédio
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'VIEWER' } as any);
     mockBuildingRepo.updateMemberRole.mockResolvedValue({ id: 'm1', role: 'INSPECTOR' } as any);
 
     const res = await request(app)
@@ -336,77 +393,22 @@ describe('papel dentro do prédio', () => {
     );
   });
 
-  it('o gestor promove outro membro a gestor', async () => {
-    // É assim que a gestão se divide ou se transfere — sem mexer em quem
-    // cadastrou o prédio, que é dado de auditoria.
-    comoMembro('GESTOR');
-    mockBuildingRepo.updateMemberRole.mockResolvedValue({ id: 'm1', role: 'GESTOR' } as any);
+  it('recusa promover um membro a gestor por esta rota', async () => {
+    // Gestor é outro tipo de conta: não dá para virar gestor mudando o papel de
+    // um vínculo de usuário.
+    comoGestorDoPredio();
 
     const res = await request(app)
       .patch(`/buildings/${BUILDING_ID}/members/user-novo`)
       .set('Authorization', `Bearer ${tokenGestor}`)
       .send({ role: 'GESTOR' });
 
-    expect(res.status).toBe(200);
-    expect(mockBuildingRepo.updateMemberRole).toHaveBeenCalledWith(
-      BUILDING_ID,
-      'user-novo',
-      'GESTOR'
-    );
-  });
-
-  it('recusa rebaixar o único gestor do prédio', async () => {
-    comoMembro('GESTOR');
-    mockBuildingRepo.countManagers.mockResolvedValue(1);
-
-    const res = await request(app)
-      .patch(`/buildings/${BUILDING_ID}/members/user-gestor`)
-      .set('Authorization', `Bearer ${tokenGestor}`)
-      .send({ role: 'VIEWER' });
-
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(400);
     expect(mockBuildingRepo.updateMemberRole).not.toHaveBeenCalled();
   });
 
-  it('recusa remover o único gestor do prédio', async () => {
-    comoMembro('GESTOR');
-    mockBuildingRepo.countManagers.mockResolvedValue(1);
-
-    const res = await request(app)
-      .delete(`/buildings/${BUILDING_ID}/members/user-gestor`)
-      .set('Authorization', `Bearer ${tokenGestor}`);
-
-    expect(res.status).toBe(409);
-    expect(mockBuildingRepo.removeMember).not.toHaveBeenCalled();
-  });
-
-  it('recusa o único gestor sair do próprio prédio', async () => {
-    comoMembro('GESTOR');
-    mockBuildingRepo.countManagers.mockResolvedValue(1);
-
-    const res = await request(app)
-      .delete(`/buildings/${BUILDING_ID}/members/me`)
-      .set('Authorization', `Bearer ${tokenGestor}`);
-
-    expect(res.status).toBe(409);
-    expect(mockBuildingRepo.removeMember).not.toHaveBeenCalled();
-  });
-
-  it('com dois gestores, um deles pode sair', async () => {
-    comoMembro('GESTOR');
-    mockBuildingRepo.countManagers.mockResolvedValue(2);
-    mockBuildingRepo.removeMember.mockResolvedValue({ id: 'm1' } as any);
-
-    const res = await request(app)
-      .delete(`/buildings/${BUILDING_ID}/members/me`)
-      .set('Authorization', `Bearer ${tokenGestor}`);
-
-    expect(res.status).toBe(204);
-    expect(mockBuildingRepo.removeMember).toHaveBeenCalledWith(BUILDING_ID, 'user-gestor');
-  });
-
   it('recusa promover membro a ADMIN', async () => {
-    comoMembro('GESTOR');
+    comoGestorDoPredio();
 
     const res = await request(app)
       .patch(`/buildings/${BUILDING_ID}/members/user-novo`)
@@ -427,6 +429,105 @@ describe('papel dentro do prédio', () => {
 
     expect(res.status).toBe(403);
     expect(mockBuildingRepo.updateMemberRole).not.toHaveBeenCalled();
+  });
+});
+
+describe('gestores do prédio', () => {
+  it('o gestor adiciona outro gestor pelo e-mail', async () => {
+    // É assim que a gestão se divide e se transfere: quem quer sair adiciona o
+    // substituto antes.
+    comoGestorDoPredio();
+    mockManagerRepo.findByEmail.mockResolvedValue({ id: 'gestor-2', status: 'ACTIVE' } as any);
+    mockBuildingRepo.addManager.mockResolvedValue({ id: 'bm2' } as any);
+
+    const res = await request(app)
+      .post(`/buildings/${BUILDING_ID}/managers`)
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send({ email: 'gestor2@test.com' });
+
+    expect(res.status).toBe(201);
+    expect(mockBuildingRepo.addManager).toHaveBeenCalledWith(BUILDING_ID, 'gestor-2');
+  });
+
+  it('recusa adicionar como gestor um e-mail que não é conta de gestor', async () => {
+    comoGestorDoPredio();
+    mockManagerRepo.findByEmail.mockResolvedValue(null);
+
+    const res = await request(app)
+      .post(`/buildings/${BUILDING_ID}/managers`)
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send({ email: 'inspetor@test.com' });
+
+    expect(res.status).toBe(404);
+    expect(mockBuildingRepo.addManager).not.toHaveBeenCalled();
+  });
+
+  it('recusa tirar o único gestor do prédio', async () => {
+    comoGestorDoPredio();
+    mockBuildingRepo.countManagers.mockResolvedValue(1);
+
+    const res = await request(app)
+      .delete(`/buildings/${BUILDING_ID}/managers/gestor-1`)
+      .set('Authorization', `Bearer ${tokenGestor}`);
+
+    expect(res.status).toBe(409);
+    expect(mockBuildingRepo.removeManager).not.toHaveBeenCalled();
+  });
+
+  it('com dois gestores, um deles pode sair da gestão', async () => {
+    comoGestorDoPredio();
+    mockBuildingRepo.countManagers.mockResolvedValue(2);
+    mockBuildingRepo.removeManager.mockResolvedValue({ id: 'bm1' } as any);
+
+    const res = await request(app)
+      .delete(`/buildings/${BUILDING_ID}/managers/gestor-1`)
+      .set('Authorization', `Bearer ${tokenGestor}`);
+
+    expect(res.status).toBe(204);
+    expect(mockBuildingRepo.removeManager).toHaveBeenCalledWith(BUILDING_ID, 'gestor-1');
+  });
+
+  it('inspetor não mexe na gestão do prédio', async () => {
+    comoMembro('INSPECTOR');
+
+    const res = await request(app)
+      .post(`/buildings/${BUILDING_ID}/managers`)
+      .set('Authorization', `Bearer ${tokenInspector}`)
+      .send({ email: 'gestor2@test.com' });
+
+    expect(res.status).toBe(403);
+    expect(mockBuildingRepo.addManager).not.toHaveBeenCalled();
+  });
+});
+
+describe('gestor não vistoria', () => {
+  it('recusa o envio de vistoria vindo de conta de gestor', async () => {
+    // `inspection_reports.inspector_id` aponta para `users`, e o gestor não está
+    // lá. Deixar passar quebraria a chave estrangeira.
+    comoGestorDoPredio();
+
+    const res = await request(app)
+      .post('/inspections')
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send(vistoriaValida());
+
+    expect(res.status).toBe(403);
+    expect(mockInspectionRepo.createCompleted).not.toHaveBeenCalled();
+  });
+
+  it('mas o gestor continua vendo os relatórios do prédio dele', async () => {
+    comoGestorDoPredio();
+    mockInspectionRepo.findById.mockResolvedValue({
+      id: REPORT_ID,
+      building_id: BUILDING_ID,
+      status: 'COMPLETED',
+    } as any);
+
+    const res = await request(app)
+      .get(`/inspections/${REPORT_ID}`)
+      .set('Authorization', `Bearer ${tokenGestor}`);
+
+    expect(res.status).toBe(200);
   });
 });
 

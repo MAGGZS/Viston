@@ -59,6 +59,16 @@ function payload(floors: any[]) {
   return { building_id: BUILDING_ID, floors } as any;
 }
 
+/** Quem envia a vistoria. Sempre conta de usuário: gestor não vistoria. */
+function inspetor(id = 'user-1') {
+  return { id, kind: 'USER', role: 'NONE' } as any;
+}
+
+/** Conta de gestor, para os casos em que ela não deve poder vistoriar. */
+function gestor(id = 'gestor-1') {
+  return { id, kind: 'MANAGER', role: 'NONE' } as any;
+}
+
 // ── Testes: inspectionService.submit ─────────────────────────────────────────
 describe('inspectionService.submit', () => {
   beforeEach(() => {
@@ -77,7 +87,7 @@ describe('inspectionService.submit', () => {
     mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6, mockFloorSub1] as any);
 
     await inspectionService.submit(
-      'user-1',
+      inspetor(),
       payload([
         { floor_id: FLOOR_6, records: [makeRecord()] },
         { floor_id: FLOOR_SUB1, records: [] },
@@ -95,7 +105,7 @@ describe('inspectionService.submit', () => {
 
     // Enviado fora de ordem: subsolo primeiro
     await inspectionService.submit(
-      'user-1',
+      inspetor(),
       payload([
         { floor_id: FLOOR_SUB1, records: [] },
         { floor_id: FLOOR_6, records: [] },
@@ -111,7 +121,7 @@ describe('inspectionService.submit', () => {
     mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6, mockFloorSub1] as any);
 
     await inspectionService.submit(
-      'user-1',
+      inspetor(),
       payload([
         { floor_id: FLOOR_6, records: [makeRecord({ priority: 'ALTA' })] },
         { floor_id: FLOOR_SUB1, records: [makeRecord({ priority: 'MEDIA' })] },
@@ -126,7 +136,7 @@ describe('inspectionService.submit', () => {
   it('lança NotFoundError quando prédio não existe', async () => {
     mockBuildingRepo.findById.mockResolvedValue(null);
     await expect(
-      inspectionService.submit('user-1', payload([{ floor_id: FLOOR_6, records: [] }]))
+      inspectionService.submit(inspetor(), payload([{ floor_id: FLOOR_6, records: [] }]))
     ).rejects.toThrow(NotFoundError);
   });
 
@@ -135,7 +145,7 @@ describe('inspectionService.submit', () => {
     mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any); // só 1 de 2
     await expect(
       inspectionService.submit(
-        'user-1',
+      inspetor(),
         payload([
           { floor_id: FLOOR_6, records: [] },
           { floor_id: FLOOR_SUB1, records: [] },
@@ -153,7 +163,7 @@ describe('inspectionService.submit', () => {
 
     await expect(
       inspectionService.submit(
-        'user-1',
+      inspetor(),
         payload([
           { floor_id: FLOOR_6, records: [] },
           { floor_id: FLOOR_SUB1, records: [] },
@@ -166,7 +176,7 @@ describe('inspectionService.submit', () => {
     mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
     await expect(
       inspectionService.submit(
-        'user-1',
+      inspetor(),
         payload([
           { floor_id: FLOOR_6, records: [] },
           { floor_id: FLOOR_6, records: [] },
@@ -181,7 +191,7 @@ describe('inspectionService.submit', () => {
     mockGenerateExcel.mockRejectedValue(new Error('boom'));
 
     const result = await inspectionService.submit(
-      'user-1',
+      inspetor(),
       payload([{ floor_id: FLOOR_6, records: [] }])
     );
 
@@ -225,7 +235,7 @@ describe('isolamento por prédio', () => {
     mockBuildingRepo.findMember.mockResolvedValue(null);
 
     await expect(
-      inspectionService.submit('user-1', payload([{ floor_id: FLOOR_6, records: [] }]), 'NONE')
+      inspectionService.submit(inspetor(), payload([{ floor_id: FLOOR_6, records: [] }]))
     ).rejects.toThrow(ForbiddenError);
   });
 
@@ -234,16 +244,26 @@ describe('isolamento por prédio', () => {
     mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'VIEWER' } as any);
 
     await expect(
-      inspectionService.submit('user-1', payload([{ floor_id: FLOOR_6, records: [] }]), 'NONE')
+      inspectionService.submit(inspetor(), payload([{ floor_id: FLOOR_6, records: [] }]))
     ).rejects.toThrow(ForbiddenError);
   });
 
-  it('libera o envio para o gestor do prédio', async () => {
+  it('bloqueia o envio vindo de conta de gestor', async () => {
+    // Gestor não vistoria: o relatório aponta para `users`, e ele não está lá.
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findManagerLink.mockResolvedValue({ id: 'bm1' } as any);
+
+    await expect(
+      inspectionService.submit(gestor(), payload([{ floor_id: FLOOR_6, records: [] }]))
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('libera o envio para o inspetor do prédio', async () => {
     mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
     mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
-    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'GESTOR' } as any);
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'INSPECTOR' } as any);
 
-    await inspectionService.submit('user-1', payload([{ floor_id: FLOOR_6, records: [] }]), 'NONE');
+    await inspectionService.submit(inspetor(), payload([{ floor_id: FLOOR_6, records: [] }]));
 
     expect(mockInspectionRepo.createCompleted).toHaveBeenCalledTimes(1);
   });
@@ -253,7 +273,10 @@ describe('isolamento por prédio', () => {
     mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
     mockBuildingRepo.findMember.mockResolvedValue(null);
 
-    await inspectionService.submit('user-1', payload([{ floor_id: FLOOR_6, records: [] }]), 'ADMIN');
+    await inspectionService.submit(
+      { id: 'user-admin', kind: 'USER', role: 'ADMIN' } as any,
+      payload([{ floor_id: FLOOR_6, records: [] }])
+    );
 
     expect(mockBuildingRepo.findMember).not.toHaveBeenCalled();
     expect(mockInspectionRepo.createCompleted).toHaveBeenCalledTimes(1);
@@ -263,14 +286,14 @@ describe('isolamento por prédio', () => {
     mockBuildingRepo.findMember.mockResolvedValue(null);
 
     await expect(
-      inspectionService.findById('report-1', { id: 'outro', role: 'VIEWER' })
+      inspectionService.findById('report-1', inspetor('outro'))
     ).rejects.toThrow(NotFoundError);
   });
 
   it('entrega o relatório para o membro do prédio', async () => {
     mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'VIEWER' } as any);
 
-    const report = await inspectionService.findById('report-1', { id: 'user-1', role: 'VIEWER' });
+    const report = await inspectionService.findById('report-1', inspetor());
     expect(report.id).toBe('report-1');
   });
 });

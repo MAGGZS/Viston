@@ -23,13 +23,12 @@ enum AccountRole {
   NONE
 }
 
-/// O que a pessoa é dentro de um prédio específico.
+/// O que um usuário comum é dentro de um prédio específico.
 ///
-/// É a única fonte de atribuição do produto: a mesma conta pode ser GESTOR de um
-/// prédio, INSPECTOR de outro e não existir num terceiro.
+/// Gestor não está aqui: ele é outro tipo de conta (ver `Manager`), e o vínculo
+/// dele com o prédio mora em `BuildingManager`. A mesma conta de usuário pode
+/// ser INSPECTOR de um prédio e VIEWER de outro.
 enum BuildingRole {
-  // Administra o prédio: andares, colaboradores, solicitações e descarte de vistoria.
-  GESTOR
   // Vistoria o prédio.
   INSPECTOR
   // Só acompanha o que já foi vistoriado.
@@ -118,11 +117,39 @@ model User {
 
   inspections     InspectionReport[]
   audit_logs      AuditLog[]
-  created_buildings Building[]             @relation("BuildingCreator")
   building_members  BuildingMember[]       @relation("BuildingMembers")
   access_requests   BuildingAccessRequest[] @relation("BuildingAccessRequests")
 
   @@map("users")
+}
+
+/// A conta de gestor. Vive fora de `users` de propósito.
+///
+/// Gestor não é um usuário com uma marca a mais: é outro tipo de conta, com
+/// cadastro próprio, e estar nesta tabela já é o papel — por isso não existe
+/// coluna `role` aqui.
+///
+/// O que ele não é: inspetor. `inspection_reports.inspector_id` aponta para
+/// `users`, e o gestor não está lá; quem administra prédio não vistoria. Para
+/// vistoriar, a pessoa precisa de uma conta comum, com outro e-mail.
+///
+/// O e-mail é único aqui e em `users`, e a checagem cruzada é da aplicação
+/// (Postgres não faz unique entre tabelas) — ver `accountRepository.findByEmail`.
+model Manager {
+  id            String     @id @default(uuid())
+  name          String
+  email         String     @unique
+  password_hash String
+  avatar_url    String?
+  status        UserStatus @default(ACTIVE)
+  created_at    DateTime   @default(now())
+  updated_at    DateTime   @updatedAt
+
+  created_buildings Building[]        @relation("BuildingCreator")
+  managed_buildings BuildingManager[]
+  audit_logs        AuditLog[]
+
+  @@map("managers")
 }
 
 model Building {
@@ -130,13 +157,14 @@ model Building {
   name        String
   description String?
   share_key   String  @unique
-  // Histórico de auditoria: quem cadastrou o prédio. Não autoriza nada — quem
-  // administra está em `members` com role GESTOR. Fica nulo se a conta sumir.
+  // Histórico de auditoria: qual gestor cadastrou o prédio. Não autoriza nada —
+  // quem administra está em `managers`. Fica nulo se a conta sumir.
   created_by  String?
 
-  creator     User?                  @relation("BuildingCreator", fields: [created_by], references: [id], onDelete: SetNull)
+  creator     Manager?               @relation("BuildingCreator", fields: [created_by], references: [id], onDelete: SetNull)
   floors      Floor[]
   inspections InspectionReport[]
+  managers    BuildingManager[]
   members     BuildingMember[]
   access_requests BuildingAccessRequest[]
   audit_logs  AuditLog[]
@@ -144,10 +172,33 @@ model Building {
   @@map("buildings")
 }
 
-/// O vínculo entre uma pessoa e um prédio — e o papel dela ali dentro.
+/// Quem administra o prédio.
 ///
-/// Toda autorização de prédio passa por esta tabela. Um prédio pode ter mais de
-/// um GESTOR, e a gestão se transfere trocando o papel do vínculo.
+/// Tabela de ligação, e não uma coluna `manager_id` no prédio, por dois motivos
+/// que já custaram caro: com uma coluna só, o prédio tem no máximo um gestor, e
+/// transferir a gestão exigiria reescrever quem o criou — que é dado de
+/// auditoria. Aqui, dois gestores é um estado válido e a transferência é
+/// promover o outro e sair.
+///
+/// Um prédio nunca fica sem nenhum: a aplicação recusa com 409 e o banco tem
+/// gatilho (ver a migration `manager_accounts`).
+model BuildingManager {
+  id          String   @id @default(uuid())
+  building_id String
+  manager_id  String
+  joined_at   DateTime @default(now())
+
+  building Building @relation(fields: [building_id], references: [id], onDelete: Cascade)
+  manager  Manager  @relation(fields: [manager_id], references: [id], onDelete: Cascade)
+
+  @@unique([building_id, manager_id])
+  @@index([manager_id])
+  @@map("building_managers")
+}
+
+/// O vínculo entre um usuário comum e um prédio.
+///
+/// Só INSPECTOR e VIEWER: gestor não aparece aqui, porque gestor não é usuário.
 model BuildingMember {
   id          String       @id @default(uuid())
   building_id String
@@ -248,7 +299,10 @@ model MaintenanceRecord {
 
 model AuditLog {
   id        String      @id @default(uuid())
+  // Quem agiu. Exatamente um dos dois é preenchido: a ação partiu de uma conta
+  // de usuário ou de uma conta de gestor, e elas vivem em tabelas diferentes.
   user_id   String?
+  manager_id String?
   // Prédio a que o registro pertence, quando houver: é o que permite ao gestor
   // ver a trilha do prédio dele em vez da do sistema inteiro. Login, logout e
   // mexida em conta não têm prédio, e ficam nulos.
@@ -260,8 +314,10 @@ model AuditLog {
   timestamp DateTime    @default(now())
 
   user     User?     @relation(fields: [user_id], references: [id])
+  manager  Manager?  @relation(fields: [manager_id], references: [id], onDelete: SetNull)
   building Building? @relation(fields: [building_id], references: [id], onDelete: SetNull)
 
   @@index([building_id])
+  @@index([manager_id])
   @@map("audit_logs")
 }

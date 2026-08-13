@@ -4,7 +4,8 @@ import { buildingRepository, auditRepository } from '../repositories/building.re
 import { generateInspectionExcel } from './excel.service';
 import { storageService } from './storage.service';
 import { SubmitInspectionPayload } from '../validators/inspection.validator';
-import { canInspectBuilding, getBuildingRole, isBuildingManager } from '../middlewares/buildingAccess';
+import { canInspectBuilding, getBuildingStanding, isBuildingManager } from '../middlewares/buildingAccess';
+import { Actor } from '../middlewares/authenticate';
 import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
 import { floorRank } from '../utils/floorOrder';
 import { zonedDateOnly, zonedDayKey, zonedParts, zonedRange } from '../utils/timezone';
@@ -53,17 +54,17 @@ export function buildHeatmap(
   return heatmap;
 }
 
-export type Viewer = { id: string; role: string };
+export type Viewer = Actor;
 
 /**
- * O relatório só é visível a quem está vinculado ao prédio dele — em qualquer
- * papel. O gestor é membro do próprio prédio, então cai no mesmo caminho.
+ * O relatório só é visível a quem tem ligação com o prédio dele — o gestor pela
+ * conta de gestão, o usuário pelo vínculo.
  *
- * 404 e não 403: quem não tem vínculo não deve nem saber que o relatório existe.
+ * 404 e não 403: quem não tem ligação não deve nem saber que o relatório existe.
  */
 async function assertCanSeeReport(user: Viewer, buildingId: string) {
-  const role = await getBuildingRole(user, buildingId);
-  if (!role) throw new NotFoundError('Relatório');
+  const standing = await getBuildingStanding(user, buildingId);
+  if (!standing) throw new NotFoundError('Relatório');
 }
 
 /** Status do andar derivado da maior prioridade entre as ocorrências relatadas. */
@@ -107,17 +108,15 @@ export const inspectionService = {
    * O app segura os dados em memória até o envio final, então aqui não existe rascunho:
    * o relatório já nasce COMPLETED, com Excel, calendário e histórico.
    */
-  async submit(
-    inspectorId: string,
-    payload: SubmitInspectionPayload,
-    inspectorRole: string = 'NONE'
-  ) {
+  async submit(inspector: Actor, payload: SubmitInspectionPayload) {
+    const inspectorId = inspector.id;
+
     const building = await buildingRepository.findById(payload.building_id);
     if (!building) throw new NotFoundError('Prédio');
 
-    // Quem vistoria é o inspetor ou o gestor daquele prédio. Visualizador e
-    // quem não tem vínculo nenhum param aqui.
-    const inspector = { id: inspectorId, role: inspectorRole };
+    // Quem vistoria é o inspetor daquele prédio. Visualizador, quem não tem
+    // vínculo e conta de gestor param aqui — gestor não vistoria, porque o
+    // relatório aponta para `users` e ele não está lá.
     if (!(await canInspectBuilding(inspector, payload.building_id))) {
       throw new ForbiddenError('Você não tem permissão para vistoriar este prédio');
     }

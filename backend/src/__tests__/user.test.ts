@@ -125,16 +125,16 @@ describe('userService.softDelete', () => {
     await expect(userService.softDelete('invalid-id')).rejects.toThrow(NotFoundError);
   });
 
-  it('recusa apagar a conta que é a única gestora de um prédio', async () => {
+  it('apaga a conta sem consultar gestão de prédio', async () => {
+    // Conta de usuário não administra prédio nenhum: quem administra é conta de
+    // gestor, em outra tabela. A guarda do último gestor mora lá.
     mockUserRepo.findById.mockResolvedValue(makeUser());
-    mockBuildingRepo.findBuildingsWhereSoleManager.mockResolvedValue([
-      { id: 'b1', name: 'Edifício Principal' },
-    ] as any);
+    mockUserRepo.softDelete.mockResolvedValue(makeUser({ status: UserStatus.DELETED }));
 
-    // Deixar passar devolveria o prédio ao estado que esta mudança veio
-    // eliminar: existindo, mas sem ninguém que possa administrá-lo.
-    await expect(userService.softDelete('user-1')).rejects.toThrow(ConflictError);
-    expect(mockUserRepo.softDelete).not.toHaveBeenCalled();
+    await userService.softDelete('user-1');
+
+    expect(mockUserRepo.softDelete).toHaveBeenCalledWith('user-1');
+    expect(mockBuildingRepo.findBuildingsWhereSoleManager).not.toHaveBeenCalled();
   });
 });
 

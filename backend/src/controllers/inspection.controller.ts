@@ -14,7 +14,7 @@ export const inspectionController = {
   async submit(req: AuthenticatedRequest, res: Response) {
     // Parse aqui (e não só no middleware) para aplicar os defaults do schema
     const payload = submitInspectionSchema.parse(req.body) as SubmitInspectionPayload;
-    const report = await inspectionService.submit(req.user.id, payload, req.user.role);
+    const report = await inspectionService.submit(req.user, payload);
     created(res, report);
   },
 

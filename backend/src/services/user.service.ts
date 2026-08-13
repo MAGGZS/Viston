@@ -36,40 +36,12 @@ async function withMemberships<T extends { id: string }>(user: T) {
   return { ...user, memberships: await buildingRepository.getUserMemberships(user.id) };
 }
 
-/**
- * Recusa apagar a conta que é o único gestor de algum prédio.
- *
- * É o buraco que fechou junto com o resto: o vínculo do gestor sai em cascata
- * com a conta, e o prédio ficaria sem ninguém para aprovar solicitação, promover
- * inspetor ou cadastrar andar. Para sair, promova outro gestor antes.
- */
-async function assertNotSoleManager(userId: string) {
-  const buildings = await buildingRepository.findBuildingsWhereSoleManager(userId);
-  if (buildings.length === 0) return;
-
-  const names = buildings.map((b) => `"${b.name}"`).join(', ');
-  throw new ConflictError(
-    `Esta conta é a única gestora de ${names}. Promova outro colaborador a gestor antes de excluí-la.`
-  );
-}
-
 export const userService = {
   /**
    * Cadastro público comum. A conta nasce sem vínculo: só a tela inicial, o
    * histórico e o perfil. Ganha papel quando entra num prédio.
    */
   create(data: { name: string; email: string; password: string }) {
-    return register(data);
-  },
-
-  /**
-   * Cadastro pela tela "quero ser gestor".
-   *
-   * A conta que sai daqui é igual à do cadastro comum — gestor deixou de ser
-   * uma marca na conta. O que a tela promete acontece no passo seguinte: quem
-   * cria um prédio vira o gestor dele, e é só isso que existe de "ser gestor".
-   */
-  createManager(data: { name: string; email: string; password: string }) {
     return register(data);
   },
 
@@ -193,14 +165,14 @@ export const userService = {
 
   async softDelete(id: string) {
     await this.findById(id);
-    await assertNotSoleManager(id);
     await userRepository.softDelete(id);
   },
 
   /**
    * Remove definitivamente o usuário do banco.
-   * As inspeções dele são preservadas com inspector_id nulo (ON DELETE SET NULL),
-   * assim como os prédios que ele cadastrou (created_by nulo).
+   * As inspeções dele são preservadas com inspector_id nulo (ON DELETE SET NULL).
+   * Prédio não entra na conta: usuário comum não administra nenhum — quem
+   * administra é conta de gestor, que vive em outra tabela.
    */
   async remove(id: string, requesterId: string) {
     if (id === requesterId) {
@@ -210,7 +182,6 @@ export const userService = {
     const user = await userRepository.findById(id);
     if (!user) throw new NotFoundError('Usuário');
 
-    await assertNotSoleManager(id);
     await userRepository.hardDelete(id);
   },
 };

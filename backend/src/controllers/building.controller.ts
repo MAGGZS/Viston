@@ -1,11 +1,12 @@
 import { Response } from 'express';
 import { AuditAction, BuildingRole } from '@prisma/client';
 import { AuthenticatedRequest } from '../middlewares/authenticate';
-import { buildingRepository, auditRepository } from '../repositories/building.repository';
+import { actorAudit, buildingRepository, auditRepository } from '../repositories/building.repository';
+import { managerRepository } from '../repositories/manager.repository';
 import { inspectionRepository } from '../repositories/inspection.repository';
 import { buildHeatmap } from '../services/inspection.service';
 import { ok, created, noContent } from '../utils/response';
-import { NotFoundError, ConflictError } from '../utils/errors';
+import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
 import { normalizeShareKey, isValidShareKeyFormat } from '../utils/shareKey';
 import { zonedParts, zonedRange } from '../utils/timezone';
 
@@ -26,25 +27,17 @@ async function findBuildingByKeyOrFail(rawKey: unknown) {
 }
 
 /**
- * Recusa a mudança que deixaria o prédio sem gestor nenhum.
+ * Recusa a saída que deixaria o prédio sem gestor nenhum.
  *
- * Vale para rebaixar, remover e sair: prédio sem gestor não tem quem aprove
- * solicitação, promova inspetor ou cadastre andar. Para transferir a gestão,
- * promova o outro primeiro — dois gestores é um estado válido.
- *
- * Recebe o vínculo já carregado: quem chama acabou de lê-lo para saber se ele
- * existe.
+ * Prédio sem gestor não tem quem aprove solicitação, promova inspetor ou
+ * cadastre andar — sobra o ADMIN, que é suporte e não dono. Para transferir a
+ * gestão, adicione o outro gestor primeiro: dois é um estado válido.
  */
-async function assertNotLastManager(
-  member: { building_id: string; role: BuildingRole },
-  action: string
-) {
-  if (member.role !== BuildingRole.GESTOR) return;
-
-  const managers = await buildingRepository.countManagers(member.building_id);
+async function assertNotLastManager(buildingId: string, action: string) {
+  const managers = await buildingRepository.countManagers(buildingId);
   if (managers <= 1) {
     throw new ConflictError(
-      `Este é o único gestor do prédio. Promova outro colaborador a gestor antes de ${action}.`
+      `Este é o único gestor do prédio. Adicione outro gestor antes de ${action}.`
     );
   }
 }
@@ -56,13 +49,34 @@ export const buildingController = {
     ok(res, buildings);
   },
 
-  /** Os prédios do usuário, cada um com o papel dele ali dentro. */
+  /**
+   * Os prédios da conta, no mesmo formato para os dois tipos: o gestor recebe os
+   * que administra com papel GESTOR, o usuário recebe os vínculos dele.
+   */
   async myBuildings(req: AuthenticatedRequest, res: Response) {
+    if (req.user.kind === 'MANAGER') {
+      const buildings = await buildingRepository.findAll(req.user.id);
+      ok(res, buildings.map((b) => ({
+        building_id: b.id,
+        name: b.name,
+        description: b.description,
+        role: 'GESTOR',
+      })));
+      return;
+    }
+
     ok(res, await buildingRepository.getUserMemberships(req.user.id));
   },
 
-  /** Prédios que o usuário administra — a tela inicial do gestor. */
+  /** Prédios que a conta administra — a tela inicial do gestor. */
   async managedBuildings(req: AuthenticatedRequest, res: Response) {
+    // Usuário comum não administra nada: a lista dele é vazia, e não um erro —
+    // a tela existe para os dois e só mostra o que houver.
+    if (req.user.kind === 'USER' && req.user.role !== 'ADMIN') {
+      ok(res, []);
+      return;
+    }
+
     const buildings = await buildingRepository.findAll(
       req.user.role === 'ADMIN' ? undefined : req.user.id
     );
@@ -74,12 +88,22 @@ export const buildingController = {
     ok(res, await buildingRepository.getSystemStats());
   },
 
-  /** Quem cria o prédio vira o gestor dele (ver buildingRepository.create). */
+  /**
+   * Quem cria o prédio vira o gestor dele (ver buildingRepository.create).
+   *
+   * Só conta de gestor: `building_managers.manager_id` aponta para `managers`, e
+   * nem o usuário comum nem o ADMIN estão lá. É o que garante que todo prédio
+   * nasce com um gestor de verdade.
+   */
   async create(req: AuthenticatedRequest, res: Response) {
+    if (req.user.kind !== 'MANAGER') {
+      throw new ForbiddenError('Só uma conta de gestor pode cadastrar prédio');
+    }
+
     const { name, description } = req.body;
     const building = await buildingRepository.create({ name, description, created_by: req.user.id });
     await auditRepository.log({
-      user_id: req.user.id,
+      ...actorAudit(req.user),
       building_id: building.id,
       action: AuditAction.CREATE,
       entity: 'Building',
@@ -91,7 +115,7 @@ export const buildingController = {
   async update(req: AuthenticatedRequest, res: Response) {
     const updated = await buildingRepository.update(req.params.id, req.body);
     await auditRepository.log({
-      user_id: req.user.id,
+      ...actorAudit(req.user),
       building_id: req.params.id,
       action: AuditAction.UPDATE,
       entity: 'Building',
@@ -105,7 +129,7 @@ export const buildingController = {
     // Sem building_id: o prédio deixou de existir, e a FK levaria o registro
     // junto. O id fica em entity_id, que é texto solto.
     await auditRepository.log({
-      user_id: req.user.id,
+      ...actorAudit(req.user),
       action: AuditAction.DELETE,
       entity: 'Building',
       entity_id: req.params.id,
@@ -153,7 +177,7 @@ export const buildingController = {
     // Só o gestor vê a chave de compartilhamento. `buildingRole` veio do
     // middleware de vínculo, então não custa consulta nenhuma aqui.
     const payloadBuilding =
-      req.buildingRole === BuildingRole.GESTOR ? building : publicBuilding(building);
+      req.buildingRole === 'GESTOR' ? building : publicBuilding(building);
 
     ok(res, {
       building: payloadBuilding,
@@ -177,20 +201,77 @@ export const buildingController = {
   },
 
   // ── Membros ───────────────────────────────────────────────────────────────
+  /**
+   * Quem está no prédio, nas duas naturezas: gestores (contas próprias) e
+   * membros (usuários com papel). Vêm juntos porque a tela é uma só.
+   */
   async getMembers(req: AuthenticatedRequest, res: Response) {
-    const members = await buildingRepository.getMembers(req.params.id);
-    ok(res, members);
+    const [managers, members] = await Promise.all([
+      buildingRepository.getManagers(req.params.id),
+      buildingRepository.getMembers(req.params.id),
+    ]);
+    ok(res, { managers, members });
+  },
+
+  /**
+   * Adiciona outro gestor ao prédio, pelo e-mail da conta de gestor dele.
+   *
+   * É por aqui que a gestão se divide e se transfere: quem quer sair adiciona o
+   * substituto e depois se remove. Sem isto o único gestor ficaria preso, porque
+   * a saída do último é recusada.
+   */
+  async addManager(req: AuthenticatedRequest, res: Response) {
+    const email = String(req.body?.email ?? '').trim();
+    const manager = await managerRepository.findByEmail(email);
+    if (!manager || manager.status === 'DELETED') {
+      throw new NotFoundError('Conta de gestor com este e-mail');
+    }
+
+    const existing = await buildingRepository.findManagerLink(req.params.id, manager.id);
+    if (existing) throw new ConflictError('Esta pessoa já é gestora deste prédio');
+
+    const link = await buildingRepository.addManager(req.params.id, manager.id);
+
+    await auditRepository.log({
+      ...actorAudit(req.user),
+      building_id: req.params.id,
+      action: AuditAction.CREATE,
+      entity: 'BuildingManager',
+      entity_id: link.id,
+      metadata: { manager_id: manager.id },
+    });
+
+    created(res, link);
+  },
+
+  /** Tira um gestor do prédio — inclusive ele mesmo, se houver outro. */
+  async removeManager(req: AuthenticatedRequest, res: Response) {
+    const link = await buildingRepository.findManagerLink(req.params.id, req.params.managerId);
+    if (!link) throw new NotFoundError('Gestor deste prédio');
+
+    await assertNotLastManager(req.params.id, 'sair da gestão');
+    await buildingRepository.removeManager(req.params.id, req.params.managerId);
+
+    await auditRepository.log({
+      ...actorAudit(req.user),
+      building_id: req.params.id,
+      action: AuditAction.DELETE,
+      entity: 'BuildingManager',
+      entity_id: link.id,
+      metadata: { manager_id: req.params.managerId },
+    });
+
+    noContent(res);
   },
 
   async removeMember(req: AuthenticatedRequest, res: Response) {
     const member = await buildingRepository.findMember(req.params.id, req.params.userId);
     if (!member) throw new NotFoundError('Vínculo');
 
-    await assertNotLastManager(member, 'remover este');
     await buildingRepository.removeMember(req.params.id, req.params.userId);
 
     await auditRepository.log({
-      user_id: req.user.id,
+      ...actorAudit(req.user),
       building_id: req.params.id,
       action: AuditAction.DELETE,
       entity: 'BuildingMember',
@@ -206,13 +287,9 @@ export const buildingController = {
     const member = await buildingRepository.findMember(req.params.id, req.params.userId);
     if (!member) throw new NotFoundError('Vínculo');
 
+    // Só INSPECTOR ou VIEWER: promover a gestor não passa por aqui, porque
+    // gestor é outro tipo de conta (ver POST /buildings/:id/managers).
     const { role } = req.body as { role: BuildingRole };
-
-    // Rebaixar o único gestor deixaria o prédio sem dono — inclusive quando o
-    // gestor rebaixa a si mesmo por engano.
-    if (role !== BuildingRole.GESTOR) {
-      await assertNotLastManager(member, 'rebaixar este');
-    }
 
     const updated = await buildingRepository.updateMemberRole(
       req.params.id,
@@ -221,7 +298,7 @@ export const buildingController = {
     );
 
     await auditRepository.log({
-      user_id: req.user.id,
+      ...actorAudit(req.user),
       building_id: req.params.id,
       action: AuditAction.UPDATE,
       entity: 'BuildingMember',
@@ -232,11 +309,11 @@ export const buildingController = {
     ok(res, updated);
   },
 
+  /** Sair do prédio. É caminho de usuário: gestor sai por DELETE /managers/:id. */
   async leaveBuilding(req: AuthenticatedRequest, res: Response) {
     const member = await buildingRepository.findMember(req.params.id, req.user.id);
     if (!member) throw new NotFoundError('Vínculo');
 
-    await assertNotLastManager(member, 'sair do prédio');
     await buildingRepository.removeMember(req.params.id, req.user.id);
     noContent(res);
   },
@@ -286,7 +363,7 @@ export const buildingController = {
     if (status === 'APPROVED') {
       await buildingRepository.addMember(req.params.id, updated.user_id);
       await auditRepository.log({
-        user_id: req.user.id,
+        ...actorAudit(req.user),
         building_id: req.params.id,
         action: AuditAction.CREATE,
         entity: 'BuildingMember',

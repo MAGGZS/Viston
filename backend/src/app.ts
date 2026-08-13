@@ -6,6 +6,7 @@ import { config } from './config';
 import buildingRoutes from './routes/building.routes';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
+import managerRoutes from './routes/manager.routes';
 import inspectionRoutes from './routes/inspection.routes';
 import { errorHandler } from './middlewares/errorHandler';
 import { generalLimiter } from './middlewares/rateLimit';
@@ -55,6 +56,7 @@ app.get('/health', (_req, res) => {
 app.use('/buildings', buildingRoutes);
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
+app.use('/managers', managerRoutes);
 app.use('/', inspectionRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────

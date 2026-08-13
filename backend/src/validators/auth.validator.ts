@@ -33,13 +33,12 @@ export const updateUserSchema = z
 
 // Troca do papel de um membro dentro do prédio, feita por um gestor dele.
 //
-// GESTOR entra na lista: é assim que a gestão se divide ou se transfere, sem
-// falsificar quem cadastrou o prédio. Quem rebaixa o último gestor toma 409
-// (ver buildingController.updateMemberRole).
+// Só INSPECTOR e VIEWER: promover a gestor não passa por aqui, porque gestor é
+// outro tipo de conta (ver POST /buildings/:id/managers).
 export const updateMemberRoleSchema = z
   .object({
-    role: z.enum(['GESTOR', 'INSPECTOR', 'VIEWER'], {
-      required_error: 'Papel deve ser GESTOR, INSPECTOR ou VIEWER',
+    role: z.enum(['INSPECTOR', 'VIEWER'], {
+      required_error: 'Papel deve ser INSPECTOR ou VIEWER',
     }),
   })
   .strict();

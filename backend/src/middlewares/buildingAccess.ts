@@ -1,33 +1,40 @@
 import { Response, NextFunction } from 'express';
 import { BuildingRole } from '@prisma/client';
-import { AuthenticatedRequest } from './authenticate';
+import { Actor, AuthenticatedRequest } from './authenticate';
 import { buildingRepository } from '../repositories/building.repository';
 import { ForbiddenError, NotFoundError } from '../utils/errors';
 
-export type Actor = { id: string; role: string };
+/** O que o ator é dentro de um prédio. 'GESTOR' não vem do enum: gestor não é membro. */
+export type BuildingStanding = 'GESTOR' | BuildingRole;
 
 /**
  * O ADMIN é a conta de suporte do sistema: passa por qualquer prédio sem
  * precisar de vínculo. Ele não tem tela de prédios — o produto dele é a gestão
- * de contas —, mas a API precisa continuar aberta para ele.
+ * de contas —, mas a API continua aberta para ele.
  */
 function isAdmin(user: Actor): boolean {
-  return user.role === 'ADMIN';
+  return user.kind === 'USER' && user.role === 'ADMIN';
 }
 
 /**
- * O papel da pessoa dentro daquele prédio, lido do vínculo.
+ * O que o ator é naquele prédio.
  *
- * `building_members` é a única fonte de atribuição do produto. `created_by` não
- * entra na conta: ele é histórico de quem cadastrou, e some quando a conta some.
+ * Duas tabelas respondem, e a pergunta muda conforme o tipo da conta: gestor se
+ * procura em `building_managers`, usuário em `building_members`. Uma conta nunca
+ * está nas duas — são identidades separadas.
  *
- * `null` significa "não tem vínculo com este prédio".
+ * `null` significa "não tem nada a ver com este prédio".
  */
-export async function getBuildingRole(
+export async function getBuildingStanding(
   user: Actor,
   buildingId: string
-): Promise<BuildingRole | null> {
-  if (isAdmin(user)) return BuildingRole.GESTOR;
+): Promise<BuildingStanding | null> {
+  if (isAdmin(user)) return 'GESTOR';
+
+  if (user.kind === 'MANAGER') {
+    const link = await buildingRepository.findManagerLink(buildingId, user.id);
+    return link ? 'GESTOR' : null;
+  }
 
   const member = await buildingRepository.findMember(buildingId, user.id);
   return member?.role ?? null;
@@ -35,21 +42,28 @@ export async function getBuildingRole(
 
 /** Administra o prédio: andares, colaboradores, solicitações, descarte de vistoria. */
 export async function isBuildingManager(user: Actor, buildingId: string): Promise<boolean> {
-  return (await getBuildingRole(user, buildingId)) === BuildingRole.GESTOR;
-}
-
-/** Vistoria o prédio. O gestor também vistoria o que administra. */
-export async function canInspectBuilding(user: Actor, buildingId: string): Promise<boolean> {
-  const role = await getBuildingRole(user, buildingId);
-  return role === BuildingRole.GESTOR || role === BuildingRole.INSPECTOR;
+  return (await getBuildingStanding(user, buildingId)) === 'GESTOR';
 }
 
 /**
- * Garante que o usuário administra o prédio da rota.
+ * Vistoria o prédio.
  *
- * É este middleware — e não mais um `authorize(...)` na frente dele — que
- * autoriza as rotas de prédio: com o papel vindo do vínculo, não existe mais
- * nada em `users.role` para conferir antes.
+ * Só conta de usuário: `inspection_reports.inspector_id` aponta para `users`, e
+ * o gestor não está lá. Quem administra prédio não vistoria.
+ */
+export async function canInspectBuilding(user: Actor, buildingId: string): Promise<boolean> {
+  if (user.kind !== 'USER') return false;
+  if (isAdmin(user)) return true;
+
+  const member = await buildingRepository.findMember(buildingId, user.id);
+  return member?.role === BuildingRole.INSPECTOR;
+}
+
+/**
+ * Garante que o ator administra o prédio da rota.
+ *
+ * É este middleware que autoriza as rotas de prédio: não existe papel na conta
+ * para conferir antes dele.
  */
 export function requireBuildingManager(param = 'id') {
   return async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
@@ -58,21 +72,21 @@ export function requireBuildingManager(param = 'id') {
     const building = await buildingRepository.findById(buildingId);
     if (!building) throw new NotFoundError('Prédio');
 
-    const role = await getBuildingRole(req.user, buildingId);
-    if (role !== BuildingRole.GESTOR) {
+    const standing = await getBuildingStanding(req.user, buildingId);
+    if (standing !== 'GESTOR') {
       throw new ForbiddenError('Apenas o gestor do prédio pode fazer isso');
     }
 
     // Guardado para o controller não repetir a consulta (ver getDashboard)
-    req.buildingRole = role;
+    req.buildingRole = standing;
     next();
   };
 }
 
 /**
- * Garante que o usuário está vinculado ao prédio da rota.
+ * Garante que o ator tem alguma ligação com o prédio da rota.
  *
- * Sem vínculo a rota responde 403, e nenhum dado do prédio vaza para quem só
+ * Sem ligação a rota responde 403, e nenhum dado do prédio vaza para quem só
  * conhece o id.
  */
 export function requireBuildingMember(param = 'id') {
@@ -82,22 +96,22 @@ export function requireBuildingMember(param = 'id') {
     const building = await buildingRepository.findById(buildingId);
     if (!building) throw new NotFoundError('Prédio');
 
-    const role = await getBuildingRole(req.user, buildingId);
-    if (!role) throw new ForbiddenError('Você não tem acesso a este prédio');
+    const standing = await getBuildingStanding(req.user, buildingId);
+    if (!standing) throw new ForbiddenError('Você não tem acesso a este prédio');
 
-    req.buildingRole = role;
+    req.buildingRole = standing;
     next();
   };
 }
 
 /**
- * Ids dos prédios que o usuário pode enxergar em listagens.
+ * Ids dos prédios que o ator pode enxergar em listagens.
  * `null` significa "sem filtro" (ADMIN vê tudo).
- *
- * Uma consulta só: o gestor agora é membro do próprio prédio, então a lista de
- * vínculos já cobre o que ele administra.
  */
 export async function visibleBuildingIds(user: Actor): Promise<string[] | null> {
   if (isAdmin(user)) return null;
-  return buildingRepository.getMemberBuildingIds(user.id);
+
+  return user.kind === 'MANAGER'
+    ? buildingRepository.getManagedBuildingIds(user.id)
+    : buildingRepository.getMemberBuildingIds(user.id);
 }

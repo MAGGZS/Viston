@@ -54,6 +54,13 @@ router.delete('/:id/floors/:floorId', auth, manager, buildingController.deleteFl
 router.get('/:id/dashboard', auth, member, buildingController.getDashboard as any);
 router.get('/:id/history', auth, member, buildingController.getHistory as any);
 
+// ── Gestores ──────────────────────────────────────────────────────────────────
+// Adicionar outro gestor é o que permite dividir ou passar a gestão adiante:
+// quem quer sair adiciona o substituto e depois se remove. A saída do último é
+// recusada com 409.
+router.post('/:id/managers', auth, manager, buildingController.addManager as any);
+router.delete('/:id/managers/:managerId', auth, manager, buildingController.removeManager as any);
+
 // ── Membros ───────────────────────────────────────────────────────────────────
 router.get('/:id/members', auth, manager, buildingController.getMembers as any);
 router.delete('/:id/members/me', auth, buildingController.leaveBuilding as any);

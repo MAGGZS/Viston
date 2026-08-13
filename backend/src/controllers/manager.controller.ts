@@ -1,54 +1,52 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/authenticate';
-import { userService } from '../services/user.service';
+import { managerService } from '../services/manager.service';
 import { ok, created, noContent } from '../utils/response';
+import { ForbiddenError } from '../utils/errors';
 
-export const userController = {
+/** As rotas de `/managers/me` só existem para quem entrou como gestor. */
+function asManager(req: AuthenticatedRequest) {
+  if (req.user.kind !== 'MANAGER') {
+    throw new ForbiddenError('Esta área é da conta de gestor');
+  }
+  return req.user.id;
+}
+
+export const managerController = {
   async create(req: AuthenticatedRequest, res: Response) {
-    const user = await userService.create(req.body);
-    created(res, user);
+    created(res, await managerService.create(req.body));
   },
 
   async findAll(req: AuthenticatedRequest, res: Response) {
     const page = parseInt(String(req.query.page ?? '1'), 10);
     const limit = parseInt(String(req.query.limit ?? '20'), 10);
-    const result = await userService.findAll(page, limit);
-    ok(res, result);
-  },
-
-  async update(req: AuthenticatedRequest, res: Response) {
-    const user = await userService.update(req.params.id, req.body);
-    ok(res, user);
+    ok(res, await managerService.findAll(page, limit));
   },
 
   async remove(req: AuthenticatedRequest, res: Response) {
-    await userService.remove(req.params.id, req.user.id);
+    await managerService.remove(req.params.id);
     noContent(res);
   },
 
   async getMe(req: AuthenticatedRequest, res: Response) {
-    const user = await userService.getProfile(req.user.id);
-    ok(res, user);
+    ok(res, await managerService.getProfile(asManager(req)));
   },
 
   async updateMe(req: AuthenticatedRequest, res: Response) {
-    const user = await userService.updateMe(req.user.id, req.body);
-    ok(res, user);
+    ok(res, await managerService.updateMe(asManager(req), req.body));
   },
 
   async updateAvatar(req: AuthenticatedRequest, res: Response) {
-    const user = await userService.updateAvatar(req.user.id, req.body.image);
-    ok(res, user);
+    ok(res, await managerService.updateAvatar(asManager(req), req.body.image));
   },
 
   async removeAvatar(req: AuthenticatedRequest, res: Response) {
-    const user = await userService.removeAvatar(req.user.id);
-    ok(res, user);
+    ok(res, await managerService.removeAvatar(asManager(req)));
   },
 
   async changePassword(req: AuthenticatedRequest, res: Response) {
-    await userService.changePassword(
-      req.user.id,
+    await managerService.changePassword(
+      asManager(req),
       req.body.current_password,
       req.body.new_password
     );
@@ -56,7 +54,7 @@ export const userController = {
   },
 
   async deleteMe(req: AuthenticatedRequest, res: Response) {
-    await userService.softDelete(req.user.id);
+    await managerService.softDelete(asManager(req));
     noContent(res);
   },
 };
