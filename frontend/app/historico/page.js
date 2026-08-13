@@ -240,7 +240,7 @@ export default function HistoricoPage() {
   // Prédios do usuário (para mobile)
   const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
   const hasBuilding = myBuildings.length > 0;
-  const myBuildingId = myBuildings[0]?.id;
+  const myBuildingId = myBuildings[0]?.building_id;
 
   // Desktop: todas as inspeções (admin vê tudo)
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInspections(

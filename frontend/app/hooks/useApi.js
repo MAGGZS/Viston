@@ -1,6 +1,25 @@
 'use client';
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import api from '@/app/lib/api';
+import { useAuthStore } from '@/app/store/auth';
+
+/**
+ * Recarrega o perfil depois de uma mudança que mexe nos vínculos de quem está
+ * logado — criar prédio, excluir prédio, sair de um, trocar o próprio papel.
+ *
+ * Sem isto o app continuaria decidindo pelo estado antigo: quem acabou de criar
+ * o primeiro prédio ainda não constaria como gestor dele, e a tela inicial
+ * mandaria a pessoa para o lugar errado até o próximo carregamento.
+ *
+ * Falha em silêncio de propósito: a operação principal já deu certo, e o
+ * AuthProvider recarrega o perfil na próxima abertura.
+ */
+function refreshProfile() {
+  return api
+    .get('/users/me')
+    .then(({ data }) => useAuthStore.getState().setUser(data))
+    .catch(() => {});
+}
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export function useLogin() {
@@ -32,7 +51,8 @@ export function useCreateUser() {
   });
 }
 
-// Cadastro público como gestor — o papel vem da rota, nunca do corpo
+// Cadastro pela tela de gestor. A conta sai igual à do cadastro comum: gestor
+// é o que se vira ao criar um prédio, não uma marca na conta.
 export function useCreateManager() {
   return useMutation({
     mutationFn: (data) => api.post('/users/managers', data).then((r) => r.data),
@@ -97,10 +117,16 @@ export function useLeaveBuilding() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (buildingId) => api.delete(`/buildings/${buildingId}/members/me`).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-buildings'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-buildings'] });
+      return refreshProfile();
+    },
   });
 }
 
+// Os vínculos do usuário: cada item traz `building_id`, o nome do prédio e o
+// papel dele ali dentro. É de propósito que a chave não é `id` — o que se lista
+// aqui é o vínculo, e o papel muda de prédio para prédio.
 export function useMyBuildings() {
   return useQuery({
     queryKey: ['my-buildings'],
@@ -115,7 +141,7 @@ export function useBuildings() {
   });
 }
 
-// Prédios que o gestor criou — a tela inicial dele
+// Prédios que o usuário administra — a tela inicial do gestor
 export function useManagedBuildings() {
   return useQuery({
     queryKey: ['managed-buildings'],
@@ -158,11 +184,15 @@ function invalidateBuildingLists(qc) {
   qc.invalidateQueries({ queryKey: ['system-stats'] });
 }
 
+// Quem cria o prédio vira o gestor dele: o perfil precisa saber disso na hora.
 export function useCreateBuilding() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data) => api.post('/buildings', data).then((r) => r.data),
-    onSuccess: () => invalidateBuildingLists(qc),
+    onSuccess: () => {
+      invalidateBuildingLists(qc);
+      return refreshProfile();
+    },
   });
 }
 
@@ -178,7 +208,10 @@ export function useDeleteBuilding() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id) => api.delete(`/buildings/${id}`).then((r) => r.data),
-    onSuccess: () => invalidateBuildingLists(qc),
+    onSuccess: () => {
+      invalidateBuildingLists(qc);
+      return refreshProfile();
+    },
   });
 }
 
@@ -206,7 +239,9 @@ export function useBuildingMembers(id) {
   });
 }
 
-// Nível de acesso de quem está vinculado ao prédio — só o gestor mexe
+// Papel de quem está vinculado ao prédio — só um gestor dele mexe.
+// O perfil é recarregado porque o alvo pode ser o próprio usuário logado: com
+// dois gestores, um deles pode passar a gestão e se rebaixar.
 export function useUpdateMemberRole() {
   const qc = useQueryClient();
   return useMutation({
@@ -215,6 +250,8 @@ export function useUpdateMemberRole() {
     onSuccess: (_, { buildingId }) => {
       qc.invalidateQueries({ queryKey: ['building-members', buildingId] });
       qc.invalidateQueries({ queryKey: ['building-dashboard', buildingId] });
+      qc.invalidateQueries({ queryKey: ['my-buildings'] });
+      return refreshProfile();
     },
   });
 }
@@ -304,7 +341,7 @@ export function useSubmitInspection() {
   });
 }
 
-// Descarta a vistoria (só ADMIN) — apaga relatório, ocorrências e planilha
+// Descarta a vistoria (só um gestor do prédio) — apaga relatório, ocorrências e planilha
 export function useDeleteInspection() {
   const qc = useQueryClient();
   return useMutation({

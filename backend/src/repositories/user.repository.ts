@@ -1,4 +1,4 @@
-import { Prisma, Role, UserStatus } from '@prisma/client';
+import { AccountRole, Prisma, UserStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 export const userRepository = {
@@ -26,7 +26,7 @@ export const userRepository = {
     ]);
   },
 
-  create(data: { name: string; email: string; password_hash: string; role: Role }) {
+  create(data: { name: string; email: string; password_hash: string; role: AccountRole }) {
     return prisma.user.create({ data });
   },
 

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/app/store/auth';
 import { useIsDesktop } from '@/app/hooks/useMediaQuery';
 import { Spinner } from '@/app/components/ui';
+import { effectiveRoles, isViewerOnly, managesBuilding } from '@/app/lib/roles';
 import { T, W } from '@/app/lib/theme';
 
 /** Aviso de que a conta de visualizador só funciona no desktop. */
@@ -21,16 +22,31 @@ function DesktopOnly() {
   );
 }
 
-export function RouteGuard({ children, roles = [] }) {
+/**
+ * Guarda de rota.
+ *
+ * `roles` pergunta pelos papéis que a pessoa ocupa em qualquer prédio — serve
+ * às telas que existem para um tipo de uso ("quem vistoria em algum lugar").
+ *
+ * `manages` pergunta por um prédio específico, e é o que as telas de gestão
+ * usam: ser gestor de um prédio não dá direito à tela de outro. Sem isso, o
+ * front deixava abrir a tela e só a API dizia não, em 403 espalhados.
+ */
+export function RouteGuard({ children, roles = [], manages }) {
   const { user, isLoading } = useAuthStore();
   const router = useRouter();
   const isDesktop = useIsDesktop();
 
+  const allowed =
+    !!user &&
+    (roles.length === 0 || effectiveRoles(user).some((role) => roles.includes(role))) &&
+    (!manages || managesBuilding(user, manages));
+
   useEffect(() => {
     if (isLoading) return;
     if (!user) { router.replace('/login'); return; }
-    if (roles.length > 0 && !roles.includes(user.role)) { router.replace('/'); return; }
-  }, [user, isLoading, roles, router]);
+    if (!allowed) { router.replace('/'); return; }
+  }, [user, isLoading, allowed, router]);
 
   if (isLoading) {
     return (
@@ -40,11 +56,10 @@ export function RouteGuard({ children, roles = [] }) {
     );
   }
 
-  if (!user) return null;
-  if (roles.length > 0 && !roles.includes(user.role)) return null;
+  if (!user || !allowed) return null;
 
   /**
-   * VIEWER não tem acesso no mobile.
+   * Quem só visualiza não tem acesso no mobile.
    *
    * A decisão é do CSS, não do JS. O `lg:` do Tailwind troca no mesmo frame do
    * resize; o `isDesktop` depende do evento `change` do matchMedia chegar, e
@@ -57,7 +72,7 @@ export function RouteGuard({ children, roles = [] }) {
    * o aviso aparecer sozinho — nunca tela em branco — e o listener de `resize`
    * do useMediaQuery corrige em seguida.
    */
-  if (user.role === 'VIEWER') {
+  if (isViewerOnly(user)) {
     if (!isDesktop) return <DesktopOnly />;
     return (
       <>

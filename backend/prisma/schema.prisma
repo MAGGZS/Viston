@@ -13,14 +13,27 @@ datasource db {
 // ENUMS
 // ─────────────────────────────────────────────
 
-enum Role {
+/// O que a conta é no sistema, e só isso.
+///
+/// ADMIN é a conta de suporte: enxerga tudo, administra contas, não tem prédio.
+/// NONE é todo o resto — inclusive quem gere um prédio. Poder sobre prédio não
+/// mora aqui; mora em `BuildingMember` (ver `BuildingRole`).
+enum AccountRole {
   ADMIN
-  GESTOR
-  INSPECTOR
-  VIEWER
-  // Conta recém-criada, ainda sem vínculo com prédio nenhum: só a tela inicial,
-  // o histórico e o perfil. Vira VIEWER quando o vínculo é aprovado.
   NONE
+}
+
+/// O que a pessoa é dentro de um prédio específico.
+///
+/// É a única fonte de atribuição do produto: a mesma conta pode ser GESTOR de um
+/// prédio, INSPECTOR de outro e não existir num terceiro.
+enum BuildingRole {
+  // Administra o prédio: andares, colaboradores, solicitações e descarte de vistoria.
+  GESTOR
+  // Vistoria o prédio.
+  INSPECTOR
+  // Só acompanha o que já foi vistoriado.
+  VIEWER
 }
 
 enum UserStatus {
@@ -93,15 +106,15 @@ enum AuditAction {
 // ─────────────────────────────────────────────
 
 model User {
-  id            String     @id @default(uuid())
+  id            String      @id @default(uuid())
   name          String
-  email         String     @unique
+  email         String      @unique
   password_hash String
-  role          Role       @default(NONE)
+  role          AccountRole @default(NONE)
   avatar_url    String?
-  status        UserStatus @default(ACTIVE)
-  created_at    DateTime   @default(now())
-  updated_at    DateTime   @updatedAt
+  status        UserStatus  @default(ACTIVE)
+  created_at    DateTime    @default(now())
+  updated_at    DateTime    @updatedAt
 
   inspections     InspectionReport[]
   audit_logs      AuditLog[]
@@ -117,6 +130,8 @@ model Building {
   name        String
   description String?
   share_key   String  @unique
+  // Histórico de auditoria: quem cadastrou o prédio. Não autoriza nada — quem
+  // administra está em `members` com role GESTOR. Fica nulo se a conta sumir.
   created_by  String?
 
   creator     User?                  @relation("BuildingCreator", fields: [created_by], references: [id], onDelete: SetNull)
@@ -124,21 +139,27 @@ model Building {
   inspections InspectionReport[]
   members     BuildingMember[]
   access_requests BuildingAccessRequest[]
+  audit_logs  AuditLog[]
 
   @@map("buildings")
 }
 
+/// O vínculo entre uma pessoa e um prédio — e o papel dela ali dentro.
+///
+/// Toda autorização de prédio passa por esta tabela. Um prédio pode ter mais de
+/// um GESTOR, e a gestão se transfere trocando o papel do vínculo.
 model BuildingMember {
-  id          String   @id @default(uuid())
+  id          String       @id @default(uuid())
   building_id String
   user_id     String
-  role        String
-  joined_at   DateTime @default(now())
+  role        BuildingRole
+  joined_at   DateTime     @default(now())
 
   building Building @relation(fields: [building_id], references: [id], onDelete: Cascade)
   user     User     @relation("BuildingMembers", fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([building_id, user_id])
+  @@index([user_id])
   @@map("building_members")
 }
 
@@ -225,13 +246,19 @@ model MaintenanceRecord {
 model AuditLog {
   id        String      @id @default(uuid())
   user_id   String?
+  // Prédio a que o registro pertence, quando houver: é o que permite ao gestor
+  // ver a trilha do prédio dele em vez da do sistema inteiro. Login, logout e
+  // mexida em conta não têm prédio, e ficam nulos.
+  building_id String?
   action    AuditAction
   entity    String?
   entity_id String?
   metadata  Json?
   timestamp DateTime    @default(now())
 
-  user User? @relation(fields: [user_id], references: [id])
+  user     User?     @relation(fields: [user_id], references: [id])
+  building Building? @relation(fields: [building_id], references: [id], onDelete: SetNull)
 
+  @@index([building_id])
   @@map("audit_logs")
 }

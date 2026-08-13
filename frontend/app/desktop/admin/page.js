@@ -10,10 +10,11 @@ import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Button, Input, Modal, Badge, Skeleton } from '@/app/components/ui';
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
+import { rolesLabel } from '@/app/lib/roles';
 import { useToastStore } from '@/app/store/toast';
 
-// Sem `role`: quem define o nível de acesso é o gestor do prédio, depois do
-// vínculo. Conta criada por aqui nasce como visualizadora.
+// Sem `role`: a conta nasce sem vínculo nenhum. O papel dela aparece dentro de
+// um prédio — criando um (vira gestora dele) ou sendo aprovada num pela chave.
 const schema = yup.object({
   name: yup.string().min(2).required('Obrigatório'),
   email: yup.string().email().required('Obrigatório'),
@@ -28,9 +29,30 @@ const renameSchema = yup.object({
   name: yup.string().min(2, 'Mínimo 2 caracteres').required('Obrigatório'),
 });
 
-const ROLE_LABELS = { ADMIN: 'Admin', GESTOR: 'Gestor', INSPECTOR: 'Inspetor', VIEWER: 'Visualizador', NONE: 'Sem vínculo' };
-const ROLE_VARIANTS = { ADMIN: 'accent', GESTOR: 'accent', INSPECTOR: 'success', VIEWER: 'default', NONE: 'default' };
 const STATUS_LABELS = { ACTIVE: 'Ativo', DELETED: 'Removido' };
+const ROLE_VARIANTS = { Administrador: 'accent', Gestor: 'accent', Inspetor: 'success' };
+
+/**
+ * A função de uma conta na lista do admin.
+ *
+ * `users.role` só diz se a conta é o ADMIN do sistema; o resto vem dos vínculos
+ * com prédios, que a API devolve em `building_roles`. Uma conta pode gerir um
+ * prédio e vistoriar outro — a lista mostra o papel de maior alcance, e a conta
+ * de vínculos ao lado dá o tamanho real.
+ */
+function RoleCell({ user }) {
+  const label = rolesLabel(user.building_roles, user.role);
+  const count = user.building_roles?.length ?? 0;
+
+  return (
+    <div className="flex items-center gap-2">
+      <Badge variant={ROLE_VARIANTS[label] ?? 'default'}>{label}</Badge>
+      {count > 1 && (
+        <span className="text-faint text-xs whitespace-nowrap">{count} prédios</span>
+      )}
+    </div>
+  );
+}
 
 /** Renomear é a única edição de dados que sobrou para o admin. */
 function RenameUserModal({ user, open, onClose }) {
@@ -128,7 +150,8 @@ export default function AdminUsersPage() {
             <div>
               <h1 className="text-2xl font-semibold text-white">Usuários</h1>
               <p className="text-mute text-sm mt-0.5">
-                O nível de acesso é definido pelo gestor do prédio a que a pessoa se vincula.
+                A função de cada conta vem dos prédios a que ela se vincula, e quem a define
+                é o gestor de cada prédio.
               </p>
             </div>
             <div className="flex gap-3">
@@ -142,7 +165,7 @@ export default function AdminUsersPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-line">
-                  {['Nome', 'E-mail', 'Role', 'Status', 'Ações'].map(h => (
+                  {['Nome', 'E-mail', 'Função', 'Status', 'Ações'].map(h => (
                     <th key={h} className="text-left px-6 py-4 text-mute text-sm font-medium">{h}</th>
                   ))}
                 </tr>
@@ -165,7 +188,7 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-6 py-4 text-mute text-sm">{u.email}</td>
                     <td className="px-6 py-4">
-                      <Badge variant={ROLE_VARIANTS[u.role]}>{ROLE_LABELS[u.role]}</Badge>
+                      <RoleCell user={u} />
                     </td>
                     <td className="px-6 py-4">
                       <Badge variant={u.status === 'ACTIVE' ? 'success' : 'danger'}>
@@ -251,8 +274,8 @@ export default function AdminUsersPage() {
           <Input label="Senha" type="password" error={errors.password?.message} {...register('password')} />
           <Input label="Confirmar senha" type="password" error={errors.password_confirmation?.message} {...register('password_confirmation')} />
           <p className="text-mute text-xs leading-relaxed">
-            A conta nasce como visualizadora. Quem define se ela vistoria é o gestor do prédio,
-            depois que ela se vincular pela chave.
+            A conta nasce sem vínculo. Ela entra num prédio pela chave de compartilhamento,
+            e quem define o que ela faz lá dentro é o gestor daquele prédio.
           </p>
           <div className="flex gap-3 mt-2">
             <Button variant="secondary" className="flex-1" type="button" onClick={() => setCreateModal(false)}>Cancelar</Button>

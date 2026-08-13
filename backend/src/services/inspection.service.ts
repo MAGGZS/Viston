@@ -4,7 +4,7 @@ import { buildingRepository, auditRepository } from '../repositories/building.re
 import { generateInspectionExcel } from './excel.service';
 import { storageService } from './storage.service';
 import { SubmitInspectionPayload } from '../validators/inspection.validator';
-import { isBuildingManager } from '../middlewares/buildingAccess';
+import { canInspectBuilding, getBuildingRole, isBuildingManager } from '../middlewares/buildingAccess';
 import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
 import { floorRank } from '../utils/floorOrder';
 import { zonedDateOnly, zonedDayKey, zonedParts, zonedRange } from '../utils/timezone';
@@ -56,19 +56,14 @@ export function buildHeatmap(
 export type Viewer = { id: string; role: string };
 
 /**
- * O relatório só é visível a quem está vinculado ao prédio dele.
- * Quem administra o prédio (ADMIN, ou o gestor que o criou) passa direto.
+ * O relatório só é visível a quem está vinculado ao prédio dele — em qualquer
+ * papel. O gestor é membro do próprio prédio, então cai no mesmo caminho.
+ *
+ * 404 e não 403: quem não tem vínculo não deve nem saber que o relatório existe.
  */
 async function assertCanSeeReport(user: Viewer, buildingId: string) {
-  if (user.role === 'ADMIN') return;
-
-  if (user.role === 'GESTOR') {
-    const building = await buildingRepository.findById(buildingId);
-    if (building && isBuildingManager(user, building)) return;
-  }
-
-  const member = await buildingRepository.findMember(buildingId, user.id);
-  if (!member) throw new NotFoundError('Relatório');
+  const role = await getBuildingRole(user, buildingId);
+  if (!role) throw new NotFoundError('Relatório');
 }
 
 /** Status do andar derivado da maior prioridade entre as ocorrências relatadas. */
@@ -96,6 +91,7 @@ async function buildAndStoreExcel(report: FullReport, userId?: string) {
 
   await auditRepository.log({
     user_id: userId,
+    building_id: report.building_id,
     action: AuditAction.GENERATE_EXCEL,
     entity: 'InspectionReport',
     entity_id: report.id,
@@ -114,15 +110,16 @@ export const inspectionService = {
   async submit(
     inspectorId: string,
     payload: SubmitInspectionPayload,
-    inspectorRole: string = 'INSPECTOR'
+    inspectorRole: string = 'NONE'
   ) {
     const building = await buildingRepository.findById(payload.building_id);
     if (!building) throw new NotFoundError('Prédio');
 
-    // Quem administra o prédio vistoria sem vínculo; os demais precisam dele.
-    if (!isBuildingManager({ id: inspectorId, role: inspectorRole }, building)) {
-      const member = await buildingRepository.findMember(payload.building_id, inspectorId);
-      if (!member) throw new ForbiddenError('Você não tem acesso a este prédio');
+    // Quem vistoria é o inspetor ou o gestor daquele prédio. Visualizador e
+    // quem não tem vínculo nenhum param aqui.
+    const inspector = { id: inspectorId, role: inspectorRole };
+    if (!(await canInspectBuilding(inspector, payload.building_id))) {
+      throw new ForbiddenError('Você não tem permissão para vistoriar este prédio');
     }
 
     const floorIds = payload.floors.map((f) => f.floor_id);
@@ -167,6 +164,7 @@ export const inspectionService = {
 
     await auditRepository.log({
       user_id: inspectorId,
+      building_id: payload.building_id,
       action: AuditAction.FINISH_INSPECTION,
       entity: 'InspectionReport',
       entity_id: report.id,
@@ -206,8 +204,7 @@ export const inspectionService = {
     const report = await inspectionRepository.findById(id);
     if (!report) throw new NotFoundError('Relatório');
 
-    const building = await buildingRepository.findById(report.building_id);
-    if (!building || !isBuildingManager(user, building)) {
+    if (!(await isBuildingManager(user, report.building_id))) {
       throw new ForbiddenError('Apenas o gestor do prédio pode descartar a vistoria');
     }
 
@@ -224,10 +221,11 @@ export const inspectionService = {
 
     await auditRepository.log({
       user_id: user.id,
+      building_id: report.building_id,
       action: AuditAction.DELETE,
       entity: 'InspectionReport',
       entity_id: id,
-      metadata: { building_id: report.building_id, date: report.date },
+      metadata: { date: report.date },
     });
   },
 

@@ -15,12 +15,20 @@ import { Badge, Skeleton, Button, Modal, Select } from '@/app/components/ui';
 import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember, useUpdateMemberRole, useDeleteInspection, useAccessRequests, useReviewAccessRequest } from '@/app/hooks/useApi';
 import { formatShareKey } from '@/app/lib/shareKey';
 import { useToastStore } from '@/app/store/toast';
-import { useAuthStore } from '@/app/store/auth';
 
 const ROLE_OPTIONS = [
   { value: 'VIEWER', label: 'Visualizador' },
   { value: 'INSPECTOR', label: 'Inspetor' },
+  // Promover a gestor é como a gestão se divide ou se transfere. Um prédio pode
+  // ter mais de um; o que ele não pode é ficar sem nenhum.
+  { value: 'GESTOR', label: 'Gestor' },
 ];
+
+const ROLE_TOAST = {
+  GESTOR: 'Agora é gestor do prédio',
+  INSPECTOR: 'Agora é inspetor',
+  VIEWER: 'Agora é visualizador',
+};
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success', COMPLETED: 'success' };
@@ -67,24 +75,38 @@ function MonthGrid({ heatmap, year, month, onDayClick }) {
 /**
  * Linha de colaborador.
  *
- * O nível de acesso é decisão do gestor: quem se vincula entra como
- * visualizador e só sobe para inspetor por aqui.
+ * O papel é decisão do gestor: quem se vincula entra como visualizador e sobe
+ * daqui. O gestor aparece nesta mesma lista — ele é um vínculo como os outros,
+ * e é isso que permite ter dois gestores ou passar a gestão adiante.
+ *
+ * `soleManager` marca o último gestor do prédio: rebaixá-lo ou removê-lo
+ * deixaria o prédio sem ninguém que possa administrá-lo, então os dois
+ * controles ficam travados (a API também recusa, com 409).
  */
-function MemberRow({ member, buildingId, onRemove, className = '' }) {
+function MemberRow({ member, buildingId, soleManager, onRemove, className = '' }) {
   const updateRole = useUpdateMemberRole();
   const { show: toast } = useToastStore();
 
   async function handleRoleChange(role) {
     try {
       await updateRole.mutateAsync({ buildingId, userId: member.user_id, role });
-      toast(role === 'INSPECTOR' ? 'Agora é inspetor' : 'Agora é visualizador', 'success');
+      toast(ROLE_TOAST[role], 'success');
     } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao alterar nível de acesso', 'error', e);
+      toast(e?.response?.data?.error?.message || 'Erro ao alterar o papel', 'error', e);
     }
   }
 
+  const travado = soleManager
+    ? 'Este é o único gestor do prédio. Promova outro colaborador a gestor antes.'
+    : null;
+
   return (
-    <div className={`flex items-center gap-3 bg-chip rounded-control px-4 py-3 ${className}`}>
+    <div
+      className={`flex items-center gap-3 rounded-control px-4 py-3 ${className}`}
+      style={member.role === 'GESTOR'
+        ? { background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)' }
+        : { background: '#232323' }}
+    >
       <Avatar user={member.user} size={32} />
       <div className="flex-1 min-w-0">
         <p className="text-white text-sm font-medium truncate">{member.user?.name}</p>
@@ -96,44 +118,22 @@ function MemberRow({ member, buildingId, onRemove, className = '' }) {
         wrapperClassName="flex-shrink-0"
         wrapperStyle={{ width: 148, flexBasis: 148 }}
         style={{ padding: '7px 30px 7px 12px', fontSize: 12 }}
-        aria-label={`Nível de acesso de ${member.user?.name}`}
+        aria-label={`Papel de ${member.user?.name} neste prédio`}
+        title={travado ?? undefined}
         options={ROLE_OPTIONS}
-        value={member.role === 'INSPECTOR' ? 'INSPECTOR' : 'VIEWER'}
-        disabled={updateRole.isPending}
+        value={member.role}
+        disabled={updateRole.isPending || soleManager}
         onChange={(e) => handleRoleChange(e.target.value)}
       />
       <button
         onClick={onRemove}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.26)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0 }}
-        onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+        disabled={soleManager}
+        style={{ background: 'none', border: 'none', cursor: soleManager ? 'not-allowed' : 'pointer', color: 'rgba(255,255,255,0.26)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0, opacity: soleManager ? 0.4 : 1 }}
+        onMouseEnter={e => { if (!soleManager) e.currentTarget.style.color = '#f87171'; }}
         onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.26)'}
-        title="Remover vínculo">
+        title={travado ?? 'Remover vínculo'}>
         <UserMinus size={15} />
       </button>
-    </div>
-  );
-}
-
-/**
- * O gestor no topo da lista de colaboradores.
- *
- * Ele não é um BuildingMember — é o criador do prédio, então não vem de
- * `getMembers`. Como esta tela só abre para o gestor dono (guarda de rota no
- * front, `requireBuildingManager` no back), o usuário logado é ele.
- */
-function ManagerRow({ user }) {
-  return (
-    <div className="anim-fade-up flex items-center gap-3 rounded-control px-4 py-3"
-      style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)' }}>
-      <Avatar user={user} size={32} />
-      <div className="flex-1 min-w-0">
-        <p className="text-white text-sm font-semibold truncate">{user?.name}</p>
-        <p className="text-mute text-xs truncate">{user?.email}</p>
-      </div>
-      <span className="text-xs font-semibold px-3 py-1.5 rounded-pill text-accent flex-shrink-0"
-        style={{ background: 'rgba(245,197,24,0.13)' }}>
-        Gestor
-      </span>
     </div>
   );
 }
@@ -189,7 +189,6 @@ function RequestRow({ request, buildingId, className = '' }) {
 
 export default function GestorBuildingPage() {
   const { id } = useParams();
-  const { user } = useAuthStore();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -212,6 +211,7 @@ export default function GestorBuildingPage() {
   const deleteInspection = useDeleteInspection();
   const { show: toast } = useToastStore();
   const members = membersData ?? [];
+  const managerCount = members.filter((m) => m.role === 'GESTOR').length;
   const rows = histData?.pages?.flatMap((p) => p.inspections) ?? [];
 
   const heatmap = data?.heatmap ?? {};
@@ -222,7 +222,7 @@ export default function GestorBuildingPage() {
   function next() { if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1); }
 
   return (
-    <RouteGuard roles={['GESTOR']}>
+    <RouteGuard manages={id}>
       <div className="hidden lg:flex flex-col min-h-screen bg-page">
         <GestorHeader back="/gestor" />
         <main className="flex-1 p-8 overflow-auto">
@@ -389,24 +389,27 @@ export default function GestorBuildingPage() {
 
       <Modal open={membersModal} onClose={() => setMembersModal(false)} title="Colaboradores" maxWidth={560}>
         <div className="flex flex-col gap-2">
-          <ManagerRow user={user} />
-
           {membersLoading ? (
             [1,2,3].map(i => <div key={i} className="h-12 bg-chip rounded-control animate-pulse" />)
           ) : members.length === 0 ? (
-            <p className="text-mute text-sm text-center py-6">Ninguém mais vinculado a este prédio</p>
+            <p className="text-mute text-sm text-center py-6">Ninguém vinculado a este prédio</p>
           ) : (
             members.map((m, idx) => (
               <MemberRow
                 key={m.id}
                 member={m}
                 buildingId={id}
+                soleManager={m.role === 'GESTOR' && managerCount === 1}
                 className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
                 onRemove={() => setConfirmRemove(m)}
               />
             ))
           )}
         </div>
+        <p className="text-faint text-xs mt-4 leading-relaxed">
+          Um prédio pode ter mais de um gestor — é assim que a gestão se divide ou passa adiante.
+          O que ele não pode é ficar sem nenhum.
+        </p>
       </Modal>
 
       <Modal open={requestsModal} onClose={() => setRequestsModal(false)} title="Solicitações de acesso" maxWidth={560}>
@@ -429,7 +432,7 @@ export default function GestorBuildingPage() {
           </div>
         )}
         <p className="text-faint text-xs mt-4 leading-relaxed">
-          Quem é aprovado entra como visualizador. O nível de acesso muda em Colaboradores.
+          Quem é aprovado entra como visualizador. O papel dele muda em Colaboradores.
         </p>
       </Modal>
 

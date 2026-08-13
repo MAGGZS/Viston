@@ -2,6 +2,13 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { UnauthorizedError } from './errors';
 
+/**
+ * O token carrega o dono e o que ele é no sistema — ADMIN ou NONE — e nada mais.
+ *
+ * Papel de prédio não cabe num token: a mesma conta pode ser gestora de um
+ * prédio e visualizadora de outro, e o vínculo muda sem o token expirar. Quem
+ * responde isso é `buildingAccess`, consultando `building_members` por request.
+ */
 export interface TokenPayload {
   sub: string;
   role: string;

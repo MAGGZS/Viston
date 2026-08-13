@@ -67,8 +67,9 @@ describe('inspectionService.submit', () => {
     mockStorage.uploadExcel.mockResolvedValue('https://storage.example.com/report.xlsx');
     mockInspectionRepo.createCompleted.mockResolvedValue(makeReport());
     mockInspectionRepo.findById.mockResolvedValue(makeReport());
-    // Inspetor vinculado ao prédio — o caso sem vínculo tem bloco próprio
-    mockBuildingRepo.findMember.mockResolvedValue({ id: 'member-1' } as any);
+    // Inspetor vinculado ao prédio — o caso sem vínculo tem bloco próprio.
+    // É o papel do vínculo que autoriza a vistoria; `users.role` não entra.
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'member-1', role: 'INSPECTOR' } as any);
   });
 
   it('grava a vistoria inteira já concluída em uma única chamada', async () => {
@@ -224,8 +225,27 @@ describe('isolamento por prédio', () => {
     mockBuildingRepo.findMember.mockResolvedValue(null);
 
     await expect(
-      inspectionService.submit('user-1', payload([{ floor_id: FLOOR_6, records: [] }]), 'INSPECTOR')
+      inspectionService.submit('user-1', payload([{ floor_id: FLOOR_6, records: [] }]), 'NONE')
     ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('bloqueia o envio de quem só visualiza o prédio', async () => {
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'VIEWER' } as any);
+
+    await expect(
+      inspectionService.submit('user-1', payload([{ floor_id: FLOOR_6, records: [] }]), 'NONE')
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('libera o envio para o gestor do prédio', async () => {
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'GESTOR' } as any);
+
+    await inspectionService.submit('user-1', payload([{ floor_id: FLOOR_6, records: [] }]), 'NONE');
+
+    expect(mockInspectionRepo.createCompleted).toHaveBeenCalledTimes(1);
   });
 
   it('libera o envio para ADMIN sem exigir vínculo', async () => {
@@ -248,7 +268,7 @@ describe('isolamento por prédio', () => {
   });
 
   it('entrega o relatório para o membro do prédio', async () => {
-    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1' } as any);
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'VIEWER' } as any);
 
     const report = await inspectionService.findById('report-1', { id: 'user-1', role: 'VIEWER' });
     expect(report.id).toBe('report-1');

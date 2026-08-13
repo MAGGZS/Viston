@@ -140,8 +140,11 @@ export default function GestorHomePage() {
     }
   }
 
+  // A guarda não exige papel nenhum: criar prédio é aberto, e quem cria vira o
+  // gestor dele. Exigir "ser gestor" aqui trancaria a porta pelo lado de dentro
+  // — a conta nova nunca chegaria à tela que a torna gestora.
   return (
-    <RouteGuard roles={['GESTOR']}>
+    <RouteGuard>
       <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', flexDirection: 'column' }}>
         <GestorHeader />
 

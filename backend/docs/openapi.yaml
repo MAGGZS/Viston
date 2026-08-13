@@ -7,10 +7,25 @@ info:
     ## Autenticação
     Todas as rotas (exceto `/auth/login` e `/auth/refresh`) requerem Bearer token JWT.
     
-    ## Roles
-    - **ADMIN**: acesso total, em todos os prédios
-    - **INSPECTOR**: criar/finalizar inspeções + leitura
-    - **VIEWER**: apenas leitura
+    ## Papéis
+    São dois eixos independentes.
+
+    **Papel da conta** (`user.role`), com dois valores:
+    - **ADMIN**: conta de suporte do sistema. Passa por qualquer prédio e
+      administra contas. Não tem prédio próprio.
+    - **NONE**: todas as outras contas. Não autoriza nada por si.
+
+    **Papel no prédio** (`BuildingMember.role`), que é onde mora toda a
+    autorização do produto:
+    - **GESTOR**: administra o prédio — andares, colaboradores, solicitações,
+      descarte de vistoria. Um prédio pode ter mais de um; nunca zero.
+    - **INSPECTOR**: vistoria o prédio.
+    - **VIEWER**: só acompanha.
+
+    A mesma conta pode ser GESTOR de um prédio e VIEWER de outro. Por isso o JWT
+    carrega só `sub` e o papel da conta: o papel de prédio é consultado por
+    requisição. `buildings.created_by` é histórico de quem cadastrou e não
+    autoriza nada.
 
     ## Isolamento por prédio
     Fora o ADMIN, todo acesso a dados de um prédio exige vínculo
@@ -58,11 +73,24 @@ components:
         id: { type: string, format: uuid }
         name: { type: string }
         email: { type: string, format: email }
-        role: { type: string, enum: [ADMIN, INSPECTOR, VIEWER] }
+        role: { type: string, enum: [ADMIN, NONE], description: 'Papel da conta no sistema, não no prédio' }
         avatar_url: { type: string, nullable: true }
         status: { type: string, enum: [ACTIVE, DELETED] }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+        memberships:
+          type: array
+          description: Vínculos do usuário. Só em `/users/me` e na resposta do login.
+          items: { $ref: '#/components/schemas/Membership' }
+
+    Membership:
+      type: object
+      properties:
+        building_id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        role: { type: string, enum: [GESTOR, INSPECTOR, VIEWER] }
+        joined_at: { type: string, format: date-time }
 
     Floor:
       type: object
@@ -233,8 +261,9 @@ paths:
       tags: [Users]
       summary: Cadastro público
       description: |
-        Rota aberta, sem token. A conta nasce sempre com role `VIEWER`;
-        promover é privilégio de um ADMIN via `PATCH /users/{id}`.
+        Rota aberta, sem token. A conta nasce sem vínculo nenhum (`role: NONE`).
+        O papel dela aparece dentro de um prédio: criando um (vira GESTOR dele)
+        ou sendo aprovada num pela chave de compartilhamento (entra VIEWER).
         Campos fora do contrato fazem a requisição falhar com 400.
       security: []
       requestBody:
@@ -251,7 +280,7 @@ paths:
                 password: { type: string, minLength: 8, maxLength: 200 }
       responses:
         '201':
-          description: Usuário criado (sempre como VIEWER)
+          description: Usuário criado (sempre sem vínculo)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/User' }
@@ -287,7 +316,7 @@ paths:
   /users/{id}:
     patch:
       tags: [Users]
-      summary: Atualizar role/status de usuário (ADMIN only)
+      summary: Atualizar nome/status de usuário (ADMIN only)
       parameters:
         - in: path
           name: id
@@ -298,9 +327,14 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: false
               properties:
-                role: { type: string, enum: [ADMIN, INSPECTOR, VIEWER] }
+                name: { type: string, minLength: 2, maxLength: 120 }
                 status: { type: string, enum: [ACTIVE, DELETED] }
+              description: |
+                `role` não entra aqui. Quem define o que a pessoa faz num prédio
+                é um gestor daquele prédio, em
+                `PATCH /buildings/{id}/members/{userId}`.
       responses:
         '200':
           description: Usuário atualizado
@@ -388,7 +422,7 @@ paths:
   /inspections:
     post:
       tags: [Inspections]
-      summary: Enviar vistoria completa — grava, gera Excel e publica no histórico (INSPECTOR/ADMIN)
+      summary: Enviar vistoria completa — grava, gera Excel e publica no histórico (GESTOR/INSPECTOR do prédio)
       requestBody:
         required: true
         content:

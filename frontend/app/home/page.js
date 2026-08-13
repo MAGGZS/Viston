@@ -14,6 +14,7 @@ import { Skeleton } from '@/app/components/ui';
 import { M, MPage, MTopBar, MRound, MCard, MStats, MSectionHead } from '@/app/components/mobile/kit';
 import { useAuthStore } from '@/app/store/auth';
 import { useCalendar, useMyBuildings } from '@/app/hooks/useApi';
+import { canInspect } from '@/app/lib/roles';
 
 export default function HomePage() {
   const { user } = useAuthStore();
@@ -25,7 +26,7 @@ export default function HomePage() {
 
   const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
   const hasBuilding = myBuildings.length > 0;
-  const buildingId = myBuildings[0]?.id;
+  const buildingId = myBuildings[0]?.building_id;
 
   const { data, isLoading } = useCalendar(
     hasBuilding ? { month, year, building_id: buildingId } : null,
@@ -44,7 +45,9 @@ export default function HomePage() {
   function prevMonth() { if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); }
   function nextMonth() { if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1); }
 
-  const canInspect = ['ADMIN', 'GESTOR', 'INSPECTOR'].includes(user?.role);
+  // Vistoriar é permissão do prédio, não da conta: quem só acompanha este aqui
+  // não vê o botão, mesmo que vistorie outro.
+  const podeVistoriar = canInspect(user, buildingId);
   const monthLabel = format(new Date(year, month - 1, 1), 'MMMM yyyy', { locale: ptBR });
 
   return (
@@ -70,7 +73,7 @@ export default function HomePage() {
           }
         />
 
-        {canInspect && (
+        {podeVistoriar && (
           <MCard style={{ background: M.accent, padding: 20, display: 'flex', alignItems: 'center', gap: 14 }}
             onClick={() => router.push('/inspecao')}>
             <div style={{ width: 46, height: 46, borderRadius: 16, background: 'rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

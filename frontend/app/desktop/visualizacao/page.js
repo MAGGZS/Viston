@@ -41,7 +41,7 @@ export default function VisualizacaoPage() {
 
   const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
   const hasBuilding = myBuildings.length > 0;
-  const buildingId = myBuildings[0]?.id;
+  const buildingId = myBuildings[0]?.building_id;
 
   const { data: calData, isLoading: calLoading } = useCalendar(
     hasBuilding ? { month, year, building_id: buildingId } : null

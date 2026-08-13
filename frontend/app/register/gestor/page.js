@@ -30,10 +30,11 @@ const S = {
 };
 
 /**
- * Cadastro de gestor.
+ * Cadastro de quem vai cadastrar prédio.
  *
- * Tela separada de propósito: o papel vem da rota (`POST /users/managers`), não
- * de um campo do formulário — assim o cadastro comum nunca vira uma promoção.
+ * A conta que sai daqui é igual à do cadastro comum — não existe mais "ser
+ * gestor" solto na conta. O que a tela promete acontece no passo seguinte: ela
+ * cai em /gestor, cria o primeiro prédio e vira gestora dele.
  */
 export default function RegisterGestorPage() {
   const router = useRouter();
@@ -66,7 +67,7 @@ export default function RegisterGestorPage() {
   return (
     <AuthShell
       title="Criar conta de gestor"
-      subtitle="Você cadastra os prédios, aprova quem entra e define quem vistoria."
+      subtitle="Cadastre o primeiro prédio e você vira o gestor dele: aprova quem entra e define quem vistoria."
       footer={
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <p style={{ color: T.faint, fontSize: 14 }}>

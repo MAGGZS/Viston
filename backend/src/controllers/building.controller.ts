@@ -1,16 +1,15 @@
 import { Response } from 'express';
+import { AuditAction, BuildingRole } from '@prisma/client';
 import { AuthenticatedRequest } from '../middlewares/authenticate';
-import { isBuildingManager } from '../middlewares/buildingAccess';
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
 import { inspectionRepository } from '../repositories/inspection.repository';
 import { buildHeatmap } from '../services/inspection.service';
 import { ok, created, noContent } from '../utils/response';
 import { NotFoundError, ConflictError } from '../utils/errors';
-import { AuditAction } from '@prisma/client';
 import { normalizeShareKey, isValidShareKeyFormat } from '../utils/shareKey';
 import { zonedParts, zonedRange } from '../utils/timezone';
 
-/** Remove a chave de compartilhamento de respostas destinadas a nao-admins. */
+/** Remove a chave de compartilhamento de respostas destinadas a quem nao e gestor. */
 function publicBuilding(building: { id: string; name: string; description: string | null }) {
   return { id: building.id, name: building.name, description: building.description };
 }
@@ -26,6 +25,30 @@ async function findBuildingByKeyOrFail(rawKey: unknown) {
   return building;
 }
 
+/**
+ * Recusa a mudança que deixaria o prédio sem gestor nenhum.
+ *
+ * Vale para rebaixar, remover e sair: prédio sem gestor não tem quem aprove
+ * solicitação, promova inspetor ou cadastre andar. Para transferir a gestão,
+ * promova o outro primeiro — dois gestores é um estado válido.
+ *
+ * Recebe o vínculo já carregado: quem chama acabou de lê-lo para saber se ele
+ * existe.
+ */
+async function assertNotLastManager(
+  member: { building_id: string; role: BuildingRole },
+  action: string
+) {
+  if (member.role !== BuildingRole.GESTOR) return;
+
+  const managers = await buildingRepository.countManagers(member.building_id);
+  if (managers <= 1) {
+    throw new ConflictError(
+      `Este é o único gestor do prédio. Promova outro colaborador a gestor antes de ${action}.`
+    );
+  }
+}
+
 export const buildingController = {
   // ── CRUD ──────────────────────────────────────────────────────────────────
   async findAll(req: AuthenticatedRequest, res: Response) {
@@ -33,13 +56,12 @@ export const buildingController = {
     ok(res, buildings);
   },
 
+  /** Os prédios do usuário, cada um com o papel dele ali dentro. */
   async myBuildings(req: AuthenticatedRequest, res: Response) {
-    const memberships = await buildingRepository.getMemberBuildings(req.user.id);
-    const buildings = memberships.map((m: any) => m.building);
-    ok(res, buildings);
+    ok(res, await buildingRepository.getUserMemberships(req.user.id));
   },
 
-  /** Prédios que o gestor criou — a tela inicial dele. */
+  /** Prédios que o usuário administra — a tela inicial do gestor. */
   async managedBuildings(req: AuthenticatedRequest, res: Response) {
     const buildings = await buildingRepository.findAll(
       req.user.role === 'ADMIN' ? undefined : req.user.id
@@ -52,26 +74,42 @@ export const buildingController = {
     ok(res, await buildingRepository.getSystemStats());
   },
 
+  /** Quem cria o prédio vira o gestor dele (ver buildingRepository.create). */
   async create(req: AuthenticatedRequest, res: Response) {
     const { name, description } = req.body;
     const building = await buildingRepository.create({ name, description, created_by: req.user.id });
-    await auditRepository.log({ user_id: req.user.id, action: AuditAction.CREATE, entity: 'Building', entity_id: building.id });
+    await auditRepository.log({
+      user_id: req.user.id,
+      building_id: building.id,
+      action: AuditAction.CREATE,
+      entity: 'Building',
+      entity_id: building.id,
+    });
     created(res, building);
   },
 
   async update(req: AuthenticatedRequest, res: Response) {
-    const building = await buildingRepository.findById(req.params.id);
-    if (!building) throw new NotFoundError('Prédio');
     const updated = await buildingRepository.update(req.params.id, req.body);
-    await auditRepository.log({ user_id: req.user.id, action: AuditAction.UPDATE, entity: 'Building', entity_id: req.params.id });
+    await auditRepository.log({
+      user_id: req.user.id,
+      building_id: req.params.id,
+      action: AuditAction.UPDATE,
+      entity: 'Building',
+      entity_id: req.params.id,
+    });
     ok(res, updated);
   },
 
   async remove(req: AuthenticatedRequest, res: Response) {
-    const building = await buildingRepository.findById(req.params.id);
-    if (!building) throw new NotFoundError('Prédio');
     await buildingRepository.delete(req.params.id);
-    await auditRepository.log({ user_id: req.user.id, action: AuditAction.DELETE, entity: 'Building', entity_id: req.params.id });
+    // Sem building_id: o prédio deixou de existir, e a FK levaria o registro
+    // junto. O id fica em entity_id, que é texto solto.
+    await auditRepository.log({
+      user_id: req.user.id,
+      action: AuditAction.DELETE,
+      entity: 'Building',
+      entity_id: req.params.id,
+    });
     noContent(res);
   },
 
@@ -84,8 +122,6 @@ export const buildingController = {
   },
 
   async createFloor(req: AuthenticatedRequest, res: Response) {
-    const building = await buildingRepository.findById(req.params.id);
-    if (!building) throw new NotFoundError('Prédio');
     const { label } = req.body;
     const floor = await buildingRepository.createFloor({ building_id: req.params.id, label });
     created(res, floor);
@@ -114,19 +150,23 @@ export const buildingController = {
     const calData = await inspectionRepository.getCalendarData(start, end, req.params.id);
     const heatmap = buildHeatmap(calData);
 
-    // Só quem administra o prédio vê a chave de compartilhamento
-    const payloadBuilding = isBuildingManager(req.user, building)
-      ? building
-      : publicBuilding(building);
+    // Só o gestor vê a chave de compartilhamento. `buildingRole` veio do
+    // middleware de vínculo, então não custa consulta nenhuma aqui.
+    const payloadBuilding =
+      req.buildingRole === BuildingRole.GESTOR ? building : publicBuilding(building);
 
-    ok(res, { building: payloadBuilding, inspectorCount, viewerCount, totalInspections, heatmap });
+    ok(res, {
+      building: payloadBuilding,
+      role: req.buildingRole ?? null,
+      inspectorCount,
+      viewerCount,
+      totalInspections,
+      heatmap,
+    });
   },
 
   // ── Histórico do prédio ───────────────────────────────────────────────────
   async getHistory(req: AuthenticatedRequest, res: Response) {
-    const building = await buildingRepository.findById(req.params.id);
-    if (!building) throw new NotFoundError('Prédio');
-
     const page = parseInt(String(req.query.page ?? '1'), 10);
     const limit = parseInt(String(req.query.limit ?? '20'), 10);
     const [inspections, total] = await inspectionRepository.findAll({
@@ -143,16 +183,37 @@ export const buildingController = {
   },
 
   async removeMember(req: AuthenticatedRequest, res: Response) {
-    await buildingRepository.removeMemberSelf(req.params.id, req.params.userId);
+    const member = await buildingRepository.findMember(req.params.id, req.params.userId);
+    if (!member) throw new NotFoundError('Vínculo');
+
+    await assertNotLastManager(member, 'remover este');
+    await buildingRepository.removeMember(req.params.id, req.params.userId);
+
+    await auditRepository.log({
+      user_id: req.user.id,
+      building_id: req.params.id,
+      action: AuditAction.DELETE,
+      entity: 'BuildingMember',
+      entity_id: member.id,
+      metadata: { user_id: req.params.userId },
+    });
+
     noContent(res);
   },
 
-  /** O gestor define o nível de acesso de quem está vinculado ao prédio. */
+  /** O gestor define o papel de quem está vinculado ao prédio. */
   async updateMemberRole(req: AuthenticatedRequest, res: Response) {
     const member = await buildingRepository.findMember(req.params.id, req.params.userId);
     if (!member) throw new NotFoundError('Vínculo');
 
-    const { role } = req.body as { role: 'INSPECTOR' | 'VIEWER' };
+    const { role } = req.body as { role: BuildingRole };
+
+    // Rebaixar o único gestor deixaria o prédio sem dono — inclusive quando o
+    // gestor rebaixa a si mesmo por engano.
+    if (role !== BuildingRole.GESTOR) {
+      await assertNotLastManager(member, 'rebaixar este');
+    }
+
     const updated = await buildingRepository.updateMemberRole(
       req.params.id,
       req.params.userId,
@@ -161,19 +222,22 @@ export const buildingController = {
 
     await auditRepository.log({
       user_id: req.user.id,
+      building_id: req.params.id,
       action: AuditAction.UPDATE,
       entity: 'BuildingMember',
       entity_id: member.id,
-      metadata: { building_id: req.params.id, user_id: req.params.userId, role },
+      metadata: { user_id: req.params.userId, role },
     });
 
     ok(res, updated);
   },
 
   async leaveBuilding(req: AuthenticatedRequest, res: Response) {
-    const isMember = await buildingRepository.findMember(req.params.id, req.user.id);
-    if (!isMember) throw new NotFoundError('Vínculo');
-    await buildingRepository.removeMemberSelf(req.params.id, req.user.id);
+    const member = await buildingRepository.findMember(req.params.id, req.user.id);
+    if (!member) throw new NotFoundError('Vínculo');
+
+    await assertNotLastManager(member, 'sair do prédio');
+    await buildingRepository.removeMember(req.params.id, req.user.id);
     noContent(res);
   },
 
@@ -210,8 +274,8 @@ export const buildingController = {
   async reviewAccessRequest(req: AuthenticatedRequest, res: Response) {
     const { status } = req.body as { status: 'APPROVED' | 'REJECTED' };
 
-    // A solicitação precisa ser do prédio da rota — caso contrário um admin
-    // aprovaria acesso a um prédio só informando o id de outra solicitação.
+    // A solicitação precisa ser do prédio da rota — caso contrário aprovaria-se
+    // acesso a um prédio só informando o id de outra solicitação.
     const request = await buildingRepository.findAccessRequestById(req.params.requestId);
     if (!request || request.building_id !== req.params.id) throw new NotFoundError('Solicitação');
     if (request.status !== 'PENDING') throw new ConflictError('Solicitação já foi revisada');
@@ -221,6 +285,13 @@ export const buildingController = {
     // Entra sempre como visualizador — o gestor promove depois, se quiser.
     if (status === 'APPROVED') {
       await buildingRepository.addMember(req.params.id, updated.user_id);
+      await auditRepository.log({
+        user_id: req.user.id,
+        building_id: req.params.id,
+        action: AuditAction.CREATE,
+        entity: 'BuildingMember',
+        metadata: { user_id: updated.user_id, role: BuildingRole.VIEWER },
+      });
     }
 
     ok(res, updated);

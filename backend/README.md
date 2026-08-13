@@ -82,12 +82,12 @@ npm run seed
 
 Credenciais criadas pelo seed:
 
-| Role      | E-mail                | Senha           |
-|-----------|-----------------------|-----------------|
-| ADMIN     | admin@viston.com      | Admin@123       |
-| INSPECTOR | carlos@viston.com     | Inspector@123   |
-| INSPECTOR | ana@viston.com        | Inspector@123   |
-| VIEWER    | viewer@viston.com     | Viewer@123      |
+| Papel no prédio | E-mail                | Senha           |
+|-----------------|-----------------------|-----------------|
+| — (ADMIN)       | admin@viston.com      | Admin@123       |
+| INSPECTOR       | carlos@viston.com     | Inspector@123   |
+| INSPECTOR       | ana@viston.com        | Inspector@123   |
+| VIEWER          | viewer@viston.com     | Viewer@123      |
 
 ### 4. Iniciar servidor
 
@@ -114,7 +114,7 @@ npm run test:watch
 
 Cobertura mínima implementada:
 - Envio da vistoria completa em uma única chamada (POST /inspections)
-- RBAC (roles e permissões)
+- Autorização por vínculo com o prédio (papel em `building_members`)
 - Isolamento por prédio, exercitando o app Express de verdade via supertest
   (`__tests__/authorization.test.ts`)
 - Soft delete e anonimização de usuários
@@ -125,16 +125,42 @@ Cobertura mínima implementada:
 
 ## Segurança
 
-**Papéis e vínculo.** `ADMIN` enxerga todos os prédios. Para os demais, todo
-acesso a dados de um prédio passa por `requireBuildingMember`: sem
-`BuildingMember`, rota de prédio devolve `403` e relatório devolve `404` — o
-relatório de outro prédio se comporta como inexistente. As listagens
-(`GET /inspections`, `GET /calendar`) são filtradas pelos prédios do usuário.
+**Papéis e vínculo.** São dois eixos, e só um deles autoriza prédio.
+
+`users.role` diz o que a conta é no sistema, e tem dois valores: `ADMIN` (conta
+de suporte, enxerga tudo, administra contas) e `NONE` (todas as outras). É só
+isso que o JWT carrega.
+
+`building_members.role` diz o que a pessoa é **dentro de um prédio** —
+`GESTOR`, `INSPECTOR` ou `VIEWER` — e é a única fonte de autorização do produto.
+A mesma conta pode ser gestora de um prédio e visualizadora de outro, então o
+papel é resolvido por requisição, em `middlewares/buildingAccess.ts`.
+
+Fora o ADMIN, todo acesso a dados de um prédio passa por
+`requireBuildingMember`: sem vínculo, rota de prédio devolve `403` e relatório
+devolve `404` — o relatório de outro prédio se comporta como inexistente. As
+listagens (`GET /inspections`, `GET /calendar`) são filtradas pelos prédios do
+usuário.
+
+`buildings.created_by` continua existindo, mas só como histórico de quem
+cadastrou: não autoriza nada, e some (`SET NULL`) quando a conta some.
+
+**Nunca sem gestor.** Um prédio pode ter vários gestores; o que ele não pode é
+ficar sem nenhum. Rebaixar, remover ou deixar sair o último gestor devolve
+`409`, e apagar a conta que é a única gestora de algum prédio também. Para
+transferir a gestão, promova o outro primeiro.
 
 **Cadastro.** `POST /users` é aberto, mas o schema é `strict` e não tem campo
-`role`: a conta nasce sempre `VIEWER`. Promover é privilégio de um ADMIN em
-`PATCH /users/:id`. O middleware `validate` reescreve `req.body` com o resultado
-do parse, então nenhum campo fora do contrato chega ao service.
+`role`: a conta nasce sem vínculo nenhum. O papel dela aparece dentro de um
+prédio — criando um (vira gestora dele) ou sendo aprovada num pela chave de
+compartilhamento (entra como visualizadora). O middleware `validate` reescreve
+`req.body` com o resultado do parse, então nenhum campo fora do contrato chega
+ao service.
+
+**RLS.** Todas as tabelas do schema `public` têm row level security ligada e
+nenhuma policy: a API PostgREST do Supabase, que é pública, não devolve linha
+alguma para `anon` nem para `authenticated`. O backend não é afetado — o Prisma
+conecta como `postgres`, que tem `BYPASSRLS`.
 
 **Chave de compartilhamento.** 12 caracteres de um alfabeto de 31 símbolos
 (~59 bits). Só aparece em respostas para ADMIN; as demais rotas devolvem o
@@ -196,7 +222,7 @@ src/
 │   └── inspection.routes.ts
 ├── middlewares/
 │   ├── authenticate.ts       # JWT verification
-│   ├── authorize.ts          # RBAC por role
+│   ├── authorize.ts          # guarda de rota do ADMIN
 │   ├── buildingAccess.ts     # Vínculo com o prédio (isolamento entre prédios)
 │   ├── rateLimit.ts          # Limites por IP (geral, auth, rotas sensíveis)
 │   ├── validate.ts           # Zod schema validation

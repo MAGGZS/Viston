@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
-import { Role } from '@prisma/client';
 import { userRepository } from '../repositories/user.repository';
+import { buildingRepository } from '../repositories/building.repository';
 import { storageService } from './storage.service';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
 
@@ -8,17 +8,14 @@ import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors
 const MAX_AVATAR_BYTES = 1_500_000;
 
 /**
- * Cadastro público, com o papel decidido pela rota (nunca pelo corpo).
+ * Cadastro público. Toda conta nasce igual: sem poder nenhum.
  *
- * `role` entra como literal e não como `Role.X`: se o Prisma Client estiver
- * desatualizado, `Role.GESTOR` vira `undefined`, o Prisma omite a coluna e o
- * banco aplica o default (INSPECTOR) sem erro nenhum. Com literal, ou o valor
- * chega inteiro ou o insert falha alto.
+ * `role` entra como literal e não como `AccountRole.X`: se o Prisma Client
+ * estiver desatualizado, o enum vira `undefined`, o Prisma omite a coluna e o
+ * banco aplica o default sem erro nenhum. Com literal, ou o valor chega inteiro
+ * ou o insert falha alto.
  */
-async function register(
-  data: { name: string; email: string; password: string },
-  role: Role
-) {
+async function register(data: { name: string; email: string; password: string }) {
   const existing = await userRepository.findByEmail(data.email);
   if (existing) throw new ConflictError('E-mail já cadastrado');
 
@@ -26,7 +23,7 @@ async function register(
   const user = await userRepository.create({
     name: data.name,
     email: data.email,
-    role,
+    role: 'NONE',
     password_hash,
   });
 
@@ -34,27 +31,77 @@ async function register(
   return safe;
 }
 
+/** Junta os vínculos ao usuário — o formato que o app espera do perfil. */
+async function withMemberships<T extends { id: string }>(user: T) {
+  return { ...user, memberships: await buildingRepository.getUserMemberships(user.id) };
+}
+
+/**
+ * Recusa apagar a conta que é o único gestor de algum prédio.
+ *
+ * É o buraco que fechou junto com o resto: o vínculo do gestor sai em cascata
+ * com a conta, e o prédio ficaria sem ninguém para aprovar solicitação, promover
+ * inspetor ou cadastrar andar. Para sair, promova outro gestor antes.
+ */
+async function assertNotSoleManager(userId: string) {
+  const buildings = await buildingRepository.findBuildingsWhereSoleManager(userId);
+  if (buildings.length === 0) return;
+
+  const names = buildings.map((b) => `"${b.name}"`).join(', ');
+  throw new ConflictError(
+    `Esta conta é a única gestora de ${names}. Promova outro colaborador a gestor antes de excluí-la.`
+  );
+}
+
 export const userService = {
   /**
-   * Cadastro público comum. A conta nasce sem nível de acesso: só a tela
-   * inicial, o histórico e o perfil. Vira VIEWER quando o gestor aprova o
-   * vínculo com um prédio.
+   * Cadastro público comum. A conta nasce sem vínculo: só a tela inicial, o
+   * histórico e o perfil. Ganha papel quando entra num prédio.
    */
   create(data: { name: string; email: string; password: string }) {
-    return register(data, 'NONE');
+    return register(data);
   },
 
   /**
-   * Cadastro público de gestor, pela tela própria do login.
-   * O gestor cria os próprios prédios e administra quem se vincula a eles.
+   * Cadastro pela tela "quero ser gestor".
+   *
+   * A conta que sai daqui é igual à do cadastro comum — gestor deixou de ser
+   * uma marca na conta. O que a tela promete acontece no passo seguinte: quem
+   * cria um prédio vira o gestor dele, e é só isso que existe de "ser gestor".
    */
   createManager(data: { name: string; email: string; password: string }) {
-    return register(data, 'GESTOR');
+    return register(data);
   },
 
+  /**
+   * O perfil que o app carrega no login e a cada abertura.
+   *
+   * Vem com os vínculos porque é deles que o frontend tira o que a pessoa pode
+   * fazer: `role` aqui só diz se ela é o ADMIN do sistema.
+   */
+  async getProfile(id: string) {
+    return withMemberships(await this.findById(id));
+  },
+
+  /**
+   * Lista do painel do admin.
+   *
+   * Cada conta leva os papéis que ela ocupa em prédios — é o que a coluna
+   * "função" mostra agora que `users.role` só diz ADMIN ou nada.
+   */
   async findAll(page: number, limit: number) {
     const [users, total] = await userRepository.findAll(page, limit);
-    return { users, total, page, limit };
+    const rolesByUser = await buildingRepository.getMembershipsByUserIds(users.map((u) => u.id));
+
+    return {
+      users: users.map((user) => ({
+        ...user,
+        building_roles: rolesByUser.get(user.id) ?? [],
+      })),
+      total,
+      page,
+      limit,
+    };
   },
 
   async findById(id: string) {
@@ -79,6 +126,9 @@ export const userService = {
     return safe;
   },
 
+  // As três rotas abaixo devolvem o perfil inteiro, com os vínculos: é o
+  // resultado delas que o app grava por cima do usuário logado, e sem os
+  // vínculos ele perderia, na hora, o que a pessoa pode fazer em cada prédio.
   async updateMe(id: string, data: { name?: string; email?: string }) {
     if (data.email) {
       const existing = await userRepository.findByEmail(data.email);
@@ -86,7 +136,7 @@ export const userService = {
     }
     const updated = await userRepository.update(id, data);
     const { password_hash: _, ...safe } = updated;
-    return safe;
+    return withMemberships(safe);
   },
 
   /**
@@ -115,7 +165,7 @@ export const userService = {
     if (user.avatar_url) await storageService.removeAvatar(user.avatar_url);
 
     const { password_hash: _, ...safe } = updated;
-    return safe;
+    return withMemberships(safe);
   },
 
   /** Volta para a inicial do nome. */
@@ -127,7 +177,7 @@ export const userService = {
     if (user.avatar_url) await storageService.removeAvatar(user.avatar_url);
 
     const { password_hash: _, ...safe } = updated;
-    return safe;
+    return withMemberships(safe);
   },
 
   async changePassword(id: string, currentPassword: string, newPassword: string) {
@@ -143,13 +193,14 @@ export const userService = {
 
   async softDelete(id: string) {
     await this.findById(id);
+    await assertNotSoleManager(id);
     await userRepository.softDelete(id);
   },
 
   /**
    * Remove definitivamente o usuário do banco.
    * As inspeções dele são preservadas com inspector_id nulo (ON DELETE SET NULL),
-   * assim como os prédios que ele criou (created_by nulo).
+   * assim como os prédios que ele cadastrou (created_by nulo).
    */
   async remove(id: string, requesterId: string) {
     if (id === requesterId) {
@@ -159,6 +210,7 @@ export const userService = {
     const user = await userRepository.findById(id);
     if (!user) throw new NotFoundError('Usuário');
 
+    await assertNotSoleManager(id);
     await userRepository.hardDelete(id);
   },
 };

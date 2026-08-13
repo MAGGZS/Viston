@@ -10,6 +10,7 @@ import { useFloors, useBuildingByKey, useSubmitInspection, useMyBuildings, useRe
 import { formatShareKey, normalizeShareKey, isCompleteShareKey } from '@/app/lib/shareKey';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
 import { useAuthStore } from '@/app/store/auth';
+import { canInspect } from '@/app/lib/roles';
 import { useToastStore } from '@/app/store/toast';
 
 // Tela quando não tem vínculo: busca pela chave do prédio e solicita acesso
@@ -169,10 +170,13 @@ export default function InspecaoPage() {
   const [finishedReport, setFinishedReport] = useState(null);
 
   const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
-  const hasBuilding = myBuildings.length > 0;
-  const myBuilding = myBuildings[0];
+  // O primeiro prédio em que esta pessoa vistoria — e não simplesmente o
+  // primeiro da lista: com papel por prédio, dá para ser inspetor num e só
+  // acompanhar outro, e abrir a vistoria no prédio errado só daria 403 no fim.
+  const myBuilding = myBuildings.find((b) => canInspect(user, b.building_id));
+  const hasBuilding = !!myBuilding;
 
-  const { data: floorsData, isLoading: floorsLoading } = useFloors(myBuilding?.id);
+  const { data: floorsData, isLoading: floorsLoading } = useFloors(myBuilding?.building_id);
   const orderedFloors = useMemo(() => sortFloorsDesc(floorsData?.floors ?? []), [floorsData]);
 
   const { mutateAsync: submitInspection, isPending: isSubmitting } = useSubmitInspection();
@@ -214,7 +218,7 @@ export default function InspecaoPage() {
     // Último andar: só agora tudo é enviado e vira relatório, Excel, calendário e histórico
     try {
       const report = await submitInspection({
-        building_id: myBuilding.id,
+        building_id: myBuilding.building_id,
         floors: floors.map(f => ({ floor_id: f.id, records: updated[f.id] ?? [] })),
       });
       setFinishedReport(report);

@@ -1,5 +1,6 @@
 import { userService } from '../services/user.service';
 import { userRepository } from '../repositories/user.repository';
+import { buildingRepository } from '../repositories/building.repository';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { submitInspectionSchema } from '../validators/inspection.validator';
 import { createUserSchema } from '../validators/auth.validator';
@@ -7,6 +8,9 @@ import { UserStatus } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
 jest.mock('../repositories/user.repository');
+// O serviço consulta os vínculos antes de apagar uma conta: prédio não pode
+// ficar sem gestor (ver assertNotSoleManager).
+jest.mock('../repositories/building.repository');
 jest.mock('bcrypt');
 
 const mockUserRepo = userRepository as jest.Mocked<typeof userRepository>;
@@ -96,7 +100,13 @@ describe('createUserSchema', () => {
 
 // ── Testes: userService.softDelete ────────────────────────────────────────────
 describe('userService.softDelete', () => {
-  beforeEach(() => jest.clearAllMocks());
+  const mockBuildingRepo = buildingRepository as jest.Mocked<typeof buildingRepository>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Sem prédio pendurado na conta: o caso do gestor único tem teste próprio
+    mockBuildingRepo.findBuildingsWhereSoleManager.mockResolvedValue([]);
+  });
 
   it('anonimiza dados do usuário sem deletar o registro', async () => {
     mockUserRepo.findById.mockResolvedValue(makeUser());
@@ -113,6 +123,18 @@ describe('userService.softDelete', () => {
   it('lança NotFoundError para usuário inexistente', async () => {
     mockUserRepo.findById.mockResolvedValue(null);
     await expect(userService.softDelete('invalid-id')).rejects.toThrow(NotFoundError);
+  });
+
+  it('recusa apagar a conta que é a única gestora de um prédio', async () => {
+    mockUserRepo.findById.mockResolvedValue(makeUser());
+    mockBuildingRepo.findBuildingsWhereSoleManager.mockResolvedValue([
+      { id: 'b1', name: 'Edifício Principal' },
+    ] as any);
+
+    // Deixar passar devolveria o prédio ao estado que esta mudança veio
+    // eliminar: existindo, mas sem ninguém que possa administrá-lo.
+    await expect(userService.softDelete('user-1')).rejects.toThrow(ConflictError);
+    expect(mockUserRepo.softDelete).not.toHaveBeenCalled();
   });
 });
 

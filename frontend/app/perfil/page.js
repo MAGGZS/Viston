@@ -16,6 +16,7 @@ import { Button, Modal } from '@/app/components/ui';
 import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
 import { useUpdateMe, useChangePassword, useDeleteMe, useMyBuildings, useLeaveBuilding } from '@/app/hooks/useApi';
+import { isManager, roleLabel } from '@/app/lib/roles';
 import { T, R, W, NUM, HERO_SURFACE } from '@/app/lib/theme';
 
 const profileSchema = yup.object({
@@ -31,13 +32,6 @@ const passwordSchema = yup.object({
     .oneOf([yup.ref('new_password')], 'As senhas não coincidem')
     .required('Obrigatório'),
 });
-
-const ROLE_LABELS = { ADMIN: 'Administrador', GESTOR: 'Gestor', INSPECTOR: 'Inspetor', VIEWER: 'Visualizador', NONE: 'Sem vínculo' };
-
-/** Quem administra prédio não se vincula a prédio: a seção de chave não é dele. */
-function ownsBuildings(role) {
-  return role === 'ADMIN' || role === 'GESTOR';
-}
 
 /**
  * Foto com o botão de troca por cima.
@@ -252,7 +246,7 @@ export default function PerfilPage() {
   async function handleLeave() {
     if (!confirm('Tem certeza que deseja sair deste prédio?')) return;
     try {
-      await leaveBuilding.mutateAsync(myBuilding.id);
+      await leaveBuilding.mutateAsync(myBuilding.building_id);
       toast('Você saiu do prédio', 'info');
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao sair do prédio', 'error');
@@ -271,7 +265,7 @@ export default function PerfilPage() {
 
   /** Conteúdo da caixa "Prédio vinculado" — a mesma nas duas larguras. */
   function BuildingSection() {
-    if (ownsBuildings(user?.role)) return null;
+    if (isManager(user)) return null;
 
     return (
       <>
@@ -330,16 +324,16 @@ export default function PerfilPage() {
           <Credential user={user} onEditAvatar={() => setAvatarModal(true)} />
 
           <div className="anim-fade-up anim-d3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
-            <Tile label="Função" value={ROLE_LABELS[user?.role] || user?.role || '—'} />
+            <Tile label="Função" value={roleLabel(user)} />
             <Tile
               label="Prédio"
-              value={myBuilding?.name ?? (ownsBuildings(user?.role) ? 'Todos os seus' : 'Sem vínculo')}
+              value={isManager(user) ? 'Todos os seus' : myBuilding?.name ?? 'Sem vínculo'}
             />
           </div>
 
           <Group title="Conta" className="anim-fade-up anim-d3" />
           <Row className="anim-fade-up anim-d4" icon={UserRound} label="Identificação" hint={user?.email} onClick={() => setSheet('identity')} />
-          {!ownsBuildings(user?.role) && (
+          {!isManager(user) && (
             <Row
               className="anim-fade-up anim-d4"
               icon={Building2}
@@ -380,16 +374,16 @@ export default function PerfilPage() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Tile label="Função" value={ROLE_LABELS[user?.role] || user?.role || '—'} />
+            <Tile label="Função" value={roleLabel(user)} />
             <Tile
               label="Prédio"
-              value={myBuilding?.name ?? (ownsBuildings(user?.role) ? 'Todos os seus' : 'Sem vínculo')}
+              value={isManager(user) ? 'Todos os seus' : myBuilding?.name ?? 'Sem vínculo'}
             />
           </div>
 
           <Group title="Conta" />
           <Row icon={UserRound} label="Identificação" onClick={() => setSheet('identity')} />
-          {!ownsBuildings(user?.role) && (
+          {!isManager(user) && (
             <Row
               icon={Building2}
               label="Prédio"
@@ -420,7 +414,7 @@ export default function PerfilPage() {
           </div>
 
           {/* O gestor não tem home nem histórico próprios: a barra não é dele. */}
-          {user?.role !== 'GESTOR' && <BottomNav />}
+          {!isManager(user) && <BottomNav />}
         </MPage>
       </div>
 

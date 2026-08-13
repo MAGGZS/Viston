@@ -32,7 +32,7 @@ export const userController = {
   },
 
   async getMe(req: AuthenticatedRequest, res: Response) {
-    const user = await userService.findById(req.user.id);
+    const user = await userService.getProfile(req.user.id);
     ok(res, user);
   },
 

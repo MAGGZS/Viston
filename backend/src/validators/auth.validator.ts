@@ -9,9 +9,9 @@ export const refreshSchema = z.object({
   refresh_token: z.string().min(1, 'Refresh token obrigatório'),
 });
 
-// Cadastro público: nunca aceita `role`. Quem entra por `POST /users` sai como
-// VIEWER; quem entra por `POST /users/managers` sai como GESTOR. Depois disso o
-// papel só muda pelo gestor do prédio a que a pessoa se vincular.
+// Cadastro público: nunca aceita `role`. Toda conta nasce igual, sem vínculo
+// nenhum. O papel aparece depois, e sempre dentro de um prédio: criando um
+// (vira gestor dele) ou sendo aprovado num pela chave de compartilhamento.
 export const createUserSchema = z
   .object({
     name: z.string().trim().min(2, 'Nome deve ter ao menos 2 caracteres').max(120),
@@ -31,11 +31,15 @@ export const updateUserSchema = z
   })
   .strict();
 
-// Troca do nível de acesso de um membro do prédio, feita pelo gestor.
+// Troca do papel de um membro dentro do prédio, feita por um gestor dele.
+//
+// GESTOR entra na lista: é assim que a gestão se divide ou se transfere, sem
+// falsificar quem cadastrou o prédio. Quem rebaixa o último gestor toma 409
+// (ver buildingController.updateMemberRole).
 export const updateMemberRoleSchema = z
   .object({
-    role: z.enum(['INSPECTOR', 'VIEWER'], {
-      required_error: 'Papel deve ser INSPECTOR ou VIEWER',
+    role: z.enum(['GESTOR', 'INSPECTOR', 'VIEWER'], {
+      required_error: 'Papel deve ser GESTOR, INSPECTOR ou VIEWER',
     }),
   })
   .strict();
