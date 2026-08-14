@@ -92,6 +92,34 @@ components:
         role: { type: string, enum: [GESTOR, INSPECTOR, VIEWER] }
         joined_at: { type: string, format: date-time }
 
+    Feedback:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        message: { type: string }
+        status:
+          type: string
+          enum: [PENDENTE, TAREFA, MENSAGEM]
+          description: >
+            Onde o feedback está na caixa do admin. Nasce PENDENTE; vira TAREFA
+            (algo a fazer) ou MENSAGEM (elogio, que só se lê). Descartado não é
+            um status — a linha é apagada.
+        created_at: { type: string, format: date-time }
+        reviewed_at: { type: string, format: date-time, nullable: true }
+        author:
+          type: object
+          nullable: true
+          description: >
+            Quem mandou, já resolvido pelo servidor — o feedback pode vir de uma
+            conta de usuário ou de uma de gestor. Nulo quando a conta saiu do
+            sistema; o feedback continua valendo. Só nas rotas do ADMIN.
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            email: { type: string, format: email }
+            avatar_url: { type: string, nullable: true }
+            kind: { type: string, enum: [USER, MANAGER] }
+
     Floor:
       type: object
       properties:
@@ -392,6 +420,120 @@ paths:
           description: Senha alterada com sucesso
         '401':
           description: Senha atual incorreta
+
+  /feedbacks:
+    post:
+      tags: [Feedback]
+      summary: Mandar uma sugestão ao administrador
+      description: |
+        Aberta a qualquer conta autenticada, das duas naturezas — usuário e
+        gestor mandam pela mesma rota, e o servidor grava a autoria na coluna da
+        tabela certa. Sem limite de quantidade por conta: quem tem duas coisas a
+        dizer manda duas vezes. O feedback nasce PENDENTE; `status` no corpo faz
+        a requisição falhar com 400.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [message]
+              properties:
+                message: { type: string, minLength: 5, maxLength: 2000 }
+      responses:
+        '201':
+          description: Feedback registrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Feedback' }
+        '400':
+          description: Payload inválido (mensagem curta demais ou campo fora do contrato)
+        '429':
+          description: Limite de envios por IP atingido
+    get:
+      tags: [Feedback]
+      summary: Caixa de feedbacks (ADMIN only)
+      description: Uma aba por status. `pending` acompanha a resposta porque o aviso vive no menu, fora da aba aberta.
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [PENDENTE, TAREFA, MENSAGEM], default: PENDENTE }
+      responses:
+        '200':
+          description: Feedbacks do status pedido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  feedbacks: { type: array, items: { $ref: '#/components/schemas/Feedback' } }
+                  pending: { type: integer, description: Quantos ainda não foram lidos }
+        '403':
+          description: Rota restrita ao ADMIN
+
+  /feedbacks/me:
+    get:
+      tags: [Feedback]
+      summary: Os próprios envios
+      description: O que a conta autenticada já mandou, com o destino que cada um teve. Sem autoria — ela já é conhecida.
+      responses:
+        '200':
+          description: Lista dos envios, do mais novo para o mais velho
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Feedback' }
+
+  /feedbacks/{id}:
+    patch:
+      tags: [Feedback]
+      summary: Receber como tarefa ou mover para mensagens (ADMIN only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [TAREFA, MENSAGEM]
+                  description: PENDENTE não entra — é de onde o feedback sai, não para onde ele volta.
+      responses:
+        '200':
+          description: Feedback movido de aba
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Feedback' }
+        '403':
+          description: Rota restrita ao ADMIN
+        '404':
+          description: Feedback não encontrado
+    delete:
+      tags: [Feedback]
+      summary: Descartar o feedback (ADMIN only)
+      description: Apaga a linha. Vale para o pendente descartado, a tarefa concluída e a mensagem excluída — nada disso volta.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Feedback apagado
+        '403':
+          description: Rota restrita ao ADMIN
+        '404':
+          description: Feedback não encontrado
 
   /buildings/{id}/floors:
     get:

@@ -1,10 +1,11 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { format } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { LogOut, ArrowLeft, Building2, ChevronRight, KeyRound, Pencil, Trash2, UserRound } from 'lucide-react';
+import { LogOut, ArrowLeft, Building2, ChevronRight, KeyRound, MessageSquarePlus, Pencil, Trash2, UserRound } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { Avatar } from '@/app/components/Avatar';
 import { AvatarEditorModal } from '@/app/components/AvatarEditorModal';
@@ -12,10 +13,18 @@ import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { Logo } from '@/app/components/Logo';
 import { M, MPage, MRound, MField, MButton } from '@/app/components/mobile/kit';
 import { BottomNav } from '@/app/components/BottomNav';
-import { Button, Modal } from '@/app/components/ui';
+import { Button, Modal, Textarea } from '@/app/components/ui';
 import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
-import { useUpdateMe, useChangePassword, useDeleteMe, useMyBuildings, useLeaveBuilding } from '@/app/hooks/useApi';
+import {
+  useUpdateMe,
+  useChangePassword,
+  useDeleteMe,
+  useMyBuildings,
+  useLeaveBuilding,
+  useSendFeedback,
+  useMyFeedbacks,
+} from '@/app/hooks/useApi';
 import { isManager, isManagerAccount, roleLabel } from '@/app/lib/roles';
 import { T, R, W, NUM, HERO_SURFACE } from '@/app/lib/theme';
 
@@ -23,6 +32,28 @@ const profileSchema = yup.object({
   name: yup.string().min(2).required('Obrigatório'),
   email: yup.string().email('E-mail inválido').required('Obrigatório'),
 });
+
+const feedbackSchema = yup.object({
+  message: yup
+    .string()
+    .trim()
+    .min(5, 'Escreva ao menos 5 caracteres')
+    .max(2000, 'Máximo de 2000 caracteres')
+    .required('Obrigatório'),
+});
+
+/**
+ * O que aconteceu com o que a pessoa mandou.
+ *
+ * O que o admin descarta some da lista — e some sem aviso de propósito: dizer
+ * "seu feedback foi descartado" não ajuda ninguém e só desanima o próximo
+ * envio. O que ele guarda continua aparecendo, com o destino que deu.
+ */
+const FEEDBACK_STATUS = {
+  PENDENTE: { label: 'Em análise', color: T.mute },
+  TAREFA: { label: 'Virou tarefa', color: T.accent },
+  MENSAGEM: { label: 'Lido', color: '#4ade80' },
+};
 
 const passwordSchema = yup.object({
   current_password: yup.string().required('Obrigatório'),
@@ -227,6 +258,73 @@ function PasswordForm() {
   );
 }
 
+/**
+ * Fala com o administrador.
+ *
+ * Uma caixa só, e não uma tela à parte: o que a pessoa quer é escrever e sair.
+ * Abaixo do campo ficam os envios anteriores, porque a segunda pergunta de quem
+ * já mandou algo é sempre "e aí, deu em quê?" — e sem essa lista a única
+ * resposta possível seria mandar de novo.
+ */
+function FeedbackBox() {
+  const { show: toast } = useToastStore();
+  const sendFeedback = useSendFeedback();
+  const { data: sent = [], isLoading } = useMyFeedbacks();
+
+  const form = useForm({ resolver: yupResolver(feedbackSchema), defaultValues: { message: '' } });
+
+  async function onSubmit({ message }) {
+    try {
+      await sendFeedback.mutateAsync(message);
+      form.reset({ message: '' });
+      toast('Feedback enviado', 'success');
+    } catch (e) {
+      toast(e?.response?.data?.error?.message || 'Erro ao enviar feedback', 'error');
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <Textarea
+          label="Sua sugestão"
+          placeholder="O que dá para melhorar? O que está funcionando bem?"
+          error={form.formState.errors.message?.message}
+          hint="Vai direto para o administrador do sistema."
+          {...form.register('message')}
+        />
+        <MButton type="submit" loading={sendFeedback.isPending} style={{ width: '100%' }}>Enviar feedback</MButton>
+      </form>
+
+      {isLoading ? (
+        <div style={{ height: 48, background: T.chip, borderRadius: 14 }} />
+      ) : sent.length > 0 && (
+        <>
+          <div style={{ height: 1, background: T.line, margin: '4px 0' }} />
+          <p style={{ color: T.mute, fontSize: 13 }}>Você já mandou</p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
+            {sent.map((item) => {
+              const status = FEEDBACK_STATUS[item.status] ?? FEEDBACK_STATUS.PENDENTE;
+              return (
+                <div key={item.id} style={{ background: T.chip, borderRadius: 14, padding: '11px 13px' }}>
+                  <p style={{ color: T.text, fontSize: 13, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{item.message}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7 }}>
+                    <span style={{ color: status.color, fontSize: 11 }}>{status.label}</span>
+                    <span style={{ color: T.faint, fontSize: 11 }}>
+                      {format(new Date(item.created_at), "d/MM/yyyy 'às' HH:mm")}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function PerfilPage() {
   const { user, logout } = useAuthStore();
   const { show: toast } = useToastStore();
@@ -346,6 +444,15 @@ export default function PerfilPage() {
           <Group title="Segurança" className="anim-fade-up anim-d5" />
           <Row className="anim-fade-up anim-d5" icon={KeyRound} label="Alterar senha" onClick={() => setSheet('password')} />
 
+          <Group title="Feedback" className="anim-fade-up anim-d5" />
+          <Row
+            className="anim-fade-up anim-d5"
+            icon={MessageSquarePlus}
+            label="Enviar feedback"
+            hint="Para o administrador"
+            onClick={() => setSheet('feedback')}
+          />
+
           <Group title="Zona de risco" className="anim-fade-up anim-d6" />
           <Row className="anim-fade-up anim-d6" icon={Trash2} label="Excluir conta" tone="danger" onClick={() => setDeleteModal(true)} />
         </div>
@@ -395,6 +502,14 @@ export default function PerfilPage() {
           <Group title="Segurança" />
           <Row icon={KeyRound} label="Alterar senha" onClick={() => setSheet('password')} />
 
+          <Group title="Feedback" />
+          <Row
+            icon={MessageSquarePlus}
+            label="Enviar feedback"
+            hint="Para o administrador"
+            onClick={() => setSheet('feedback')}
+          />
+
           <Group title="Zona de risco" />
           <Row icon={Trash2} label="Excluir conta" tone="danger" onClick={() => setDeleteModal(true)} />
 
@@ -427,6 +542,10 @@ export default function PerfilPage() {
 
       <Modal open={sheet === 'password'} onClose={() => setSheet(null)} title="Alterar senha" maxWidth={440}>
         <PasswordForm />
+      </Modal>
+
+      <Modal open={sheet === 'feedback'} onClose={() => setSheet(null)} title="Enviar feedback" maxWidth={440}>
+        <FeedbackBox />
       </Modal>
 
       {/* Chamada como função, não como <BuildingSection />: declarada dentro da

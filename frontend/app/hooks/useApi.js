@@ -120,6 +120,54 @@ export function useDeleteMe() {
   });
 }
 
+// ── Feedback ──────────────────────────────────────────────────────────────────
+// A caixa do admin e os envios de quem usa o app. Serve as duas naturezas de
+// conta: gestor e usuário mandam pela mesma rota, e o servidor sabe de qual das
+// duas tabelas veio.
+export function useSendFeedback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (message) => api.post('/feedbacks', { message }).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-feedbacks'] }),
+  });
+}
+
+/** O que a própria conta já mandou, com o destino que o admin deu a cada um. */
+export function useMyFeedbacks() {
+  return useQuery({
+    queryKey: ['my-feedbacks'],
+    queryFn: () => api.get('/feedbacks/me').then((r) => r.data),
+  });
+}
+
+// Uma aba por status. A resposta traz `pending` junto, que é o aviso do menu —
+// ele precisa aparecer mesmo quando a aba aberta é outra.
+export function useFeedbacks(status = 'PENDENTE') {
+  return useQuery({
+    queryKey: ['feedbacks', status],
+    queryFn: () => api.get('/feedbacks', { params: { status } }).then((r) => r.data),
+  });
+}
+
+// Receber (vira tarefa) e mover para mensagens são a mesma operação: o feedback
+// muda de aba. Por isso todas as listas saem do cache juntas.
+export function useReviewFeedback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }) => api.patch(`/feedbacks/${id}`, { status }).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['feedbacks'] }),
+  });
+}
+
+/** Descartar apaga de vez — não sobra em aba nenhuma. */
+export function useDiscardFeedback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.delete(`/feedbacks/${id}`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['feedbacks'] }),
+  });
+}
+
 // ── Buildings ─────────────────────────────────────────────────────────────────
 export function useLeaveBuilding() {
   const qc = useQueryClient();

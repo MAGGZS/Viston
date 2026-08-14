@@ -120,6 +120,9 @@ Cobertura mínima implementada:
 - Soft delete e anonimização de usuários
 - Validação das ocorrências de manutenção por andar (Zod schema)
 - Geração de Excel (ExcelJS)
+- Caixa de feedback: autoria na coluna certa (usuário ou gestor), destino do
+  feedback e restrição das rotas de leitura ao ADMIN
+  (`__tests__/feedback.test.ts`)
 
 ---
 
@@ -156,6 +159,13 @@ prédio — criando um (vira gestora dele) ou sendo aprovada num pela chave de
 compartilhamento (entra como visualizadora). O middleware `validate` reescreve
 `req.body` com o resultado do parse, então nenhum campo fora do contrato chega
 ao service.
+
+**Feedback.** Mandar (`POST /feedbacks`) é de qualquer conta autenticada, das
+duas naturezas; ler a caixa, decidir o destino e descartar é só do ADMIN. O
+`status` não entra no corpo do envio — o feedback nasce `PENDENTE` e quem o
+move é o admin, para `TAREFA` ou `MENSAGEM`. Descartar apaga a linha: não existe
+status de descarte, e `GET /feedbacks/me` devolve só o que a própria conta
+mandou.
 
 **RLS.** Todas as tabelas do schema `public` têm row level security ligada e
 nenhuma policy: a API PostgREST do Supabase, que é pública, não devolve linha

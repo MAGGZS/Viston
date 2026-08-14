@@ -71,6 +71,36 @@ export function Input({ label, error, style = {}, ...props }) {
   );
 }
 
+/**
+ * Texto de vários parágrafos — hoje só o feedback pede um.
+ *
+ * Mesma superfície do `Input`, porque é o mesmo campo: o que muda é que a
+ * pessoa escreve mais de uma linha. `resize: vertical` fica: quem tem muito a
+ * dizer estica, e o horizontal quebraria a caixa.
+ */
+export function Textarea({ label, error, hint, rows = 5, style = {}, ...props }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {label && <label style={G.label}>{label}</label>}
+      <textarea
+        rows={rows}
+        style={{
+          ...G.input,
+          ...(error ? G.inputError : {}),
+          fontFamily: 'inherit', lineHeight: 1.5, resize: 'vertical',
+          ...style,
+        }}
+        {...props}
+      />
+      {error ? (
+        <span style={{ fontSize: 12, color: T.danger }}>{error}</span>
+      ) : (
+        hint && <span style={{ fontSize: 12, color: T.faint }}>{hint}</span>
+      )}
+    </div>
+  );
+}
+
 export function Card({ children, style = {}, className = '' }) {
   return (
     <div style={{ ...G.card, padding: 20, ...style }} className={`anim-fade-up ${className}`}>

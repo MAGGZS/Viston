@@ -40,6 +40,18 @@ enum UserStatus {
   DELETED
 }
 
+/// Onde o feedback está na caixa do admin.
+///
+/// PENDENTE é o que acabou de chegar e ninguém leu. Dali ele só sai por decisão
+/// do admin: vira TAREFA (algo a fazer), vira MENSAGEM (elogio ou recado, que
+/// só se lê) ou é descartado — e descartar apaga a linha, não guarda um quarto
+/// estado. Feedback descartado não tem para que servir depois.
+enum FeedbackStatus {
+  PENDENTE
+  TAREFA
+  MENSAGEM
+}
+
 enum InspectionStatus {
   IN_PROGRESS
   COMPLETED
@@ -119,6 +131,7 @@ model User {
   audit_logs      AuditLog[]
   building_members  BuildingMember[]       @relation("BuildingMembers")
   access_requests   BuildingAccessRequest[] @relation("BuildingAccessRequests")
+  feedbacks         Feedback[]
 
   @@map("users")
 }
@@ -148,6 +161,7 @@ model Manager {
   created_buildings Building[]        @relation("BuildingCreator")
   managed_buildings BuildingManager[]
   audit_logs        AuditLog[]
+  feedbacks         Feedback[]
 
   @@map("managers")
 }
@@ -295,6 +309,34 @@ model MaintenanceRecord {
   floor_form_entry FloorFormEntry @relation(fields: [floor_form_entry_id], references: [id], onDelete: Cascade)
 
   @@map("maintenance_records")
+}
+
+/// Sugestão que uma conta manda ao admin.
+///
+/// Quem manda pode ser das duas naturezas — usuário ou gestor —, então a autoria
+/// segue o desenho do `AuditLog`: duas colunas nulas, exatamente uma preenchida.
+/// Uma coluna só obrigaria a inventar um dono para o outro tipo de conta.
+///
+/// As duas apontam com `SetNull`: a conta some, o feedback fica. O que o admin
+/// tem na caixa de tarefas não pode evaporar porque alguém saiu do sistema.
+model Feedback {
+  id          String         @id @default(uuid())
+  user_id     String?
+  manager_id  String?
+  message     String
+  status      FeedbackStatus @default(PENDENTE)
+  created_at  DateTime       @default(now())
+  /// Quando o admin decidiu o que fazer com ele. Nulo enquanto está PENDENTE.
+  reviewed_at DateTime?
+
+  user    User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  manager Manager? @relation(fields: [manager_id], references: [id], onDelete: SetNull)
+
+  // A tela do admin é sempre "um status, do mais novo para o mais velho".
+  @@index([status, created_at(sort: Desc)])
+  @@index([user_id])
+  @@index([manager_id])
+  @@map("feedbacks")
 }
 
 model AuditLog {
