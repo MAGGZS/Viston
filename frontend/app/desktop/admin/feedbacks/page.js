@@ -111,8 +111,14 @@ function FeedbackCard({ feedback, status, index, onOpen, onReview, onDiscard, bu
             <Button onClick={() => onReview('TAREFA')} disabled={busy}>
               <CheckCheck size={16} /> Receber
             </Button>
-            <Button variant="secondary" onClick={() => onReview('MENSAGEM')} disabled={busy}>
-              <Heart size={15} /> É um elogio
+            <Button
+              variant="secondary"
+              onClick={() => onReview('MENSAGEM')}
+              disabled={busy}
+              title="É um elogio"
+              aria-label="É um elogio"
+            >
+              <Heart size={15} />
             </Button>
             <Button variant="danger" className="ml-auto" onClick={onDiscard} disabled={busy}>
               <Trash2 size={15} /> Descartar
