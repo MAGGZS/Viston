@@ -169,8 +169,15 @@ mandou.
 
 **RLS.** Todas as tabelas do schema `public` têm row level security ligada e
 nenhuma policy: a API PostgREST do Supabase, que é pública, não devolve linha
-alguma para `anon` nem para `authenticated`. O backend não é afetado — o Prisma
-conecta como `postgres`, que tem `BYPASSRLS`.
+alguma para `anon` nem para `authenticated`. Isso inclui `_prisma_migrations`,
+que não nasce do `schema.prisma` e por isso tinha ficado de fora — escrever
+nela faz o próximo `migrate deploy` pular uma migration de verdade. O backend
+não é afetado — o Prisma conecta como `postgres`, que tem `BYPASSRLS`.
+
+**Gatilhos.** As funções de gatilho têm `search_path` preso (`public, pg_temp`).
+Sem isso, os nomes de tabela que elas citam são resolvidos pela lista de quem
+disparou o gatilho, e uma tabela homônima em outro schema faria a regra ser
+conferida no lugar errado.
 
 **Chave de compartilhamento.** 12 caracteres de um alfabeto de 31 símbolos
 (~59 bits). Só aparece em respostas para ADMIN; as demais rotas devolvem o
