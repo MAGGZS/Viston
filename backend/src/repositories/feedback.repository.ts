@@ -48,10 +48,19 @@ export const feedbackRepository = {
     });
   },
 
-  /** O que a própria conta mandou — a lista dentro da caixa do perfil. */
+  /**
+   * O que a própria conta mandou — a lista dentro da caixa do perfil.
+   *
+   * Sem `status`: para quem manda, o que importa é que o feedback chegou. Onde
+   * o admin o colocou depois é decisão de trabalho dele, e o que ele descarta
+   * some da lista por já não existir linha. Selecionar em vez de devolver a
+   * linha inteira mantém a decisão no servidor — o destino não sai daqui nem
+   * para quem abrir a resposta da rota.
+   */
   findByAuthor(author: { user_id?: string; manager_id?: string }) {
     return prisma.feedback.findMany({
       where: author.manager_id ? { manager_id: author.manager_id } : { user_id: author.user_id },
+      select: { id: true, message: true, created_at: true },
       orderBy: { created_at: 'desc' },
     });
   },

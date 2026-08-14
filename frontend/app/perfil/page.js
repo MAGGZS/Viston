@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { LogOut, ArrowLeft, Building2, ChevronRight, KeyRound, MessageSquarePlus, Pencil, Trash2, UserRound } from 'lucide-react';
+import { LogOut, ArrowLeft, Building2, Check, ChevronRight, KeyRound, MessageSquarePlus, Pencil, Trash2, UserRound } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { Avatar } from '@/app/components/Avatar';
 import { AvatarEditorModal } from '@/app/components/AvatarEditorModal';
@@ -41,19 +41,6 @@ const feedbackSchema = yup.object({
     .max(2000, 'Máximo de 2000 caracteres')
     .required('Obrigatório'),
 });
-
-/**
- * O que aconteceu com o que a pessoa mandou.
- *
- * O que o admin descarta some da lista — e some sem aviso de propósito: dizer
- * "seu feedback foi descartado" não ajuda ninguém e só desanima o próximo
- * envio. O que ele guarda continua aparecendo, com o destino que deu.
- */
-const FEEDBACK_STATUS = {
-  PENDENTE: { label: 'Em análise', color: T.mute },
-  TAREFA: { label: 'Virou tarefa', color: T.accent },
-  MENSAGEM: { label: 'Lido', color: '#4ade80' },
-};
 
 const passwordSchema = yup.object({
   current_password: yup.string().required('Obrigatório'),
@@ -262,9 +249,14 @@ function PasswordForm() {
  * Fala com o administrador.
  *
  * Uma caixa só, e não uma tela à parte: o que a pessoa quer é escrever e sair.
- * Abaixo do campo ficam os envios anteriores, porque a segunda pergunta de quem
- * já mandou algo é sempre "e aí, deu em quê?" — e sem essa lista a única
- * resposta possível seria mandar de novo.
+ * Abaixo do campo ficam os envios anteriores, porque a pergunta de quem já
+ * mandou algo é "chegou?" — e sem essa lista a única resposta possível seria
+ * mandar de novo.
+ *
+ * Todos aparecem como recebidos, e é tudo o que a lista diz. O que o admin faz
+ * depois — pôr na lista de tarefas, guardar como mensagem — é trabalho dele, e
+ * o que ele descarta some daqui: dizer "seu feedback foi descartado" não ajuda
+ * ninguém e só desanima o próximo envio.
  */
 function FeedbackBox() {
   const { show: toast } = useToastStore();
@@ -304,20 +296,19 @@ function FeedbackBox() {
           <p style={{ color: T.mute, fontSize: 13 }}>Você já mandou</p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
-            {sent.map((item) => {
-              const status = FEEDBACK_STATUS[item.status] ?? FEEDBACK_STATUS.PENDENTE;
-              return (
-                <div key={item.id} style={{ background: T.chip, borderRadius: 14, padding: '11px 13px' }}>
-                  <p style={{ color: T.text, fontSize: 13, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{item.message}</p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7 }}>
-                    <span style={{ color: status.color, fontSize: 11 }}>{status.label}</span>
-                    <span style={{ color: T.faint, fontSize: 11 }}>
-                      {format(new Date(item.created_at), "d/MM/yyyy 'às' HH:mm")}
-                    </span>
-                  </div>
+            {sent.map((item) => (
+              <div key={item.id} style={{ background: T.chip, borderRadius: 14, padding: '11px 13px' }}>
+                <p style={{ color: T.text, fontSize: 13, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{item.message}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#4ade80', fontSize: 11 }}>
+                    <Check size={12} strokeWidth={2.4} /> Recebido
+                  </span>
+                  <span style={{ color: T.faint, fontSize: 11 }}>
+                    {format(new Date(item.created_at), "d/MM/yyyy 'às' HH:mm")}
+                  </span>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </>
       )}

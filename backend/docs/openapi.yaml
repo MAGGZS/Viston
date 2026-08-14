@@ -120,6 +120,17 @@ components:
             avatar_url: { type: string, nullable: true }
             kind: { type: string, enum: [USER, MANAGER] }
 
+    MyFeedback:
+      type: object
+      description: >
+        O envio como quem mandou o vê. Sem `status` e sem `reviewed_at` de
+        propósito: o destino que o admin deu é decisão de trabalho dele, e o
+        que ele descarta some da lista porque a linha deixa de existir.
+      properties:
+        id: { type: string, format: uuid }
+        message: { type: string }
+        created_at: { type: string, format: date-time }
+
     Floor:
       type: object
       properties:
@@ -476,7 +487,9 @@ paths:
     get:
       tags: [Feedback]
       summary: Os próprios envios
-      description: O que a conta autenticada já mandou, com o destino que cada um teve. Sem autoria — ela já é conhecida.
+      description: >
+        O que a conta autenticada já mandou. Sem autoria — ela já é conhecida —
+        e sem o destino que o admin deu a cada um.
       responses:
         '200':
           description: Lista dos envios, do mais novo para o mais velho
@@ -484,7 +497,7 @@ paths:
             application/json:
               schema:
                 type: array
-                items: { $ref: '#/components/schemas/Feedback' }
+                items: { $ref: '#/components/schemas/MyFeedback' }
 
   /feedbacks/{id}:
     patch:

@@ -164,8 +164,9 @@ ao service.
 duas naturezas; ler a caixa, decidir o destino e descartar é só do ADMIN. O
 `status` não entra no corpo do envio — o feedback nasce `PENDENTE` e quem o
 move é o admin, para `TAREFA` ou `MENSAGEM`. Descartar apaga a linha: não existe
-status de descarte, e `GET /feedbacks/me` devolve só o que a própria conta
-mandou.
+status de descarte. `GET /feedbacks/me` devolve só o que a própria conta mandou,
+e devolve sem `status`: para quem escreveu, o feedback foi recebido — a aba em
+que o admin o colocou é trabalho dele, e o descartado some por já não ter linha.
 
 **RLS.** Todas as tabelas do schema `public` têm row level security ligada e
 nenhuma policy: a API PostgREST do Supabase, que é pública, não devolve linha

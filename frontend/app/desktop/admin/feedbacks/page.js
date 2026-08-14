@@ -1,8 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CheckCheck, Heart, Inbox, ListTodo, MessageSquare, RefreshCw, Trash2 } from 'lucide-react';
+import { Check, CheckCheck, Heart, Inbox, ListTodo, MessageSquare, RefreshCw, Trash2 } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { Avatar } from '@/app/components/Avatar';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
@@ -31,7 +31,7 @@ const TABS = [
     status: 'TAREFA',
     label: 'Tarefas',
     icon: ListTodo,
-    empty: 'Nada na lista. O que você receber dos pendentes vem para cá.',
+    empty: 'Sua lista está vazia. O que você receber dos pendentes vira item aqui.',
   },
   {
     status: 'MENSAGEM',
@@ -69,10 +69,10 @@ function Author({ author }) {
 /**
  * Um feedback e o que dá para fazer com ele.
  *
- * O texto aparece inteiro nas duas primeiras caixas: pendente é o que se lê
- * para decidir, e tarefa é o que se lê para fazer — cortar em três linhas
- * obrigaria a abrir cada um. Mensagem é a exceção: ali o cartão é uma capa, e o
- * texto inteiro mora na caixa de leitura.
+ * O texto do pendente aparece inteiro: é o que se lê para decidir, e cortar em
+ * três linhas obrigaria a abrir cada um. Mensagem é a exceção: ali o cartão é
+ * uma capa, e o texto inteiro mora na caixa de leitura. Tarefa não passa por
+ * aqui — vira item de lista, no `TaskRow`.
  */
 function FeedbackCard({ feedback, status, index, onOpen, onReview, onDiscard, busy }) {
   const clickable = status === 'MENSAGEM';
@@ -125,17 +125,6 @@ function FeedbackCard({ feedback, status, index, onOpen, onReview, onDiscard, bu
           </>
         )}
 
-        {status === 'TAREFA' && (
-          <>
-            <Button variant="secondary" onClick={() => onReview('MENSAGEM')} disabled={busy}>
-              <MessageSquare size={15} /> Mover para mensagens
-            </Button>
-            <Button variant="danger" className="ml-auto" onClick={onDiscard} disabled={busy}>
-              <CheckCheck size={15} /> Concluir
-            </Button>
-          </>
-        )}
-
         {status === 'MENSAGEM' && (
           <>
             <Button variant="secondary" onClick={onOpen}>Ler</Button>
@@ -149,10 +138,91 @@ function FeedbackCard({ feedback, status, index, onOpen, onReview, onDiscard, bu
   );
 }
 
+/** Quanto tempo o item marcado espera antes de sair da lista de vez. */
+const UNDO_MS = 5000;
+
+/**
+ * Uma tarefa, como linha de lista de checagem.
+ *
+ * O que o admin recebeu é uma lista de coisas a fazer, e lista de coisas a
+ * fazer se lê de cima a baixo: caixa, texto, e o resto miúdo embaixo. Por isso
+ * a autoria e a data descem para uma linha de apoio — quem abre esta aba quer
+ * saber o que falta fazer, não quem pediu.
+ *
+ * Marcar conclui, e concluir apaga a linha (ver o serviço). Como não há volta
+ * depois de apagar, a marca fica visível por alguns segundos com o "Desfazer"
+ * ao lado antes de a exclusão sair — tempo de perceber o clique errado, sem
+ * uma caixa de confirmação a cada item.
+ */
+function TaskRow({ feedback, index, checked, onToggle, onMove, busy }) {
+  return (
+    <article
+      className={`anim-fade-up anim-d${Math.min(index + 1, 6)} bg-card rounded-card`}
+      style={{
+        display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 16px',
+        opacity: checked ? 0.55 : 1, transition: 'opacity 0.2s ease',
+      }}
+    >
+      <button
+        onClick={onToggle}
+        aria-pressed={checked}
+        aria-label={checked ? 'Reabrir a tarefa' : 'Concluir a tarefa'}
+        className="transition-colors duration-150"
+        style={{
+          width: 22, height: 22, marginTop: 1, flexShrink: 0,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          borderRadius: 7, cursor: 'pointer',
+          border: checked ? '1.5px solid transparent' : `1.5px solid ${T.faint}`,
+          background: checked ? T.accent : 'transparent',
+        }}
+        onMouseEnter={(e) => { if (!checked) e.currentTarget.style.borderColor = T.accent; }}
+        onMouseLeave={(e) => { if (!checked) e.currentTarget.style.borderColor = T.faint; }}
+      >
+        {checked && <Check size={13} strokeWidth={3} color={T.onAccent} />}
+      </button>
+
+      <div className="min-w-0 flex-1">
+        <p style={{
+          color: checked ? T.mute : T.text, fontSize: 14, lineHeight: 1.55, whiteSpace: 'pre-wrap',
+          textDecoration: checked ? 'line-through' : 'none',
+        }}>
+          {feedback.message}
+        </p>
+
+        <div className="flex items-center gap-2 mt-2">
+          <span className="text-faint text-xs truncate">{feedback.author?.name ?? 'Conta removida'}</span>
+          {feedback.author?.kind === 'MANAGER' && <Badge variant="accent">Gestor</Badge>}
+          <span className="text-faint text-xs whitespace-nowrap">
+            {format(new Date(feedback.created_at), "d 'de' MMM", { locale: ptBR })}
+          </span>
+        </div>
+      </div>
+
+      {checked ? (
+        <Button variant="ghost" onClick={onToggle} style={{ padding: '7px 12px', fontSize: 13 }}>
+          Desfazer
+        </Button>
+      ) : (
+        <Button
+          variant="ghost"
+          onClick={onMove}
+          disabled={busy}
+          aria-label="Mover para mensagens"
+          style={{ padding: 9 }}
+        >
+          <MessageSquare size={15} />
+        </Button>
+      )}
+    </article>
+  );
+}
+
 export default function AdminFeedbacksPage() {
   const [tab, setTab] = useState('PENDENTE');
   const [reading, setReading] = useState(null);
   const [discardTarget, setDiscardTarget] = useState(null);
+  const [checked, setChecked] = useState([]);
+  const undoTimers = useRef(new Map());
 
   const { data, isLoading, refetch, isFetching } = useFeedbacks(tab);
   const reviewFeedback = useReviewFeedback();
@@ -163,10 +233,47 @@ export default function AdminFeedbacksPage() {
   const current = TABS.find((t) => t.status === tab);
   const busy = reviewFeedback.isPending || discardFeedback.isPending;
 
+  /* Sair da tela antes de a janela fechar deixa a tarefa na lista: entre perder
+     um clique e perder o que alguém escreveu, o clique é o barato. */
+  useEffect(() => {
+    const pending = undoTimers.current;
+    return () => pending.forEach((timer) => clearTimeout(timer));
+  }, []);
+
+  /* O id concluído fica em `checked` de propósito: a linha só some quando a
+     lista recarrega, e desmarcá-la antes disso a mostraria inteira de novo por
+     um instante. Como o id é de linha apagada, ele não volta a casar com nada.
+     Se a exclusão falhar, aí sim a marca sai — a tarefa continua lá. */
+  async function concludeTask(id) {
+    undoTimers.current.delete(id);
+    try {
+      await discardFeedback.mutateAsync(id);
+      toast('Tarefa concluída', 'success');
+    } catch (e) {
+      setChecked((ids) => ids.filter((x) => x !== id));
+      toast(e?.response?.data?.error?.message || 'Erro ao concluir a tarefa', 'error');
+    }
+  }
+
+  /** Marca ou desmarca — desmarcar dentro da janela cancela a exclusão. */
+  function toggleTask(id) {
+    const timer = undoTimers.current.get(id);
+
+    if (timer) {
+      clearTimeout(timer);
+      undoTimers.current.delete(id);
+      setChecked((ids) => ids.filter((x) => x !== id));
+      return;
+    }
+
+    setChecked((ids) => [...ids, id]);
+    undoTimers.current.set(id, setTimeout(() => concludeTask(id), UNDO_MS));
+  }
+
   async function handleReview(id, status) {
     try {
       await reviewFeedback.mutateAsync({ id, status });
-      toast(status === 'TAREFA' ? 'Feedback recebido — está em tarefas' : 'Movido para mensagens', 'success');
+      toast(status === 'TAREFA' ? 'Feedback recebido — está na sua lista' : 'Movido para mensagens', 'success');
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao mover o feedback', 'error');
     }
@@ -177,7 +284,7 @@ export default function AdminFeedbacksPage() {
       await discardFeedback.mutateAsync(discardTarget.id);
       setDiscardTarget(null);
       setReading(null);
-      toast(tab === 'TAREFA' ? 'Tarefa concluída' : 'Feedback excluído', 'success');
+      toast('Feedback excluído', 'success');
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao excluir', 'error');
     }
@@ -192,7 +299,7 @@ export default function AdminFeedbacksPage() {
             <div>
               <h1 className="text-2xl font-semibold text-white">Feedbacks</h1>
               <p className="text-mute text-sm mt-0.5">
-                O que o público manda dizer. Você recebe (vira tarefa), guarda como mensagem ou descarta.
+                O que o público manda dizer. Você recebe (vira item da sua lista), guarda como mensagem ou descarta.
               </p>
             </div>
             <Button variant="secondary" onClick={() => refetch()} loading={isFetching}>
@@ -200,8 +307,9 @@ export default function AdminFeedbacksPage() {
             </Button>
           </div>
 
-          {/* As três caixas. A contagem só acompanha a pendente porque é a
-              única que exige ação — as outras duas são arquivo. */}
+          {/* As três caixas. A contagem só acompanha a pendente porque é o que
+              chega sem ninguém ter olhado — a lista de tarefas e as mensagens
+              são de quem já decidiu abrir a aba. */}
           <div className="flex gap-2 mb-6">
             {TABS.map(({ status, label, icon: Icon }) => {
               const active = status === tab;
@@ -249,7 +357,19 @@ export default function AdminFeedbacksPage() {
               </div>
             )}
 
-            {feedbacks.map((feedback, idx) => (
+            {/* Tarefa é lista de checagem; pendente e mensagem continuam
+                cartões, que é o formato de quem ainda vai ler para decidir. */}
+            {feedbacks.map((feedback, idx) => (tab === 'TAREFA' ? (
+              <TaskRow
+                key={feedback.id}
+                feedback={feedback}
+                index={idx}
+                busy={busy}
+                checked={checked.includes(feedback.id)}
+                onToggle={() => toggleTask(feedback.id)}
+                onMove={() => handleReview(feedback.id, 'MENSAGEM')}
+              />
+            ) : (
               <FeedbackCard
                 key={feedback.id}
                 feedback={feedback}
@@ -260,7 +380,7 @@ export default function AdminFeedbacksPage() {
                 onReview={(status) => handleReview(feedback.id, status)}
                 onDiscard={() => setDiscardTarget(feedback)}
               />
-            ))}
+            )))}
           </div>
         </main>
       </div>
@@ -300,19 +420,18 @@ export default function AdminFeedbacksPage() {
         )}
       </Modal>
 
-      {/* Descartar, concluir e excluir são a mesma coisa por baixo: a linha sai
-          do banco. Por isso a confirmação é uma só, com o texto da aba. */}
-      <Modal open={!!discardTarget} onClose={() => setDiscardTarget(null)} title={tab === 'TAREFA' ? 'Concluir tarefa' : 'Excluir feedback'}>
+      {/* Descartar e excluir são a mesma coisa por baixo: a linha sai do banco.
+          Concluir uma tarefa também apaga, mas não passa por aqui — lá quem
+          segura o clique errado é a janela de desfazer da própria lista. */}
+      <Modal open={!!discardTarget} onClose={() => setDiscardTarget(null)} title="Excluir feedback">
         <div className="flex flex-col gap-4">
           <p className="text-mute text-sm">
-            {tab === 'TAREFA'
-              ? 'A tarefa sai da lista e não volta. Se ainda houver algo a fazer, deixe-a onde está.'
-              : 'O feedback será apagado definitivamente. Para guardá-lo, receba como tarefa ou mova para mensagens antes.'}
+            O feedback será apagado definitivamente. Para guardá-lo, receba como tarefa ou mova para mensagens antes.
           </p>
           <div className="flex gap-3">
             <Button variant="secondary" className="flex-1" onClick={() => setDiscardTarget(null)}>Cancelar</Button>
             <Button variant="danger" className="flex-1" loading={discardFeedback.isPending} onClick={handleDiscard}>
-              {tab === 'TAREFA' ? 'Concluir' : 'Excluir'}
+              Excluir
             </Button>
           </div>
         </div>

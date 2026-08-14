@@ -53,7 +53,7 @@ export const feedbackService = {
     return present(feedback);
   },
 
-  /** O que a própria conta já mandou, com o destino que cada um teve. */
+  /** O que a própria conta já mandou — a mensagem e a data, só isso. */
   listMine(actor: Actor) {
     return feedbackRepository.findByAuthor(authorOf(actor));
   },
