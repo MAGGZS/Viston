@@ -115,7 +115,6 @@ function FeedbackCard({ feedback, status, index, onOpen, onReview, onDiscard, bu
               variant="secondary"
               onClick={() => onReview('MENSAGEM')}
               disabled={busy}
-              title="É um elogio"
               aria-label="É um elogio"
             >
               <Heart size={15} />
