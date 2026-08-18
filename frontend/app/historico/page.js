@@ -85,7 +85,7 @@ function MonthGrid({ heatmap, year, month, onDayClick, compact = false }) {
 }
 
 // Clicar no card abre o relatório completo da vistoria
-function InspectionCard({ inspection, onPreview, onOpenReport }) {
+function InspectionCard({ inspection, onPreview, onOpenReport, className = '' }) {
   const totalRecords = inspection.floor_form_entries?.reduce(
     (sum, e) => sum + (e._count?.maintenance_records ?? 0), 0
   ) ?? 0;
@@ -96,6 +96,7 @@ function InspectionCard({ inspection, onPreview, onOpenReport }) {
       role="button"
       tabIndex={0}
       onKeyDown={e => e.key === 'Enter' && onOpenReport(inspection.id)}
+      className={className}
       style={{ background: M.card, borderRadius: 26, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer', transition: 'background 0.15s' }}
       onMouseEnter={e => { e.currentTarget.style.background = M.chip; }}
       onMouseLeave={e => { e.currentTarget.style.background = M.card; }}
@@ -146,12 +147,12 @@ function InspectionCard({ inspection, onPreview, onOpenReport }) {
  * lista que a pessoa veio ver. A planilha virou ícone à direita pelo mesmo
  * motivo — um botão de largura inteira por cartão dominava a rolagem.
  */
-function MobileInspectionCard({ inspection, onOpenReport }) {
+function MobileInspectionCard({ inspection, onOpenReport, className = '' }) {
   const entries = inspection.floor_form_entries ?? [];
   const ocorrencias = entries.reduce((sum, e) => sum + (e._count?.maintenance_records ?? 0), 0);
 
   return (
-    <MCard onClick={() => onOpenReport(inspection.id)} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <MCard onClick={() => onOpenReport(inspection.id)} className={className} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 15, color: M.text, textTransform: 'capitalize' }}>
@@ -260,12 +261,18 @@ export default function HistoricoPage() {
       {(isAdmin ? isLoading : buildingLoading) && [1, 2, 3].map(i => <div key={i} style={{ height: 120, background: '#232323', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />)}
       {!(isAdmin ? isLoading : buildingLoading) && (isAdmin ? allInspections : buildingInspections).length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
-          <p style={{ fontSize: 36, marginBottom: 12 }}>📋</p>
-          <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
+          <p className="anim-pop-in" style={{ fontSize: 36, marginBottom: 12 }}>📋</p>
+          <p className="anim-fade-up anim-d1" style={{ color: 'rgba(255,255,255,0.26)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
         </div>
       )}
-      {(isAdmin ? allInspections : buildingInspections).map(i => (
-        <InspectionCard key={i.id} inspection={i} onPreview={setPreviewId} onOpenReport={setReportId} />
+      {(isAdmin ? allInspections : buildingInspections).map((i, idx) => (
+        <InspectionCard
+          key={i.id}
+          inspection={i}
+          onPreview={setPreviewId}
+          onOpenReport={setReportId}
+          className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
+        />
       ))}
       {(isAdmin ? hasNextPage : buildingHasNext) && (
         <Button variant="secondary" style={{ width: '100%' }} onClick={() => isAdmin ? fetchNextPage() : buildingFetchNext()} loading={isAdmin ? isFetchingNextPage : buildingFetchingNext}>Carregar mais</Button>
@@ -278,7 +285,7 @@ export default function HistoricoPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button onClick={prevCal} style={{ background: '#232323', borderRadius: 10, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.44)', display: 'flex' }}><ChevronLeft size={16} /></button>
-          <span style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14, textTransform: 'capitalize', minWidth: 160, textAlign: 'center' }}>{navLabel}</span>
+          <span key={navLabel} className="anim-fade-in" style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14, textTransform: 'capitalize', minWidth: 160, textAlign: 'center' }}>{navLabel}</span>
           <button onClick={nextCal} style={{ background: '#232323', borderRadius: 10, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.44)', display: 'flex' }}><ChevronRight size={16} /></button>
         </div>
         <div style={{ display: 'flex', background: '#232323', borderRadius: 12, padding: 3, gap: 2 }}>
@@ -310,7 +317,7 @@ export default function HistoricoPage() {
 
   const desktopContent = (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '32px 32px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="anim-fade-down" style={{ padding: '32px 32px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h1 style={{ color: 'rgba(255,255,255,0.96)', fontSize: 22, fontWeight: 600 }}>Histórico</h1>
         {!isAdmin && hasBuilding && (
           <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: '#232323', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.44)', cursor: 'pointer' }}>
@@ -327,11 +334,11 @@ export default function HistoricoPage() {
         <div style={{ padding: '0 32px' }}><NoPredioState /></div>
       ) : (
         <div style={{ padding: '0 32px 32px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, overflowY: 'auto' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="anim-fade-up anim-d1" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <p style={S.label}>Lista</p>
             {listaPanel}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="anim-fade-up anim-d2" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <p style={S.label}>Calendário</p>
             {calendarioPanel}
           </div>
@@ -343,6 +350,7 @@ export default function HistoricoPage() {
   const mobileContent = (
     <MPage>
       <MTopBar
+        className="anim-fade-down"
         eyebrow="Vistorias concluídas"
         title="Histórico"
         actions={hasBuilding ? (
@@ -357,7 +365,7 @@ export default function HistoricoPage() {
           {[1, 2, 3].map(i => <div key={i} style={{ height: 128, background: M.card, borderRadius: 26 }} />)}
         </div>
       ) : !hasBuilding ? (
-        <MCard style={{ textAlign: 'center', padding: '40px 20px' }}>
+        <MCard className="anim-fade-up anim-d1" style={{ textAlign: 'center', padding: '40px 20px' }}>
           <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text }}>Nenhum prédio vinculado</p>
           <p style={{ color: M.mute, fontSize: 13, marginTop: 6, lineHeight: 1.6 }}>
             Peça a chave ao administrador e solicite acesso pelo perfil.
@@ -368,13 +376,18 @@ export default function HistoricoPage() {
           {buildingLoading && [1, 2, 3].map(i => <div key={i} style={{ height: 128, background: M.card, borderRadius: 26 }} />)}
 
           {!buildingLoading && buildingInspections.length === 0 && (
-            <MCard style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <MCard className="anim-fade-up anim-d1" style={{ textAlign: 'center', padding: '40px 20px' }}>
               <p style={{ color: M.mute, fontSize: 14 }}>Nenhuma vistoria por aqui ainda</p>
             </MCard>
           )}
 
-          {buildingInspections.map(i => (
-            <MobileInspectionCard key={i.id} inspection={i} onOpenReport={setReportId} />
+          {buildingInspections.map((i, idx) => (
+            <MobileInspectionCard
+              key={i.id}
+              inspection={i}
+              onOpenReport={setReportId}
+              className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
+            />
           ))}
 
           {buildingHasNext && (

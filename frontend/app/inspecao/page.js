@@ -85,7 +85,7 @@ function StepSemVinculo() {
       {error && <p style={{ color: '#f87171', fontSize: 13, textAlign: 'center' }}>Chave inválida ou prédio não encontrado</p>}
 
       {data && !requested && (
-        <div style={{ background: '#232323', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="anim-fade-up" style={{ background: '#232323', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 40, height: 40, background: 'rgba(245,197,24,0.1)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Building2 size={18} color="#F5C518" />
@@ -102,7 +102,7 @@ function StepSemVinculo() {
       )}
 
       {requested && (
-        <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 20, padding: 20, textAlign: 'center' }}>
+        <div className="anim-scale-in" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 20, padding: 20, textAlign: 'center' }}>
           <p style={{ fontSize: 28, marginBottom: 8 }}>✓</p>
           <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 15 }}>Solicitação enviada!</p>
           <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 13, marginTop: 4 }}>Aguarde o administrador aprovar seu acesso.</p>
@@ -149,10 +149,11 @@ function StepSelectFloors({ building, floors, onStart }) {
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        {floors.map(floor => {
+        {floors.map((floor, idx) => {
           const sel = selectedIds.includes(floor.id);
           return (
             <button key={floor.id} onClick={() => toggle(floor.id)}
+              className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
               style={{
                 padding: '18px 16px', borderRadius: 20, border: 'none', cursor: 'pointer', textAlign: 'left',
                 background: sel ? M.accent : M.card,
@@ -251,7 +252,7 @@ export default function InspecaoPage() {
       <div style={{ minHeight: '100vh', background: M.bg, paddingBottom: 40 }}>
         {/* Header */}
         <div style={{ position: 'sticky', top: 0, background: M.bg, padding: '48px 16px 14px', zIndex: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="anim-fade-down" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <MRound label="Voltar" onClick={handleBack}>
               <ArrowLeft size={19} />
             </MRound>

@@ -359,7 +359,7 @@ export default function GestorBuildingPage() {
             <div className="col-span-1 bg-card rounded-card p-5">
               <div className="flex items-center justify-between mb-4">
                 <button onClick={prev} className="p-1 text-mute hover:text-white"><ChevronLeft size={16} /></button>
-                <span className="text-white text-sm font-semibold capitalize">{monthLabel}</span>
+                <span key={monthLabel} className="anim-fade-in text-white text-sm font-semibold capitalize">{monthLabel}</span>
                 <button onClick={next} className="p-1 text-mute hover:text-white"><ChevronRight size={16} /></button>
               </div>
               <MonthGrid heatmap={heatmap} year={year} month={month} onDayClick={(day, info) => setSelected({ day, info })} />
@@ -390,9 +390,9 @@ export default function GestorBuildingPage() {
                       {[1,2,3,4,5].map(j => <td key={j} className="px-6 py-3"><Skeleton className="h-4 w-full" /></td>)}
                     </tr>
                   ))}
-                  {rows.map(r => (
+                  {rows.map((r, idx) => (
                     <tr key={r.id} onClick={() => setReportId(r.id)}
-                      className="border-b border-line hover:bg-chip transition-colors cursor-pointer">
+                      className={`anim-fade-in anim-d${Math.min(idx + 1, 6)} border-b border-line hover:bg-chip transition-colors cursor-pointer`}>
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-2">
                           <Avatar user={r.inspector} size={28} />

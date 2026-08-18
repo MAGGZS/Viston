@@ -93,7 +93,7 @@ function TopBuildings({ stats, loading }) {
       ) : (
         <div className="flex flex-col gap-2">
           {rows.map((b, idx) => (
-            <div key={b.id} className="flex items-center gap-3 bg-chip rounded-control px-4 py-2.5">
+            <div key={b.id} className={`anim-fade-in anim-d${Math.min(idx + 1, 6)} flex items-center gap-3 bg-chip rounded-control px-4 py-2.5`}>
               <span className="text-faint text-xs" style={{ ...NUM, width: 16 }}>{idx + 1}</span>
               <span className="text-white text-sm flex-1 truncate">{b.name}</span>
               <span className="text-accent text-sm font-semibold" style={NUM}>{b.floors}</span>
@@ -125,7 +125,7 @@ export default function AdminDashboardPage() {
       <div className="hidden lg:flex min-h-screen bg-page">
         <AdminSidebar />
         <main className="flex-1 p-8 overflow-auto">
-          <div className="flex items-center justify-between mb-8">
+          <div className="anim-fade-down flex items-center justify-between mb-8">
             <div>
               <h1 className="text-2xl font-semibold text-white">Visão geral</h1>
               <p className="text-mute text-sm mt-0.5">Os números do sistema inteiro.</p>

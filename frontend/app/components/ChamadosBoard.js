@@ -38,10 +38,11 @@ function stampLabel(value) {
 }
 
 /** Uma linha da lista: o suficiente para escolher qual abrir. */
-function TicketRow({ ticket, active, onClick }) {
+function TicketRow({ ticket, active, onClick, className = '' }) {
   return (
     <button
       onClick={onClick}
+      className={className}
       style={{
         width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
         background: active ? T.chip : T.card,
@@ -209,7 +210,7 @@ function DoneNotice({ ticket }) {
   if (ticket.status !== 'AGUARDANDO_FECHAMENTO') return null;
 
   return (
-    <div style={{ background: T.accentSoft, borderRadius: R.control, padding: '12px 14px', display: 'flex', gap: 10 }}>
+    <div className="anim-scale-in" style={{ background: T.accentSoft, borderRadius: R.control, padding: '12px 14px', display: 'flex', gap: 10 }}>
       <CheckCheck size={16} color={T.accent} style={{ flexShrink: 0, marginTop: 1 }} />
       <p style={{ color: T.text, fontSize: 12, lineHeight: 1.6 }}>
         Concluído por {ticket.responsible ?? 'responsável'} em {stampLabel(ticket.done_at)} —
@@ -221,6 +222,8 @@ function DoneNotice({ ticket }) {
 
 /** O detalhe do chamado escolhido: o que está acontecendo, e o que fazer com isso. */
 function TicketDetail({ ticket, buildingId, group }) {
+  // Sem `key` próprio aqui: quem remonta é o pai (ver ChamadosBoard), e é isso
+  // que faz a folha da direita entrar de novo a cada ocorrência escolhida.
   const close = useCloseTicket();
   const { show: toast } = useToastStore();
 
@@ -234,7 +237,7 @@ function TicketDetail({ ticket, buildingId, group }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div className="anim-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <Badge variant={PRIORITY_VARIANT[ticket.priority] ?? 'default'}>
@@ -342,7 +345,7 @@ export function ChamadosBoard({ buildingId, group }) {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
+      <div className="anim-fade-in" style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
         <Spinner size="lg" />
       </div>
     );
@@ -351,8 +354,8 @@ export function ChamadosBoard({ buildingId, group }) {
   if (tickets.length === 0) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 60, textAlign: 'center' }}>
-        <Building2 size={40} color={T.faint} style={{ marginBottom: 14 }} />
-        <p style={{ color: T.mute, fontSize: 14 }}>{EMPTY[group]}</p>
+        <Building2 className="anim-pop-in" size={40} color={T.faint} style={{ marginBottom: 14 }} />
+        <p className="anim-fade-up anim-d1" style={{ color: T.mute, fontSize: 14 }}>{EMPTY[group]}</p>
       </div>
     );
   }
@@ -361,25 +364,26 @@ export function ChamadosBoard({ buildingId, group }) {
     <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(300px, 380px) 1fr', gap: 20, padding: '0 32px 28px' }}>
       {/* Esquerda: o histórico de ocorrências */}
       <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}>
-        {tickets.map((ticket) => (
+        {tickets.map((ticket, idx) => (
           <TicketRow
             key={ticket.id}
             ticket={ticket}
             active={ticket.id === selected?.id}
             onClick={() => setPicked(ticket.id)}
+            className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
           />
         ))}
       </div>
 
       {/* Direita: a ocorrência aberta */}
-      <div style={{ overflowY: 'auto', background: T.card, borderRadius: 26, padding: 26 }}>
+      <div className="anim-fade-up anim-d2" style={{ overflowY: 'auto', background: T.card, borderRadius: 26, padding: 26 }}>
         {/* `key` no chamado: os campos do detalhe (responsável escolhido,
             manutenção, valor) nascem do chamado aberto, e trocar de ocorrência
             tem de recarregá-los — não manter o que estava digitado no anterior. */}
         {selected ? (
           <TicketDetail key={selected.id} ticket={selected} buildingId={buildingId} group={group} />
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.mute, fontSize: 13, gap: 8 }}>
+          <div className="anim-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.mute, fontSize: 13, gap: 8 }}>
             <ArrowRight size={15} /> Escolha uma ocorrência à esquerda
           </div>
         )}

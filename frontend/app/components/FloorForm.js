@@ -120,7 +120,9 @@ export function FloorForm({ floor, inspectorName, initialRecords, responsibles =
       </MCard>
 
       {!nothingToReport && fields.map((field, index) => (
-        <MCard key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        // `field.id` é novo a cada "Adicionar ocorrência": o cartão recém-criado
+        // entra animado, e os que já estavam na tela não repetem a animação.
+        <MCard key={field.id} className="anim-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 14, color: M.text }}>Ocorrência {index + 1}</p>
             {fields.length > 1 && (
@@ -161,7 +163,7 @@ export function FloorForm({ floor, inspectorName, initialRecords, responsibles =
               options={responsibleOptions} placeholder="Deixar para o moderador encaminhar"
               error={errors.records?.[index]?.responsible_id?.message} />
           ) : (
-            <p style={{ color: M.faint, fontSize: 11, lineHeight: 1.5 }}>
+            <p className="anim-fade-in" style={{ color: M.faint, fontSize: 11, lineHeight: 1.5 }}>
               Este prédio ainda não tem responsáveis cadastrados. O chamado vai
               para o moderador encaminhar.
             </p>

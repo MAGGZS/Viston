@@ -12,7 +12,15 @@ import { Select } from '@/app/components/ui';
 
 export const M = T;
 
-/** Tela: fundo preto e espaço para a barra inferior. */
+/**
+ * Tela: fundo preto e espaço para a barra inferior.
+ *
+ * Sem `className` de propósito. As classes de animação terminam com um
+ * `transform` aplicado (o `both` do fill-mode mantém o último quadro), e
+ * elemento com transform vira bloco de contenção: a barra inferior, que é
+ * `position: fixed`, passaria a se posicionar em relação a ele em vez da
+ * janela. Quem anima aqui são os filhos.
+ */
 export function MPage({ children, pad = true }) {
   return (
     <div style={{ minHeight: '100vh', background: M.bg, paddingBottom: 108 }}>
@@ -22,9 +30,9 @@ export function MPage({ children, pad = true }) {
 }
 
 /** Barra do topo: título grande à esquerda, botões redondos à direita. */
-export function MTopBar({ eyebrow, title, accent, actions, avatar }) {
+export function MTopBar({ eyebrow, title, accent, actions, avatar, className = '' }) {
   return (
-    <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '52px 0 22px' }}>
+    <header className={className} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '52px 0 22px' }}>
       {avatar}
       <div style={{ flex: 1, minWidth: 0 }}>
         {eyebrow && <p style={{ color: M.faint, fontSize: 12, marginBottom: 2 }}>{eyebrow}</p>}
@@ -52,9 +60,9 @@ export function MRound({ children, onClick, active = false, label }) {
 }
 
 /** Cartão base. */
-export function MCard({ children, style = {}, onClick }) {
+export function MCard({ children, style = {}, onClick, className = '' }) {
   return (
-    <div onClick={onClick} style={{
+    <div onClick={onClick} className={className} style={{
       background: M.card, borderRadius: 26, padding: 18,
       ...(onClick ? { cursor: 'pointer' } : {}),
       ...style,
@@ -115,9 +123,9 @@ export function MButtonGhost({ children, onClick, type = 'button', tone = 'neutr
 }
 
 /** Rótulo de seção: texto claro à esquerda, ação em pílula amarela à direita. */
-export function MSectionHead({ title, action }) {
+export function MSectionHead({ title, action, className = '' }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '26px 0 12px' }}>
+    <div className={className} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '26px 0 12px' }}>
       <h2 style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text }}>{title}</h2>
       {action}
     </div>

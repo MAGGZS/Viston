@@ -44,7 +44,7 @@ export function JoinBuildingForm({ align = 'left' }) {
 
   if (requested) {
     return (
-      <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 14, padding: 14, textAlign: 'center' }}>
+      <div className="anim-scale-in" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 14, padding: 14, textAlign: 'center' }}>
         <p style={{ color: '#4ade80', fontWeight: W.title, fontSize: 14 }}>Solicitação enviada!</p>
         <p style={{ color: T.mute, fontSize: 12, marginTop: 4 }}>Aguarde a aprovação do gestor do prédio.</p>
       </div>
@@ -70,11 +70,11 @@ export function JoinBuildingForm({ align = 'left' }) {
         <Button variant="secondary" onClick={handleSearch}>Buscar</Button>
       </div>
 
-      {isLoading && <p style={{ color: T.faint, fontSize: 13 }}>Buscando...</p>}
-      {error && <p style={{ color: T.danger, fontSize: 13 }}>Chave inválida ou prédio não encontrado</p>}
+      {isLoading && <p className="anim-fade-in" style={{ color: T.faint, fontSize: 13 }}>Buscando...</p>}
+      {error && <p className="anim-fade-in" style={{ color: T.danger, fontSize: 13 }}>Chave inválida ou prédio não encontrado</p>}
 
       {building && (
-        <div style={{ background: T.chip, borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div className="anim-fade-up" style={{ background: T.chip, borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <p style={{ color: T.text, fontWeight: W.title, fontSize: 14, textAlign: 'left' }}>{building.name}</p>
           <Button onClick={handleRequestAccess} loading={requestAccess.isPending} style={{ fontSize: 12, padding: '6px 14px' }}>
             Conectar-se

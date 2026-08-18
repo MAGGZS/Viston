@@ -50,7 +50,9 @@ export default function RootPage() {
 
   return (
     <div className="min-h-screen bg-page flex items-center justify-center">
-      <div className="w-9 h-9 bg-[#F5C518] rounded-xl flex items-center justify-center animate-pulse">
+      {/* A marca salta e depois pulsa: a tela existe por um instante, entre o
+          perfil carregar e o redirecionamento, e sem nada nela parece travada. */}
+      <div className="anim-pop-in w-9 h-9 bg-[#F5C518] rounded-xl flex items-center justify-center animate-pulse">
         <span className="text-black font-black text-sm">V</span>
       </div>
     </div>

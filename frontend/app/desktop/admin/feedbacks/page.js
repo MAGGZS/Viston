@@ -295,7 +295,7 @@ export default function AdminFeedbacksPage() {
       <div className="hidden lg:flex min-h-screen bg-page">
         <AdminSidebar />
         <main className="flex-1 p-8 overflow-auto">
-          <div className="flex items-center justify-between mb-6">
+          <div className="anim-fade-down flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-semibold text-white">Feedbacks</h1>
               <p className="text-mute text-sm mt-0.5">
@@ -310,7 +310,7 @@ export default function AdminFeedbacksPage() {
           {/* As três caixas. A contagem só acompanha a pendente porque é o que
               chega sem ninguém ter olhado — a lista de tarefas e as mensagens
               são de quem já decidiu abrir a aba. */}
-          <div className="flex gap-2 mb-6">
+          <div className="anim-fade-up anim-d1 flex gap-2 mb-6">
             {TABS.map(({ status, label, icon: Icon }) => {
               const active = status === tab;
               return (

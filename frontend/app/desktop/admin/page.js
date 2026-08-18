@@ -147,7 +147,7 @@ export default function AdminUsersPage() {
         <AdminSidebar />
         <main className="flex-1 p-8">
           <div className="flex items-center justify-between mb-8">
-            <div>
+            <div className="anim-fade-down">
               <h1 className="text-2xl font-semibold text-white">Usuários</h1>
               <p className="text-mute text-sm mt-0.5">
                 A função de cada conta vem dos prédios a que ela se vincula, e quem a define
@@ -161,7 +161,7 @@ export default function AdminUsersPage() {
           </div>
 
           {/* Tabela */}
-          <div className="bg-card rounded-card overflow-hidden">
+          <div className="anim-fade-up anim-d1 bg-card rounded-card overflow-hidden">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-line">

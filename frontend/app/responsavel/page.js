@@ -28,7 +28,7 @@ const PRIORITY_VARIANT = { ALTA: 'danger', MEDIA: 'warning', BAIXA: 'default' };
  * informado, o cartão mostra que está esperando — e não some da lista, senão
  * quem informou por engano não teria como perceber.
  */
-function TicketCard({ ticket }) {
+function TicketCard({ ticket, className = '' }) {
   const reportDone = useReportTicketDone();
   const { show: toast } = useToastStore();
   const waiting = ticket.status === 'AGUARDANDO_FECHAMENTO';
@@ -45,7 +45,7 @@ function TicketCard({ ticket }) {
   const day = parseReportDate(ticket.report?.date);
 
   return (
-    <MCard style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <MCard className={className} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 15, color: M.text }}>
@@ -84,7 +84,7 @@ function TicketCard({ ticket }) {
       </p>
 
       {waiting ? (
-        <div style={{ background: M.accentSoft, borderRadius: 16, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'center' }}>
+        <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: 16, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'center' }}>
           <CheckCheck size={15} color={M.accent} style={{ flexShrink: 0 }} />
           <p style={{ color: M.text, fontSize: 12, lineHeight: 1.5 }}>
             Conclusão informada — aguardando o moderador fechar.
@@ -115,6 +115,7 @@ export default function ResponsavelPage() {
     <RouteGuard roles={['RESPONSAVEL']}>
       <MPage>
         <MTopBar
+          className="anim-fade-down"
           eyebrow={pendentes > 0 ? `${pendentes} para atender` : 'Nada pendente'}
           title="Meus"
           accent="chamados"
@@ -123,14 +124,14 @@ export default function ResponsavelPage() {
         {isLoading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[1, 2, 3].map((i) => (
-              <div key={i} style={{ height: 150, background: M.card, borderRadius: 26 }} />
+              <div key={i} className="anim-fade-in animate-pulse" style={{ height: 150, background: M.card, borderRadius: 26 }} />
             ))}
           </div>
         )}
 
         {!isLoading && tickets.length === 0 && (
-          <MCard style={{ textAlign: 'center', padding: '40px 20px' }}>
-            <ClipboardList size={34} color={M.faint} style={{ margin: '0 auto 12px' }} />
+          <MCard className="anim-fade-up anim-d1" style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <ClipboardList className="anim-pop-in anim-d2" size={34} color={M.faint} style={{ margin: '0 auto 12px' }} />
             <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text }}>
               Nenhum chamado com você
             </p>
@@ -142,8 +143,12 @@ export default function ResponsavelPage() {
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {tickets.map((ticket) => (
-            <TicketCard key={ticket.id} ticket={ticket} />
+          {tickets.map((ticket, idx) => (
+            <TicketCard
+              key={ticket.id}
+              ticket={ticket}
+              className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
+            />
           ))}
         </div>
 

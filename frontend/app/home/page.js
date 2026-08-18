@@ -54,6 +54,7 @@ export default function HomePage() {
     <RouteGuard>
       <MPage>
         <MTopBar
+          className="anim-fade-down"
           eyebrow={format(now, "EEEE, d 'de' MMMM", { locale: ptBR })}
           title="Olá,"
           accent={user?.name?.split(' ')[0]}
@@ -74,7 +75,8 @@ export default function HomePage() {
         />
 
         {podeVistoriar && (
-          <MCard style={{ background: M.accent, padding: 20, display: 'flex', alignItems: 'center', gap: 14 }}
+          <MCard className="anim-fade-up anim-d1"
+            style={{ background: M.accent, padding: 20, display: 'flex', alignItems: 'center', gap: 14 }}
             onClick={() => router.push('/inspecao')}>
             <div style={{ width: 46, height: 46, borderRadius: 16, background: 'rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <ClipboardCheck size={22} color="#000" />
@@ -87,7 +89,7 @@ export default function HomePage() {
         )}
 
         {!buildingsLoading && !hasBuilding && (
-          <MCard style={{ marginTop: 12, padding: '28px 20px' }}>
+          <MCard className="anim-fade-up anim-d1" style={{ marginTop: 12, padding: '28px 20px' }}>
             <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text, textAlign: 'center' }}>
               Nenhum prédio ainda
             </p>
@@ -100,9 +102,9 @@ export default function HomePage() {
 
         {!buildingsLoading && hasBuilding && (
           <>
-            <MSectionHead title={myBuildings[0]?.name ?? 'Seu prédio'} />
+            <MSectionHead className="anim-fade-up anim-d2" title={myBuildings[0]?.name ?? 'Seu prédio'} />
 
-            <MCard style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <MCard className="anim-fade-up anim-d3" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <MStats items={[
                 { value: stats.vistorias, label: 'Vistorias' },
                 { value: stats.dias, label: 'Dias' },
@@ -114,7 +116,7 @@ export default function HomePage() {
                   <button onClick={prevMonth} aria-label="Mês anterior" style={{ background: 'none', border: 'none', cursor: 'pointer', color: M.faint, padding: 4 }}>
                     <ChevronLeft size={18} />
                   </button>
-                  <span style={{ fontFamily: M.display, fontWeight: 600, fontSize: 14, color: M.text, textTransform: 'capitalize' }}>{monthLabel}</span>
+                  <span key={monthLabel} className="anim-fade-in" style={{ fontFamily: M.display, fontWeight: 600, fontSize: 14, color: M.text, textTransform: 'capitalize' }}>{monthLabel}</span>
                   <button onClick={nextMonth} aria-label="Próximo mês" style={{ background: 'none', border: 'none', cursor: 'pointer', color: M.faint, padding: 4 }}>
                     <ChevronRight size={18} />
                   </button>

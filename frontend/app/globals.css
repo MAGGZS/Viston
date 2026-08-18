@@ -115,7 +115,16 @@ input:-webkit-autofill:focus {
   to { transform: rotate(360deg); }
 }
 
-/* Classes utilitárias */
+/**
+ * Classes utilitárias.
+ *
+ * Cuidado com as que movem (`fade-up`, `fade-down`, `scale-in`, `pop-in`): o
+ * `both` do fill-mode mantém o último quadro, e o último quadro ainda é um
+ * `transform`. Elemento com transform vira bloco de contenção — um filho
+ * `position: fixed` (a barra inferior, um modal) passa a se posicionar em
+ * relação a ele, e não à janela. Em contêiner que abriga elemento fixo, use
+ * `anim-fade-in`, que só mexe na opacidade, ou anime os filhos.
+ */
 .anim-fade-in    { animation: fade-in 0.3s ease both; }
 .anim-fade-up    { animation: fade-up 0.35s ease both; }
 .anim-fade-down  { animation: fade-down 0.3s ease both; }
