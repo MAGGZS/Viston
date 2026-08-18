@@ -18,22 +18,37 @@ desta descrição.
   daquele prédio.
 - **Vistoria**: a vistoria inteira é enviada em uma única requisição, já
   concluída. Cada andar carrega suas ocorrências (tipo de manutenção,
-  categoria, prioridade, descrição, responsável, status).
+  categoria, prioridade, descrição e, se o inspetor souber, o responsável).
 - **Status do andar**: derivado da maior prioridade relatada — ALTA vira
   PROBLEMA, MEDIA vira ATENCAO, o resto fica OK.
-- **Relatório**: gerado em Excel logo após o envio e guardado no storage. Se a
-  geração falhar, a vistoria continua salva e a planilha pode ser refeita.
+- **Chamado**: cada ocorrência vira um chamado. Nasce aberta, o moderador do
+  prédio a encaminha a um responsável, o responsável informa quando termina, e
+  só o moderador fecha.
+- **Relatório e planilha**: a unidade é o dia, não a vistoria. Se três pessoas
+  vistoriam o mesmo prédio no mesmo dia, sai um documento só, com os três nomes
+  na linha "Inspeção feita por". Se a geração falhar, a vistoria continua salva
+  e a planilha pode ser refeita.
 - **Histórico e calendário**: as vistorias concluídas alimentam um mapa de calor
-  por dia, restrito aos prédios que o usuário pode ver.
+  por dia, restrito aos prédios que o usuário pode ver. O histórico continua
+  listando vistoria por vistoria, com o nome de quem fez cada uma; abrir
+  qualquer uma delas abre o relatório do dia.
 
 ## Papéis
 
-- **ADMIN**: administra prédios, andares, membros e solicitações de acesso;
-  enxerga todos os prédios; é o único que pode descartar uma vistoria e o único
-  que vê a chave de compartilhamento.
-- **INSPECTOR**: realiza vistorias nos prédios em que está vinculado.
-- **VIEWER**: apenas consulta, e somente pelo desktop. Papel padrão de todo
-  cadastro novo.
+São dois eixos. O tipo da conta separa o **gestor** — que cadastra prédios,
+administra quem entra neles e define os papéis — do **usuário** comum; o
+**ADMIN** é a conta de suporte do sistema, que enxerga tudo e não tem prédio.
+
+Dentro de cada prédio, o vínculo do usuário diz o que ele faz ali:
+
+- **INSPECTOR**: realiza vistorias.
+- **VIEWER**: apenas consulta, e somente pelo desktop. É como todo mundo entra.
+- **MODERADOR**: recebe os chamados abertos pelas vistorias, encaminha a um
+  responsável e é o único que fecha um chamado.
+- **RESPONSAVEL**: técnico alocado no prédio. Atende o chamado encaminhado e
+  informa quando terminou — informar não fecha nada.
+
+A mesma conta pode ter papéis diferentes em prédios diferentes.
 
 ## Stack
 
@@ -45,12 +60,13 @@ desta descrição.
 
 - [Home](/): entrada do sistema, redireciona conforme o papel e o dispositivo.
 - [Entrar](/login): autenticação.
-- [Criar conta](/register): cadastro público; a conta nasce como VIEWER e
-  precisa de aprovação em um prédio para ter utilidade.
+- [Criar conta](/register): cadastro público; a conta nasce sem vínculo nenhum
+  e precisa de aprovação em um prédio para ter utilidade.
 
 ## Observações para agentes
 
 - Não existe API pública: todos os endpoints exigem `Authorization: Bearer`.
-- As rotas internas (`/home`, `/inspecao`, `/historico`, `/perfil`, `/desktop`)
-  estão bloqueadas no `robots.txt` e não devem ser rastreadas.
+- As rotas internas (`/home`, `/inspecao`, `/historico`, `/perfil`, `/desktop`,
+  `/gestor`, `/moderador`, `/responsavel`) estão bloqueadas no `robots.txt` e
+  não devem ser rastreadas.
 - Idioma do produto: português do Brasil.

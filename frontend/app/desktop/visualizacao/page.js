@@ -13,6 +13,7 @@ import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { Badge, Skeleton, Button } from '@/app/components/ui';
 import { useCalendar, useBuildingHistory, useMyBuildings } from '@/app/hooks/useApi';
+import { parseReportDate } from '@/app/lib/date';
 import { useAuthStore } from '@/app/store/auth';
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
@@ -121,7 +122,7 @@ export default function VisualizacaoPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-line">
-                      {['Inspetor', 'Status', 'Data', 'Excel'].map((h) => (
+                      {['Inspetor', 'Status', 'Dia', 'Excel'].map((h) => (
                         <th key={h} className="text-left px-6 py-3 text-mute text-xs font-medium">{h}</th>
                       ))}
                     </tr>
@@ -138,8 +139,10 @@ export default function VisualizacaoPage() {
                         <td className="px-6 py-3">
                           <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
                         </td>
+                        {/* Só o dia: a planilha e o relatório completo passaram
+                            a ser do dia, e a hora do envio não dizia nada. */}
                         <td className="px-6 py-3 text-mute text-sm">
-                          {format(new Date(r.finished_at || r.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                          {format(parseReportDate(r.date), 'dd/MM/yyyy', { locale: ptBR })}
                         </td>
                         <td className="px-6 py-3">
                           <div className="flex items-center gap-4">

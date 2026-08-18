@@ -30,15 +30,30 @@ export const PRIORITIES = [
   { value: 'BAIXA', label: 'Baixa' },
 ];
 
-export const RESPONSIBLES = ['Alan', 'Ailton', 'Gislaine', 'Gustavo', 'Rossi', 'Felipe', 'Vanessa']
-  .map((name) => ({ value: name, label: name }));
+// A lista fixa de responsáveis ("Alan", "Gislaine", ...) saiu daqui: eram nomes
+// que não correspondiam a conta nenhuma. Responsável virou papel de prédio, e o
+// droplist do formulário recebe as contas com esse papel naquele prédio — ver
+// `useBuildingResponsibles`.
 
+// Onde o chamado está. O formulário não escolhe mais: a ocorrência nasce
+// ABERTA, e daí em diante quem move é o moderador (e o responsável, que só
+// consegue dizer "terminei").
 export const RECORD_STATUS = [
   { value: 'ABERTO', label: 'Aberto' },
   { value: 'EM_ANDAMENTO', label: 'Em andamento' },
   { value: 'AGUARDANDO_TERCEIRO', label: 'Aguardando terceiro' },
+  { value: 'AGUARDANDO_FECHAMENTO', label: 'Concluído pelo responsável' },
   { value: 'CONCLUIDO', label: 'Concluído' },
 ];
+
+/** Cor do estado do chamado nas listas — a mesma leitura das três telas. */
+export const RECORD_STATUS_VARIANT = {
+  ABERTO: 'warning',
+  EM_ANDAMENTO: 'accent',
+  AGUARDANDO_TERCEIRO: 'accent',
+  AGUARDANDO_FECHAMENTO: 'accent',
+  CONCLUIDO: 'success',
+};
 
 /** Rótulo legível de um valor de enum; devolve o próprio valor se não conhecer. */
 export function labelOf(options, value) {
@@ -52,7 +67,16 @@ export function emptyRecord() {
     category: '',
     priority: '',
     description: '',
-    responsible: '',
-    status: 'ABERTO',
+    // Vazio é um estado válido: o chamado nasce sem dono e o moderador o
+    // encaminha.
+    responsible_id: '',
   };
+}
+
+/** Valor em reais como o produto o escreve. Nulo vira travessão. */
+export function formatCost(value) {
+  if (value === null || value === undefined || value === '') return '—';
+  const number = Number(value);
+  if (Number.isNaN(number)) return '—';
+  return number.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }

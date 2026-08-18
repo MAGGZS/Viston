@@ -26,4 +26,13 @@ export const BRAND = {
 export const PUBLIC_ROUTES = ['/', '/login', '/register', '/register/gestor'];
 
 /** Prefixos que só existem depois do login — nada aqui deve ir para buscador. */
-export const PRIVATE_ROUTE_PREFIXES = ['/home', '/inspecao', '/historico', '/perfil', '/desktop', '/gestor'];
+export const PRIVATE_ROUTE_PREFIXES = [
+  '/home',
+  '/inspecao',
+  '/historico',
+  '/perfil',
+  '/desktop',
+  '/gestor',
+  '/moderador',
+  '/responsavel',
+];

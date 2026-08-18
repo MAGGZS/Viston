@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/app/store/auth';
-import { isAdmin, isManagerAccount } from '@/app/lib/roles';
+import { canInspect, isAdmin, isManagerAccount, isResponsible, memberships } from '@/app/lib/roles';
 
 export default function RootPage() {
   const { user, isLoading } = useAuthStore();
@@ -26,11 +26,26 @@ export default function RootPage() {
 
     const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
 
-    if (isDesktop) {
-      router.replace(isAdmin(user) ? '/desktop/admin/dashboard' : '/desktop/visualizacao');
-    } else {
-      router.replace('/home');
+    if (isAdmin(user)) {
+      router.replace(isDesktop ? '/desktop/admin/dashboard' : '/home');
+      return;
     }
+
+    // Quem modera cai na mesa de chamados: é o produto da conta dele, e as
+    // outras telas não mostram fila nenhuma.
+    if (memberships(user).some((m) => m.role === 'MODERADOR')) {
+      router.replace('/moderador');
+      return;
+    }
+
+    // O responsável que não vistoria também tem uma tela só dele. Quem faz as
+    // duas coisas entra pelo app normal e chega aos chamados pela barra de baixo.
+    if (isResponsible(user) && !canInspect(user)) {
+      router.replace('/responsavel');
+      return;
+    }
+
+    router.replace(isDesktop ? '/desktop/visualizacao' : '/home');
   }, [isLoading, user, router]);
 
   return (

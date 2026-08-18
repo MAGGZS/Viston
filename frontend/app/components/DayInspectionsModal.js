@@ -1,17 +1,20 @@
 'use client';
-import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { X } from 'lucide-react';
 import { Spinner } from '@/app/components/ui';
 import { InspectionPreview } from '@/app/components/InspectionPreview';
-import { useInspection } from '@/app/hooks/useApi';
+import { useDayReport } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { T, R, W } from '@/app/lib/theme';
 
 /**
  * Detalhes de um dia do calendário: quem vistoriou, prévia da planilha,
  * download e link do relatório completo.
+ *
+ * Uma prévia só para o dia inteiro, e não uma por vistoria. Antes o dia com
+ * três vistorias virava três abas com a hora de cada envio; agora a hora sumiu
+ * junto com as abas — o documento é do dia, e os três nomes aparecem nele.
  */
 export function DayInspectionsModal({ open, onClose, day, info }) {
   const { mounted, closing } = useExitTransition(open);
@@ -22,13 +25,10 @@ export function DayInspectionsModal({ open, onClose, day, info }) {
 
   const reports = shownInfo?.reports ?? [];
 
-  // A seleção é derivada, não sincronizada por efeito: quando o dia muda, o id
-  // escolhido deixa de existir na lista e a prévia volta sozinha para o primeiro
-  // relatório — sem render em cascata.
-  const [pickedId, setPickedId] = useState(null);
-  const selectedId = reports.some((r) => r.id === pickedId) ? pickedId : reports[0]?.id ?? null;
-
-  const { data: report, isLoading } = useInspection(mounted ? selectedId : null);
+  // Qualquer vistoria daquele dia serve de porta de entrada: a API resolve o
+  // dia a partir dela e devolve as três juntas.
+  const anchorId = reports[0]?.id ?? null;
+  const { data: report, isLoading } = useDayReport(mounted ? anchorId : null);
 
   if (!mounted) return null;
 
@@ -53,23 +53,8 @@ export function DayInspectionsModal({ open, onClose, day, info }) {
         </div>
 
         <div style={{ padding: '14px 24px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Vistorias do dia */}
-          {reports.length > 1 && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {reports.map((r) => {
-                const active = r.id === selectedId;
-                return (
-                  <button key={r.id} onClick={() => setPickedId(r.id)}
-                    style={{ padding: '8px 14px', borderRadius: R.pill, cursor: 'pointer', fontSize: 12, fontWeight: W.strong, border: 'none', background: active ? T.accent : T.chip, color: active ? T.onAccent : T.text }}>
-                    {r.inspector} · {format(new Date(r.finished_at), 'HH:mm')}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
           {isLoading && <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>}
-          {report && <InspectionPreview report={report} />}
+          {report && <InspectionPreview report={report} reportId={anchorId} />}
         </div>
       </div>
     </div>

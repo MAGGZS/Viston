@@ -4,7 +4,7 @@ import { ptBR } from 'date-fns/locale';
 import { Download, FileSpreadsheet, X } from 'lucide-react';
 import { Logo } from '@/app/components/Logo';
 import { Button, Spinner } from '@/app/components/ui';
-import { useInspection, useGenerateExcel } from '@/app/hooks/useApi';
+import { useDayReport, useGenerateExcel } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { useIsDesktop } from '@/app/hooks/useMediaQuery';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
@@ -66,21 +66,23 @@ function FloorStatus({ value, pill = false }) {
   );
 }
 
-/** Folha larga: uma tabela por andar, seis colunas. */
+/** Folha larga: uma tabela por andar. */
 function DesktopSheet({ report, entries, totalRecords }) {
   return (
     <div style={D.sheet}>
-      <p style={D.eyebrow}>Relatório de vistoria</p>
+      <p style={D.eyebrow}>Relatório do dia</p>
       <h1 style={D.title}>{report.building?.name}</h1>
 
       <div style={D.metaGrid}>
         <div>
-          <p style={D.metaLabel}>Data de abertura</p>
+          <p style={D.metaLabel}>Dia</p>
           <p style={D.metaValue}>{format(parseReportDate(report.date), "d 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
         </div>
         <div>
-          <p style={D.metaLabel}>Responsável pela vistoria</p>
-          <p style={D.metaValue}>{report.inspector?.name ?? 'Usuário removido'}</p>
+          {/* Os nomes separados por barra: o relatório é do dia, e o dia pode
+              ter tido mais de uma vistoria, de gente diferente. */}
+          <p style={D.metaLabel}>Inspeção feita por</p>
+          <p style={D.metaValue}>{(report.inspectors ?? []).join(' / ') || '—'}</p>
         </div>
         <div>
           <p style={D.metaLabel}>Andares vistoriados</p>
@@ -115,6 +117,7 @@ function DesktopSheet({ report, entries, totalRecords }) {
                     <th style={D.th}>Descrição</th>
                     <th style={{ ...D.th, width: 100 }}>Responsável</th>
                     <th style={{ ...D.th, width: 130 }}>Status</th>
+                    <th style={{ ...D.th, width: 110 }}>Relatado por</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -126,8 +129,9 @@ function DesktopSheet({ report, entries, totalRecords }) {
                         {labelOf(PRIORITIES, record.priority)}
                       </td>
                       <td style={{ ...D.td, whiteSpace: 'pre-wrap' }}>{record.description}</td>
-                      <td style={D.td}>{record.responsible}</td>
+                      <td style={D.td}>{record.responsible ?? 'A encaminhar'}</td>
                       <td style={D.td}>{labelOf(RECORD_STATUS, record.status)}</td>
+                      <td style={D.td}>{record.inspector ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -138,9 +142,9 @@ function DesktopSheet({ report, entries, totalRecords }) {
       })}
 
       <hr style={{ ...D.rule, marginTop: 40 }} />
+      {/* Sem hora: a unidade do relatório é o dia. */}
       <p style={{ fontSize: 11, color: INK_SOFT, marginTop: 12 }}>
-        Vistoria concluída em{' '}
-        {report.finished_at ? format(new Date(report.finished_at), "d/MM/yyyy 'às' HH:mm", { locale: ptBR }) : '—'} · Viston
+        {report.reports?.length ?? 1} vistoria{(report.reports?.length ?? 1) !== 1 ? 's' : ''} neste dia · Viston
       </p>
     </div>
   );
@@ -177,7 +181,9 @@ function MobileRecord({ record }) {
       </p>
 
       <p style={{ fontSize: 11, color: INK_SOFT, lineHeight: 1.5 }}>
-        {labelOf(CATEGORIES, record.category)} · {record.responsible} · {labelOf(RECORD_STATUS, record.status)}
+        {labelOf(CATEGORIES, record.category)} · {record.responsible ?? 'A encaminhar'} ·{' '}
+        {labelOf(RECORD_STATUS, record.status)}
+        {record.inspector ? ` · relatado por ${record.inspector}` : ''}
       </p>
     </div>
   );
@@ -198,7 +204,7 @@ function MobileSheet({ report, entries, totalRecords }) {
         {format(parseReportDate(report.date), "d 'de' MMMM 'de' yyyy", { locale: ptBR })}
       </p>
       <p style={{ fontSize: 13, color: INK_SOFT, marginTop: 2 }}>
-        Por {report.inspector?.name ?? 'Usuário removido'}
+        Por {(report.inspectors ?? []).join(' / ') || '—'}
       </p>
 
       {/* Três números, como o resto do mobile mostra resumo */}
@@ -254,8 +260,8 @@ function MobileSheet({ report, entries, totalRecords }) {
 
       <div style={{ marginTop: 30, paddingTop: 16, borderTop: `1px solid ${RULE}`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
         <p style={{ fontSize: 11, color: INK_SOFT, lineHeight: 1.6 }}>
-          Vistoria concluída em<br />
-          {report.finished_at ? format(new Date(report.finished_at), "d/MM/yyyy 'às' HH:mm", { locale: ptBR }) : '—'}
+          {report.reports?.length ?? 1} vistoria{(report.reports?.length ?? 1) !== 1 ? 's' : ''}<br />
+          neste dia
         </p>
         <Logo size={12} style={{ color: T.faint, WebkitTextStroke: '0px' }} />
       </div>
@@ -263,12 +269,18 @@ function MobileSheet({ report, entries, totalRecords }) {
   );
 }
 
-/** Relatório completo da vistoria, em folha de documento dentro de um modal. */
+/**
+ * O relatório completo, em folha de documento dentro de um modal.
+ *
+ * O `reportId` continua sendo o de uma vistoria — é o que a linha do histórico
+ * tem —, mas o que abre é o documento do dia dela: se três pessoas vistoriaram
+ * o prédio naquela data, as três estão aqui, e o cabeçalho traz os três nomes.
+ */
 export function ReportDocumentModal({ open, onClose, reportId }) {
   const { mounted, closing } = useExitTransition(open);
   // Segura o id na saída para a folha não esvaziar antes da animação acabar
   const shownId = useKeepWhileClosing(reportId, open);
-  const { data: report, isLoading } = useInspection(mounted ? shownId : null);
+  const { data: report, isLoading } = useDayReport(mounted ? shownId : null);
   const generateExcel = useGenerateExcel();
   const { show: toast } = useToastStore();
   const isDesktop = useIsDesktop();
@@ -307,7 +319,7 @@ export function ReportDocumentModal({ open, onClose, reportId }) {
         {/* Barra de ações — fora da folha, para o documento ficar limpo */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isDesktop ? '12px 16px' : '14px 14px 14px 18px', background: T.bg, borderBottom: `1px solid ${RULE}`, flexShrink: 0 }}>
           <span style={{ color: T.mute, fontSize: 12, fontWeight: W.body }}>
-            Relatório de vistoria
+            Relatório do dia
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: isDesktop ? 8 : 4 }}>
             {report?.excel_url ? (

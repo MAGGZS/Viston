@@ -7,8 +7,9 @@
  *            vistoria: o relatório aponta para a tabela de usuários, e ele não
  *            está lá.
  *   USER     todo o resto. Sem papel na conta; o que ela pode fazer vem do
- *            vínculo com cada prédio (INSPECTOR ou VIEWER). O ADMIN é um USER
- *            com `role: 'ADMIN'` — conta de suporte, sem prédio próprio.
+ *            vínculo com cada prédio (INSPECTOR, VIEWER, MODERADOR ou
+ *            RESPONSAVEL). O ADMIN é um USER com `role: 'ADMIN'` — conta de
+ *            suporte, sem prédio próprio.
  *
  * `user.kind` diz o tipo, e `user.memberships` traz os prédios: para o gestor,
  * os que ele administra (papel 'GESTOR'); para o usuário, os vínculos dele.
@@ -28,7 +29,8 @@ export function memberships(user) {
 }
 
 /**
- * Papel da conta naquele prédio: 'GESTOR', 'INSPECTOR', 'VIEWER' ou null.
+ * Papel da conta naquele prédio: 'GESTOR', 'INSPECTOR', 'VIEWER', 'MODERADOR',
+ * 'RESPONSAVEL' ou null.
  * O ADMIN passa por todos como gestor — é a conta de suporte do sistema.
  */
 export function roleIn(user, buildingId) {
@@ -72,6 +74,31 @@ export function canInspect(user, buildingId) {
 }
 
 /**
+ * Trata os chamados: recebe, encaminha e fecha.
+ *
+ * Com prédio, é o papel naquele prédio; sem prédio, é se existe algum em que a
+ * conta modere. O gestor e o ADMIN passam junto — prédio cujo moderador saiu
+ * ficaria com a fila de chamados parada, sem ninguém que pudesse fechá-los.
+ */
+export function canModerate(user, buildingId) {
+  if (isAdmin(user)) return true;
+  if (buildingId) return ['GESTOR', 'MODERADOR'].includes(roleIn(user, buildingId));
+  return isManagerAccount(user) || memberships(user).some((m) => m.role === 'MODERADOR');
+}
+
+/** O primeiro prédio em que a conta modera — a área do moderador é de um prédio. */
+export function moderatedBuilding(user) {
+  return memberships(user).find((m) => m.role === 'MODERADOR') ?? null;
+}
+
+/** Atende chamado em algum prédio. */
+export function isResponsible(user, buildingId) {
+  if (isManagerAccount(user)) return false;
+  if (buildingId) return roleIn(user, buildingId) === 'RESPONSAVEL';
+  return memberships(user).some((m) => m.role === 'RESPONSAVEL');
+}
+
+/**
  * Só acompanha, em todo lugar onde está.
  *
  * É a conta que não abre no telefone (ver RouteGuard): o produto dela é a tela
@@ -105,9 +132,24 @@ export function effectiveRoles(user) {
 const LABELS = {
   ADMIN: 'Administrador',
   GESTOR: 'Gestor',
+  MODERADOR: 'Moderador',
   INSPECTOR: 'Inspetor',
+  RESPONSAVEL: 'Responsável',
   VIEWER: 'Visualizador',
 };
+
+/**
+ * Ordem de alcance dos papéis de vínculo, do maior para o menor.
+ *
+ * Serve às duas leituras de "o que eu sou aqui": quem tem vínculos diferentes em
+ * prédios diferentes vê o de maior alcance no perfil.
+ */
+const ROLE_RANK = ['MODERADOR', 'INSPECTOR', 'RESPONSAVEL', 'VIEWER'];
+
+/** Como um papel de vínculo aparece na tela. */
+export function buildingRoleLabel(role) {
+  return LABELS[role] ?? 'Sem vínculo';
+}
 
 /**
  * Como a função aparece no perfil.
@@ -121,7 +163,7 @@ export function roleLabel(user) {
   if (isManagerAccount(user)) return LABELS.GESTOR;
 
   const roles = memberships(user).map((m) => m.role);
-  for (const role of ['INSPECTOR', 'VIEWER']) {
+  for (const role of ROLE_RANK) {
     if (roles.includes(role)) return LABELS[role];
   }
   return 'Sem vínculo';
@@ -130,7 +172,7 @@ export function roleLabel(user) {
 /** Mesma leitura, para a lista do admin, que recebe só os papéis. */
 export function rolesLabel(buildingRoles = [], accountRole) {
   if (accountRole === 'ADMIN') return LABELS.ADMIN;
-  for (const role of ['INSPECTOR', 'VIEWER']) {
+  for (const role of ROLE_RANK) {
     if (buildingRoles.includes(role)) return LABELS[role];
   }
   return 'Sem vínculo';

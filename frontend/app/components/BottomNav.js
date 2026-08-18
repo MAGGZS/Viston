@@ -1,8 +1,10 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ClipboardList, User } from 'lucide-react';
+import { Home, ClipboardList, User, Wrench } from 'lucide-react';
 import { M } from '@/app/components/mobile/kit';
+import { useAuthStore } from '@/app/store/auth';
+import { isResponsible } from '@/app/lib/roles';
 
 const items = [
   { href: '/home', icon: Home, label: 'Início' },
@@ -10,8 +12,20 @@ const items = [
   { href: '/perfil', icon: User, label: 'Perfil' },
 ];
 
+/**
+ * A barra de baixo.
+ *
+ * O responsável ganha uma entrada a mais: os chamados dele. Ela só aparece para
+ * quem atende chamado em algum prédio — para o resto seria uma tela vazia.
+ */
 export function BottomNav() {
   const pathname = usePathname();
+  const { user } = useAuthStore();
+
+  const navItems = isResponsible(user)
+    ? [items[0], { href: '/responsavel', icon: Wrench, label: 'Chamados' }, ...items.slice(1)]
+    : items;
+
   return (
     <nav style={{
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
@@ -19,7 +33,7 @@ export function BottomNav() {
       padding: '10px 8px calc(14px + env(safe-area-inset-bottom))',
       display: 'flex',
     }}>
-      {items.map(({ href, icon: Icon, label }) => {
+      {navItems.map(({ href, icon: Icon, label }) => {
         const active = pathname === href;
         return (
           <Link key={href} href={href} style={{

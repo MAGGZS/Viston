@@ -14,18 +14,23 @@ import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Skeleton, Button, Modal, Select } from '@/app/components/ui';
 import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember, useUpdateMemberRole, useDeleteInspection, useAccessRequests, useReviewAccessRequest, useAddBuildingManager, useRemoveBuildingManager } from '@/app/hooks/useApi';
 import { formatShareKey } from '@/app/lib/shareKey';
+import { parseReportDate } from '@/app/lib/date';
 import { useToastStore } from '@/app/store/toast';
 
 // Gestor não está aqui: é outro tipo de conta, e entra pelo e-mail (ver
-// AddManagerForm). Membro só vai de visualizador a inspetor e volta.
+// AddManagerForm). Os quatro papéis de vínculo trocam livremente entre si.
 const ROLE_OPTIONS = [
   { value: 'VIEWER', label: 'Visualizador' },
   { value: 'INSPECTOR', label: 'Inspetor' },
+  { value: 'MODERADOR', label: 'Moderador' },
+  { value: 'RESPONSAVEL', label: 'Responsável' },
 ];
 
 const ROLE_TOAST = {
   INSPECTOR: 'Agora é inspetor',
   VIEWER: 'Agora é visualizador',
+  MODERADOR: 'Agora é moderador — recebe e fecha os chamados',
+  RESPONSAVEL: 'Agora é responsável — atende os chamados encaminhados',
 };
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
@@ -101,7 +106,7 @@ function MemberRow({ member, buildingId, onRemove, className = '' }) {
       <Select
         raised
         wrapperClassName="flex-shrink-0"
-        wrapperStyle={{ width: 148, flexBasis: 148 }}
+        wrapperStyle={{ width: 164, flexBasis: 164 }}
         style={{ padding: '7px 30px 7px 12px', fontSize: 12 }}
         aria-label={`Papel de ${member.user?.name} neste prédio`}
         options={ROLE_OPTIONS}
@@ -374,7 +379,7 @@ export default function GestorBuildingPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-line">
-                    {['Inspetor', 'Status', 'Data', 'Planilha', ''].map((h, i) => (
+                    {['Inspetor', 'Status', 'Dia', 'Planilha', ''].map((h, i) => (
                       <th key={i} className="text-left px-6 py-3 text-mute text-xs font-medium">{h}</th>
                     ))}
                   </tr>
@@ -397,8 +402,9 @@ export default function GestorBuildingPage() {
                       <td className="px-6 py-3">
                         <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
                       </td>
+                      {/* Só o dia: o relatório completo e a planilha são do dia */}
                       <td className="px-6 py-3 text-mute text-sm">
-                        {format(new Date(r.finished_at || r.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        {format(parseReportDate(r.date), 'dd/MM/yyyy', { locale: ptBR })}
                       </td>
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-4">
@@ -483,7 +489,7 @@ export default function GestorBuildingPage() {
               Um prédio pode ter mais de um — o que ele não pode é ficar sem nenhum.
             </p>
 
-            <p className="text-mute text-xs mt-6 mb-2">Quem vistoria e quem acompanha</p>
+            <p className="text-mute text-xs mt-6 mb-2">Quem vistoria, acompanha, modera e atende</p>
             <div className="flex flex-col gap-2">
               {members.length === 0 ? (
                 <p className="text-mute text-sm text-center py-6">Nenhum usuário vinculado a este prédio</p>
@@ -523,7 +529,9 @@ export default function GestorBuildingPage() {
           </div>
         )}
         <p className="text-faint text-xs mt-4 leading-relaxed">
-          Quem é aprovado entra como visualizador. O papel dele muda em Colaboradores.
+          Quem é aprovado entra como visualizador. O papel dele muda em
+          Colaboradores — inclusive para moderador, que recebe e fecha os
+          chamados, ou responsável, que os atende.
         </p>
       </Modal>
 
@@ -562,10 +570,10 @@ export default function GestorBuildingPage() {
             <div style={{ color: 'rgba(255,255,255,0.96)', fontSize: 14, lineHeight: 1.6 }}>
               <p>
                 Descartar a vistoria de <span style={{ color: '#fff', fontWeight: 600 }}>{confirmDiscard?.inspector?.name}</span>
-                {confirmDiscard && ` de ${format(new Date(confirmDiscard.finished_at || confirmDiscard.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`}?
+                {confirmDiscard && ` de ${format(parseReportDate(confirmDiscard.date), 'dd/MM/yyyy', { locale: ptBR })}`}?
               </p>
               <p style={{ marginTop: 10, color: 'rgba(255,255,255,0.44)' }}>
-                Some o relatório, todas as ocorrências registradas e a planilha. Sai também do histórico e do calendário. <span style={{ color: '#f87171' }}>Não tem como desfazer.</span>
+                Some o relatório e todas as ocorrências registradas — inclusive os chamados abertos por elas. Sai do histórico e do calendário, e a planilha do dia é refeita com o que sobrar. <span style={{ color: '#f87171' }}>Não tem como desfazer.</span>
               </p>
             </div>
           </div>

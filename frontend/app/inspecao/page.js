@@ -6,12 +6,26 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { FloorForm } from '@/app/components/FloorForm';
 import { Button, Card, Spinner } from '@/app/components/ui';
 import { M, MRound, MCard, MButton, MButtonSoft, MButtonGhost, MSectionHead, MPill } from '@/app/components/mobile/kit';
-import { useFloors, useBuildingByKey, useSubmitInspection, useMyBuildings, useRequestAccess } from '@/app/hooks/useApi';
+import { useFloors, useBuildingByKey, useSubmitInspection, useMyBuildings, useRequestAccess, useBuildingResponsibles } from '@/app/hooks/useApi';
 import { formatShareKey, normalizeShareKey, isCompleteShareKey } from '@/app/lib/shareKey';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
 import { useAuthStore } from '@/app/store/auth';
 import { canInspect } from '@/app/lib/roles';
 import { useToastStore } from '@/app/store/toast';
+
+/**
+ * O que vai para a API.
+ *
+ * Responsável em branco vira ausência, e não string vazia: o chamado sem dono é
+ * um estado normal — ele chega assim à fila do moderador —, mas a API espera um
+ * id de conta ou nada.
+ */
+function toPayload(records = []) {
+  return records.map(({ responsible_id, ...record }) => ({
+    ...record,
+    ...(responsible_id ? { responsible_id } : {}),
+  }));
+}
 
 // Tela quando não tem vínculo: busca pela chave do prédio e solicita acesso
 function StepSemVinculo() {
@@ -177,6 +191,8 @@ export default function InspecaoPage() {
   const hasBuilding = !!myBuilding;
 
   const { data: floorsData, isLoading: floorsLoading } = useFloors(myBuilding?.building_id);
+  // Só os responsáveis daquele prédio entram no droplist da ocorrência.
+  const { data: responsibles = [] } = useBuildingResponsibles(myBuilding?.building_id);
   const orderedFloors = useMemo(() => sortFloorsDesc(floorsData?.floors ?? []), [floorsData]);
 
   const { mutateAsync: submitInspection, isPending: isSubmitting } = useSubmitInspection();
@@ -207,6 +223,8 @@ export default function InspecaoPage() {
   }
 
   async function handleFloorSubmit(records) {
+    // O rascunho guarda o que o formulário devolveu, inclusive o responsável em
+    // branco: é ele que volta para a tela quando a pessoa anda para trás.
     const updated = { ...drafts, [currentFloor.id]: records };
     setDrafts(updated);
 
@@ -219,7 +237,7 @@ export default function InspecaoPage() {
     try {
       const report = await submitInspection({
         building_id: myBuilding.building_id,
-        floors: floors.map(f => ({ floor_id: f.id, records: updated[f.id] ?? [] })),
+        floors: floors.map(f => ({ floor_id: f.id, records: toPayload(updated[f.id]) })),
       });
       setFinishedReport(report);
       setStep('done');
@@ -279,6 +297,7 @@ export default function InspecaoPage() {
               floor={currentFloor}
               inspectorName={user?.name}
               initialRecords={drafts[currentFloor.id]}
+              responsibles={responsibles}
               onSubmit={handleFloorSubmit}
               isLoading={isSubmitting}
               isLast={isLast}

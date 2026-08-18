@@ -409,11 +409,18 @@ export function useInspections(filters = {}) {
   });
 }
 
-export function useInspection(id) {
+/**
+ * O relatório completo do dia daquela vistoria.
+ *
+ * A listagem do histórico continua vistoria por vistoria; o que muda é o
+ * clique. Se três pessoas vistoriaram o prédio no mesmo dia, abrir qualquer uma
+ * delas abre o mesmo documento, com as três juntas.
+ */
+export function useDayReport(reportId) {
   return useQuery({
-    queryKey: ['inspection', id],
-    queryFn: () => api.get(`/inspections/${id}`).then((r) => r.data),
-    enabled: !!id,
+    queryKey: ['day-report', reportId],
+    queryFn: () => api.get(`/inspections/${reportId}/day`).then((r) => r.data),
+    enabled: !!reportId,
   });
 }
 
@@ -427,6 +434,10 @@ export function useSubmitInspection() {
       qc.invalidateQueries({ queryKey: ['building-history'] });
       qc.invalidateQueries({ queryKey: ['building-dashboard'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
+      qc.invalidateQueries({ queryKey: ['day-report'] });
+      // Cada ocorrência enviada é um chamado novo na fila do moderador.
+      qc.invalidateQueries({ queryKey: ['tickets'] });
+      qc.invalidateQueries({ queryKey: ['ticket-stats'] });
     },
   });
 }
@@ -441,6 +452,9 @@ export function useDeleteInspection() {
       qc.invalidateQueries({ queryKey: ['building-history'] });
       qc.invalidateQueries({ queryKey: ['building-dashboard'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
+      qc.invalidateQueries({ queryKey: ['day-report'] });
+      qc.invalidateQueries({ queryKey: ['tickets'] });
+      qc.invalidateQueries({ queryKey: ['ticket-stats'] });
     },
   });
 }
@@ -450,11 +464,102 @@ export function useGenerateExcel() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id) => api.post(`/inspections/${id}/excel`).then((r) => r.data),
-    onSuccess: (_, id) => {
-      qc.invalidateQueries({ queryKey: ['inspection', id] });
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['inspections'] });
       qc.invalidateQueries({ queryKey: ['building-history'] });
+      // A planilha é do dia: refazê-la muda a URL de todas as vistorias daquela
+      // data, não só a desta linha.
+      qc.invalidateQueries({ queryKey: ['day-report'] });
     },
+  });
+}
+
+// ── Chamados ──────────────────────────────────────────────────────────────────
+// A ocorrência vira chamado depois da vistoria: o moderador do prédio recebe,
+// encaminha a um responsável, acompanha e fecha. As três telas da barra lateral
+// são a mesma consulta com `group` diferente.
+
+/** Os responsáveis alocados naquele prédio — o droplist do formulário. */
+export function useBuildingResponsibles(buildingId) {
+  return useQuery({
+    queryKey: ['building-responsibles', buildingId],
+    queryFn: () => api.get(`/buildings/${buildingId}/responsibles`).then((r) => r.data),
+    enabled: !!buildingId,
+  });
+}
+
+export function useTickets(buildingId, group = 'NOVOS') {
+  return useQuery({
+    queryKey: ['tickets', buildingId, group],
+    queryFn: () =>
+      api.get(`/buildings/${buildingId}/tickets`, { params: { group, limit: 100 } }).then((r) => r.data),
+    enabled: !!buildingId,
+  });
+}
+
+/** Contadores do painel do moderador: aberto, em andamento, concluído. */
+export function useTicketStats(buildingId) {
+  return useQuery({
+    queryKey: ['ticket-stats', buildingId],
+    queryFn: () => api.get(`/buildings/${buildingId}/tickets/stats`).then((r) => r.data),
+    enabled: !!buildingId,
+  });
+}
+
+/** O que foi encaminhado a quem está logado — a tela do responsável. */
+export function useMyTickets() {
+  return useQuery({
+    queryKey: ['my-tickets'],
+    queryFn: () => api.get('/tickets/me').then((r) => r.data),
+  });
+}
+
+/**
+ * Toda ação sobre um chamado mexe em duas listas — a de onde ele saiu e a para
+ * onde foi — e nos contadores. Por isso nenhuma delas invalida só a própria:
+ * encaminhar em "Novos" tem de esvaziar a linha ali e fazê-la aparecer em
+ * "Em andamento".
+ */
+function invalidateTickets(qc) {
+  qc.invalidateQueries({ queryKey: ['tickets'] });
+  qc.invalidateQueries({ queryKey: ['ticket-stats'] });
+  qc.invalidateQueries({ queryKey: ['my-tickets'] });
+}
+
+/** Encaminhar: o chamado ganha dono e passa para "em andamento". */
+export function useForwardTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, responsible_id }) =>
+      api.post(`/tickets/${id}/forward`, { responsible_id }).then((r) => r.data),
+    onSuccess: () => invalidateTickets(qc),
+  });
+}
+
+/** O que o moderador acrescenta ao chamado: manutenção necessária e valor. */
+export function useUpdateTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }) => api.patch(`/tickets/${id}`, data).then((r) => r.data),
+    onSuccess: () => invalidateTickets(qc),
+  });
+}
+
+/** O responsável informa que terminou. Não fecha o chamado — só o moderador fecha. */
+export function useReportTicketDone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post(`/tickets/${id}/done`).then((r) => r.data),
+    onSuccess: () => invalidateTickets(qc),
+  });
+}
+
+/** Fechar. É o único caminho para concluído, e só o moderador passa por ele. */
+export function useCloseTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post(`/tickets/${id}/close`).then((r) => r.data),
+    onSuccess: () => invalidateTickets(qc),
   });
 }
 

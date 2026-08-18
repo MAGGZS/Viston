@@ -92,7 +92,19 @@ async function buildAndStoreDayExcel(buildingId: string, date: Date, userId?: st
 
   const buffer = await generateDayExcel(reports as Parameters<typeof generateDayExcel>[0]);
   const excelUrl = await storageService.uploadDayExcel(buildingId, date, buffer);
+  const replaced = reports.find((r) => r.excel_url)?.excel_url ?? null;
   await inspectionRepository.setDayExcelUrl(buildingId, date, excelUrl);
+
+  // A versão anterior do arquivo do dia não serve mais a ninguém: nenhum
+  // relatório aponta para ela depois da linha acima. Sem esta limpeza o bucket
+  // ganharia um arquivo morto a cada vistoria enviada no mesmo dia.
+  if (replaced && replaced !== excelUrl) {
+    try {
+      await storageService.removeExcel(replaced);
+    } catch (err) {
+      console.error('[Excel] Falha ao remover a planilha anterior do dia:', err);
+    }
+  }
 
   await auditRepository.log({
     user_id: userId,

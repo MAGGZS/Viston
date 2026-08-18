@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Download, FileSpreadsheet, FileText, X } from 'lucide-react';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Button, Spinner } from '@/app/components/ui';
-import { useInspection, useGenerateExcel } from '@/app/hooks/useApi';
+import { useDayReport, useGenerateExcel } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
 import { MAINTENANCE_TYPES, CATEGORIES, PRIORITIES, RECORD_STATUS, labelOf } from '@/app/lib/maintenanceOptions';
@@ -18,13 +18,19 @@ const S = {
 const PRIORITY_VARIANT = { ALTA: 'danger', MEDIA: 'warning', BAIXA: 'default' };
 
 /**
- * Prévia de uma vistoria: cabeçalho, ações e a tabela com as mesmas
- * colunas da aba "Ocorrências" da planilha.
+ * Prévia do dia: cabeçalho, ações e a tabela com as mesmas colunas da aba
+ * "Ocorrências" da planilha.
+ *
+ * A unidade é o dia, e não a vistoria: a planilha e o relatório completo juntam
+ * o que os inspetores daquela data registraram. `reportId` é a vistoria que
+ * serviu de porta de entrada — a API resolve o dia a partir dela.
  */
-export function InspectionPreview({ report }) {
+export function InspectionPreview({ report, reportId }) {
   const [showDocument, setShowDocument] = useState(false);
   const generateExcel = useGenerateExcel();
   const { show: toast } = useToastStore();
+
+  const anchorId = reportId ?? report?.reports?.[0]?.id;
 
   const entries = sortFloorsDesc(
     (report?.floor_form_entries ?? []).map((e) => ({ ...e, label: e.floor?.label ?? '' }))
@@ -35,7 +41,7 @@ export function InspectionPreview({ report }) {
 
   async function handleGenerate() {
     try {
-      const { excel_url } = await generateExcel.mutateAsync(report.id);
+      const { excel_url } = await generateExcel.mutateAsync(anchorId);
       toast('Planilha gerada!', 'success');
       if (excel_url) window.open(excel_url, '_blank', 'noreferrer');
     } catch (e) {
@@ -49,7 +55,7 @@ export function InspectionPreview({ report }) {
         <div>
           <p style={{ color: T.text, fontWeight: W.title, fontSize: 14 }}>{report.building?.name}</p>
           <p style={{ color: T.mute, fontSize: 12 }}>
-            Vistoria feita por {report.inspector?.name ?? 'Usuário removido'} · {entries.length} andar{entries.length !== 1 ? 'es' : ''} · {rows.length} ocorrência{rows.length !== 1 ? 's' : ''}
+            Inspeção feita por: {(report.inspectors ?? []).join(' / ') || '—'} · {entries.length} andar{entries.length !== 1 ? 'es' : ''} · {rows.length} ocorrência{rows.length !== 1 ? 's' : ''}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -78,14 +84,14 @@ export function InspectionPreview({ report }) {
 
         {rows.length === 0 ? (
           <p style={{ color: T.mute, fontSize: 13, padding: '16px 0' }}>
-            Nenhuma ocorrência relatada nesta vistoria.
+            Nenhuma ocorrência relatada neste dia.
           </p>
         ) : (
           <div style={{ overflowX: 'auto', background: T.chip, borderRadius: R.control }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
               <thead>
                 <tr>
-                  {['Andar', 'Tipo de manutenção', 'Categoria', 'Prioridade', 'Descrição', 'Responsável', 'Status'].map((h) => (
+                  {['Andar', 'Tipo de manutenção', 'Categoria', 'Prioridade', 'Descrição', 'Responsável', 'Status', 'Relatado por'].map((h) => (
                     <th key={h} style={S.th}>{h}</th>
                   ))}
                 </tr>
@@ -100,8 +106,9 @@ export function InspectionPreview({ report }) {
                       <Badge variant={PRIORITY_VARIANT[row.priority] ?? 'default'}>{labelOf(PRIORITIES, row.priority)}</Badge>
                     </td>
                     <td style={{ ...S.td, minWidth: 220 }}>{row.description}</td>
-                    <td style={S.td}>{row.responsible}</td>
+                    <td style={S.td}>{row.responsible ?? 'A encaminhar'}</td>
                     <td style={{ ...S.td, whiteSpace: 'nowrap' }}>{labelOf(RECORD_STATUS, row.status)}</td>
+                    <td style={{ ...S.td, whiteSpace: 'nowrap' }}>{row.inspector ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -113,7 +120,7 @@ export function InspectionPreview({ report }) {
       <ReportDocumentModal
         open={showDocument}
         onClose={() => setShowDocument(false)}
-        reportId={report.id}
+        reportId={anchorId}
       />
     </>
   );
@@ -124,7 +131,7 @@ export function InspectionPreviewModal({ open, onClose, reportId }) {
   const { mounted, closing } = useExitTransition(open);
   // Segura o id na saída para a prévia não virar esqueleto ao fechar
   const shownId = useKeepWhileClosing(reportId, open);
-  const { data: report, isLoading } = useInspection(mounted ? shownId : null);
+  const { data: report, isLoading } = useDayReport(mounted ? shownId : null);
 
   if (!mounted) return null;
 
@@ -134,7 +141,7 @@ export function InspectionPreviewModal({ open, onClose, reportId }) {
 
       <div className={closing ? 'anim-scale-out' : 'anim-scale-in'} style={{ position: 'relative', background: T.card, borderRadius: R.card, width: '100%', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '20px 24px 14px', borderBottom: `1px solid ${T.line}` }}>
-          <h2 style={{ color: T.text, fontWeight: W.title, fontSize: 16 }}>Prévia da vistoria</h2>
+          <h2 style={{ color: T.text, fontWeight: W.title, fontSize: 16 }}>Prévia do dia</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 4 }}>
             <X size={18} />
           </button>
@@ -142,7 +149,7 @@ export function InspectionPreviewModal({ open, onClose, reportId }) {
 
         <div style={{ padding: '14px 24px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {isLoading && <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>}
-          {report && <InspectionPreview report={report} />}
+          {report && <InspectionPreview report={report} reportId={shownId} />}
         </div>
       </div>
     </div>

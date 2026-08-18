@@ -9,8 +9,6 @@ import {
   MAINTENANCE_TYPES,
   CATEGORIES,
   PRIORITIES,
-  RESPONSIBLES,
-  RECORD_STATUS,
   emptyRecord,
 } from '@/app/lib/maintenanceOptions';
 import { T, R, W } from '@/app/lib/theme';
@@ -34,8 +32,10 @@ const schema = yup.object({
             category: yup.string().required('Selecione a categoria'),
             priority: yup.string().required('Selecione a prioridade'),
             description: yup.string().trim().required('Descreva a ocorrência'),
-            responsible: yup.string().required('Selecione o responsável'),
-            status: yup.string().required('Selecione o status'),
+            // Sem `required`: o chamado pode nascer sem dono, e o moderador o
+            // encaminha. Obrigar aqui travaria a vistoria em prédio que ainda
+            // não tem responsável nenhum cadastrado.
+            responsible_id: yup.string(),
           })
         )
         .min(1, 'Adicione ao menos uma informação'),
@@ -60,7 +60,14 @@ function Field({ control, name, label, options, placeholder, error }) {
   );
 }
 
-export function FloorForm({ floor, inspectorName, initialRecords, onSubmit, isLoading, isLast }) {
+/**
+ * Um andar do formulário de vistoria.
+ *
+ * `responsibles` são as contas com papel de responsável naquele prédio — a
+ * lista fixa de nomes saiu do produto. Prédio sem responsável nenhum ainda
+ * vistoria: o campo some e o chamado chega ao moderador sem dono.
+ */
+export function FloorForm({ floor, inspectorName, initialRecords, responsibles = [], onSubmit, isLoading, isLast }) {
   const {
     control,
     register,
@@ -79,6 +86,8 @@ export function FloorForm({ floor, inspectorName, initialRecords, onSubmit, isLo
 
   const { fields, append, remove } = useFieldArray({ control, name: 'records' });
   const nothingToReport = watch('nothing_to_report');
+
+  const responsibleOptions = responsibles.map((r) => ({ value: r.id, label: r.name }));
 
   const today = new Date().toLocaleDateString('pt-BR');
 
@@ -147,13 +156,16 @@ export function FloorForm({ floor, inspectorName, initialRecords, onSubmit, isLo
             )}
           </label>
 
-          <Field control={control} name={`records.${index}.responsible`} label="Responsável"
-            options={RESPONSIBLES} placeholder="Selecione o responsável"
-            error={errors.records?.[index]?.responsible?.message} />
-
-          <Field control={control} name={`records.${index}.status`} label="Status"
-            options={RECORD_STATUS} placeholder="Selecione o status"
-            error={errors.records?.[index]?.status?.message} />
+          {responsibles.length > 0 ? (
+            <Field control={control} name={`records.${index}.responsible_id`} label="Responsável (opcional)"
+              options={responsibleOptions} placeholder="Deixar para o moderador encaminhar"
+              error={errors.records?.[index]?.responsible_id?.message} />
+          ) : (
+            <p style={{ color: M.faint, fontSize: 11, lineHeight: 1.5 }}>
+              Este prédio ainda não tem responsáveis cadastrados. O chamado vai
+              para o moderador encaminhar.
+            </p>
+          )}
         </MCard>
       ))}
 
