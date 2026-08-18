@@ -33,12 +33,13 @@ export const updateUserSchema = z
 
 // Troca do papel de um membro dentro do prédio, feita por um gestor dele.
 //
-// Só INSPECTOR e VIEWER: promover a gestor não passa por aqui, porque gestor é
-// outro tipo de conta (ver POST /buildings/:id/managers).
+// Os quatro papéis de vínculo: quem vistoria, quem só acompanha, quem recebe os
+// chamados e quem os atende. Promover a gestor não passa por aqui, porque gestor
+// é outro tipo de conta (ver POST /buildings/:id/managers).
 export const updateMemberRoleSchema = z
   .object({
-    role: z.enum(['INSPECTOR', 'VIEWER'], {
-      required_error: 'Papel deve ser INSPECTOR ou VIEWER',
+    role: z.enum(['INSPECTOR', 'VIEWER', 'MODERADOR', 'RESPONSAVEL'], {
+      required_error: 'Papel deve ser INSPECTOR, VIEWER, MODERADOR ou RESPONSAVEL',
     }),
   })
   .strict();

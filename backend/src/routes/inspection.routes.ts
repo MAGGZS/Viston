@@ -18,6 +18,8 @@ const auth = authenticate as any;
 router.post('/inspections', auth, inspectionController.submit as any);
 router.get('/inspections', auth, inspectionController.findAll as any);
 router.get('/inspections/:id', auth, inspectionController.findById as any);
+// Relatório completo do dia: as vistorias daquele prédio naquela data, juntas
+router.get('/inspections/:id/day', auth, inspectionController.getDayReport as any);
 // Descarte da vistoria: só o gestor do prédio
 router.delete('/inspections/:id', auth, inspectionController.remove as any);
 router.get('/inspections/:id/excel', auth, inspectionController.getExcelUrl as any);

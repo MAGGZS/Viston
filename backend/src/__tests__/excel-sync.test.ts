@@ -1,11 +1,11 @@
 import ExcelJS from 'exceljs';
-import { generateInspectionExcel } from '../services/excel.service';
+import { generateDayExcel } from '../services/excel.service';
 import { InspectionStatus } from '@prisma/client';
 
 jest.mock('../repositories/inspection.repository');
 jest.mock('../repositories/building.repository');
 
-function makeFullReport() {
+function makeFullReport(overrides: any = {}) {
   return {
     id: 'report-1',
     inspector_id: 'user-1',
@@ -36,7 +36,14 @@ function makeFullReport() {
             priority: 'ALTA',
             description: 'Split da sala 601 sem gelar',
             responsible: 'Alan',
+            responsible_id: null,
             status: 'ABERTO',
+            forwarded_at: null,
+            done_at: null,
+            closed_at: null,
+            closed_by_id: null,
+            maintenance_note: null,
+            maintenance_cost: null,
             created_at: new Date(),
           },
         ],
@@ -51,26 +58,66 @@ function makeFullReport() {
         maintenance_records: [],
       },
     ],
+    ...overrides,
   } as any;
 }
 
-// ── Testes: generateInspectionExcel ──────────────────────────────────────────
-describe('generateInspectionExcel', () => {
+/** Segunda vistoria do mesmo prédio no mesmo dia, por outra pessoa. */
+function makeSecondReport() {
+  return makeFullReport({
+    id: 'report-2',
+    inspector_id: 'user-2',
+    inspector: { id: 'user-2', name: 'Marina', email: 'marina@test.com', role: 'INSPECTOR' },
+    floor_form_entries: [
+      {
+        id: 'entry-3',
+        report_id: 'report-2',
+        floor_id: 'floor-2',
+        status_geral: 'PROBLEMA',
+        completed_at: new Date(),
+        floor: { id: 'floor-2', building_id: 'building-1', label: '1º Subsolo' },
+        maintenance_records: [
+          {
+            id: 'r2',
+            floor_form_entry_id: 'entry-3',
+            maintenance_type: 'VAZAMENTO',
+            category: 'EMERGENCIAL',
+            priority: 'ALTA',
+            description: 'Vazamento na garagem',
+            responsible: null,
+            responsible_id: null,
+            status: 'ABERTO',
+            forwarded_at: null,
+            done_at: null,
+            closed_at: null,
+            closed_by_id: null,
+            maintenance_note: null,
+            maintenance_cost: null,
+            created_at: new Date(),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+// ── Testes: generateDayExcel ─────────────────────────────────────────────────
+describe('generateDayExcel', () => {
   it('gera um Buffer válido com dados do relatório', async () => {
-    const buffer = await generateInspectionExcel(makeFullReport());
+    const buffer = await generateDayExcel([makeFullReport()]);
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.length).toBeGreaterThan(0);
   });
 
   it('inclui dados do relatório no buffer gerado', async () => {
-    const buffer = await generateInspectionExcel(makeFullReport());
+    const buffer = await generateDayExcel([makeFullReport()]);
     // Buffer de xlsx começa com PK (ZIP header)
     expect(buffer[0]).toBe(0x50); // 'P'
     expect(buffer[1]).toBe(0x4b); // 'K'
   });
 
-  it('monta o documento: prédio no topo, responsável e dia, andares abaixo', async () => {
-    const buffer = await generateInspectionExcel(makeFullReport());
+  it('monta o documento: prédio no topo, quem vistoriou e o dia, andares abaixo', async () => {
+    const buffer = await generateDayExcel([makeFullReport()]);
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buffer as any);
     const ws = wb.getWorksheet('Vistoria')!;
@@ -97,5 +144,41 @@ describe('generateInspectionExcel', () => {
 
     // Andar sem ocorrência
     expect(texto).toContain('Nada a relatar neste andar.');
+  });
+
+  it('junta as vistorias do dia numa planilha só, com os nomes separados por barra', async () => {
+    const buffer = await generateDayExcel([makeFullReport(), makeSecondReport()]);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as any);
+    const ws = wb.getWorksheet('Vistoria')!;
+
+    expect(String(ws.getCell('A2').value)).toBe('Inspeção feita por: Carlos / Marina  ·  15/01/2024');
+
+    const texto: string[] = [];
+    ws.eachRow((row) => row.eachCell((cell) => texto.push(String(cell.value ?? ''))));
+
+    // As ocorrências das duas vistorias entram no mesmo documento
+    expect(texto).toContain('Split da sala 601 sem gelar');
+    expect(texto).toContain('Vazamento na garagem');
+
+    // O andar aparece numa faixa só, com a pior situação relatada no dia: a
+    // primeira vistoria deu OK no subsolo, a segunda achou problema lá.
+    // (A faixa é mesclada A:E, então a contagem é por linha, não por célula.)
+    const faixas: string[] = [];
+    ws.eachRow((row) => faixas.push(String(row.getCell(1).value ?? '')));
+    expect(faixas.filter((t) => t === '1º Subsolo')).toHaveLength(1);
+    expect(texto).toContain('Problema');
+    expect(texto).not.toContain('Nada a relatar neste andar.');
+  });
+
+  it('mostra "A encaminhar" na ocorrência que ainda não tem responsável', async () => {
+    const buffer = await generateDayExcel([makeSecondReport()]);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as any);
+    const ws = wb.getWorksheet('Vistoria')!;
+
+    const texto: string[] = [];
+    ws.eachRow((row) => row.eachCell((cell) => texto.push(String(cell.value ?? ''))));
+    expect(texto).toContain('A encaminhar');
   });
 });

@@ -21,6 +21,13 @@ info:
       descarte de vistoria. Um prédio pode ter mais de um; nunca zero.
     - **INSPECTOR**: vistoria o prédio.
     - **VIEWER**: só acompanha.
+    - **MODERADOR**: recebe os chamados abertos pelas vistorias, encaminha ao
+      responsável e é o único que fecha um chamado.
+    - **RESPONSAVEL**: técnico alocado no prédio. Atende o chamado encaminhado e
+      informa quando terminou — informar não fecha nada.
+
+    Gestor e ADMIN também tratam chamados: prédio cujo moderador saiu ficaria
+    com a fila parada. O contrário não vale — moderador não administra prédio.
 
     A mesma conta pode ser GESTOR de um prédio e VIEWER de outro. Por isso o JWT
     carrega só `sub` e o papel da conta: o papel de prédio é consultado por
@@ -89,7 +96,7 @@ components:
         building_id: { type: string, format: uuid }
         name: { type: string }
         description: { type: string, nullable: true }
-        role: { type: string, enum: [GESTOR, INSPECTOR, VIEWER] }
+        role: { type: string, enum: [GESTOR, INSPECTOR, VIEWER, MODERADOR, RESPONSAVEL] }
         joined_at: { type: string, format: date-time }
 
     Feedback:
@@ -149,8 +156,23 @@ components:
         category: { type: string, enum: [PREVENTIVA, CORRETIVA, EMERGENCIAL, EVENTOS, PROJETOS] }
         priority: { type: string, enum: [ALTA, MEDIA, BAIXA] }
         description: { type: string }
-        responsible: { type: string, enum: [Alan, Ailton, Gislaine, Gustavo, Rossi, Felipe, Vanessa] }
-        status: { type: string, enum: [ABERTO, EM_ANDAMENTO, AGUARDANDO_TERCEIRO, CONCLUIDO] }
+        responsible:
+          type: string
+          nullable: true
+          description: Nome gravado do responsável. Nulo enquanto o chamado não tem dono.
+        responsible_id: { type: string, format: uuid, nullable: true }
+        status:
+          type: string
+          enum: [ABERTO, EM_ANDAMENTO, AGUARDANDO_TERCEIRO, AGUARDANDO_FECHAMENTO, CONCLUIDO]
+          description: >
+            ABERTO é o chamado que ninguém encaminhou ainda. AGUARDANDO_FECHAMENTO
+            é o responsável dizendo "terminei" — o chamado continua aberto, porque
+            só o moderador o encerra em CONCLUIDO.
+        forwarded_at: { type: string, format: date-time, nullable: true }
+        done_at: { type: string, format: date-time, nullable: true }
+        closed_at: { type: string, format: date-time, nullable: true }
+        maintenance_note: { type: string, nullable: true }
+        maintenance_cost: { type: number, nullable: true, description: Valor da manutenção, em reais }
         created_at: { type: string, format: date-time }
 
     FloorFormEntry:
@@ -195,7 +217,7 @@ components:
 
     MaintenanceRecordPayload:
       type: object
-      required: [maintenance_type, category, priority, description, responsible]
+      required: [maintenance_type, category, priority, description]
       properties:
         maintenance_type:
           type: string
@@ -203,11 +225,15 @@ components:
         category: { type: string, enum: [PREVENTIVA, CORRETIVA, EMERGENCIAL, EVENTOS, PROJETOS] }
         priority: { type: string, enum: [ALTA, MEDIA, BAIXA] }
         description: { type: string, maxLength: 2000 }
-        responsible: { type: string, enum: [Alan, Ailton, Gislaine, Gustavo, Rossi, Felipe, Vanessa] }
-        status:
+        responsible_id:
           type: string
-          enum: [ABERTO, EM_ANDAMENTO, AGUARDANDO_TERCEIRO, CONCLUIDO]
-          default: ABERTO
+          format: uuid
+          nullable: true
+          description: >
+            Conta com papel RESPONSAVEL naquele prédio (ver
+            `GET /buildings/{id}/responsibles`). Opcional: sem ela o chamado
+            nasce sem dono e o moderador o encaminha. O status não vem do
+            formulário — a ocorrência nasce ABERTA.
 
     SubmitInspectionPayload:
       type: object
@@ -577,7 +603,7 @@ paths:
   /inspections:
     post:
       tags: [Inspections]
-      summary: Enviar vistoria completa — grava, gera Excel e publica no histórico (GESTOR/INSPECTOR do prédio)
+      summary: Enviar vistoria completa — grava, gera a planilha do dia e publica no histórico (INSPECTOR do prédio)
       requestBody:
         required: true
         content:
@@ -650,10 +676,235 @@ paths:
         '404':
           description: Inspeção não encontrada
 
+  /inspections/{id}/day:
+    get:
+      tags: [Inspections]
+      summary: Relatório completo do dia daquela vistoria — as vistorias do prédio naquela data, juntas
+      description: >
+        A unidade do relatório completo passou a ser o dia. A listagem do
+        histórico continua vistoria por vistoria, com o nome de quem fez cada
+        uma; o que muda é o clique. Andares vistoriados por mais de uma pessoa
+        no mesmo dia aparecem uma vez só, com as ocorrências somadas e a pior
+        situação relatada.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Documento do dia
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date: { type: string, format: date }
+                  building:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      name: { type: string }
+                  inspectors:
+                    type: array
+                    items: { type: string }
+                    example: ["Inspetor A", "Inspetor B", "Inspetor C"]
+                  reports:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        inspector: { $ref: '#/components/schemas/User' }
+                  excel_url: { type: string, format: uri, nullable: true }
+                  floor_form_entries:
+                    type: array
+                    items: { $ref: '#/components/schemas/FloorFormEntry' }
+        '404':
+          description: Relatório não encontrado ou fora dos prédios do usuário
+
+  /buildings/{id}/responsibles:
+    get:
+      tags: [Buildings]
+      summary: Responsáveis alocados naquele prédio — o droplist do formulário de vistoria
+      description: >
+        Só contas ativas com papel RESPONSAVEL naquele prédio. A lista fixa de
+        nomes fictícios saiu do sistema.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Responsáveis do prédio
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/User' }
+        '403':
+          description: Sem vínculo com o prédio
+
+  /buildings/{id}/tickets:
+    get:
+      tags: [Tickets]
+      summary: A fila de chamados do prédio (MODERADOR ou GESTOR)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: group
+          description: >
+            NOVOS são os chamados que ninguém encaminhou. ANDAMENTO junta
+            EM_ANDAMENTO, AGUARDANDO_TERCEIRO e AGUARDANDO_FECHAMENTO — o
+            chamado que o responsável disse ter terminado ainda não fechou.
+          schema: { type: string, enum: [NOVOS, ANDAMENTO, CONCLUIDOS], default: NOVOS }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 30 }
+      responses:
+        '200':
+          description: Chamados, do mais novo para o mais velho
+        '403':
+          description: Quem não trata os chamados do prédio não vê a fila
+
+  /buildings/{id}/tickets/stats:
+    get:
+      tags: [Tickets]
+      summary: Contadores do painel do moderador
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Abertos, em andamento e concluídos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  abertos: { type: integer }
+                  em_andamento: { type: integer }
+                  aguardando_fechamento: { type: integer }
+                  concluidos: { type: integer }
+
+  /tickets/me:
+    get:
+      tags: [Tickets]
+      summary: Os chamados encaminhados a quem está pedindo (RESPONSAVEL)
+      parameters:
+        - in: query
+          name: closed
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Chamados do responsável
+
+  /tickets/{id}/forward:
+    post:
+      tags: [Tickets]
+      summary: Encaminhar o chamado a um responsável (MODERADOR ou GESTOR)
+      description: >
+        Tira a ocorrência da fila de novos e a põe em andamento. Vale também
+        para trocar de responsável com o chamado correndo — nesse caso o
+        "terminei" do responsável anterior é descartado.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [responsible_id]
+              properties:
+                responsible_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Chamado em andamento
+        '403':
+          description: Quem não trata os chamados do prédio não encaminha
+        '409':
+          description: Chamado já fechado, ou pessoa que não é responsável naquele prédio
+
+  /tickets/{id}:
+    patch:
+      tags: [Tickets]
+      summary: Acrescentar informações ao chamado — manutenção e valor (MODERADOR ou GESTOR)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                responsible_id: { type: string, format: uuid, nullable: true }
+                maintenance_note: { type: string, nullable: true, maxLength: 2000 }
+                maintenance_cost: { type: number, nullable: true, minimum: 0 }
+                status: { type: string, enum: [EM_ANDAMENTO, AGUARDANDO_TERCEIRO] }
+      responses:
+        '200':
+          description: Chamado atualizado
+        '409':
+          description: Chamado já fechado
+
+  /tickets/{id}/done:
+    post:
+      tags: [Tickets]
+      summary: O responsável informa que concluiu — não fecha o chamado
+      description: >
+        Leva o chamado a AGUARDANDO_FECHAMENTO. Ele continua na tela do
+        moderador, que é quem encerra.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Chamado aguardando fechamento
+        '403':
+          description: O chamado não está com quem pediu
+        '409':
+          description: Chamado ainda não encaminhado, ou já fechado
+
+  /tickets/{id}/close:
+    post:
+      tags: [Tickets]
+      summary: Fechar o chamado — só o moderador (ou o gestor do prédio)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Chamado concluído
+        '403':
+          description: Responsável e visualizador não fecham chamado
+        '409':
+          description: Chamado já fechado
+
   /inspections/{id}/excel:
     get:
       tags: [Inspections]
-      summary: Obter URL do Excel gerado
+      summary: Obter a URL da planilha do dia daquela vistoria
       parameters:
         - in: path
           name: id

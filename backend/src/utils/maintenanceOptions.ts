@@ -34,16 +34,11 @@ export const RECORD_STATUS_LABEL: Record<string, string> = {
   ABERTO: 'Aberto',
   EM_ANDAMENTO: 'Em andamento',
   AGUARDANDO_TERCEIRO: 'Aguardando terceiro',
+  AGUARDANDO_FECHAMENTO: 'Concluído pelo responsável',
   CONCLUIDO: 'Concluído',
 };
 
-/** Responsáveis disponíveis no droplist do formulário. */
-export const RESPONSIBLES = [
-  'Alan',
-  'Ailton',
-  'Gislaine',
-  'Gustavo',
-  'Rossi',
-  'Felipe',
-  'Vanessa',
-] as const;
+// A lista fixa de responsáveis ("Alan", "Gislaine", ...) saiu daqui: eles não
+// correspondiam a conta nenhuma. Agora responsável é um papel de prédio, e quem
+// aparece no formulário são as contas com esse papel naquele prédio — ver
+// `buildingRepository.getResponsibles`.

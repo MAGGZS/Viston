@@ -33,6 +33,12 @@ enum BuildingRole {
   INSPECTOR
   // Só acompanha o que já foi vistoriado.
   VIEWER
+  // Recebe os chamados abertos pelas vistorias, encaminha ao responsável e é o
+  // único que fecha um chamado.
+  MODERADOR
+  // Técnico alocado no prédio. Atende o chamado encaminhado e informa quando
+  // terminou — informar não fecha nada, quem fecha é o moderador.
+  RESPONSAVEL
 }
 
 enum UserStatus {
@@ -93,10 +99,17 @@ enum Priority {
   BAIXA
 }
 
+/// Onde o chamado está no caminho entre a vistoria e o fechamento.
+///
+/// ABERTO é o chamado recém-nascido da vistoria: ninguém foi encaminhado ainda,
+/// e é o que a tela de novos chamados do moderador lista. Encaminhar leva a
+/// EM_ANDAMENTO. AGUARDANDO_FECHAMENTO é o responsável dizendo "terminei" — o
+/// chamado continua aberto, porque só o moderador o encerra em CONCLUIDO.
 enum RecordStatus {
   ABERTO
   EM_ANDAMENTO
   AGUARDANDO_TERCEIRO
+  AGUARDANDO_FECHAMENTO
   CONCLUIDO
 }
 
@@ -132,6 +145,8 @@ model User {
   building_members  BuildingMember[]       @relation("BuildingMembers")
   access_requests   BuildingAccessRequest[] @relation("BuildingAccessRequests")
   feedbacks         Feedback[]
+  assigned_records  MaintenanceRecord[]    @relation("RecordResponsible")
+  closed_records    MaintenanceRecord[]    @relation("RecordClosedBy")
 
   @@map("users")
 }
@@ -294,7 +309,18 @@ model FloorFormEntry {
   @@map("floor_form_entries")
 }
 
-// Uma ocorrência relatada em um andar. O mesmo andar pode ter várias.
+/// Uma ocorrência relatada em um andar — e, a partir dela, o chamado.
+///
+/// O mesmo andar pode ter várias. A ocorrência nasce ABERTA na vistoria e a
+/// partir daí a linha é o chamado: o moderador encaminha a um responsável, o
+/// responsável informa que terminou, o moderador fecha. As datas guardam cada
+/// um desses passos porque o status sozinho não diz quando nada aconteceu.
+///
+/// `responsible_id` e `responsible` convivem de propósito. O id é o vínculo
+/// vivo, e é por ele que o responsável enxerga o que é dele; o nome é o que
+/// ficou gravado quando a ocorrência foi criada, e é o que o relatório antigo
+/// mostra depois que a conta some (o vínculo é SetNull). Os dois nulos é o
+/// chamado que ainda não tem dono.
 model MaintenanceRecord {
   id                  String              @id @default(uuid())
   floor_form_entry_id String
@@ -302,12 +328,31 @@ model MaintenanceRecord {
   category            MaintenanceCategory
   priority            Priority
   description         String
-  responsible         String
+  /// Nome do responsável no momento em que a ocorrência foi registrada.
+  responsible         String?
+  responsible_id      String?
   status              RecordStatus        @default(ABERTO)
+  /// Quando o moderador encaminhou o chamado. Nulo = chamado novo.
+  forwarded_at        DateTime?
+  /// Quando o responsável informou que concluiu. Não fecha o chamado.
+  done_at             DateTime?
+  /// Quando o moderador fechou. É o único carimbo que conclui de verdade.
+  closed_at           DateTime?
+  closed_by_id        String?
+  /// O que o moderador acrescentou ao chamado — manutenção necessária, combinados.
+  maintenance_note    String?
+  /// Valor da manutenção, em reais.
+  maintenance_cost    Decimal?            @db.Decimal(12, 2)
   created_at          DateTime            @default(now())
 
   floor_form_entry FloorFormEntry @relation(fields: [floor_form_entry_id], references: [id], onDelete: Cascade)
+  responsible_user User?          @relation("RecordResponsible", fields: [responsible_id], references: [id], onDelete: SetNull)
+  closed_by        User?          @relation("RecordClosedBy", fields: [closed_by_id], references: [id], onDelete: SetNull)
 
+  // As telas de chamado são sempre "um status, do mais novo para o mais velho";
+  // a do responsável é "o que é meu", e por isso o id dele também é indexado.
+  @@index([status, created_at(sort: Desc)])
+  @@index([responsible_id])
   @@map("maintenance_records")
 }
 

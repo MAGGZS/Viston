@@ -145,6 +145,36 @@ export const buildingRepository = {
     return byUser;
   },
 
+  /**
+   * Os responsáveis do prédio — o droplist do formulário de vistoria e o de
+   * encaminhamento do moderador saem daqui.
+   *
+   * Conta desativada fica de fora: encaminhar chamado a quem não entra mais no
+   * sistema é o mesmo que não encaminhar.
+   */
+  async getResponsibles(buildingId: string) {
+    const rows = await prisma.buildingMember.findMany({
+      where: {
+        building_id: buildingId,
+        role: BuildingRole.RESPONSAVEL,
+        user: { status: 'ACTIVE' },
+      },
+      include: { user: { select: ACCOUNT_FIELDS } },
+    });
+
+    return rows.map((row) => row.user).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  },
+
+  /** Aquela conta é responsável neste prédio? Devolve a conta, ou nulo. */
+  async findResponsible(buildingId: string, userId: string) {
+    const row = await prisma.buildingMember.findUnique({
+      where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
+      include: { user: { select: ACCOUNT_FIELDS } },
+    });
+
+    return row?.role === BuildingRole.RESPONSAVEL ? row.user : null;
+  },
+
   findMember(buildingId: string, userId: string) {
     return prisma.buildingMember.findUnique({
       where: { building_id_user_id: { building_id: buildingId, user_id: userId } },

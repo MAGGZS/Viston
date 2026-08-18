@@ -60,6 +60,24 @@ export async function canInspectBuilding(user: Actor, buildingId: string): Promi
 }
 
 /**
+ * Trata o chamado: recebe, encaminha ao responsável e fecha.
+ *
+ * É o moderador do prédio — e também quem o administra. Gestor e ADMIN passam
+ * porque a alternativa é pior: prédio cujo moderador saiu ficaria com a fila de
+ * chamados parada, sem ninguém que pudesse fechá-los ou nomear outro moderador.
+ * O caminho contrário não existe: moderador não administra prédio.
+ */
+export async function canModerateBuilding(user: Actor, buildingId: string): Promise<boolean> {
+  const standing = await getBuildingStanding(user, buildingId);
+  return standing === 'GESTOR' || standing === BuildingRole.MODERADOR;
+}
+
+/** Atende chamado no prédio. Só conta de usuário com o papel de responsável. */
+export async function isBuildingResponsible(user: Actor, buildingId: string): Promise<boolean> {
+  return (await getBuildingStanding(user, buildingId)) === BuildingRole.RESPONSAVEL;
+}
+
+/**
  * Garante que o ator administra o prédio da rota.
  *
  * É este middleware que autoriza as rotas de prédio: não existe papel na conta
@@ -98,6 +116,29 @@ export function requireBuildingMember(param = 'id') {
 
     const standing = await getBuildingStanding(req.user, buildingId);
     if (!standing) throw new ForbiddenError('Você não tem acesso a este prédio');
+
+    req.buildingRole = standing;
+    next();
+  };
+}
+
+/**
+ * Garante que o ator trata os chamados do prédio da rota.
+ *
+ * É a guarda das telas de chamado: sem ela, qualquer vínculo com o prédio veria
+ * a fila do moderador — inclusive quem só acompanha.
+ */
+export function requireBuildingModerator(param = 'id') {
+  return async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
+    const buildingId = req.params[param];
+
+    const building = await buildingRepository.findById(buildingId);
+    if (!building) throw new NotFoundError('Prédio');
+
+    const standing = await getBuildingStanding(req.user, buildingId);
+    if (standing !== 'GESTOR' && standing !== BuildingRole.MODERADOR) {
+      throw new ForbiddenError('Apenas o moderador do prédio pode ver os chamados');
+    }
 
     req.buildingRole = standing;
     next();

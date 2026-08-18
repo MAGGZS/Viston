@@ -172,8 +172,7 @@ describe('submitInspectionSchema', () => {
     category: 'CORRETIVA',
     priority: 'ALTA',
     description: 'Split da sala 601 sem gelar',
-    responsible: 'Alan',
-    status: 'ABERTO',
+    responsible_id: '44444444-4444-4444-8444-444444444444',
   };
 
   const validPayload = {
@@ -185,13 +184,23 @@ describe('submitInspectionSchema', () => {
     expect(() => submitInspectionSchema.parse(validPayload)).not.toThrow();
   });
 
-  it('assume status ABERTO quando não informado', () => {
-    const { status, ...withoutStatus } = validRecord;
-    const parsed = submitInspectionSchema.parse({
-      building_id: BUILDING_ID,
-      floors: [{ floor_id: FLOOR_ID, records: [withoutStatus] }],
-    });
-    expect(parsed.floors[0].records[0].status).toBe('ABERTO');
+  it('aceita ocorrência sem responsável — o moderador encaminha depois', () => {
+    const { responsible_id, ...semResponsavel } = validRecord;
+    expect(() =>
+      submitInspectionSchema.parse({
+        building_id: BUILDING_ID,
+        floors: [{ floor_id: FLOOR_ID, records: [semResponsavel] }],
+      })
+    ).not.toThrow();
+  });
+
+  it('recusa responsável que não é um id de conta', () => {
+    expect(() =>
+      submitInspectionSchema.parse({
+        building_id: BUILDING_ID,
+        floors: [{ floor_id: FLOOR_ID, records: [{ ...validRecord, responsible_id: 'Alan' }] }],
+      })
+    ).toThrow();
   });
 
   it('aceita andar sem nenhuma ocorrência', () => {
@@ -216,14 +225,6 @@ describe('submitInspectionSchema', () => {
     const invalid = {
       building_id: BUILDING_ID,
       floors: [{ floor_id: FLOOR_ID, records: [{ ...validRecord, maintenance_type: 'INVALIDO' }] }],
-    };
-    expect(() => submitInspectionSchema.parse(invalid)).toThrow();
-  });
-
-  it('rejeita responsável fora da lista', () => {
-    const invalid = {
-      building_id: BUILDING_ID,
-      floors: [{ floor_id: FLOOR_ID, records: [{ ...validRecord, responsible: 'Fulano' }] }],
     };
     expect(() => submitInspectionSchema.parse(invalid)).toThrow();
   });

@@ -287,8 +287,9 @@ export const buildingController = {
     const member = await buildingRepository.findMember(req.params.id, req.params.userId);
     if (!member) throw new NotFoundError('Vínculo');
 
-    // Só INSPECTOR ou VIEWER: promover a gestor não passa por aqui, porque
-    // gestor é outro tipo de conta (ver POST /buildings/:id/managers).
+    // Um dos quatro papéis de vínculo — inspetor, visualizador, moderador ou
+    // responsável. Promover a gestor não passa por aqui, porque gestor é outro
+    // tipo de conta (ver POST /buildings/:id/managers).
     const { role } = req.body as { role: BuildingRole };
 
     const updated = await buildingRepository.updateMemberRole(

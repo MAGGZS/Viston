@@ -30,6 +30,12 @@ export const inspectionController = {
     ok(res, report);
   },
 
+  /** O relatório completo do dia daquela vistoria — a unidade virou o dia. */
+  async getDayReport(req: AuthenticatedRequest, res: Response) {
+    const report = await inspectionService.getDayReport(req.params.id, req.user);
+    ok(res, report);
+  },
+
   async remove(req: AuthenticatedRequest, res: Response) {
     await inspectionService.remove(req.params.id, req.user);
     noContent(res);

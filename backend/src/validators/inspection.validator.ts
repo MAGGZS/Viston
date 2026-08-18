@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import { MaintenanceCategory, MaintenanceType, Priority, RecordStatus } from '@prisma/client';
-import { RESPONSIBLES } from '../utils/maintenanceOptions';
+import { MaintenanceCategory, MaintenanceType, Priority } from '@prisma/client';
 
 // ── Ocorrência relatada em um andar ──────────────────────────────────────────
 export const maintenanceRecordSchema = z.object({
@@ -27,10 +26,13 @@ export const maintenanceRecordSchema = z.object({
   }),
   priority: z.enum(['ALTA', 'MEDIA', 'BAIXA'], { required_error: 'Prioridade é obrigatória' }),
   description: z.string().trim().min(1, 'Descrição é obrigatória').max(2000),
-  responsible: z.enum(RESPONSIBLES, { required_error: 'Responsável é obrigatório' }),
-  status: z
-    .enum(['ABERTO', 'EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO', 'CONCLUIDO'])
-    .default('ABERTO'),
+  // Opcional, e nulo é um estado normal: o inspetor sugere a quem aquilo cabe
+  // entre os responsáveis daquele prédio, mas quem não souber deixa em branco e
+  // o chamado chega ao moderador sem dono — que é a fila dele.
+  //
+  // O status não vem mais do formulário: a ocorrência nasce ABERTA e o resto do
+  // caminho é do moderador e do responsável.
+  responsible_id: z.string().uuid('Responsável inválido').optional().nullable(),
 });
 
 // Tipos escritos à mão: com "strict": false no tsconfig, a inferência do zod
@@ -40,8 +42,7 @@ export type MaintenanceRecordPayload = {
   category: MaintenanceCategory;
   priority: Priority;
   description: string;
-  responsible: string;
-  status: RecordStatus;
+  responsible_id?: string | null;
 };
 
 // ── Envio único: toda a vistoria chega de uma vez ─────────────────────────────

@@ -5,7 +5,6 @@ import {
   MaintenanceType,
   Prisma,
   Priority,
-  RecordStatus,
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma';
@@ -29,8 +28,9 @@ export type FloorSubmission = {
     category: MaintenanceCategory;
     priority: Priority;
     description: string;
-    responsible: string;
-    status: RecordStatus;
+    /** Nome gravado do responsável sugerido. Nulo quando o chamado nasce sem dono. */
+    responsible: string | null;
+    responsible_id: string | null;
   }>;
 };
 
@@ -89,6 +89,36 @@ export const inspectionRepository = {
 
   findById(id: string) {
     return prisma.inspectionReport.findUnique({ where: { id }, include: reportInclude });
+  },
+
+  /**
+   * Todas as vistorias concluídas de um prédio num dia.
+   *
+   * É a unidade do relatório completo e da planilha: três pessoas vistoriando o
+   * mesmo prédio no mesmo dia produzem um documento, não três. `date` é coluna
+   * DATE gravada como meia-noite UTC (ver utils/timezone), então a igualdade
+   * simples basta.
+   */
+  findDayReports(buildingId: string, date: Date) {
+    return prisma.inspectionReport.findMany({
+      where: { building_id: buildingId, date, status: InspectionStatus.COMPLETED },
+      include: reportInclude,
+      orderBy: { started_at: 'asc' },
+    });
+  },
+
+  /**
+   * Aponta todas as vistorias do dia para a mesma planilha.
+   *
+   * A planilha passou a ser do dia, mas a URL continua em cada relatório: é o
+   * que faz cada linha do histórico ter seu botão de baixar sem a tela precisar
+   * saber que o arquivo é compartilhado.
+   */
+  setDayExcelUrl(buildingId: string, date: Date, excelUrl: string) {
+    return prisma.inspectionReport.updateMany({
+      where: { building_id: buildingId, date },
+      data: { excel_url: excelUrl },
+    });
   },
 
   findAll(filters: {

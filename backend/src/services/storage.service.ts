@@ -2,6 +2,18 @@ import { supabase } from '../lib/supabase';
 import { config } from '../config';
 
 export const storageService = {
+  /**
+   * Sobe a planilha do dia de um prédio.
+   *
+   * O nome carrega prédio e dia porque o arquivo é do dia — mas também o
+   * instante do envio: a planilha é refeita a cada vistoria nova daquela data, e
+   * reusar o nome deixaria quem já baixou o link vendo a versão antiga em cache.
+   */
+  async uploadDayExcel(buildingId: string, date: Date, buffer: Buffer): Promise<string> {
+    const day = new Date(date).toISOString().slice(0, 10);
+    return this.uploadExcel(`day_${buildingId}_${day}`, buffer);
+  },
+
   async uploadExcel(reportId: string, buffer: Buffer): Promise<string> {
     const fileName = `report_${reportId}_${Date.now()}.xlsx`;
     const bucket = config.supabase.bucketExcel;

@@ -8,13 +8,13 @@ import {
   User,
 } from '@prisma/client';
 import { sortFloorsDesc } from '../utils/floorOrder';
+import { inspectorNames } from '../utils/inspectors';
 import {
   MAINTENANCE_TYPE_LABEL,
   CATEGORY_LABEL,
   PRIORITY_LABEL,
   RECORD_STATUS_LABEL,
 } from '../utils/maintenanceOptions';
-import { APP_TIMEZONE } from '../utils/timezone';
 
 type FullReport = InspectionReport & {
   inspector: Pick<User, 'id' | 'name' | 'email'> | null;
@@ -70,10 +70,61 @@ function fill(cell: ExcelJS.Cell, argb: string) {
 }
 
 /**
- * Planilha da vistoria, no mesmo formato do relatório do sistema:
- * prédio e responsável no topo, andares em faixas e as ocorrências abaixo de cada um.
+ * Junta os andares de todas as vistorias do dia num bloco por andar.
+ *
+ * O mesmo andar pode ter sido vistoriado por duas pessoas no mesmo dia: as
+ * ocorrências das duas entram no mesmo bloco, e a situação do andar fica sendo
+ * a pior relatada — dizer "OK" porque a segunda passagem não achou nada
+ * apagaria o problema que a primeira achou.
  */
-export async function generateInspectionExcel(report: FullReport): Promise<Buffer> {
+const STATUS_SEVERITY: Record<string, number> = { OK: 0, ATENCAO: 1, PROBLEMA: 2 };
+
+type DayEntry = {
+  floor_id: string;
+  label: string;
+  status_geral: string;
+  maintenance_records: MaintenanceRecord[];
+};
+
+function mergeDayEntries(reports: FullReport[]): DayEntry[] {
+  const byFloor = new Map<string, DayEntry>();
+
+  for (const report of reports) {
+    for (const entry of report.floor_form_entries) {
+      const current = byFloor.get(entry.floor_id);
+      if (!current) {
+        byFloor.set(entry.floor_id, {
+          floor_id: entry.floor_id,
+          label: entry.floor.label,
+          status_geral: entry.status_geral,
+          maintenance_records: [...entry.maintenance_records],
+        });
+        continue;
+      }
+
+      current.maintenance_records.push(...entry.maintenance_records);
+      if ((STATUS_SEVERITY[entry.status_geral] ?? 0) > (STATUS_SEVERITY[current.status_geral] ?? 0)) {
+        current.status_geral = entry.status_geral;
+      }
+    }
+  }
+
+  return sortFloorsDesc([...byFloor.values()]);
+}
+
+/**
+ * Planilha do dia, no mesmo formato do relatório do sistema: prédio, quem
+ * vistoriou e a data no topo, andares em faixas e as ocorrências abaixo de cada
+ * um.
+ *
+ * A unidade é o dia, e não a vistoria: se três pessoas vistoriaram o prédio
+ * hoje, sai uma planilha só, com os três nomes na linha "Inspeção feita por".
+ * Antes cada envio gerava um arquivo, e quem recebia três planilhas do mesmo
+ * dia tinha de juntá-las à mão.
+ */
+export async function generateDayExcel(reports: FullReport[]): Promise<Buffer> {
+  if (reports.length === 0) throw new Error('Nenhuma vistoria para gerar a planilha do dia');
+  const report = reports[0];
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Viston';
   workbook.created = new Date();
@@ -85,14 +136,12 @@ export async function generateInspectionExcel(report: FullReport): Promise<Buffe
 
   ws.columns = COLUMNS.map((c) => ({ width: c.width }));
 
-  const entries = sortFloorsDesc(
-    report.floor_form_entries.map((entry) => ({ ...entry, label: entry.floor.label }))
-  );
+  const entries = mergeDayEntries(reports);
   // `date` é coluna DATE (meia-noite UTC): formatar em UTC, senão cai no dia anterior
-  const openedAt = new Date(report.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-  const inspectorName = report.inspector?.name ?? 'Usuário removido';
+  const day = new Date(report.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+  const inspectors = inspectorNames(reports).join(' / ');
 
-  // ── Cabeçalho: prédio, responsável e dia ───────────────────────────────────
+  // ── Cabeçalho: prédio, quem vistoriou e o dia ──────────────────────────────
   const titleRow = ws.addRow([report.building.name]);
   ws.mergeCells(`A${titleRow.number}:${LAST_COL}${titleRow.number}`);
   titleRow.height = 34;
@@ -101,7 +150,7 @@ export async function generateInspectionExcel(report: FullReport): Promise<Buffe
   titleCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
   titleRow.eachCell({ includeEmpty: true }, (cell) => fill(cell, BRAND));
 
-  const subtitleRow = ws.addRow([`Vistoria realizada por ${inspectorName}  ·  ${openedAt}`]);
+  const subtitleRow = ws.addRow([`Inspeção feita por: ${inspectors}  ·  ${day}`]);
   ws.mergeCells(`A${subtitleRow.number}:${LAST_COL}${subtitleRow.number}`);
   subtitleRow.height = 22;
   const subtitleCell = ws.getCell(`A${subtitleRow.number}`);
@@ -125,7 +174,7 @@ export async function generateInspectionExcel(report: FullReport): Promise<Buffe
   for (const entry of entries) {
     const status = FLOOR_STATUS_LABEL[entry.status_geral] ?? entry.status_geral;
 
-    const bandRow = ws.addRow([`${entry.floor.label}`, '', '', '', '', status]);
+    const bandRow = ws.addRow([`${entry.label}`, '', '', '', '', status]);
     ws.mergeCells(`A${bandRow.number}:E${bandRow.number}`);
     bandRow.height = 26;
     bandRow.eachCell({ includeEmpty: true }, (cell) => fill(cell, BRAND));
@@ -162,7 +211,7 @@ export async function generateInspectionExcel(report: FullReport): Promise<Buffe
         CATEGORY_LABEL[record.category] ?? record.category,
         PRIORITY_LABEL[record.priority] ?? record.priority,
         record.description,
-        record.responsible,
+        record.responsible ?? 'A encaminhar',
         RECORD_STATUS_LABEL[record.status] ?? record.status,
       ]);
 
@@ -187,12 +236,10 @@ export async function generateInspectionExcel(report: FullReport): Promise<Buffe
   }
 
   // ── Rodapé ────────────────────────────────────────────────────────────────
+  // Só o dia, sem hora: o relatório é do dia inteiro, e o instante em que a
+  // última vistoria foi enviada não diz nada sobre o que está na planilha.
   const footerRow = ws.addRow([
-    `Concluída em ${
-      report.finished_at
-        ? new Date(report.finished_at).toLocaleString('pt-BR', { timeZone: APP_TIMEZONE })
-        : '—'
-    }  ·  Viston`,
+    `${reports.length} vistoria(s) neste dia  ·  ${day}  ·  Viston`,
   ]);
   ws.mergeCells(`A${footerRow.number}:${LAST_COL}${footerRow.number}`);
   const footerCell = ws.getCell(`A${footerRow.number}`);

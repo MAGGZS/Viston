@@ -1,7 +1,7 @@
 import { inspectionService } from '../services/inspection.service';
 import { inspectionRepository } from '../repositories/inspection.repository';
 import { buildingRepository } from '../repositories/building.repository';
-import { generateInspectionExcel } from '../services/excel.service';
+import { generateDayExcel } from '../services/excel.service';
 import { storageService } from '../services/storage.service';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { FloorStatus, InspectionStatus } from '@prisma/client';
@@ -14,7 +14,7 @@ jest.mock('../services/storage.service');
 
 const mockInspectionRepo = inspectionRepository as jest.Mocked<typeof inspectionRepository>;
 const mockBuildingRepo = buildingRepository as jest.Mocked<typeof buildingRepository>;
-const mockGenerateExcel = generateInspectionExcel as jest.MockedFunction<typeof generateInspectionExcel>;
+const mockGenerateExcel = generateDayExcel as jest.MockedFunction<typeof generateDayExcel>;
 const mockStorage = storageService as jest.Mocked<typeof storageService>;
 
 const BUILDING_ID = '11111111-1111-4111-8111-111111111111';
@@ -25,14 +25,17 @@ const mockBuilding = { id: BUILDING_ID, name: 'Edifício Principal' };
 const mockFloor6 = { id: FLOOR_6, building_id: BUILDING_ID, label: '6º Andar' };
 const mockFloorSub1 = { id: FLOOR_SUB1, building_id: BUILDING_ID, label: '1º Subsolo' };
 
+const RESPONSIBLE_ID = '44444444-4444-4444-8444-444444444444';
+
 function makeRecord(overrides = {}) {
   return {
     maintenance_type: 'ELETRICA',
     category: 'CORRETIVA',
     priority: 'BAIXA',
     description: 'Lâmpada queimada',
-    responsible: 'Alan',
-    status: 'ABERTO',
+    // O chamado pode nascer sem dono: quem sugere um responsável escolhe entre
+    // os do prédio, e o serviço confere isso.
+    responsible_id: null,
     ...overrides,
   } as any;
 }
@@ -74,9 +77,13 @@ describe('inspectionService.submit', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGenerateExcel.mockResolvedValue(Buffer.from('excel'));
-    mockStorage.uploadExcel.mockResolvedValue('https://storage.example.com/report.xlsx');
+    mockStorage.uploadDayExcel.mockResolvedValue('https://storage.example.com/day.xlsx');
     mockInspectionRepo.createCompleted.mockResolvedValue(makeReport());
     mockInspectionRepo.findById.mockResolvedValue(makeReport());
+    mockInspectionRepo.findDayReports.mockResolvedValue([makeReport()]);
+    mockBuildingRepo.getResponsibles.mockResolvedValue([
+      { id: RESPONSIBLE_ID, name: 'Marina', email: 'marina@test.com', avatar_url: null },
+    ] as any);
     // Inspetor vinculado ao prédio — o caso sem vínculo tem bloco próprio.
     // É o papel do vínculo que autoriza a vistoria; `users.role` não entra.
     mockBuildingRepo.findMember.mockResolvedValue({ id: 'member-1', role: 'INSPECTOR' } as any);
@@ -185,6 +192,64 @@ describe('inspectionService.submit', () => {
     ).rejects.toThrow(ConflictError);
   });
 
+  it('grava o chamado sem dono quando o inspetor não sugere responsável', async () => {
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
+
+    await inspectionService.submit(
+      inspetor(),
+      payload([{ floor_id: FLOOR_6, records: [makeRecord()] }])
+    );
+
+    const arg = mockInspectionRepo.createCompleted.mock.calls[0][0];
+    expect(arg.floors[0].records[0].responsible_id).toBeNull();
+    expect(arg.floors[0].records[0].responsible).toBeNull();
+  });
+
+  it('grava o nome do responsável sugerido junto com o id', async () => {
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
+
+    await inspectionService.submit(
+      inspetor(),
+      payload([{ floor_id: FLOOR_6, records: [makeRecord({ responsible_id: RESPONSIBLE_ID })] }])
+    );
+
+    const arg = mockInspectionRepo.createCompleted.mock.calls[0][0];
+    expect(arg.floors[0].records[0].responsible_id).toBe(RESPONSIBLE_ID);
+    expect(arg.floors[0].records[0].responsible).toBe('Marina');
+  });
+
+  it('recusa responsável que não é responsável naquele prédio', async () => {
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
+
+    await expect(
+      inspectionService.submit(
+        inspetor(),
+        payload([{ floor_id: FLOOR_6, records: [makeRecord({ responsible_id: 'outro-id' })] }])
+      )
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it('gera a planilha do dia inteiro, e não a da vistoria recém-enviada', async () => {
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
+    // Já havia outra vistoria do mesmo prédio hoje
+    const doDia = [makeReport({ id: 'report-0' }), makeReport()];
+    mockInspectionRepo.findDayReports.mockResolvedValue(doDia as any);
+
+    await inspectionService.submit(inspetor(), payload([{ floor_id: FLOOR_6, records: [] }]));
+
+    expect(mockGenerateExcel).toHaveBeenCalledWith(doDia);
+    // A URL nova vale para as duas vistorias daquele dia
+    expect(mockInspectionRepo.setDayExcelUrl).toHaveBeenCalledWith(
+      BUILDING_ID,
+      expect.any(Date),
+      'https://storage.example.com/day.xlsx'
+    );
+  });
+
   it('conclui a vistoria mesmo se a geração do Excel falhar', async () => {
     mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
     mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
@@ -196,6 +261,61 @@ describe('inspectionService.submit', () => {
     );
 
     expect(result?.status).toBe(InspectionStatus.COMPLETED);
+  });
+});
+
+// ── Testes: relatório completo do dia ────────────────────────────────────────
+describe('inspectionService.getDayReport', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'VIEWER' } as any);
+  });
+
+  it('junta as vistorias do dia num documento só, com os inspetores separados', async () => {
+    const entrada = (floorId: string, label: string, status: string, descricao: string) => ({
+      floor_id: floorId,
+      status_geral: status,
+      floor: { id: floorId, label },
+      maintenance_records: [
+        { id: `r-${descricao}`, description: descricao, maintenance_cost: null },
+      ],
+    });
+
+    const primeira = makeReport({
+      floor_form_entries: [entrada(FLOOR_6, '6º Andar', 'OK', 'Lâmpada')],
+    });
+    const segunda = makeReport({
+      id: 'report-2',
+      inspector: { id: 'user-2', name: 'Marina', email: 'marina@test.com' },
+      floor_form_entries: [entrada(FLOOR_6, '6º Andar', 'PROBLEMA', 'Infiltração')],
+    });
+
+    mockInspectionRepo.findById.mockResolvedValue(primeira);
+    mockInspectionRepo.findDayReports.mockResolvedValue([primeira, segunda] as any);
+
+    const day = await inspectionService.getDayReport('report-1', inspetor());
+
+    expect(day.inspectors).toEqual(['Carlos', 'Marina']);
+    expect(day.reports).toHaveLength(2);
+    // O andar aparece uma vez, com as ocorrências das duas vistorias e a pior
+    // situação relatada no dia.
+    expect(day.floor_form_entries).toHaveLength(1);
+    expect(day.floor_form_entries[0].status_geral).toBe('PROBLEMA');
+    expect(day.floor_form_entries[0].maintenance_records).toHaveLength(2);
+    // Cada ocorrência leva quem a relatou — é o que o documento do dia mostra
+    expect(day.floor_form_entries[0].maintenance_records).toEqual([
+      expect.objectContaining({ description: 'Lâmpada', inspector: 'Carlos' }),
+      expect.objectContaining({ description: 'Infiltração', inspector: 'Marina' }),
+    ]);
+  });
+
+  it('esconde o dia de quem não tem ligação com o prédio', async () => {
+    mockInspectionRepo.findById.mockResolvedValue(makeReport());
+    mockBuildingRepo.findMember.mockResolvedValue(null);
+
+    await expect(inspectionService.getDayReport('report-1', inspetor('outro'))).rejects.toThrow(
+      NotFoundError
+    );
   });
 });
 
@@ -225,9 +345,11 @@ describe('isolamento por prédio', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGenerateExcel.mockResolvedValue(Buffer.from('excel'));
-    mockStorage.uploadExcel.mockResolvedValue('https://storage.example.com/report.xlsx');
+    mockStorage.uploadDayExcel.mockResolvedValue('https://storage.example.com/day.xlsx');
     mockInspectionRepo.createCompleted.mockResolvedValue(makeReport());
     mockInspectionRepo.findById.mockResolvedValue(makeReport());
+    mockInspectionRepo.findDayReports.mockResolvedValue([makeReport()]);
+    mockBuildingRepo.getResponsibles.mockResolvedValue([] as any);
   });
 
   it('bloqueia o envio quando o inspetor não é membro do prédio', async () => {

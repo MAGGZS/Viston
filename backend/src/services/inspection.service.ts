@@ -1,13 +1,14 @@
 import { AuditAction, FloorStatus, InspectionStatus } from '@prisma/client';
 import { inspectionRepository, FloorSubmission } from '../repositories/inspection.repository';
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
-import { generateInspectionExcel } from './excel.service';
+import { generateDayExcel } from './excel.service';
 import { storageService } from './storage.service';
 import { SubmitInspectionPayload } from '../validators/inspection.validator';
 import { canInspectBuilding, getBuildingStanding, isBuildingManager } from '../middlewares/buildingAccess';
 import { Actor } from '../middlewares/authenticate';
 import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
 import { floorRank } from '../utils/floorOrder';
+import { inspectorNames } from '../utils/inspectors';
 import { zonedDateOnly, zonedDayKey, zonedParts, zonedRange } from '../utils/timezone';
 
 export type CalendarDay = {
@@ -77,29 +78,87 @@ function deriveFloorStatus(records: Array<{ priority: string }>): FloorStatus {
 type FullReport = NonNullable<Awaited<ReturnType<typeof inspectionRepository.findById>>>;
 
 /**
- * Gera a planilha do relatório, sobe para o storage e grava a URL.
- * Usado no envio da vistoria e na regeração manual quando o upload falhou.
+ * Gera a planilha do dia, sobe para o storage e aponta todas as vistorias
+ * daquele dia para ela.
  *
- * Recebe o relatório já carregado: quem chama sempre acabou de lê-lo (ou de
- * criá-lo), então buscar de novo aqui seria uma ida ao banco a mais.
+ * A planilha é do dia, e não da vistoria: três pessoas vistoriando o mesmo
+ * prédio hoje produzem um arquivo só, com os três nomes no cabeçalho. Por isso
+ * cada envio regenera o arquivo do dia — o terceiro envio precisa reescrever o
+ * que os dois primeiros já tinham publicado.
  */
-async function buildAndStoreExcel(report: FullReport, userId?: string) {
-  const buffer = await generateInspectionExcel(
-    report as Parameters<typeof generateInspectionExcel>[0]
-  );
-  const excelUrl = await storageService.uploadExcel(report.id, buffer);
-  await inspectionRepository.update(report.id, { excel_url: excelUrl });
+async function buildAndStoreDayExcel(buildingId: string, date: Date, userId?: string) {
+  const reports = await inspectionRepository.findDayReports(buildingId, date);
+  if (reports.length === 0) return null;
+
+  const buffer = await generateDayExcel(reports as Parameters<typeof generateDayExcel>[0]);
+  const excelUrl = await storageService.uploadDayExcel(buildingId, date, buffer);
+  await inspectionRepository.setDayExcelUrl(buildingId, date, excelUrl);
 
   await auditRepository.log({
     user_id: userId,
-    building_id: report.building_id,
+    building_id: buildingId,
     action: AuditAction.GENERATE_EXCEL,
     entity: 'InspectionReport',
-    entity_id: report.id,
-    metadata: { excel_url: excelUrl },
+    entity_id: reports[0].id,
+    metadata: { excel_url: excelUrl, reports: reports.length },
   });
 
   return excelUrl;
+}
+
+/**
+ * O relatório completo de um dia: as vistorias daquele prédio naquela data,
+ * juntas.
+ *
+ * Os andares são fundidos (ver mergeDayEntries, na planilha) e cada ocorrência
+ * leva o nome de quem a relatou — sem isso, o documento do dia com três
+ * inspetores não deixaria dizer quem viu o quê.
+ */
+function buildDayReport(reports: FullReport[]) {
+  const first = reports[0];
+  const byFloor = new Map<
+    string,
+    { floor_id: string; floor: { id: string; label: string }; status_geral: string; maintenance_records: unknown[] }
+  >();
+
+  const severity: Record<string, number> = { OK: 0, ATENCAO: 1, PROBLEMA: 2 };
+
+  for (const report of reports) {
+    const inspector = report.inspector?.name ?? 'Usuário removido';
+    for (const entry of report.floor_form_entries) {
+      const records = entry.maintenance_records.map((record) => ({
+        ...record,
+        maintenance_cost: record.maintenance_cost === null ? null : Number(record.maintenance_cost),
+        inspector,
+      }));
+
+      const current = byFloor.get(entry.floor_id);
+      if (!current) {
+        byFloor.set(entry.floor_id, {
+          floor_id: entry.floor_id,
+          floor: { id: entry.floor.id, label: entry.floor.label },
+          status_geral: entry.status_geral,
+          maintenance_records: records,
+        });
+        continue;
+      }
+
+      current.maintenance_records.push(...records);
+      if ((severity[entry.status_geral] ?? 0) > (severity[current.status_geral] ?? 0)) {
+        current.status_geral = entry.status_geral;
+      }
+    }
+  }
+
+  return {
+    date: first.date,
+    building: first.building,
+    // "Inspeção feita por: A / B / C" — a mesma linha da planilha.
+    inspectors: inspectorNames(reports),
+    reports: reports.map((r) => ({ id: r.id, inspector: r.inspector })),
+    excel_url: reports.find((r) => r.excel_url)?.excel_url ?? null,
+    floor_form_entries: [...byFloor.values()],
+  };
 }
 
 export const inspectionService = {
@@ -136,13 +195,36 @@ export const inspectionService = {
       throw new ConflictError(`Andar "${invalidFloor.label}" não pertence ao prédio selecionado`);
     }
 
+    // O responsável sugerido tem de ser responsável naquele prédio. A lista vem
+    // de uma consulta só, e não uma por ocorrência: uma vistoria de 20 andares
+    // pode trazer dezenas de ocorrências, quase sempre para as mesmas pessoas.
+    const responsibles = await buildingRepository.getResponsibles(payload.building_id);
+    const nameById = new Map(responsibles.map((r) => [r.id, r.name]));
+
+    for (const floor of payload.floors) {
+      for (const record of floor.records) {
+        if (record.responsible_id && !nameById.has(record.responsible_id)) {
+          throw new ConflictError('Responsável selecionado não pertence a este prédio');
+        }
+      }
+    }
+
     // Ordem decrescente: do andar mais alto para o mais baixo
     const labelById = new Map(floors.map((f) => [f.id, f.label]));
     const submissions: FloorSubmission[] = payload.floors
       .map((floor) => ({
         floor_id: floor.floor_id,
         status_geral: deriveFloorStatus(floor.records),
-        records: floor.records,
+        // O chamado nasce ABERTO e sem data de encaminhamento — é o que a fila
+        // de novos chamados do moderador lista.
+        records: floor.records.map((record) => ({
+          maintenance_type: record.maintenance_type,
+          category: record.category,
+          priority: record.priority,
+          description: record.description,
+          responsible_id: record.responsible_id ?? null,
+          responsible: record.responsible_id ? nameById.get(record.responsible_id) ?? null : null,
+        })),
       }))
       .sort(
         (a, b) =>
@@ -170,9 +252,10 @@ export const inspectionService = {
       metadata: { floors: submissions.length },
     });
 
-    // Gerar Excel e fazer upload (síncrono — bloqueia a resposta)
+    // Gerar Excel e fazer upload (síncrono — bloqueia a resposta). É a planilha
+    // do dia inteiro: se já houver vistorias desta data, esta entra nelas.
     try {
-      const excelUrl = await buildAndStoreExcel(report, inspectorId);
+      const excelUrl = await buildAndStoreDayExcel(payload.building_id, report.date, inspectorId);
       return { ...report, excel_url: excelUrl };
     } catch (err) {
       console.error('[Excel] Falha na geração:', err);
@@ -182,7 +265,7 @@ export const inspectionService = {
     }
   },
 
-  /** Gera (ou refaz) a planilha de um relatório já concluído. */
+  /** Gera (ou refaz) a planilha do dia a que aquele relatório pertence. */
   async generateExcel(id: string, user: Viewer) {
     const report = await inspectionRepository.findById(id);
     if (!report) throw new NotFoundError('Relatório');
@@ -191,8 +274,28 @@ export const inspectionService = {
       throw new ConflictError('Relatório ainda não foi concluído');
     }
 
-    const excelUrl = await buildAndStoreExcel(report, user.id);
+    const excelUrl = await buildAndStoreDayExcel(report.building_id, report.date, user.id);
     return { excel_url: excelUrl };
+  },
+
+  /**
+   * O relatório completo do dia daquela vistoria.
+   *
+   * A tela continua listando vistoria por vistoria, com o nome de quem fez cada
+   * uma — o que mudou é o clique: abrir uma delas abre o documento do dia, com
+   * as vistorias dos outros inspetores daquela data juntas.
+   */
+  async getDayReport(id: string, user: Viewer) {
+    const report = await inspectionRepository.findById(id);
+    if (!report || report.status === InspectionStatus.IN_PROGRESS) {
+      throw new NotFoundError('Relatório');
+    }
+    await assertCanSeeReport(user, report.building_id);
+
+    const reports = await inspectionRepository.findDayReports(report.building_id, report.date);
+    // A vistoria existe, então a lista do dia nunca vem vazia; o fallback cobre
+    // a corrida com um descarte acontecendo no mesmo instante.
+    return buildDayReport(reports.length > 0 ? reports : [report]);
   },
 
   /**
@@ -207,16 +310,23 @@ export const inspectionService = {
       throw new ForbiddenError('Apenas o gestor do prédio pode descartar a vistoria');
     }
 
-    if (report.excel_url) {
-      try {
-        await storageService.removeExcel(report.excel_url);
-      } catch (err) {
-        console.error('[Excel] Falha ao remover planilha do storage:', err);
-        // Arquivo órfão no bucket não impede o descarte do relatório
-      }
-    }
-
     await inspectionRepository.delete(id);
+
+    // A planilha é do dia e pode ser de mais gente: se sobrou vistoria naquela
+    // data, ela é refeita sem a descartada; se não sobrou nenhuma, o arquivo sai
+    // do bucket. Apagar o arquivo antes de olhar deixaria as outras vistorias do
+    // dia apontando para uma URL morta.
+    try {
+      const remaining = await inspectionRepository.findDayReports(report.building_id, report.date);
+      if (remaining.length > 0) {
+        await buildAndStoreDayExcel(report.building_id, report.date, user.id);
+      } else if (report.excel_url) {
+        await storageService.removeExcel(report.excel_url);
+      }
+    } catch (err) {
+      console.error('[Excel] Falha ao atualizar a planilha do dia:', err);
+      // Arquivo órfão no bucket não impede o descarte do relatório
+    }
 
     await auditRepository.log({
       user_id: user.id,

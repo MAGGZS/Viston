@@ -9,6 +9,7 @@ import userRoutes from './routes/user.routes';
 import managerRoutes from './routes/manager.routes';
 import feedbackRoutes from './routes/feedback.routes';
 import inspectionRoutes from './routes/inspection.routes';
+import ticketRoutes from './routes/ticket.routes';
 import { errorHandler } from './middlewares/errorHandler';
 import { generalLimiter } from './middlewares/rateLimit';
 
@@ -60,6 +61,9 @@ app.use('/users', userRoutes);
 app.use('/managers', managerRoutes);
 app.use('/feedbacks', feedbackRoutes);
 app.use('/', inspectionRoutes);
+// Os chamados moram em dois caminhos — a fila é do prédio, a ação é da
+// ocorrência — e por isso a rota entra na raiz, como a de vistorias.
+app.use('/', ticketRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((_req, res) => {
