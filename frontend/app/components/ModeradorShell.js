@@ -17,10 +17,20 @@ export function useModeratorBuilding() {
   return { building, isLoading };
 }
 
-/** Aviso de que a mesa do moderador é tela larga. */
+/**
+ * Aviso de que a mesa do moderador é tela larga.
+ *
+ * O layout mora nas classes, e não no `style`: `lg:hidden` esconde por folha de
+ * estilo, e um `display` inline venceria essa regra — o aviso ficava no fim da
+ * página no desktop, com uma tela inteira de rolagem atrás do painel. Nada de
+ * `display` inline aqui.
+ */
 function DesktopOnly() {
   return (
-    <div className="lg:hidden" style={{ minHeight: '100vh', background: T.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32, textAlign: 'center' }}>
+    <div
+      className="lg:hidden flex flex-col items-center justify-center min-h-screen text-center"
+      style={{ background: T.bg, padding: 32 }}
+    >
       <div className="anim-pop-in" style={{ fontSize: 44, marginBottom: 16 }}>🖥️</div>
       <p className="anim-fade-up anim-d1" style={{ color: T.text, fontWeight: W.title, fontSize: 18 }}>Acesse pelo computador</p>
       <p className="anim-fade-up anim-d2" style={{ color: T.mute, fontSize: 14, marginTop: 8, lineHeight: 1.6 }}>
