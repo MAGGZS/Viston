@@ -75,6 +75,10 @@ export const ticketRepository = {
    * O responsável não escolhe prédio: ele abre o app e vê o que é dele. Os já
    * fechados ficam de fora — quem fechou foi o moderador, e a lista dele é de
    * trabalho, não de arquivo.
+   *
+   * ENCAMINHADO abre a lista de propósito: é o chamado que espera o aceite
+   * dele, e deixá-lo de fora esconderia justamente o que ele tem de receber
+   * para que o trabalho comece.
    */
   findByResponsible(responsibleId: string, includeClosed = false) {
     return prisma.maintenanceRecord.findMany({
@@ -82,7 +86,14 @@ export const ticketRepository = {
         responsible_id: responsibleId,
         status: includeClosed
           ? { not: RecordStatus.ABERTO }
-          : { in: [RecordStatus.EM_ANDAMENTO, RecordStatus.AGUARDANDO_TERCEIRO, RecordStatus.AGUARDANDO_FECHAMENTO] },
+          : {
+              in: [
+                RecordStatus.ENCAMINHADO,
+                RecordStatus.EM_ANDAMENTO,
+                RecordStatus.AGUARDANDO_TERCEIRO,
+                RecordStatus.AGUARDANDO_FECHAMENTO,
+              ],
+            },
       },
       include: ticketInclude,
       orderBy: { created_at: 'desc' },
@@ -99,6 +110,7 @@ export const ticketRepository = {
 
     const zeroed = {
       ABERTO: 0,
+      ENCAMINHADO: 0,
       EM_ANDAMENTO: 0,
       AGUARDANDO_TERCEIRO: 0,
       AGUARDANDO_FECHAMENTO: 0,

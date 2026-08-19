@@ -163,12 +163,20 @@ components:
         responsible_id: { type: string, format: uuid, nullable: true }
         status:
           type: string
-          enum: [ABERTO, EM_ANDAMENTO, AGUARDANDO_TERCEIRO, AGUARDANDO_FECHAMENTO, CONCLUIDO]
+          enum: [ABERTO, ENCAMINHADO, EM_ANDAMENTO, AGUARDANDO_TERCEIRO, AGUARDANDO_FECHAMENTO, CONCLUIDO]
           description: >
-            ABERTO é o chamado que ninguém encaminhou ainda. AGUARDANDO_FECHAMENTO
-            é o responsável dizendo "terminei" — o chamado continua aberto, porque
-            só o moderador o encerra em CONCLUIDO.
+            ABERTO é o chamado que ninguém encaminhou ainda. ENCAMINHADO é o que
+            o moderador mandou a um responsável e que espera esse responsável
+            confirmar o recebimento — encaminhar não começa o trabalho.
+            EM_ANDAMENTO é o chamado já recebido. AGUARDANDO_FECHAMENTO é o
+            responsável dizendo "terminei" — o chamado continua aberto, porque só
+            o moderador o encerra em CONCLUIDO.
         forwarded_at: { type: string, format: date-time, nullable: true }
+        received_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Quando o responsável confirmou o recebimento. Nulo = ainda aguarda aceite.
         done_at: { type: string, format: date-time, nullable: true }
         closed_at: { type: string, format: date-time, nullable: true }
         maintenance_note: { type: string, nullable: true }
@@ -749,7 +757,12 @@ paths:
   /buildings/{id}/tickets:
     get:
       tags: [Tickets]
-      summary: A fila de chamados do prédio (MODERADOR ou GESTOR)
+      summary: Os chamados do prédio — fila do moderador e histórico de ocorrências (qualquer membro)
+      description: >
+        Leitura livre de quem tem vínculo com o prédio: é a fila de trabalho do
+        moderador e, com group=TODOS, o histórico de ocorrências que inspetor e
+        visualizador leem. Ler não move nada — encaminhar, receber, atualizar e
+        fechar seguem restritos a quem pode.
       parameters:
         - in: path
           name: id
@@ -758,10 +771,13 @@ paths:
         - in: query
           name: group
           description: >
-            NOVOS são os chamados que ninguém encaminhou. ANDAMENTO junta
+            NOVOS são os chamados que ninguém encaminhou. ENCAMINHADOS são os que
+            esperam o responsável confirmar o recebimento. ANDAMENTO junta
             EM_ANDAMENTO, AGUARDANDO_TERCEIRO e AGUARDANDO_FECHAMENTO — o
             chamado que o responsável disse ter terminado ainda não fechou.
-          schema: { type: string, enum: [NOVOS, ANDAMENTO, CONCLUIDOS], default: NOVOS }
+            TODOS traz a linha do tempo inteira, do mais novo para o mais velho:
+            é o histórico de ocorrências do prédio.
+          schema: { type: string, enum: [NOVOS, ENCAMINHADOS, ANDAMENTO, CONCLUIDOS, TODOS], default: NOVOS }
         - in: query
           name: page
           schema: { type: integer, default: 1 }
@@ -772,7 +788,7 @@ paths:
         '200':
           description: Chamados, do mais novo para o mais velho
         '403':
-          description: Quem não trata os chamados do prédio não vê a fila
+          description: Quem não tem vínculo com o prédio não vê ocorrência nenhuma
 
   /buildings/{id}/tickets/stats:
     get:
@@ -785,16 +801,23 @@ paths:
           schema: { type: string, format: uuid }
       responses:
         '200':
-          description: Abertos, em andamento e concluídos
+          description: Abertos, encaminhados, em andamento e concluídos
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   abertos: { type: integer }
+                  encaminhados:
+                    type: integer
+                    description: >
+                      Encaminhados que ainda esperam o aceite do responsável. Fora
+                      de em_andamento de propósito: ninguém começou o trabalho.
                   em_andamento: { type: integer }
                   aguardando_fechamento: { type: integer }
                   concluidos: { type: integer }
+        '403':
+          description: Os contadores são do painel do moderador
 
   /tickets/me:
     get:
@@ -813,9 +836,11 @@ paths:
       tags: [Tickets]
       summary: Encaminhar o chamado a um responsável (MODERADOR ou GESTOR)
       description: >
-        Tira a ocorrência da fila de novos e a põe em andamento. Vale também
-        para trocar de responsável com o chamado correndo — nesse caso o
-        "terminei" do responsável anterior é descartado.
+        Tira a ocorrência da fila de novos e a deixa em ENCAMINHADO, à espera de
+        o responsável confirmar o recebimento — encaminhar não começa o
+        trabalho. Vale também para trocar de responsável com o chamado correndo:
+        nesse caso o recebimento e o "terminei" do responsável anterior são
+        descartados, e o chamado volta a aguardar aceite.
       parameters:
         - in: path
           name: id
@@ -832,11 +857,33 @@ paths:
                 responsible_id: { type: string, format: uuid }
       responses:
         '200':
-          description: Chamado em andamento
+          description: Chamado encaminhado, aguardando o aceite do responsável
         '403':
           description: Quem não trata os chamados do prédio não encaminha
         '409':
           description: Chamado já fechado, ou pessoa que não é responsável naquele prédio
+
+  /tickets/{id}/receive:
+    post:
+      tags: [Tickets]
+      summary: O responsável confirma que recebeu o chamado (RESPONSAVEL do chamado)
+      description: >
+        Leva o chamado de ENCAMINHADO a EM_ANDAMENTO e carimba received_at. Só
+        quem está com o chamado passa por aqui: nem o moderador nem o gestor
+        aceitam no lugar da pessoa — o aceite não valeria nada se outro pudesse
+        dá-lo.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Chamado em andamento
+        '403':
+          description: O chamado não está com quem pediu
+        '409':
+          description: Chamado fora de ENCAMINHADO — ainda não encaminhado, já recebido ou fechado
 
   /tickets/{id}:
     patch:
@@ -870,7 +917,8 @@ paths:
       summary: O responsável informa que concluiu — não fecha o chamado
       description: >
         Leva o chamado a AGUARDANDO_FECHAMENTO. Ele continua na tela do
-        moderador, que é quem encerra.
+        moderador, que é quem encerra. Exige o chamado já recebido: não se
+        conclui o que ainda está em ENCAMINHADO.
       parameters:
         - in: path
           name: id
@@ -882,7 +930,7 @@ paths:
         '403':
           description: O chamado não está com quem pediu
         '409':
-          description: Chamado ainda não encaminhado, ou já fechado
+          description: Chamado ainda não encaminhado, ainda não recebido, ou já fechado
 
   /tickets/{id}/close:
     post:

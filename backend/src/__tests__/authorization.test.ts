@@ -6,24 +6,29 @@ jest.mock('../repositories/building.repository');
 jest.mock('../repositories/manager.repository');
 jest.mock('../repositories/inspection.repository');
 jest.mock('../repositories/user.repository');
+jest.mock('../repositories/ticket.repository');
 jest.mock('../services/excel.service');
 jest.mock('../services/storage.service');
 
 import app from '../app';
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
 import { inspectionRepository } from '../repositories/inspection.repository';
+import { ticketRepository } from '../repositories/ticket.repository';
 import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { signAccessToken } from '../utils/jwt';
 
 const mockBuildingRepo = buildingRepository as jest.Mocked<typeof buildingRepository>;
 const mockInspectionRepo = inspectionRepository as jest.Mocked<typeof inspectionRepository>;
+const mockTicketRepo = ticketRepository as jest.Mocked<typeof ticketRepository>;
 const mockUserRepo = userRepository as jest.Mocked<typeof userRepository>;
 const mockManagerRepo = managerRepository as jest.Mocked<typeof managerRepository>;
 
 const BUILDING_ID = '11111111-1111-4111-8111-111111111111';
 const FLOOR_ID = '44444444-4444-4444-8444-444444444444';
 const REPORT_ID = '99999999-9999-4999-8999-999999999999';
+const TICKET_ID = '22222222-2222-4222-8222-222222222222';
+const RESPONSIBLE_ID = '33333333-3333-4333-8333-333333333333';
 
 // Gestor é outro tipo de conta: o token dele diz MANAGER, e o que ele
 // administra sai de `findManagerLink`. Usuário comum é sempre NONE, e o que ele
@@ -72,10 +77,35 @@ function vistoriaValida() {
   return { building_id: BUILDING_ID, floors: [{ floor_id: FLOOR_ID, records: [] }] };
 }
 
+/** Um chamado do prédio da rota — o bastante para o serviço achar o prédio dele. */
+function chamadoDoPredio(overrides: Record<string, unknown> = {}) {
+  return {
+    id: TICKET_ID,
+    status: 'ABERTO',
+    responsible_id: null,
+    responsible_user: null,
+    closed_by: null,
+    maintenance_cost: null,
+    floor_form_entry: {
+      floor: { id: 'floor-1', label: '1º Andar' },
+      report: {
+        id: REPORT_ID,
+        date: new Date('2026-08-18'),
+        building_id: BUILDING_ID,
+        building: { id: BUILDING_ID, name: building.name },
+        inspector: null,
+      },
+    },
+    ...overrides,
+  } as any;
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   (auditRepository.log as jest.Mock) = jest.fn().mockResolvedValue(undefined);
   mockBuildingRepo.findById.mockResolvedValue(building as any);
+  mockTicketRepo.findByBuilding.mockResolvedValue([[], 0] as any);
+  mockTicketRepo.findById.mockResolvedValue(chamadoDoPredio());
   mockBuildingRepo.getFloors.mockResolvedValue([{ id: FLOOR_ID, label: '1º Andar' }] as any);
   mockBuildingRepo.countManagers.mockResolvedValue(2);
   semVinculo();
@@ -643,6 +673,81 @@ describe('acesso a relatórios', () => {
 
     expect(res.status).toBe(403);
     expect(mockInspectionRepo.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('ocorrências do prédio', () => {
+  it('membro comum lista as ocorrências — o histórico é leitura livre de quem é do prédio', async () => {
+    comoMembro('VIEWER');
+
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/tickets?group=TODOS`)
+      .set('Authorization', `Bearer ${tokenViewer}`);
+
+    expect(res.status).toBe(200);
+    expect(mockTicketRepo.findByBuilding).toHaveBeenCalledWith(
+      expect.objectContaining({ building_id: BUILDING_ID })
+    );
+  });
+
+  it('quem não é do prédio não lista ocorrência nenhuma', async () => {
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/tickets?group=TODOS`)
+      .set('Authorization', `Bearer ${tokenSemVinculo}`);
+
+    expect(res.status).toBe(403);
+    expect(mockTicketRepo.findByBuilding).not.toHaveBeenCalled();
+  });
+
+  it('os contadores continuam do moderador', async () => {
+    comoMembro('INSPECTOR');
+
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/tickets/stats`)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(403);
+    expect(mockTicketRepo.countByStatus).not.toHaveBeenCalled();
+  });
+
+  it('ler não é mexer: membro comum não encaminha', async () => {
+    comoMembro('INSPECTOR');
+
+    const res = await request(app)
+      .post(`/tickets/${TICKET_ID}/forward`)
+      .set('Authorization', `Bearer ${tokenInspector}`)
+      .send({ responsible_id: RESPONSIBLE_ID });
+
+    expect(res.status).toBe(403);
+    expect(mockTicketRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('ler não é mexer: membro comum não fecha', async () => {
+    comoMembro('VIEWER');
+    mockTicketRepo.findById.mockResolvedValue(
+      chamadoDoPredio({ status: 'AGUARDANDO_FECHAMENTO' })
+    );
+
+    const res = await request(app)
+      .post(`/tickets/${TICKET_ID}/close`)
+      .set('Authorization', `Bearer ${tokenViewer}`);
+
+    expect(res.status).toBe(403);
+    expect(mockTicketRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('ler não é mexer: membro comum não recebe chamado que não é dele', async () => {
+    comoMembro('INSPECTOR');
+    mockTicketRepo.findById.mockResolvedValue(
+      chamadoDoPredio({ status: 'ENCAMINHADO', responsible_id: RESPONSIBLE_ID })
+    );
+
+    const res = await request(app)
+      .post(`/tickets/${TICKET_ID}/receive`)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(403);
+    expect(mockTicketRepo.update).not.toHaveBeenCalled();
   });
 });
 

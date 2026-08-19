@@ -27,6 +27,7 @@ function makeTicket(overrides: any = {}) {
     responsible_user: null,
     closed_by: null,
     forwarded_at: null,
+    received_at: null,
     done_at: null,
     closed_at: null,
     maintenance_note: null,
@@ -74,17 +75,20 @@ beforeEach(() => {
 
 // ── Encaminhar ────────────────────────────────────────────────────────────────
 describe('ticketService.forward', () => {
-  it('tira o chamado da fila de novos e o põe em andamento', async () => {
+  it('tira o chamado da fila de novos e o deixa aguardando o aceite', async () => {
     comPapel('MODERADOR');
 
     await ticketService.forward(TICKET_ID, moderador, RESPONSIBLE_ID);
 
     const [, patch] = mockTicketRepo.update.mock.calls[0];
-    expect(patch.status).toBe('EM_ANDAMENTO');
+    // Encaminhar não é começar: quem começa é o responsável, ao receber
+    expect(patch.status).toBe('ENCAMINHADO');
+    expect(patch.status).not.toBe('EM_ANDAMENTO');
     expect(patch.responsible_id).toBe(RESPONSIBLE_ID);
     // O nome vai junto: é o que o relatório antigo mostra se a conta sumir
     expect(patch.responsible).toBe('Marina');
     expect(patch.forwarded_at).toBeInstanceOf(Date);
+    expect(patch.received_at).toBeNull();
   });
 
   it('recusa quem não trata os chamados daquele prédio', async () => {
@@ -121,8 +125,28 @@ describe('ticketService.forward', () => {
     await ticketService.forward(TICKET_ID, moderador, RESPONSIBLE_ID);
 
     const [, patch] = mockTicketRepo.update.mock.calls[0];
-    expect(patch.status).toBe('EM_ANDAMENTO');
+    expect(patch.status).toBe('ENCAMINHADO');
     expect(patch.done_at).toBeNull();
+  });
+
+  it('reencaminhar limpa o recebimento: quem chega agora ainda não pegou o chamado', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({
+        status: 'EM_ANDAMENTO',
+        responsible_id: 'outra-pessoa',
+        forwarded_at: new Date('2026-08-10'),
+        received_at: new Date('2026-08-11'),
+      })
+    );
+
+    await ticketService.forward(TICKET_ID, moderador, RESPONSIBLE_ID);
+
+    const [, patch] = mockTicketRepo.update.mock.calls[0];
+    expect(patch.status).toBe('ENCAMINHADO');
+    expect(patch.received_at).toBeNull();
+    // A data de encaminhamento é a da última decisão, não a da primeira
+    expect(patch.forwarded_at).toBeInstanceOf(Date);
   });
 
   it('não mexe em chamado já fechado', async () => {
@@ -139,6 +163,70 @@ describe('ticketService.forward', () => {
     await expect(ticketService.forward(TICKET_ID, moderador, RESPONSIBLE_ID)).rejects.toThrow(
       NotFoundError
     );
+  });
+});
+
+// ── O responsável recebe o chamado ────────────────────────────────────────────
+describe('ticketService.receive', () => {
+  it('põe o chamado em andamento e carimba o recebimento', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'ENCAMINHADO', responsible_id: RESPONSIBLE_ID, forwarded_at: new Date() })
+    );
+
+    await ticketService.receive(TICKET_ID, responsavel);
+
+    const [, patch] = mockTicketRepo.update.mock.calls[0];
+    expect(patch.status).toBe('EM_ANDAMENTO');
+    expect(patch.received_at).toBeInstanceOf(Date);
+  });
+
+  it('recusa quem não é o responsável do chamado', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'ENCAMINHADO', responsible_id: 'outra-pessoa' })
+    );
+
+    await expect(ticketService.receive(TICKET_ID, responsavel)).rejects.toThrow(ForbiddenError);
+    expect(mockTicketRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('nem o moderador recebe no lugar da pessoa — o aceite é dela', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'ENCAMINHADO', responsible_id: RESPONSIBLE_ID })
+    );
+
+    await expect(ticketService.receive(TICKET_ID, moderador)).rejects.toThrow(ForbiddenError);
+    expect(mockTicketRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('recusa receber o que ainda não foi encaminhado', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'ABERTO', responsible_id: RESPONSIBLE_ID })
+    );
+
+    await expect(ticketService.receive(TICKET_ID, responsavel)).rejects.toThrow(ConflictError);
+  });
+
+  it('não recebe duas vezes', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID, received_at: new Date() })
+    );
+
+    await expect(ticketService.receive(TICKET_ID, responsavel)).rejects.toThrow(ConflictError);
+    expect(mockTicketRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('não recebe chamado já fechado', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'CONCLUIDO', responsible_id: RESPONSIBLE_ID })
+    );
+
+    await expect(ticketService.receive(TICKET_ID, responsavel)).rejects.toThrow(ConflictError);
   });
 });
 
@@ -174,6 +262,16 @@ describe('ticketService.reportDone', () => {
     );
 
     await expect(ticketService.reportDone(TICKET_ID, responsavel)).rejects.toThrow(ConflictError);
+  });
+
+  it('não se conclui o que não foi recebido', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'ENCAMINHADO', responsible_id: RESPONSIBLE_ID, forwarded_at: new Date() })
+    );
+
+    await expect(ticketService.reportDone(TICKET_ID, responsavel)).rejects.toThrow(ConflictError);
+    expect(mockTicketRepo.update).not.toHaveBeenCalled();
   });
 });
 
@@ -263,9 +361,10 @@ describe('ticketService.update', () => {
 
 // ── Contadores do painel ──────────────────────────────────────────────────────
 describe('ticketService.stats', () => {
-  it('soma em "em andamento" tudo que ainda não fechou', async () => {
+  it('soma em "em andamento" tudo que ainda não fechou, e conta o encaminhado à parte', async () => {
     mockTicketRepo.countByStatus.mockResolvedValue({
       ABERTO: 4,
+      ENCAMINHADO: 5,
       EM_ANDAMENTO: 3,
       AGUARDANDO_TERCEIRO: 1,
       AGUARDANDO_FECHAMENTO: 2,
@@ -276,9 +375,12 @@ describe('ticketService.stats', () => {
 
     expect(stats).toEqual({
       abertos: 4,
+      encaminhados: 5,
       em_andamento: 6,
       aguardando_fechamento: 2,
       concluidos: 7,
     });
+    // O que ninguém aceitou não conta como trabalho em curso
+    expect(stats.em_andamento).not.toBe(11);
   });
 });

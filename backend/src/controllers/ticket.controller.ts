@@ -52,6 +52,11 @@ export const ticketController = {
     ok(res, await ticketService.update(req.params.id, req.user, data));
   },
 
+  /** O responsável confirma que recebeu — é aqui que o chamado passa a correr. */
+  async receive(req: AuthenticatedRequest, res: Response) {
+    ok(res, await ticketService.receive(req.params.id, req.user));
+  },
+
   /** O responsável informa que terminou — não fecha o chamado. */
   async reportDone(req: AuthenticatedRequest, res: Response) {
     ok(res, await ticketService.reportDone(req.params.id, req.user));

@@ -31,6 +31,7 @@ export function toTicket(row: TicketRow) {
     responsible_id: row.responsible_id,
     responsible_user: row.responsible_user,
     forwarded_at: row.forwarded_at,
+    received_at: row.received_at,
     done_at: row.done_at,
     closed_at: row.closed_at,
     closed_by: row.closed_by,
@@ -87,7 +88,7 @@ async function logTicket(user: Actor, buildingId: string, ticketId: string, meta
 }
 
 export const ticketService = {
-  /** A fila do moderador, num dos três estados da barra lateral. */
+  /** A fila do prédio, num dos grupos da barra lateral do moderador. */
   async listByBuilding(
     buildingId: string,
     filters: { group: TicketGroup; page: number; limit: number }
@@ -110,15 +111,19 @@ export const ticketService = {
   },
 
   /**
-   * Os contadores do painel: aberto, em andamento e concluído.
+   * Os contadores do painel: aberto, encaminhado, em andamento e concluído.
    *
    * "Em andamento" soma os três estados intermediários pelo mesmo motivo da
    * listagem — chamado que o responsável disse ter terminado ainda não fechou.
+   * O encaminhado fica de fora dessa soma de propósito: ninguém o aceitou
+   * ainda, e contá-lo como trabalho em curso esconderia justamente a fila que o
+   * moderador tem de cobrar.
    */
   async stats(buildingId: string) {
     const counts = await ticketRepository.countByStatus(buildingId);
     return {
       abertos: counts.ABERTO,
+      encaminhados: counts.ENCAMINHADO,
       em_andamento:
         counts.EM_ANDAMENTO + counts.AGUARDANDO_TERCEIRO + counts.AGUARDANDO_FECHAMENTO,
       aguardando_fechamento: counts.AGUARDANDO_FECHAMENTO,
@@ -135,7 +140,12 @@ export const ticketService = {
 
   /**
    * Encaminha o chamado ao responsável — o gesto que tira a ocorrência da fila
-   * de novos e a põe em andamento.
+   * de novos e a põe à espera de quem vai atendê-la.
+   *
+   * Encaminhar não é começar: o chamado para em ENCAMINHADO até o responsável
+   * confirmar o recebimento (ver `receive`). Antes, ele já nascia EM_ANDAMENTO,
+   * e o sistema afirmava que alguém tinha começado sem que essa pessoa
+   * soubesse.
    *
    * Vale também para trocar de responsável com o chamado já correndo: o
    * moderador redireciona, e a data de encaminhamento é a da última decisão.
@@ -155,14 +165,56 @@ export const ticketService = {
       responsible_id: responsibleId,
       // O nome também é gravado: é o que o relatório mostra quando a conta some.
       responsible: responsible.name,
-      status: RecordStatus.EM_ANDAMENTO,
+      status: RecordStatus.ENCAMINHADO,
       forwarded_at: new Date(),
+      // Reencaminhar volta a aguardar aceite: o recebimento anterior era de
+      // outra pessoa, e quem chega agora ainda não disse que pegou o chamado.
+      received_at: null,
       // Encaminhar de novo reabre o trabalho: o "terminei" anterior era do
       // responsável antigo e não vale para o novo.
       done_at: null,
     });
 
     await logTicket(user, buildingId, id, { forwarded_to: responsibleId });
+    return toTicket(updated);
+  },
+
+  /**
+   * O responsável confirma que recebeu o chamado — e só então ele começa a
+   * correr.
+   *
+   * É o passo que o encaminhamento deixou de fazer sozinho. Só quem está com o
+   * chamado passa por aqui: nem o moderador, que encaminhou, nem o gestor
+   * aceitam no lugar da pessoa — o aceite não valeria nada se outro pudesse
+   * dá-lo, e é ele que diz que alguém sabe do trabalho.
+   *
+   * Fora de ENCAMINHADO não há o que receber: já recebido, ainda na fila de
+   * novos ou fechado, o pedido é recusado em vez de mexer na data.
+   */
+  async receive(id: string, user: Actor) {
+    const { ticket, buildingId } = await loadTicket(id);
+
+    const isAssigned = user.kind === 'USER' && ticket.responsible_id === user.id;
+    if (!isAssigned) {
+      throw new ForbiddenError('Este chamado não está com você');
+    }
+
+    if (ticket.status !== RecordStatus.ENCAMINHADO) {
+      if (ticket.status === RecordStatus.ABERTO) {
+        throw new ConflictError('Este chamado ainda não foi encaminhado');
+      }
+      if (ticket.status === RecordStatus.CONCLUIDO) {
+        throw new ConflictError('Este chamado já foi fechado');
+      }
+      throw new ConflictError('Este chamado já foi recebido');
+    }
+
+    const updated = await ticketRepository.update(id, {
+      status: RecordStatus.EM_ANDAMENTO,
+      received_at: new Date(),
+    });
+
+    await logTicket(user, buildingId, id, { received_by: user.id });
     return toTicket(updated);
   },
 
@@ -227,6 +279,11 @@ export const ticketService = {
 
     if (ticket.status === RecordStatus.ABERTO) {
       throw new ConflictError('Este chamado ainda não foi encaminhado');
+    }
+    // Não se conclui o que não foi recebido: o chamado encaminhado espera o
+    // aceite, e pular esse passo apagaria a fila que o moderador cobra.
+    if (ticket.status === RecordStatus.ENCAMINHADO) {
+      throw new ConflictError('Receba o chamado antes de informar a conclusão');
     }
     if (ticket.status === RecordStatus.CONCLUIDO) {
       throw new ConflictError('Este chamado já foi fechado');

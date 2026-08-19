@@ -103,10 +103,13 @@ enum Priority {
 ///
 /// ABERTO é o chamado recém-nascido da vistoria: ninguém foi encaminhado ainda,
 /// e é o que a tela de novos chamados do moderador lista. Encaminhar leva a
-/// EM_ANDAMENTO. AGUARDANDO_FECHAMENTO é o responsável dizendo "terminei" — o
-/// chamado continua aberto, porque só o moderador o encerra em CONCLUIDO.
+/// ENCAMINHADO, e não a EM_ANDAMENTO: encaminhar não é começar, e o chamado
+/// espera ali até o responsável confirmar que o recebeu. AGUARDANDO_FECHAMENTO
+/// é o responsável dizendo "terminei" — o chamado continua aberto, porque só o
+/// moderador o encerra em CONCLUIDO.
 enum RecordStatus {
   ABERTO
+  ENCAMINHADO
   EM_ANDAMENTO
   AGUARDANDO_TERCEIRO
   AGUARDANDO_FECHAMENTO
@@ -334,6 +337,8 @@ model MaintenanceRecord {
   status              RecordStatus        @default(ABERTO)
   /// Quando o moderador encaminhou o chamado. Nulo = chamado novo.
   forwarded_at        DateTime?
+  /// Quando o responsável confirmou o recebimento. Nulo = ainda aguarda aceite.
+  received_at         DateTime?
   /// Quando o responsável informou que concluiu. Não fecha o chamado.
   done_at             DateTime?
   /// Quando o moderador fechou. É o único carimbo que conclui de verdade.

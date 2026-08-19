@@ -1,27 +1,44 @@
 import { z } from 'zod';
 
 /**
- * As três telas de chamado do moderador, e o que cada uma pergunta ao banco.
+ * As telas de chamado do moderador, e o que cada uma pergunta ao banco.
  *
  * O agrupamento existe porque "em andamento" não é um status só: o chamado que
  * o responsável já disse ter terminado continua correndo até o moderador
  * fechar, e some da tela dele se for tratado como concluído.
+ *
+ * ENCAMINHADOS é tela própria, e não parte de ANDAMENTO, porque é justamente o
+ * que ainda não anda: o chamado foi mandado e espera o responsável confirmar
+ * que o recebeu. Somá-lo ao que está sendo feito apagaria a única fila que o
+ * moderador precisa cobrar.
+ *
+ * TODOS não é tela: é o histórico de ocorrências do prédio, que lê a linha do
+ * tempo inteira de uma vez, em vez de pedir um grupo de cada vez.
  */
 export const TICKET_GROUPS = {
   NOVOS: ['ABERTO'],
+  ENCAMINHADOS: ['ENCAMINHADO'],
   ANDAMENTO: ['EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO', 'AGUARDANDO_FECHAMENTO'],
   CONCLUIDOS: ['CONCLUIDO'],
+  TODOS: [
+    'ABERTO',
+    'ENCAMINHADO',
+    'EM_ANDAMENTO',
+    'AGUARDANDO_TERCEIRO',
+    'AGUARDANDO_FECHAMENTO',
+    'CONCLUIDO',
+  ],
 } as const;
 
 export type TicketGroup = keyof typeof TICKET_GROUPS;
 
 export const ticketFiltersSchema = z.object({
-  group: z.enum(['NOVOS', 'ANDAMENTO', 'CONCLUIDOS']).default('NOVOS'),
+  group: z.enum(['NOVOS', 'ENCAMINHADOS', 'ANDAMENTO', 'CONCLUIDOS', 'TODOS']).default('NOVOS'),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(30),
 });
 
-/** Encaminhar: o chamado ganha dono e passa a correr. */
+/** Encaminhar: o chamado ganha dono e passa a esperar o aceite dele. */
 export const forwardTicketSchema = z
   .object({
     responsible_id: z.string().uuid('Selecione um responsável'),
