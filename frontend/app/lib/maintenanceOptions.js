@@ -40,19 +40,39 @@ export const PRIORITIES = [
 // consegue dizer "terminei").
 export const RECORD_STATUS = [
   { value: 'ABERTO', label: 'Aberto' },
+  { value: 'ENCAMINHADO', label: 'Encaminhado' },
   { value: 'EM_ANDAMENTO', label: 'Em andamento' },
   { value: 'AGUARDANDO_TERCEIRO', label: 'Aguardando terceiro' },
   { value: 'AGUARDANDO_FECHAMENTO', label: 'Concluído pelo responsável' },
   { value: 'CONCLUIDO', label: 'Concluído' },
 ];
 
-/** Cor do estado do chamado nas listas — a mesma leitura das três telas. */
+/** Cor do estado do chamado nas listas — a mesma leitura de todas as telas. */
 export const RECORD_STATUS_VARIANT = {
   ABERTO: 'warning',
+  // Encaminhado é o que espera aceite, e amarelo é a cor do que ainda cobra
+  // alguém — o que já anda fica no cinza dos demais.
+  ENCAMINHADO: 'warning',
   EM_ANDAMENTO: 'accent',
   AGUARDANDO_TERCEIRO: 'accent',
   AGUARDANDO_FECHAMENTO: 'accent',
   CONCLUIDO: 'success',
+};
+
+/**
+ * O mesmo estado, dito curto — o histórico de ocorrências.
+ *
+ * Quem lê o histórico não trabalha o chamado: para essa pessoa "aguardando
+ * terceiro" e "concluído pelo responsável" são o mesmo "em andamento", e a
+ * diferença entre eles só interessa a quem tem de agir.
+ */
+export const OCCURRENCE_STATUS_LABEL = {
+  ABERTO: 'Em aberto',
+  ENCAMINHADO: 'Encaminhado',
+  EM_ANDAMENTO: 'Em andamento',
+  AGUARDANDO_TERCEIRO: 'Em andamento',
+  AGUARDANDO_FECHAMENTO: 'Em andamento',
+  CONCLUIDO: 'Concluída',
 };
 
 /** Rótulo legível de um valor de enum; devolve o próprio valor se não conhecer. */

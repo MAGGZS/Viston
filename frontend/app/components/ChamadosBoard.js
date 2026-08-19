@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AlertTriangle, ArrowRight, Building2, CheckCheck, Send } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Building2, CheckCheck, Hourglass, Send } from 'lucide-react';
 import { Badge, Button, Select, Spinner } from '@/app/components/ui';
 import {
   MAINTENANCE_TYPES,
@@ -38,7 +38,7 @@ function stampLabel(value) {
 }
 
 /** Uma linha da lista: o suficiente para escolher qual abrir. */
-function TicketRow({ ticket, active, onClick, className = '' }) {
+function TicketRow({ ticket, active, onClick, group, className = '' }) {
   return (
     <button
       onClick={onClick}
@@ -71,7 +71,13 @@ function TicketRow({ ticket, active, onClick, className = '' }) {
       </p>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: T.faint, fontSize: 11 }}>
-        <span>{dayLabel(ticket.report?.date)}</span>
+        {/* Na fila do que espera aceite, a data que importa é a do
+            encaminhamento: é ela que diz há quanto tempo ninguém respondeu. */}
+        <span>
+          {group === 'ENCAMINHADOS'
+            ? `Encaminhado em ${stampLabel(ticket.forwarded_at)}`
+            : dayLabel(ticket.report?.date)}
+        </span>
         <span>·</span>
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {ticket.responsible ?? 'Sem responsável'}
@@ -205,6 +211,27 @@ function MaintenanceBox({ ticket }) {
   );
 }
 
+/**
+ * O aviso de que o chamado foi mandado e ninguém respondeu ainda.
+ *
+ * É o que separa "mandei" de "está sendo feito", e a razão de esta fila existir
+ * em tela própria: o moderador cobra o aceite, não o serviço.
+ */
+function AwaitingNotice({ ticket }) {
+  if (ticket.status !== 'ENCAMINHADO') return null;
+
+  return (
+    <div className="anim-scale-in" style={{ background: T.accentSoft, borderRadius: R.control, padding: '12px 14px', display: 'flex', gap: 10 }}>
+      <Hourglass size={16} color={T.accent} style={{ flexShrink: 0, marginTop: 1 }} />
+      <p style={{ color: T.text, fontSize: 12, lineHeight: 1.6 }}>
+        Encaminhado a {ticket.responsible ?? 'um responsável'} em{' '}
+        {stampLabel(ticket.forwarded_at)} — aguardando essa pessoa confirmar o
+        recebimento. Só depois disso o chamado entra em andamento.
+      </p>
+    </div>
+  );
+}
+
 /** O aviso de que o responsável já disse que terminou — o que o moderador valida. */
 function DoneNotice({ ticket }) {
   if (ticket.status !== 'AGUARDANDO_FECHAMENTO') return null;
@@ -267,15 +294,25 @@ function TicketDetail({ ticket, buildingId, group }) {
         <Fact label="Vistoriado por">{ticket.report?.inspector?.name ?? '—'}</Fact>
         <Fact label="Responsável">{ticket.responsible ?? 'Sem responsável'}</Fact>
         {ticket.forwarded_at && <Fact label="Encaminhado em">{stampLabel(ticket.forwarded_at)}</Fact>}
+        {ticket.received_at && <Fact label="Recebido em">{stampLabel(ticket.received_at)}</Fact>}
         {ticket.closed_at && <Fact label="Fechado em">{stampLabel(ticket.closed_at)}</Fact>}
         {ticket.closed_by && <Fact label="Fechado por">{ticket.closed_by.name}</Fact>}
       </div>
 
+      <AwaitingNotice ticket={ticket} />
       <DoneNotice ticket={ticket} />
 
       {group === 'NOVOS' && (
         <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 18 }}>
           <ForwardBox ticket={ticket} buildingId={buildingId} label="Encaminhar para" />
+        </div>
+      )}
+
+      {/* Aqui o moderador só redireciona: receber é do responsável, e fechar o
+          que ninguém aceitou fecharia um trabalho que nunca começou. */}
+      {group === 'ENCAMINHADOS' && (
+        <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 18 }}>
+          <ForwardBox ticket={ticket} buildingId={buildingId} label="Trocar de responsável" />
         </div>
       )}
 
@@ -321,12 +358,13 @@ function TicketDetail({ ticket, buildingId, group }) {
 
 const EMPTY = {
   NOVOS: 'Nenhum chamado esperando encaminhamento',
+  ENCAMINHADOS: 'Nenhum chamado esperando aceite',
   ANDAMENTO: 'Nenhum chamado em andamento',
   CONCLUIDOS: 'Nenhum chamado fechado ainda',
 };
 
 /**
- * As três telas de chamado, que são a mesma tela.
+ * As telas de chamado, que são a mesma tela.
  *
  * Histórico ocorrência por ocorrência, como o do inspetor é vistoria por
  * vistoria: a lista à esquerda, e o que está acontecendo naquela ocorrência à
@@ -370,6 +408,7 @@ export function ChamadosBoard({ buildingId, group }) {
             ticket={ticket}
             active={ticket.id === selected?.id}
             onClick={() => setPicked(ticket.id)}
+            group={group}
             className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
           />
         ))}

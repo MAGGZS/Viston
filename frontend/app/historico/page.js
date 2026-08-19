@@ -12,6 +12,7 @@ import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { M, MPage, MTopBar, MRound, MCard, MButtonGhost } from '@/app/components/mobile/kit';
+import { HistoricoSwitcher, OcorrenciasList, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { Badge, Button, Modal } from '@/app/components/ui';
 import { useInspections, useCalendar, useMyBuildings, useBuildingHistory } from '@/app/hooks/useApi';
 import { useIsDesktop } from '@/app/hooks/useMediaQuery';
@@ -202,6 +203,11 @@ export default function HistoricoPage() {
 
   const isDesktop = useIsDesktop();
 
+  // A visão escolhida mora aqui, e não dentro do alternador: o eyebrow da barra
+  // do topo a acompanha, e abrir e fechar um modal de relatório não pode levar
+  // a escolha junto.
+  const historico = useHistoricoView();
+
   const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState(null);
   const [previewId, setPreviewId] = useState(null);
@@ -335,11 +341,23 @@ export default function HistoricoPage() {
       ) : (
         <div style={{ padding: '0 32px 32px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, overflowY: 'auto' }}>
           <div className="anim-fade-up anim-d1" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={S.label}>Lista</p>
-            {listaPanel}
+            <HistoricoSwitcher
+              title={historico.title}
+              onPrev={historico.prev}
+              onNext={historico.next}
+            />
+            {/* `key` na visão: só o conteúdo do cartão troca, e trocar tem de
+                ser visível — o calendário e os filtros ao lado ficam onde
+                estão. */}
+            <div key={historico.view} className="anim-fade-up">
+              {historico.isVistorias ? listaPanel : <OcorrenciasList buildingId={myBuildingId} />}
+            </div>
           </div>
           <div className="anim-fade-up anim-d2" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={S.label}>Calendário</p>
+            {/* A altura do alternador da coluna ao lado: sem isso o calendário
+                começaria uns trinta pixels acima da lista, e as duas colunas
+                deixariam de casar. */}
+            <p style={{ ...S.label, minHeight: 42, display: 'flex', alignItems: 'center' }}>Calendário</p>
             {calendarioPanel}
           </div>
         </div>
@@ -351,7 +369,7 @@ export default function HistoricoPage() {
     <MPage>
       <MTopBar
         className="anim-fade-down"
-        eyebrow="Vistorias concluídas"
+        eyebrow={historico.eyebrow}
         title="Histórico"
         actions={hasBuilding ? (
           <MRound label="Filtros" onClick={() => setShowFilters(true)}>
@@ -373,28 +391,45 @@ export default function HistoricoPage() {
         </MCard>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {buildingLoading && [1, 2, 3].map(i => <div key={i} style={{ height: 128, background: M.card, borderRadius: 26 }} />)}
+          <HistoricoSwitcher
+            className="anim-fade-down"
+            title={historico.title}
+            onPrev={historico.prev}
+            onNext={historico.next}
+          />
 
-          {!buildingLoading && buildingInspections.length === 0 && (
-            <MCard className="anim-fade-up anim-d1" style={{ textAlign: 'center', padding: '40px 20px' }}>
-              <p style={{ color: M.mute, fontSize: 14 }}>Nenhuma vistoria por aqui ainda</p>
-            </MCard>
-          )}
+          {/* `key` na visão: é o que faz a lista entrar de novo a cada troca,
+              com a mesma animação do resto da tela. */}
+          <div key={historico.view} className="anim-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {historico.isVistorias ? (
+              <>
+                {buildingLoading && [1, 2, 3].map(i => <div key={i} style={{ height: 128, background: M.card, borderRadius: 26 }} />)}
 
-          {buildingInspections.map((i, idx) => (
-            <MobileInspectionCard
-              key={i.id}
-              inspection={i}
-              onOpenReport={setReportId}
-              className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
-            />
-          ))}
+                {!buildingLoading && buildingInspections.length === 0 && (
+                  <MCard className="anim-fade-up anim-d1" style={{ textAlign: 'center', padding: '40px 20px' }}>
+                    <p style={{ color: M.mute, fontSize: 14 }}>Nenhuma vistoria por aqui ainda</p>
+                  </MCard>
+                )}
 
-          {buildingHasNext && (
-            <MButtonGhost onClick={() => buildingFetchNext()} disabled={buildingFetchingNext} style={{ width: '100%' }}>
-              {buildingFetchingNext ? 'Carregando...' : 'Carregar mais'}
-            </MButtonGhost>
-          )}
+                {buildingInspections.map((i, idx) => (
+                  <MobileInspectionCard
+                    key={i.id}
+                    inspection={i}
+                    onOpenReport={setReportId}
+                    className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
+                  />
+                ))}
+
+                {buildingHasNext && (
+                  <MButtonGhost onClick={() => buildingFetchNext()} disabled={buildingFetchingNext} style={{ width: '100%' }}>
+                    {buildingFetchingNext ? 'Carregando...' : 'Carregar mais'}
+                  </MButtonGhost>
+                )}
+              </>
+            ) : (
+              <OcorrenciasList buildingId={myBuildingId} />
+            )}
+          </div>
         </div>
       )}
     </MPage>

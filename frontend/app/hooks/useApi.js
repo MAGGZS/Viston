@@ -476,8 +476,9 @@ export function useGenerateExcel() {
 
 // ── Chamados ──────────────────────────────────────────────────────────────────
 // A ocorrência vira chamado depois da vistoria: o moderador do prédio recebe,
-// encaminha a um responsável, acompanha e fecha. As três telas da barra lateral
-// são a mesma consulta com `group` diferente.
+// encaminha a um responsável, que confirma o recebimento e atende, e fecha. As
+// telas da barra lateral são a mesma consulta com `group` diferente — e o
+// histórico de ocorrências é essa mesma consulta com o grupo TODOS.
 
 /** Os responsáveis alocados naquele prédio — o droplist do formulário. */
 export function useBuildingResponsibles(buildingId) {
@@ -497,7 +498,26 @@ export function useTickets(buildingId, group = 'NOVOS') {
   });
 }
 
-/** Contadores do painel do moderador: aberto, em andamento, concluído. */
+/**
+ * O histórico de ocorrências do prédio: a linha do tempo inteira, de todos os
+ * estados, do mais recente para o mais antigo.
+ *
+ * Mesma rota da fila do moderador, com o grupo TODOS — a leitura é livre de
+ * quem tem vínculo com o prédio, e é isso que o inspetor e o visualizador veem
+ * no histórico. Ler não move nada: nenhuma ação sai daqui.
+ */
+export function useBuildingOccurrences(buildingId) {
+  return useQuery({
+    queryKey: ['tickets', buildingId, 'TODOS'],
+    queryFn: () =>
+      api
+        .get(`/buildings/${buildingId}/tickets`, { params: { group: 'TODOS', limit: 100 } })
+        .then((r) => r.data),
+    enabled: !!buildingId,
+  });
+}
+
+/** Contadores do painel do moderador: aberto, encaminhado, em andamento, concluído. */
 export function useTicketStats(buildingId) {
   return useQuery({
     queryKey: ['ticket-stats', buildingId],
@@ -526,7 +546,7 @@ function invalidateTickets(qc) {
   qc.invalidateQueries({ queryKey: ['my-tickets'] });
 }
 
-/** Encaminhar: o chamado ganha dono e passa para "em andamento". */
+/** Encaminhar: o chamado ganha dono e passa a esperar o aceite dele. */
 export function useForwardTicket() {
   const qc = useQueryClient();
   return useMutation({
@@ -541,6 +561,15 @@ export function useUpdateTicket() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...data }) => api.patch(`/tickets/${id}`, data).then((r) => r.data),
+    onSuccess: () => invalidateTickets(qc),
+  });
+}
+
+/** O responsável confirma que recebeu — é aqui que o chamado passa a correr. */
+export function useReceiveTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post(`/tickets/${id}/receive`).then((r) => r.data),
     onSuccess: () => invalidateTickets(qc),
   });
 }

@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Inbox, Loader, CheckCheck, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, Inbox, Send, Loader, CheckCheck, LogOut, User } from 'lucide-react';
 import { Logo } from '@/app/components/Logo';
 import { useAuthStore } from '@/app/store/auth';
 import { useTicketStats } from '@/app/hooks/useApi';
@@ -10,13 +10,15 @@ import { T, R, W, NUM } from '@/app/lib/theme';
 /**
  * O menu do moderador.
  *
- * As três telas de chamado são o produto dele: o que chegou e ninguém
- * encaminhou, o que está correndo, e o que ele já fechou. O painel fica em cima
+ * As telas de chamado são o produto dele, e estão na ordem do caminho que o
+ * chamado faz: o que chegou e ninguém encaminhou, o que foi mandado e espera
+ * aceite, o que está correndo, e o que ele já fechou. O painel fica em cima
  * porque é onde ele cai ao entrar.
  */
 const items = [
   { href: '/moderador', icon: LayoutDashboard, label: 'Painel' },
   { href: '/moderador/chamados/novos', icon: Inbox, label: 'Novos chamados', badge: 'abertos' },
+  { href: '/moderador/chamados/encaminhados', icon: Send, label: 'Encaminhados', badge: 'encaminhados' },
   { href: '/moderador/chamados/andamento', icon: Loader, label: 'Em andamento', badge: 'aguardando_fechamento' },
   { href: '/moderador/chamados/concluidos', icon: CheckCheck, label: 'Concluídas' },
 ];
@@ -31,8 +33,9 @@ const itemBase = {
 /**
  * Quantos chamados esperam ele.
  *
- * Em "Novos" é a fila inteira; em "Em andamento" é só o que o responsável já
- * disse ter terminado — o resto está com outra pessoa, e um número que sobe
+ * Em "Novos" é a fila inteira; em "Encaminhados", o que ainda não foi aceito —
+ * é o que ele tem de cobrar. Em "Em andamento" é só o que o responsável já
+ * disse ter terminado: o resto está com outra pessoa, e um número que sobe
  * sozinho por trabalho alheio vira ruído.
  */
 function CountBadge({ count, active }) {
