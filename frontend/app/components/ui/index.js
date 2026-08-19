@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
 import { T, R, W } from '@/app/lib/theme';
@@ -154,6 +154,9 @@ export function Skeleton({ className = '', style = {} }) {
  * direito (colaboradores, solicitações): em 400px o dropdown espreme o nome.
  * O padrão continua sendo 400 — formulário e confirmação não querem mais.
  */
+/** Assinatura vazia: o "estou no cliente?" do Modal nunca muda depois de montar. */
+const NEVER_CHANGES = () => () => {};
+
 export function Modal({ open, onClose, title, children, maxWidth = 400 }) {
   const { mounted, closing } = useExitTransition(open);
 
@@ -163,9 +166,29 @@ export function Modal({ open, onClose, title, children, maxWidth = 400 }) {
   const shownTitle = useKeepWhileClosing(title, open);
   const shownChildren = useKeepWhileClosing(children, open);
 
-  if (!mounted) return null;
+  /**
+   * A caixa é desenhada no `body`, e não onde foi escrita.
+   *
+   * Ela é `position: fixed`, e fixed se mede pela janela — menos quando algum
+   * ancestral tem `transform`, que vira bloco de contenção e prende a caixa
+   * dentro dele. Isso não é caso raro aqui: as classes de animação terminam com
+   * um transform aplicado (o `both` do fill-mode segura o último quadro), então
+   * qualquer modal aberto de dentro de um cartão ou lista animada aparecia preso
+   * ali, recortado, em vez de cobrir a tela. É a mesma armadilha anotada no
+   * MPage, e a mesma saída do droplist do Select.
+   *
+   * Com o portal, onde o modal é escrito deixa de importar: ele fica ao lado do
+   * estado que o abre, que é onde o código pertence.
+   */
+  // `document` não existe na geração estática das páginas: o portal só pode
+  // nascer depois de montar no navegador. `useSyncExternalStore` é o que
+  // responde "estou no cliente?" sem mentir na hidratação — o servidor lê o
+  // último argumento, o navegador lê o do meio.
+  const portalReady = useSyncExternalStore(NEVER_CHANGES, () => true, () => false);
 
-  return (
+  if (!mounted || !portalReady) return null;
+
+  return createPortal(
     <div
       className={closing ? 'anim-fade-out' : 'anim-fade-in'}
       style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
@@ -178,7 +201,8 @@ export function Modal({ open, onClose, title, children, maxWidth = 400 }) {
         {shownTitle && <h2 style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text, marginBottom: 16 }}>{shownTitle}</h2>}
         {shownChildren}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
