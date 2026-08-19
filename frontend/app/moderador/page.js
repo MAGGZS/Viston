@@ -8,7 +8,7 @@ import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Button, Skeleton } from '@/app/components/ui';
-import { HistoricoSwitcher, OcorrenciasList, useHistoricoView } from '@/app/components/HistoricoSwitcher';
+import { HistoricoSwitcher, OcorrenciasTable, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { useCalendar, useBuildingHistory, useTicketStats } from '@/app/hooks/useApi';
 import { parseReportDate } from '@/app/lib/date';
 import { T, R, W, NUM } from '@/app/lib/theme';
@@ -221,13 +221,7 @@ export default function ModeradorPage() {
             {/* `key` na visão: só o conteúdo do cartão troca — os contadores e
                 o calendário ficam onde estão. */}
             <div key={historico.view} className="anim-fade-up">
-              {historico.isVistorias ? (
-                relatoriosPanel
-              ) : (
-                <div style={{ padding: '16px 22px' }}>
-                  <OcorrenciasList buildingId={buildingId} />
-                </div>
-              )}
+              {historico.isVistorias ? relatoriosPanel : <OcorrenciasTable buildingId={buildingId} />}
             </div>
           </div>
         </div>

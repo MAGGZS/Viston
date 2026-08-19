@@ -12,6 +12,7 @@ import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Skeleton, Button, Modal, Select } from '@/app/components/ui';
+import { HistoricoSwitcher, OcorrenciasTable, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember, useUpdateMemberRole, useDeleteInspection, useAccessRequests, useReviewAccessRequest, useAddBuildingManager, useRemoveBuildingManager } from '@/app/hooks/useApi';
 import { formatShareKey } from '@/app/lib/shareKey';
 import { parseReportDate } from '@/app/lib/date';
@@ -264,6 +265,12 @@ function RequestRow({ request, buildingId, className = '' }) {
 
 export default function GestorBuildingPage() {
   const { id } = useParams();
+
+  // O mesmo cartão de histórico do painel do moderador e do histórico do
+  // inspetor: duas visões, alternadas pelas setas. A escolha mora aqui para os
+  // modais do prédio não a levarem junto ao fechar.
+  const historico = useHistoricoView();
+
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -295,6 +302,83 @@ export default function GestorBuildingPage() {
 
   function prev() { if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); }
   function next() { if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1); }
+
+  /**
+   * O histórico de vistorias do prédio: a tabela de sempre, com a prévia,
+   * a planilha e o descarte. Sai do meio do cartão para uma constante
+   * porque agora divide o lugar com a lista de ocorrências.
+   */
+  const inspecoesPanel = (
+    <>
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-line">
+            {['Inspetor', 'Status', 'Dia', 'Planilha', ''].map((h, i) => (
+              <th key={i} className="text-left px-6 py-3 text-mute text-xs font-medium">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {histLoading && [1,2,3].map(i => (
+            <tr key={i} className="border-b border-line">
+              {[1,2,3,4,5].map(j => <td key={j} className="px-6 py-3"><Skeleton className="h-4 w-full" /></td>)}
+            </tr>
+          ))}
+          {rows.map((r, idx) => (
+            <tr key={r.id} onClick={() => setReportId(r.id)}
+              className={`anim-fade-in anim-d${Math.min(idx + 1, 6)} border-b border-line hover:bg-chip transition-colors cursor-pointer`}>
+              <td className="px-6 py-3">
+                <div className="flex items-center gap-2">
+                  <Avatar user={r.inspector} size={28} />
+                  <span className="text-white text-sm">{r.inspector?.name}</span>
+                </div>
+              </td>
+              <td className="px-6 py-3">
+                <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+              </td>
+              {/* Só o dia: o relatório completo e a planilha são do dia */}
+              <td className="px-6 py-3 text-mute text-sm">
+                {format(parseReportDate(r.date), 'dd/MM/yyyy', { locale: ptBR })}
+              </td>
+              <td className="px-6 py-3">
+                <div className="flex items-center gap-4">
+                  {r.excel_url ? (
+                    <a href={r.excel_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+                      className="flex items-center gap-1 text-accent text-sm hover:underline">
+                      <Download size={13} /> Baixar
+                    </a>
+                  ) : <span className="text-mute text-sm">—</span>}
+                  <button onClick={e => { e.stopPropagation(); setPreviewId(r.id); }}
+                    className="flex items-center gap-1 text-mute text-sm hover:text-white transition-colors">
+                    <Eye size={13} /> Prévia
+                  </button>
+                </div>
+              </td>
+              <td className="px-6 py-3 text-right">
+                <button
+                  onClick={e => { e.stopPropagation(); setConfirmDiscard(r); }}
+                  disabled={deleteInspection.isPending}
+                  title="Descartar vistoria"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.26)', padding: 4, borderRadius: 8 }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.26)'}>
+                  <Trash2 size={15} />
+                </button>
+              </td>
+            </tr>
+          ))}
+          {!histLoading && rows.length === 0 && (
+            <tr><td colSpan={5} className="px-6 py-10 text-center text-mute text-sm">Nenhuma inspeção encontrada</td></tr>
+          )}
+        </tbody>
+      </table>
+      {hasNextPage && (
+        <div className="px-6 py-4 border-t border-line flex justify-center">
+          <Button variant="secondary" onClick={() => fetchNextPage()} loading={isFetchingNextPage}>Carregar mais</Button>
+        </div>
+      )}
+    </>
+  );
 
   return (
     <RouteGuard manages={id}>
@@ -374,75 +458,18 @@ export default function GestorBuildingPage() {
 
             <div className="col-span-2 bg-card rounded-card overflow-hidden">
               <div className="px-6 py-4 border-b border-line">
-                <h2 className="text-white font-semibold">Histórico de Inspeções</h2>
+                <HistoricoSwitcher
+                  title={historico.title}
+                  onPrev={historico.prev}
+                  onNext={historico.next}
+                />
               </div>
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-line">
-                    {['Inspetor', 'Status', 'Dia', 'Planilha', ''].map((h, i) => (
-                      <th key={i} className="text-left px-6 py-3 text-mute text-xs font-medium">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {histLoading && [1,2,3].map(i => (
-                    <tr key={i} className="border-b border-line">
-                      {[1,2,3,4,5].map(j => <td key={j} className="px-6 py-3"><Skeleton className="h-4 w-full" /></td>)}
-                    </tr>
-                  ))}
-                  {rows.map((r, idx) => (
-                    <tr key={r.id} onClick={() => setReportId(r.id)}
-                      className={`anim-fade-in anim-d${Math.min(idx + 1, 6)} border-b border-line hover:bg-chip transition-colors cursor-pointer`}>
-                      <td className="px-6 py-3">
-                        <div className="flex items-center gap-2">
-                          <Avatar user={r.inspector} size={28} />
-                          <span className="text-white text-sm">{r.inspector?.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-3">
-                        <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
-                      </td>
-                      {/* Só o dia: o relatório completo e a planilha são do dia */}
-                      <td className="px-6 py-3 text-mute text-sm">
-                        {format(parseReportDate(r.date), 'dd/MM/yyyy', { locale: ptBR })}
-                      </td>
-                      <td className="px-6 py-3">
-                        <div className="flex items-center gap-4">
-                          {r.excel_url ? (
-                            <a href={r.excel_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
-                              className="flex items-center gap-1 text-accent text-sm hover:underline">
-                              <Download size={13} /> Baixar
-                            </a>
-                          ) : <span className="text-mute text-sm">—</span>}
-                          <button onClick={e => { e.stopPropagation(); setPreviewId(r.id); }}
-                            className="flex items-center gap-1 text-mute text-sm hover:text-white transition-colors">
-                            <Eye size={13} /> Prévia
-                          </button>
-                        </div>
-                      </td>
-                      <td className="px-6 py-3 text-right">
-                        <button
-                          onClick={e => { e.stopPropagation(); setConfirmDiscard(r); }}
-                          disabled={deleteInspection.isPending}
-                          title="Descartar vistoria"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.26)', padding: 4, borderRadius: 8 }}
-                          onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-                          onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.26)'}>
-                          <Trash2 size={15} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {!histLoading && rows.length === 0 && (
-                    <tr><td colSpan={5} className="px-6 py-10 text-center text-mute text-sm">Nenhuma inspeção encontrada</td></tr>
-                  )}
-                </tbody>
-              </table>
-              {hasNextPage && (
-                <div className="px-6 py-4 border-t border-line flex justify-center">
-                  <Button variant="secondary" onClick={() => fetchNextPage()} loading={isFetchingNextPage}>Carregar mais</Button>
-                </div>
-              )}
+
+              {/* `key` na visão: só o miolo do cartão troca — o calendário ao
+                  lado e o resto da tela do prédio ficam onde estão. */}
+              <div key={historico.view} className="anim-fade-up">
+                {historico.isVistorias ? inspecoesPanel : <OcorrenciasTable buildingId={id} />}
+              </div>
             </div>
           </div>
         </main>
