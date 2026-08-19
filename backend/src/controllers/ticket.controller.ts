@@ -6,6 +6,7 @@ import { ok } from '../utils/response';
 import {
   ticketFiltersSchema,
   forwardTicketSchema,
+  reportDoneSchema,
   updateTicketSchema,
 } from '../validators/ticket.validator';
 
@@ -59,7 +60,8 @@ export const ticketController = {
 
   /** O responsável informa que terminou — não fecha o chamado. */
   async reportDone(req: AuthenticatedRequest, res: Response) {
-    ok(res, await ticketService.reportDone(req.params.id, req.user));
+    const { done_report } = reportDoneSchema.parse(req.body ?? {});
+    ok(res, await ticketService.reportDone(req.params.id, req.user, done_report));
   },
 
   /** Fechar. Só o moderador chega aqui. */

@@ -502,19 +502,13 @@ export function useTickets(buildingId, group = 'NOVOS') {
  * O histórico de ocorrências do prédio: a linha do tempo inteira, de todos os
  * estados, do mais recente para o mais antigo.
  *
- * Mesma rota da fila do moderador, com o grupo TODOS — a leitura é livre de
- * quem tem vínculo com o prédio, e é isso que o inspetor e o visualizador veem
- * no histórico. Ler não move nada: nenhuma ação sai daqui.
+ * É a consulta da fila do moderador com o grupo TODOS — daí delegar a
+ * `useTickets` em vez de repetir a rota. A leitura é livre de quem tem vínculo
+ * com o prédio, e é isso que o inspetor e o visualizador veem no histórico.
+ * Ler não move nada: nenhuma ação sai daqui.
  */
 export function useBuildingOccurrences(buildingId) {
-  return useQuery({
-    queryKey: ['tickets', buildingId, 'TODOS'],
-    queryFn: () =>
-      api
-        .get(`/buildings/${buildingId}/tickets`, { params: { group: 'TODOS', limit: 100 } })
-        .then((r) => r.data),
-    enabled: !!buildingId,
-  });
+  return useTickets(buildingId, 'TODOS');
 }
 
 /** Contadores do painel do moderador: aberto, encaminhado, em andamento, concluído. */
@@ -526,11 +520,18 @@ export function useTicketStats(buildingId) {
   });
 }
 
-/** O que foi encaminhado a quem está logado — a tela do responsável. */
-export function useMyTickets() {
+/**
+ * O que foi encaminhado a quem está logado — a tela do responsável, e o sino da
+ * tela inicial.
+ *
+ * `enabled` existe por causa do sino: ele mora numa tela que todo mundo abre, e
+ * quem não atende chamado não tem o que buscar aqui.
+ */
+export function useMyTickets(enabled = true) {
   return useQuery({
     queryKey: ['my-tickets'],
     queryFn: () => api.get('/tickets/me').then((r) => r.data),
+    enabled,
   });
 }
 
@@ -574,11 +575,19 @@ export function useReceiveTicket() {
   });
 }
 
-/** O responsável informa que terminou. Não fecha o chamado — só o moderador fecha. */
+/**
+ * O responsável informa que terminou, com o relatório do serviço.
+ *
+ * Não fecha o chamado — só o moderador fecha. O relatório é opcional: sem texto,
+ * o campo nem viaja, e o que já estava gravado fica.
+ */
 export function useReportTicketDone() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id) => api.post(`/tickets/${id}/done`).then((r) => r.data),
+    mutationFn: ({ id, done_report }) =>
+      api
+        .post(`/tickets/${id}/done`, done_report === undefined ? {} : { done_report })
+        .then((r) => r.data),
     onSuccess: () => invalidateTickets(qc),
   });
 }

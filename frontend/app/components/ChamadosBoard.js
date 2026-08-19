@@ -239,10 +239,19 @@ function DoneNotice({ ticket }) {
   return (
     <div className="anim-scale-in" style={{ background: T.accentSoft, borderRadius: R.control, padding: '12px 14px', display: 'flex', gap: 10 }}>
       <CheckCheck size={16} color={T.accent} style={{ flexShrink: 0, marginTop: 1 }} />
-      <p style={{ color: T.text, fontSize: 12, lineHeight: 1.6 }}>
-        Concluído por {ticket.responsible ?? 'responsável'} em {stampLabel(ticket.done_at)} —
-        aguardando o seu fechamento.
-      </p>
+      <div>
+        <p style={{ color: T.text, fontSize: 12, lineHeight: 1.6 }}>
+          Concluído por {ticket.responsible ?? 'responsável'} em {stampLabel(ticket.done_at)} —
+          aguardando o seu fechamento.
+        </p>
+        {/* O relatório é o que há para validar: sem ele, fechar seria confiar
+            numa data. */}
+        {ticket.done_report && (
+          <p style={{ color: T.text, fontSize: 12, lineHeight: 1.6, marginTop: 8, whiteSpace: 'pre-wrap', borderTop: `1px solid ${T.line}`, paddingTop: 8 }}>
+            {ticket.done_report}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -333,20 +342,6 @@ function TicketDetail({ ticket, buildingId, group }) {
         </>
       )}
 
-      {group === 'CONCLUIDOS' && (ticket.maintenance_note || ticket.maintenance_cost !== null) && (
-        <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {ticket.maintenance_note && (
-            <div>
-              <p style={{ color: T.mute, fontSize: 11, marginBottom: 5 }}>Manutenção</p>
-              <p style={{ color: T.text, fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                {ticket.maintenance_note}
-              </p>
-            </div>
-          )}
-          <Fact label="Valor">{formatCost(ticket.maintenance_cost)}</Fact>
-        </div>
-      )}
-
       {group === 'ANDAMENTO' && ticket.maintenance_cost !== null && (
         <p style={{ color: T.faint, fontSize: 11 }}>
           Valor lançado: {formatCost(ticket.maintenance_cost)}
@@ -360,16 +355,18 @@ const EMPTY = {
   NOVOS: 'Nenhum chamado esperando encaminhamento',
   ENCAMINHADOS: 'Nenhum chamado esperando aceite',
   ANDAMENTO: 'Nenhum chamado em andamento',
-  CONCLUIDOS: 'Nenhum chamado fechado ainda',
 };
 
 /**
- * As telas de chamado, que são a mesma tela.
+ * As filas de trabalho do moderador, que são a mesma tela.
  *
- * Histórico ocorrência por ocorrência, como o do inspetor é vistoria por
+ * Ocorrência por ocorrência, como o histórico do inspetor é vistoria por
  * vistoria: a lista à esquerda, e o que está acontecendo naquela ocorrência à
- * direita. O que muda de uma tela para a outra é o que se pode fazer ali —
- * encaminhar, acompanhar, ou só ler.
+ * direita. O que muda de uma fila para a outra é o que se pode fazer ali —
+ * encaminhar, cobrar o aceite, ou acompanhar e fechar.
+ *
+ * As concluídas não passam por aqui: lá não há o que fazer, e uma mesa de duas
+ * colunas para só ler é a tela errada (ver moderador/chamados/concluidos).
  */
 export function ChamadosBoard({ buildingId, group }) {
   const { data, isLoading } = useTickets(buildingId, group);

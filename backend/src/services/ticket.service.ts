@@ -33,6 +33,7 @@ export function toTicket(row: TicketRow) {
     forwarded_at: row.forwarded_at,
     received_at: row.received_at,
     done_at: row.done_at,
+    done_report: row.done_report,
     closed_at: row.closed_at,
     closed_by: row.closed_by,
     maintenance_note: row.maintenance_note,
@@ -267,9 +268,10 @@ export const ticketService = {
    *
    * Não fecha nada de propósito: o chamado fica "aguardando fechamento" e
    * continua na tela do moderador, que é quem encerra. É esta separação que dá
-   * ao moderador o que validar.
+   * ao moderador o que validar — e o relatório é o que ele valida: sem ele, o
+   * chamado voltava só com uma data, e o que foi feito ficava fora do sistema.
    */
-  async reportDone(id: string, user: Actor) {
+  async reportDone(id: string, user: Actor, doneReport?: string | null) {
     const { ticket, buildingId } = await loadTicket(id);
 
     const isAssigned = user.kind === 'USER' && ticket.responsible_id === user.id;
@@ -292,6 +294,9 @@ export const ticketService = {
     const updated = await ticketRepository.update(id, {
       status: RecordStatus.AGUARDANDO_FECHAMENTO,
       done_at: new Date(),
+      // Texto em branco apaga o relatório anterior; `undefined` não mexe nele —
+      // é o que acontece quando o app conclui sem mandar campo nenhum.
+      ...(doneReport === undefined ? {} : { done_report: doneReport || null }),
     });
 
     await logTicket(user, buildingId, id, { reported_done_by: user.id });

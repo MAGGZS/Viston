@@ -29,6 +29,7 @@ function makeTicket(overrides: any = {}) {
     forwarded_at: null,
     received_at: null,
     done_at: null,
+    done_report: null,
     closed_at: null,
     maintenance_note: null,
     maintenance_cost: null,
@@ -244,6 +245,43 @@ describe('ticketService.reportDone', () => {
     expect(patch.status).toBe('AGUARDANDO_FECHAMENTO');
     expect(patch.status).not.toBe('CONCLUIDO');
     expect(patch.done_at).toBeInstanceOf(Date);
+  });
+
+  it('grava o relatório do serviço junto da conclusão', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID, received_at: new Date() })
+    );
+
+    await ticketService.reportDone(TICKET_ID, responsavel, 'Trocado o reator e testado');
+
+    const [, patch] = mockTicketRepo.update.mock.calls[0];
+    expect(patch.done_report).toBe('Trocado o reator e testado');
+    expect(patch.status).toBe('AGUARDANDO_FECHAMENTO');
+  });
+
+  it('concluir sem escrever nada não mexe no relatório', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID, received_at: new Date() })
+    );
+
+    await ticketService.reportDone(TICKET_ID, responsavel);
+
+    const [, patch] = mockTicketRepo.update.mock.calls[0];
+    expect(patch).not.toHaveProperty('done_report');
+  });
+
+  it('texto em branco apaga o relatório', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID, done_report: 'antigo' })
+    );
+
+    await ticketService.reportDone(TICKET_ID, responsavel, '');
+
+    const [, patch] = mockTicketRepo.update.mock.calls[0];
+    expect(patch.done_report).toBeNull();
   });
 
   it('recusa o responsável de outro chamado', async () => {

@@ -46,6 +46,19 @@ export const forwardTicketSchema = z
   .strict();
 
 /**
+ * O relatório do responsável ao concluir.
+ *
+ * Opcional: nem toda manutenção tem o que relatar, e obrigar o campo só encheria
+ * o banco de "ok". O corpo inteiro pode vir vazio — é o que o app manda quando a
+ * pessoa concluiu sem escrever nada.
+ */
+export const reportDoneSchema = z
+  .object({
+    done_report: z.string().trim().max(2000).nullable().optional(),
+  })
+  .strict();
+
+/**
  * O que o moderador acrescenta ao chamado em andamento.
  *
  * `maintenance_cost` chega como número e é gravado em DECIMAL: dinheiro não

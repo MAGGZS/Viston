@@ -8,6 +8,7 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { Avatar } from '@/app/components/Avatar';
 import { BottomNav } from '@/app/components/BottomNav';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
+import { NotificacaoChamados } from '@/app/components/NotificacaoChamados';
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { Skeleton } from '@/app/components/ui';
@@ -68,9 +69,14 @@ export default function HomePage() {
             </button>
           }
           actions={
-            <MRound label="Histórico" onClick={() => router.push('/historico')}>
-              <ClipboardList size={18} />
-            </MRound>
+            <>
+              {/* Só para quem atende chamado — para o resto seria um sino que
+                  nunca toca (ver NotificacaoChamados). */}
+              <NotificacaoChamados />
+              <MRound label="Histórico" onClick={() => router.push('/historico')}>
+                <ClipboardList size={18} />
+              </MRound>
+            </>
           }
         />
 

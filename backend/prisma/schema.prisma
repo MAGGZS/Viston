@@ -341,6 +341,9 @@ model MaintenanceRecord {
   received_at         DateTime?
   /// Quando o responsável informou que concluiu. Não fecha o chamado.
   done_at             DateTime?
+  /// O que o responsável escreveu ao concluir — o relatório do serviço. Opcional:
+  /// nem toda manutenção tem o que relatar, e exigir texto viraria texto vazio.
+  done_report         String?
   /// Quando o moderador fechou. É o único carimbo que conclui de verdade.
   closed_at           DateTime?
   closed_by_id        String?

@@ -178,6 +178,13 @@ components:
           nullable: true
           description: Quando o responsável confirmou o recebimento. Nulo = ainda aguarda aceite.
         done_at: { type: string, format: date-time, nullable: true }
+        done_report:
+          type: string
+          nullable: true
+          description: >
+            O relatório que o responsável escreveu ao concluir. Opcional — nem
+            toda manutenção tem o que relatar. É o par de maintenance_note, que
+            é o que o moderador escreve do lado dele.
         closed_at: { type: string, format: date-time, nullable: true }
         maintenance_note: { type: string, nullable: true }
         maintenance_cost: { type: number, nullable: true, description: Valor da manutenção, em reais }
@@ -924,6 +931,20 @@ paths:
           name: id
           required: true
           schema: { type: string, format: uuid }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                done_report:
+                  type: string
+                  nullable: true
+                  maxLength: 2000
+                  description: >
+                    O relatório do serviço. Corpo ausente não mexe no que já
+                    estava gravado; texto em branco apaga.
       responses:
         '200':
           description: Chamado aguardando fechamento

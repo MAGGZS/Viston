@@ -1,11 +1,13 @@
 'use client';
+import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CheckCheck, ClipboardList, Hourglass, Inbox } from 'lucide-react';
+import { CheckCheck, ClipboardList, FileText, Hourglass, Inbox } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { Badge } from '@/app/components/ui';
-import { M, MPage, MTopBar, MCard, MButton } from '@/app/components/mobile/kit';
+import { M, MPage, MTopBar, MCard, MButton, MButtonGhost } from '@/app/components/mobile/kit';
+import { OcorrenciaModal } from '@/app/components/OcorrenciaModal';
 import { useMyTickets, useReceiveTicket, useReportTicketDone } from '@/app/hooks/useApi';
 import {
   MAINTENANCE_TYPES,
@@ -21,20 +23,71 @@ import { useToastStore } from '@/app/store/toast';
 const PRIORITY_VARIANT = { ALTA: 'danger', MEDIA: 'warning', BAIXA: 'default' };
 
 /**
+ * O bloco de conclusão: o relatório do serviço e o botão que o envia.
+ *
+ * O texto é opcional — nem toda manutenção tem o que relatar, e obrigar o campo
+ * só encheria o sistema de "ok". Mas ele fica aberto na tela, e não atrás de um
+ * botão, porque é a única chance de contar o que foi feito: depois de concluir,
+ * quem lê é o moderador, e ele não tem como perguntar de volta.
+ */
+function ConclusaoBox({ ticket }) {
+  const reportDone = useReportTicketDone();
+  const { show: toast } = useToastStore();
+  const [report, setReport] = useState(ticket.done_report ?? '');
+
+  async function handleDone() {
+    try {
+      await reportDone.mutateAsync({ id: ticket.id, done_report: report.trim() });
+      toast('Conclusão informada. O moderador vai fechar o chamado.', 'success');
+    } catch (e) {
+      toast(e?.response?.data?.error?.message || 'Erro ao informar conclusão', 'error');
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        <span style={{ color: M.mute, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <FileText size={13} /> Relatório do serviço (se necessário)
+        </span>
+        <textarea
+          rows={3}
+          value={report}
+          onChange={(e) => setReport(e.target.value)}
+          placeholder="O que foi feito, o que precisou trocar, o que ficou pendente…"
+          style={{
+            background: M.chip, border: '1px solid transparent', borderRadius: 16,
+            padding: '13px 15px', color: M.text, fontSize: 14, outline: 'none',
+            width: '100%', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6,
+          }}
+        />
+      </label>
+
+      <MButton onClick={handleDone} loading={reportDone.isPending} style={{ width: '100%' }}>
+        <CheckCheck size={15} /> Concluir serviço
+      </MButton>
+    </div>
+  );
+}
+
+/**
  * Um chamado encaminhado a esta pessoa.
  *
  * São dois gestos, um de cada vez. Primeiro "receber": o chamado chega
  * encaminhado e não anda até esta pessoa confirmar que sabe dele — antes,
  * encaminhar já o dava por começado, e ninguém tinha dito nada. Só depois
- * aparece "informar conclusão", que diz o que faz: o chamado passa a esperar o
- * moderador, que é quem fecha. Depois de informado, o cartão mostra que está
+ * aparece a conclusão, que diz o que faz: o chamado passa a esperar o
+ * moderador, que é quem fecha. Depois de informada, o cartão mostra que está
  * esperando — e não some da lista, senão quem informou por engano não teria
  * como perceber.
+ *
+ * A descrição fica resumida aqui e inteira em "Detalhes": no telefone, o texto
+ * completo de cada chamado empurra os outros para fora da tela.
  */
 function TicketCard({ ticket, className = '' }) {
   const receive = useReceiveTicket();
-  const reportDone = useReportTicketDone();
   const { show: toast } = useToastStore();
+  const [details, setDetails] = useState(false);
   const pending = ticket.status === 'ENCAMINHADO';
   const waiting = ticket.status === 'AGUARDANDO_FECHAMENTO';
 
@@ -44,15 +97,6 @@ function TicketCard({ ticket, className = '' }) {
       toast('Chamado recebido. Ele está com você agora.', 'success');
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao receber o chamado', 'error');
-    }
-  }
-
-  async function handleDone() {
-    try {
-      await reportDone.mutateAsync(ticket.id);
-      toast('Conclusão informada. O moderador vai fechar o chamado.', 'success');
-    } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao informar conclusão', 'error');
     }
   }
 
@@ -82,7 +126,10 @@ function TicketCard({ ticket, className = '' }) {
         </Badge>
       </div>
 
-      <p style={{ color: M.text, fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+      <p style={{
+        color: M.text, fontSize: 13, lineHeight: 1.6,
+        display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+      }}>
         {ticket.description}
       </p>
 
@@ -118,24 +165,38 @@ function TicketCard({ ticket, className = '' }) {
         </div>
       )}
 
-      {/* Um gesto de cada vez: informar conclusão só existe depois do
-          recebimento — não se conclui o que não se recebeu. */}
-      {pending ? (
-        <MButton onClick={handleReceive} loading={receive.isPending} style={{ width: '100%' }}>
-          <Inbox size={15} /> Receber chamado
-        </MButton>
-      ) : waiting ? (
-        <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: 16, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'center' }}>
-          <CheckCheck size={15} color={M.accent} style={{ flexShrink: 0 }} />
-          <p style={{ color: M.text, fontSize: 12, lineHeight: 1.5 }}>
-            Conclusão informada — aguardando o moderador fechar.
-          </p>
+      {waiting && (
+        <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: 16, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+          <CheckCheck size={15} color={M.accent} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <p style={{ color: M.text, fontSize: 12, lineHeight: 1.5 }}>
+              Conclusão informada — aguardando o moderador fechar.
+            </p>
+            {ticket.done_report && (
+              <p style={{ color: M.mute, fontSize: 12, lineHeight: 1.5, marginTop: 6, whiteSpace: 'pre-wrap' }}>
+                {ticket.done_report}
+              </p>
+            )}
+          </div>
         </div>
-      ) : (
-        <MButton onClick={handleDone} loading={reportDone.isPending} style={{ width: '100%' }}>
-          Informar conclusão
-        </MButton>
       )}
+
+      {/* Um gesto de cada vez: a conclusão só existe depois do recebimento —
+          não se conclui o que não se recebeu. */}
+      {!pending && !waiting && <ConclusaoBox ticket={ticket} />}
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        <MButtonGhost onClick={() => setDetails(true)} style={{ flex: 1 }}>
+          Detalhes
+        </MButtonGhost>
+        {pending && (
+          <MButton onClick={handleReceive} loading={receive.isPending} style={{ flex: 1 }}>
+            <Inbox size={15} /> Receber
+          </MButton>
+        )}
+      </div>
+
+      <OcorrenciaModal open={details} occurrence={ticket} onClose={() => setDetails(false)} />
     </MCard>
   );
 }
