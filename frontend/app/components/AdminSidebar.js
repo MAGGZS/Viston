@@ -84,7 +84,7 @@ export function AdminSidebar() {
 
       <div style={{ padding: '0 12px 22px' }}>
         <button
-          onClick={() => { logout(); router.replace('/login'); }}
+          onClick={async () => { await logout(); router.replace('/login'); }}
           style={{ ...itemBase, fontWeight: W.body, color: T.mute, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' }}
           onMouseEnter={e => { e.currentTarget.style.background = T.chip; }}
           onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}

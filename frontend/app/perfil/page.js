@@ -317,7 +317,7 @@ function FeedbackBox() {
 }
 
 export default function PerfilPage() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, clearSession } = useAuthStore();
   const { show: toast } = useToastStore();
   const router = useRouter();
   const [deleteModal, setDeleteModal] = useState(false);
@@ -345,7 +345,9 @@ export default function PerfilPage() {
   async function handleDelete() {
     try {
       await deleteMe.mutateAsync();
-      logout();
+      // A conta já foi apagada: não há sessão a encerrar no servidor, só o que
+      // limpar daqui.
+      clearSession();
       router.replace('/login');
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao excluir conta', 'error');
@@ -398,7 +400,7 @@ export default function PerfilPage() {
             <ArrowLeft size={18} /> Voltar
           </button>
           <Logo size={16} />
-          <button onClick={() => { logout(); router.replace('/login'); }}
+          <button onClick={async () => { await logout(); router.replace('/login'); }}
             className="transition-colors duration-150"
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: T.mute, fontSize: 13 }}
             onMouseEnter={e => e.currentTarget.style.color = T.danger}
@@ -505,7 +507,7 @@ export default function PerfilPage() {
           <Row icon={Trash2} label="Excluir conta" tone="danger" onClick={() => setDeleteModal(true)} />
 
           <button
-            onClick={() => { logout(); router.replace('/login'); }}
+            onClick={async () => { await logout(); router.replace('/login'); }}
             style={{
               display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none',
               cursor: 'pointer', color: M.danger, fontSize: 15, fontWeight: 500,

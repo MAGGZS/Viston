@@ -3,7 +3,7 @@ import { AuthenticatedRequest } from '../middlewares/authenticate';
 import { authService } from '../services/auth.service';
 import { userService } from '../services/user.service';
 import { managerService } from '../services/manager.service';
-import { ok } from '../utils/response';
+import { ok, noContent } from '../utils/response';
 
 export const authController = {
   /**
@@ -31,5 +31,16 @@ export const authController = {
   async refresh(req: Request, res: Response) {
     const result = await authService.refresh(req.body.refresh_token);
     ok(res, result);
+  },
+
+  /**
+   * Encerra as sessões da conta e grava a saída na trilha.
+   *
+   * 204 sem corpo: não há o que devolver a quem acabou de sair, e o app não
+   * precisa esperar nada além da confirmação para limpar o armazenamento.
+   */
+  async logout(req: AuthenticatedRequest, res: Response) {
+    await authService.logout(req.user);
+    noContent(res);
   },
 };

@@ -34,6 +34,20 @@ export const userRepository = {
     return prisma.user.update({ where: { id }, data });
   },
 
+  /**
+   * Derruba as sessões abertas da conta.
+   *
+   * Incremento no próprio banco (`increment`), e não leitura seguida de escrita:
+   * duas saídas simultâneas — o celular e o computador — leriam o mesmo número e
+   * gravariam o mesmo sucessor, e uma das duas sessões sobreviveria.
+   */
+  bumpTokenVersion(id: string) {
+    return prisma.user.update({
+      where: { id },
+      data: { token_version: { increment: 1 } },
+    });
+  },
+
   hardDelete(id: string) {
     return prisma.user.delete({ where: { id } });
   },

@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import { managerRepository } from '../repositories/manager.repository';
+import { PASSWORD_ROUNDS } from '../utils/password';
 import { userRepository } from '../repositories/user.repository';
 import { buildingRepository } from '../repositories/building.repository';
 import { storageService } from './storage.service';
@@ -60,7 +61,7 @@ export const managerService = {
   async create(data: { name: string; email: string; password: string }) {
     await assertEmailIsFree(data.email);
 
-    const password_hash = await bcrypt.hash(data.password, 10);
+    const password_hash = await bcrypt.hash(data.password, PASSWORD_ROUNDS);
     const manager = await managerRepository.create({
       name: data.name,
       email: data.email,
@@ -143,14 +144,18 @@ export const managerService = {
     const valid = await bcrypt.compare(currentPassword, manager.password_hash);
     if (!valid) throw new UnauthorizedError('Senha atual incorreta');
 
-    const password_hash = await bcrypt.hash(newPassword, 10);
+    const password_hash = await bcrypt.hash(newPassword, PASSWORD_ROUNDS);
     await managerRepository.update(id, { password_hash });
+    // Ver `userService.changePassword`: trocar a senha encerra o que já estava
+    // aberto, senão a troca não tira ninguém de dentro.
+    await managerRepository.bumpTokenVersion(id);
   },
 
   async softDelete(id: string) {
     await this.findById(id);
     await assertNotSoleManager(id);
     await managerRepository.softDelete(id);
+    await managerRepository.bumpTokenVersion(id);
   },
 
   /** Lista do painel do admin. */

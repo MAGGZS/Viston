@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 const base = { standardHeaders: true as const, legacyHeaders: false };
 
@@ -14,12 +14,27 @@ export const generalLimiter = rateLimit({
   message: tooMany('Muitas requisições. Aguarde um instante.'),
 });
 
-/** Login e refresh: alvo de força bruta. Tentativa que dá certo não conta. */
+/**
+ * Login e refresh: alvo de força bruta. Tentativa que dá certo não conta.
+ *
+ * A cota é por IP *e* conta, não por IP sozinho. Por IP sozinho ela erra dos
+ * dois lados: um escritório inteiro atrás de um NAT divide vinte tentativas
+ * entre todo mundo, e quem ataca de mil máquinas tem mil cotas para varrer a
+ * mesma senha. Chaveando pelos dois, o teto passa a valer sobre o que
+ * realmente se quer limitar — insistir numa conta a partir de um lugar.
+ *
+ * O refresh não manda e-mail, e cai no ramo do IP puro: ali a chave é a origem,
+ * que é o que existe para contar.
+ */
 export const authLimiter = rateLimit({
   ...base,
   windowMs: 15 * 60_000,
   limit: 20,
   skipSuccessfulRequests: true,
+  keyGenerator: (req) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    return email ? `${ipKeyGenerator(req.ip ?? '')}:${email}` : ipKeyGenerator(req.ip ?? '');
+  },
   message: tooMany('Muitas tentativas. Tente de novo em alguns minutos.'),
 });
 

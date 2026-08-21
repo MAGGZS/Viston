@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import { userRepository } from '../repositories/user.repository';
+import { PASSWORD_ROUNDS } from '../utils/password';
 import { buildingRepository } from '../repositories/building.repository';
 import { storageService } from './storage.service';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
@@ -19,7 +20,7 @@ async function register(data: { name: string; email: string; password: string })
   const existing = await userRepository.findByEmail(data.email);
   if (existing) throw new ConflictError('E-mail já cadastrado');
 
-  const password_hash = await bcrypt.hash(data.password, 10);
+  const password_hash = await bcrypt.hash(data.password, PASSWORD_ROUNDS);
   const user = await userRepository.create({
     name: data.name,
     email: data.email,
@@ -159,13 +160,21 @@ export const userService = {
     const valid = await bcrypt.compare(currentPassword, user.password_hash);
     if (!valid) throw new UnauthorizedError('Senha atual incorreta');
 
-    const password_hash = await bcrypt.hash(newPassword, 10);
+    const password_hash = await bcrypt.hash(newPassword, PASSWORD_ROUNDS);
     await userRepository.update(id, { password_hash });
+
+    // Senha trocada derruba as sessões abertas: se a troca foi porque a antiga
+    // vazou, deixar o refresh token de sete dias de pé anularia o motivo dela.
+    // Quem trocou entra de novo, uma vez.
+    await userRepository.bumpTokenVersion(id);
   },
 
   async softDelete(id: string) {
     await this.findById(id);
     await userRepository.softDelete(id);
+    // A conta some das telas na hora; sem isto, o refresh token dela seguiria
+    // renovando o acesso até expirar.
+    await userRepository.bumpTokenVersion(id);
   },
 
   /**

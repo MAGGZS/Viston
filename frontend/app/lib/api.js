@@ -1,40 +1,72 @@
 import axios from 'axios';
+import {
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  notifySessionExpired,
+  setTokens,
+} from '@/app/lib/session';
+import { SITE_URL } from '@/app/lib/site';
 
-// Backend em produção (Render). Trocar aqui se o serviço mudar de URL.
-const PRODUCTION_API_URL = 'https://viston.onrender.com';
 // Backend local (PORT=4000 no backend/.env, para não colidir com o Next na 3001).
 const LOCAL_API_URL = 'http://localhost:4000';
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
 
+/** Backend em produção (Render). Só vale no domínio de produção — ver abaixo. */
+const PRODUCTION_API_URL = 'https://viston.onrender.com';
+/** O domínio de produção, e só ele. Preview da Vercel nunca cai aqui. */
+const PRODUCTION_HOST = new URL(SITE_URL).hostname;
+
 /**
- * Resolve a URL da API sem precisar trocar configuração ao alternar
- * entre desenvolvimento e nuvem:
- *   1. NEXT_PUBLIC_API_URL, se definida (permite sobrescrever quando necessário,
- *      ex: frontend local apontando para a API de produção)
- *   2. localhost quando a página está sendo servida de localhost
- *   3. produção nos demais casos (Vercel, e também no render do servidor)
+ * Onde fica a API.
+ *
+ * `NEXT_PUBLIC_API_URL` manda, e é o que se deve definir em cada ambiente.
+ *
+ * O que saiu daqui foi o palpite: "host que não é localhost, então é produção".
+ * Ele fazia *toda* pré-visualização da Vercel bater na API de produção — abrir
+ * o preview de um branch para conferir uma tela cadastrava prédio de verdade, e
+ * nada na tela dizia isso. Agora o fallback de produção vale só no domínio de
+ * produção; qualquer outro host (preview, domínio novo, túnel) precisa dizer
+ * com quem fala, e falha alto em vez de escrever no lugar errado.
+ *
+ * O atalho para localhost fica: rodar `npm run dev` sem nenhum `.env` é o caso
+ * comum, e ali o alvo nunca é a nuvem.
  */
 export function resolveApiBaseUrl() {
   if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
 
-  if (typeof window !== 'undefined' && LOCAL_HOSTS.includes(window.location.hostname)) {
-    return LOCAL_API_URL;
-  }
+  const host = typeof window === 'undefined' ? null : window.location.hostname;
 
-  return PRODUCTION_API_URL;
+  if (host && LOCAL_HOSTS.includes(host)) return LOCAL_API_URL;
+  if (host === PRODUCTION_HOST) return PRODUCTION_API_URL;
+
+  throw new Error(
+    `NEXT_PUBLIC_API_URL não definida para "${host ?? 'servidor'}". Defina a URL da API ` +
+      'no ambiente — sem ela, este host não tem com qual backend falar (e não vai ' +
+      'adivinhar o de produção).'
+  );
 }
 
+/**
+ * A URL é resolvida em cada requisição, e não uma vez na carga do módulo.
+ *
+ * `resolveApiBaseUrl` depende de `window.location` no caminho do localhost, e
+ * este módulo também é avaliado no servidor durante a geração das páginas —
+ * onde a resposta seria outra. Deixar a decisão para a hora da chamada também
+ * evita que a falta da variável derrube o build inteiro: quem nunca chama a API
+ * (as páginas estáticas) não precisa dela.
+ */
 const api = axios.create({
-  baseURL: resolveApiBaseUrl(),
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Injeta access token em toda requisição
+// Injeta access token e a URL da API em toda requisição
 api.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('access_token');
-    if (token) config.headers.Authorization = `Bearer ${token}`;
-  }
+  config.baseURL = config.baseURL ?? resolveApiBaseUrl();
+
+  const token = getAccessToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+
   return config;
 });
 
@@ -48,6 +80,12 @@ function processQueue(error, token = null) {
     else prom.resolve(token);
   });
   failedQueue = [];
+}
+
+/** Sessão acabada: some com os tokens e avisa quem sabe navegar. */
+function endSession() {
+  clearTokens();
+  notifySessionExpired();
 }
 
 api.interceptors.response.use(
@@ -70,10 +108,10 @@ api.interceptors.response.use(
       original._retry = true;
       isRefreshing = true;
 
-      const refreshToken = localStorage.getItem('refresh_token');
+      const refreshToken = getRefreshToken();
       if (!refreshToken) {
         isRefreshing = false;
-        window.location.href = '/login';
+        endSession();
         return Promise.reject(error);
       }
 
@@ -82,15 +120,13 @@ api.interceptors.response.use(
           `${resolveApiBaseUrl()}/auth/refresh`,
           { refresh_token: refreshToken }
         );
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('refresh_token', data.refresh_token);
+        setTokens(data.access_token, data.refresh_token);
         api.defaults.headers.common.Authorization = `Bearer ${data.access_token}`;
         processQueue(null, data.access_token);
         return api(original);
       } catch (err) {
         processQueue(err, null);
-        localStorage.clear();
-        window.location.href = '/login';
+        endSession();
         return Promise.reject(err);
       } finally {
         isRefreshing = false;

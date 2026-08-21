@@ -140,6 +140,11 @@ model User {
   role          AccountRole @default(NONE)
   avatar_url    String?
   status        UserStatus  @default(ACTIVE)
+  /// Geração das sessões desta conta. O refresh token carrega o número que
+  /// valia quando foi emitido; incrementar aqui derruba todos os que já
+  /// existem — é o que faz sair, trocar de senha e excluir a conta valerem de
+  /// verdade, em vez de só apagar o token do navegador de quem saiu.
+  token_version Int         @default(0)
   created_at    DateTime    @default(now())
   updated_at    DateTime    @updatedAt
 
@@ -173,6 +178,8 @@ model Manager {
   password_hash String
   avatar_url    String?
   status        UserStatus @default(ACTIVE)
+  /// Mesma geração de sessões da conta de usuário — ver `User.token_version`.
+  token_version Int        @default(0)
   created_at    DateTime   @default(now())
   updated_at    DateTime   @updatedAt
 
