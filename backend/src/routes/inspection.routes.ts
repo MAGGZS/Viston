@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { inspectionController } from '../controllers/inspection.controller';
 import { authenticate } from '../middlewares/authenticate';
+import { validate } from '../middlewares/validate';
+import { submitInspectionSchema } from '../validators/inspection.validator';
 
 const router = Router();
 
@@ -14,8 +16,18 @@ const auth = authenticate as any;
 // vínculo nenhum recebe uma lista vazia, não um 403.
 
 // ── Inspeções ─────────────────────────────────────────────────────────────────
-// Envio único: a vistoria inteira chega de uma vez, já concluída
-router.post('/inspections', auth, inspectionController.submit as any);
+// Envio único: a vistoria inteira chega de uma vez, já concluída.
+//
+// A validação passa pelo `validate`, como em todas as outras rotas. Ela estava
+// dentro do controller "para aplicar os defaults", mas o middleware já reescreve
+// `req.body` com o resultado do parse — defaults inclusos —, e ter um caminho
+// diferente aqui era só uma chance a mais de esquecer o `.strict()`.
+router.post(
+  '/inspections',
+  auth,
+  validate(submitInspectionSchema),
+  inspectionController.submit as any
+);
 router.get('/inspections', auth, inspectionController.findAll as any);
 router.get('/inspections/:id', auth, inspectionController.findById as any);
 // Relatório completo do dia: as vistorias daquele prédio naquela data, juntas

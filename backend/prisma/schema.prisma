@@ -289,6 +289,13 @@ model InspectionReport {
   finished_at           DateTime?
   floors_inspected      String[]
   status                InspectionStatus @default(IN_PROGRESS)
+  /// Identifica a *tentativa* de envio, não o relatório.
+  ///
+  /// O app gera a chave quando a vistoria começa e a manda no cabeçalho
+  /// `Idempotency-Key`. Reenviar com a mesma chave devolve o relatório que já
+  /// foi criado, em vez de criar um segundo — que é o que acontecia com toque
+  /// duplo ou retry de rede. Nula no que foi enviado antes disto existir.
+  submission_key        String?          @unique
   /// Caminho do objeto no bucket, não a URL.
   ///
   /// O bucket é privado: a URL é assinada na hora do download (ver

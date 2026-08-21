@@ -1,15 +1,17 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Building2, Check, Search } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { FloorForm } from '@/app/components/FloorForm';
-import { Button, Card, Spinner } from '@/app/components/ui';
+import { Button, Card, Modal, Spinner } from '@/app/components/ui';
 import { M, MRound, MCard, MButton, MButtonSoft, MButtonGhost, MSectionHead, MPill } from '@/app/components/mobile/kit';
 import { useFloors, useBuildingByKey, useSubmitInspection, useMyBuildings, useRequestAccess, useBuildingResponsibles } from '@/app/hooks/useApi';
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { formatShareKey, normalizeShareKey, isCompleteShareKey } from '@/app/lib/shareKey';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
+import { clearDraft, loadDraft, saveDraft } from '@/app/lib/draft';
+import { newSubmissionKey } from '@/app/lib/idempotency';
 import { useAuthStore } from '@/app/store/auth';
 import { canInspect } from '@/app/lib/roles';
 import { useToastStore } from '@/app/store/toast';
@@ -182,9 +184,22 @@ export default function InspecaoPage() {
   const [step, setStep] = useState('select');
   const [floors, setFloors] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  // Rascunho em memória: nada vai para o servidor antes do envio final
+  // O que já foi preenchido. Continua em memória durante a vistoria — e é
+  // copiado para o aparelho a cada andar concluído (ver `saveDraft`).
   const [drafts, setDrafts] = useState({});
   const [finishedReport, setFinishedReport] = useState(null);
+  // Rascunho achado no aparelho, esperando a pessoa dizer se retoma.
+  const [resumable, setResumable] = useState(null);
+  // Prédio cujo rascunho já foi consultado — a pergunta é feita uma vez só.
+  const [checkedBuilding, setCheckedBuilding] = useState(null);
+  /**
+   * Chave desta tentativa de envio.
+   *
+   * Nasce quando a vistoria começa e só morre quando o servidor confirma: o
+   * reenvio depois de uma rede que caiu carrega a mesma chave, e o servidor
+   * devolve o relatório que já criou em vez de criar um segundo.
+   */
+  const submissionKey = useRef(null);
 
   const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
   // O primeiro prédio em que esta pessoa vistoria — e não simplesmente o
@@ -192,6 +207,7 @@ export default function InspecaoPage() {
   // acompanhar outro, e abrir a vistoria no prédio errado só daria 403 no fim.
   const myBuilding = myBuildings.find((b) => canInspect(user, b.building_id));
   const hasBuilding = !!myBuilding;
+  const buildingId = myBuilding?.building_id;
 
   const { data: floorsData, isLoading: floorsLoading } = useFloors(myBuilding?.building_id);
   // Só os responsáveis daquele prédio entram no droplist da ocorrência.
@@ -204,14 +220,59 @@ export default function InspecaoPage() {
   const currentFloor = floors[currentIndex];
   const isLast = currentIndex === floors.length - 1;
 
+  /**
+   * Vistoria interrompida neste prédio?
+   *
+   * Estado derivado ajustado no próprio render, como no `useExitTransition`:
+   * num efeito, a tela apareceria uma vez sem a pergunta e a caixa entraria por
+   * cima logo depois. `checkedBuilding` garante uma pergunta só por prédio —
+   * recusar não pode fazer ela voltar no render seguinte.
+   *
+   * `buildingId` só existe depois de a consulta dos prédios responder, bem
+   * depois da hidratação: no primeiro render do cliente isto não roda, e o
+   * `localStorage` não é lido no servidor.
+   */
+  if (buildingId && checkedBuilding !== buildingId && step === 'select' && floors.length === 0) {
+    setCheckedBuilding(buildingId);
+    setResumable(loadDraft(buildingId));
+  }
+
   function handleStart(selectedFloors) {
-    setFloors(sortFloorsDesc(selectedFloors));
+    const ordered = sortFloorsDesc(selectedFloors);
+    submissionKey.current = newSubmissionKey();
+    setFloors(ordered);
     setCurrentIndex(0);
     setDrafts({});
     setStep('form');
+    saveDraft(buildingId, {
+      floors: ordered,
+      drafts: {},
+      current_index: 0,
+      submission_key: submissionKey.current,
+    });
+  }
+
+  /** Retoma de onde parou: os mesmos andares, o mesmo preenchimento. */
+  function handleResume() {
+    const draft = resumable;
+    setResumable(null);
+    if (!draft) return;
+
+    submissionKey.current = draft.submission_key ?? newSubmissionKey();
+    setFloors(draft.floors);
+    setDrafts(draft.drafts ?? {});
+    setCurrentIndex(Math.min(draft.current_index ?? 0, draft.floors.length - 1));
+    setStep('form');
+  }
+
+  function handleDiscardDraft() {
+    clearDraft(buildingId);
+    setResumable(null);
   }
 
   function resetToSelect() {
+    clearDraft(buildingId);
+    submissionKey.current = null;
     setStep('select');
     setFloors([]);
     setCurrentIndex(0);
@@ -232,16 +293,41 @@ export default function InspecaoPage() {
     setDrafts(updated);
 
     if (!isLast) {
-      setCurrentIndex(i => i + 1);
+      const next = currentIndex + 1;
+      // O andar concluído vai para o aparelho antes de a tela virar: é aqui que
+      // a vistoria deixa de morar só na memória da aba.
+      saveDraft(buildingId, {
+        floors,
+        drafts: updated,
+        current_index: next,
+        submission_key: submissionKey.current,
+      });
+      setCurrentIndex(next);
       return;
     }
 
     // Último andar: só agora tudo é enviado e vira relatório, Excel, calendário e histórico
+    saveDraft(buildingId, {
+      floors,
+      drafts: updated,
+      current_index: currentIndex,
+      submission_key: submissionKey.current,
+    });
+
     try {
       const report = await submitInspection({
-        building_id: myBuilding.building_id,
-        floors: floors.map(f => ({ floor_id: f.id, records: toPayload(updated[f.id]) })),
+        // A chave viaja no cabeçalho: reenviar depois de uma rede que caiu
+        // devolve o relatório que já existe, em vez de criar um segundo.
+        idempotencyKey: submissionKey.current,
+        payload: {
+          building_id: buildingId,
+          floors: floors.map(f => ({ floor_id: f.id, records: toPayload(updated[f.id]) })),
+        },
       });
+      // O rascunho sai só depois de o servidor confirmar. Falhou, ele fica — é
+      // exatamente quando ele serve.
+      clearDraft(buildingId);
+      submissionKey.current = null;
       setFinishedReport(report);
       setStep('done');
     } catch (e) {
@@ -315,10 +401,15 @@ export default function InspecaoPage() {
               </div>
               <div>
                 <h2 style={{ fontFamily: M.display, fontWeight: 600, fontSize: 22, color: M.text }}>Vistoria enviada</h2>
-                <p style={{ color: M.mute, fontSize: 14, marginTop: 6 }}>Relatório e planilha já estão no histórico</p>
+                {/* A planilha é montada logo depois da resposta (ver §2.2 no
+                    serviço): o relatório já está no histórico, ela chega em
+                    seguida — e o botão abaixo a busca de qualquer jeito. */}
+                <p style={{ color: M.mute, fontSize: 14, marginTop: 6 }}>
+                  O relatório já está no histórico. A planilha fica pronta em instantes.
+                </p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
-                {finishedReport?.has_excel && (
+                {finishedReport?.id && (
                   <MButtonSoft
                     onClick={() => download(finishedReport.id)}
                     loading={pendingId === finishedReport.id}
@@ -333,6 +424,32 @@ export default function InspecaoPage() {
             </div>
           )}
         </div>
+
+        {/*
+          Vistoria interrompida.
+
+          A escolha é da pessoa, e as duas saídas são explícitas: continuar de
+          onde parou, ou começar de novo — que apaga o que estava guardado. Sem
+          a pergunta, retomar sozinho seria pior: quem quis recomeçar veria a
+          vistoria de ontem de volta sem entender por quê.
+        */}
+        <Modal
+          open={!!resumable}
+          onClose={() => setResumable(null)}
+          title="Vistoria interrompida"
+        >
+          <p style={{ color: M.mute, fontSize: 14, lineHeight: 1.6, marginBottom: 18 }}>
+            Você tem uma vistoria deste prédio começada e não enviada
+            {resumable ? `, com ${Object.keys(resumable.drafts ?? {}).length} de ${resumable.floors.length} andares preenchidos` : ''}.
+            Quer continuar de onde parou?
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <MButton onClick={handleResume} style={{ width: '100%' }}>Continuar vistoria</MButton>
+            <MButtonGhost onClick={handleDiscardDraft} tone="danger" style={{ width: '100%' }}>
+              Descartar e começar de novo
+            </MButtonGhost>
+          </div>
+        </Modal>
       </div>
     </RouteGuard>
   );

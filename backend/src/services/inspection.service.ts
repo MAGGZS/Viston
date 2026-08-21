@@ -202,8 +202,22 @@ export const inspectionService = {
    * O app segura os dados em memória até o envio final, então aqui não existe rascunho:
    * o relatório já nasce COMPLETED, com Excel, calendário e histórico.
    */
-  async submit(inspector: Actor, payload: SubmitInspectionPayload) {
+  async submit(inspector: Actor, payload: SubmitInspectionPayload, submissionKey?: string) {
     const inspectorId = inspector.id;
+
+    // Mesma tentativa de envio, de novo: o toque duplo e o retry de rede
+    // chegam aqui, e o que eles querem é o relatório que já existe.
+    if (submissionKey) {
+      const already = await inspectionRepository.findBySubmissionKey(submissionKey);
+      if (already) {
+        // A chave é de quem enviou. Ela nasce no aparelho e não é segredo — se
+        // vazasse, serviria para ler o relatório de outra pessoa.
+        if (already.inspector_id !== inspectorId) {
+          throw new ConflictError('Chave de envio já utilizada');
+        }
+        return withExcelFlag(already);
+      }
+    }
 
     const building = await buildingRepository.findById(payload.building_id);
     if (!building) throw new NotFoundError('Prédio');
@@ -267,16 +281,31 @@ export const inspectionService = {
       );
 
     const now = new Date();
-    const report = await inspectionRepository.createCompleted({
-      inspector_id: inspectorId,
-      building_id: payload.building_id,
-      // `date` é coluna DATE: precisa ser o dia do calendário de quem vistoriou,
-      // não o dia UTC do servidor (senão o envio da noite cai no dia seguinte).
-      date: zonedDateOnly(now),
-      started_at: now,
-      finished_at: now,
-      floors: submissions,
-    });
+    let report: FullReport;
+
+    try {
+      report = await inspectionRepository.createCompleted({
+        inspector_id: inspectorId,
+        building_id: payload.building_id,
+        // `date` é coluna DATE: precisa ser o dia do calendário de quem vistoriou,
+        // não o dia UTC do servidor (senão o envio da noite cai no dia seguinte).
+        date: zonedDateOnly(now),
+        started_at: now,
+        finished_at: now,
+        floors: submissions,
+        submission_key: submissionKey ?? null,
+      });
+    } catch (err) {
+      // Dois envios da mesma chave ao mesmo tempo: o segundo bate no unique. A
+      // checagem lá em cima resolve o caso comum; esta resolve a corrida, que é
+      // exatamente o que o toque duplo produz.
+      const existing =
+        submissionKey && (err as { code?: string })?.code === 'P2002'
+          ? await inspectionRepository.findBySubmissionKey(submissionKey)
+          : null;
+      if (!existing) throw err;
+      return withExcelFlag(existing);
+    }
 
     await auditRepository.log({
       user_id: inspectorId,
@@ -287,17 +316,32 @@ export const inspectionService = {
       metadata: { floors: submissions.length },
     });
 
-    // Gerar Excel e fazer upload (síncrono — bloqueia a resposta). É a planilha
-    // do dia inteiro: se já houver vistorias desta data, esta entra nelas.
-    try {
-      const excelPath = await buildAndStoreDayExcel(payload.building_id, report.date, inspectorId);
-      return withExcelFlag({ ...report, excel_path: excelPath });
-    } catch (err) {
-      console.error('[Excel] Falha na geração:', err);
-      // Não bloqueia o envio — relatório fica COMPLETED sem planilha
-      // e ela pode ser gerada depois em POST /inspections/:id/excel
-      return withExcelFlag(report);
-    }
+    /**
+     * A planilha vai atrás. A resposta sai agora.
+     *
+     * Gerar a planilha do dia e subi-la levava vários segundos numa vistoria de
+     * vinte andares — e o inspetor ficava com a tela parada, em 4G instável, no
+     * corredor de um prédio. É exatamente ali que se toca o botão de novo.
+     * (Com a chave de envio, o segundo toque já não cria nada; mas a tela parada
+     * continua sendo tela parada.)
+     *
+     * O relatório não depende dela: nasce COMPLETED, aparece no histórico e no
+     * calendário, e a planilha se junta a ele quando ficar pronta. Se o processo
+     * morrer no meio — no plano gratuito do Render a instância dorme —, o
+     * relatório fica sem planilha e o botão "Gerar planilha", que já existe na
+     * tela do relatório, resolve.
+     */
+    setImmediate(() => {
+      buildAndStoreDayExcel(payload.building_id, report.date, inspectorId).catch((err) =>
+        console.error('[Excel] Falha na geração:', err)
+      );
+    });
+
+    // `has_excel` sai falso mesmo quando a planilha do dia já existe de uma
+    // vistoria anterior: a que interessa é a que está sendo refeita agora, e ela
+    // ainda não está pronta. A tela de conclusão só oferece o download quando
+    // houver o que baixar, e o histórico já mostra o estado atualizado.
+    return withExcelFlag(report);
   },
 
   /** Gera (ou refaz) a planilha do dia a que aquele relatório pertence. */

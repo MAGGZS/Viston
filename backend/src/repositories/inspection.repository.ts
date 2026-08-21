@@ -40,6 +40,14 @@ export const inspectionRepository = {
    * Grava a vistoria inteira de uma vez: relatório já COMPLETED, andares e ocorrências.
    * Tudo em uma transação — ou entra completo, ou não entra nada.
    */
+  /** A vistoria já criada por esta tentativa de envio, se houver. */
+  findBySubmissionKey(submissionKey: string) {
+    return prisma.inspectionReport.findUnique({
+      where: { submission_key: submissionKey },
+      include: reportInclude,
+    });
+  },
+
   createCompleted(data: {
     inspector_id: string;
     building_id: string;
@@ -47,6 +55,7 @@ export const inspectionRepository = {
     started_at: Date;
     finished_at: Date;
     floors: FloorSubmission[];
+    submission_key?: string | null;
   }) {
     return prisma.$transaction(async (tx) => {
       const report = await tx.inspectionReport.create({
@@ -58,6 +67,7 @@ export const inspectionRepository = {
           finished_at: data.finished_at,
           floors_inspected: data.floors.map((f) => f.floor_id),
           status: InspectionStatus.COMPLETED,
+          submission_key: data.submission_key ?? null,
         },
       });
 

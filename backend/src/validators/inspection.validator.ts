@@ -46,21 +46,29 @@ export type MaintenanceRecordPayload = {
 };
 
 // ── Envio único: toda a vistoria chega de uma vez ─────────────────────────────
-export const submitInspectionSchema = z.object({
-  building_id: z.string().uuid('building_id deve ser um UUID válido'),
-  floors: z
-    .array(
-      z.object({
-        floor_id: z.string().uuid(),
-        records: z
-          .array(maintenanceRecordSchema)
-          .max(20, 'Máximo de 20 ocorrências por andar')
-          .default([]),
-      })
-    )
-    .min(1, 'Selecione ao menos um andar')
-    .max(20, 'Máximo de 20 andares'),
-});
+//
+// `.strict()` como os demais: campo fora do contrato faz o envio falhar em vez
+// de ser descartado em silêncio. A chave da tentativa de envio não entra aqui —
+// ela viaja no cabeçalho `Idempotency-Key`, não no corpo.
+export const submitInspectionSchema = z
+  .object({
+    building_id: z.string().uuid('building_id deve ser um UUID válido'),
+    floors: z
+      .array(
+        z
+          .object({
+            floor_id: z.string().uuid(),
+            records: z
+              .array(maintenanceRecordSchema)
+              .max(20, 'Máximo de 20 ocorrências por andar')
+              .default([]),
+          })
+          .strict()
+      )
+      .min(1, 'Selecione ao menos um andar')
+      .max(20, 'Máximo de 20 andares'),
+  })
+  .strict();
 
 // Tipo escrito à mão: a inferência aninhada do zod perde os campos obrigatórios aqui.
 export type SubmitInspectionPayload = {

@@ -643,7 +643,23 @@ paths:
   /inspections:
     post:
       tags: [Inspections]
-      summary: Enviar vistoria completa — grava, gera a planilha do dia e publica no histórico (INSPECTOR do prédio)
+      summary: Enviar vistoria completa — grava e publica no histórico (INSPECTOR do prédio)
+      description: |
+        Responde assim que o relatório é gravado. A planilha do dia é montada
+        logo em seguida, fora da resposta: numa vistoria de vinte andares ela
+        levava segundos, e o inspetor ficava com a tela parada em 4G. Por isso
+        `has_excel` costuma vir `false` aqui — o histórico já mostra o estado
+        atualizado, e `POST /inspections/{id}/excel` força a geração.
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema: { type: string, pattern: '^[A-Za-z0-9._-]{8,64}$' }
+          description: |
+            Identifica a *tentativa* de envio. Reenviar com a mesma chave devolve
+            o relatório que já foi criado, em vez de criar um segundo — que é o
+            que acontecia com toque duplo ou retry de rede. O app gera a chave
+            quando a vistoria começa e a guarda junto do rascunho.
       requestBody:
         required: true
         content:
@@ -651,14 +667,14 @@ paths:
             schema: { $ref: '#/components/schemas/SubmitInspectionPayload' }
       responses:
         '201':
-          description: Vistoria registrada como COMPLETED
+          description: Vistoria registrada como COMPLETED (ou a já criada por esta chave)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/InspectionReport' }
         '400':
-          description: Payload inválido
+          description: Payload inválido, ou `Idempotency-Key` fora do formato
         '409':
-          description: Andar repetido ou andar que não pertence ao prédio
+          description: Andar repetido, andar que não pertence ao prédio, ou chave de envio de outra conta
     get:
       tags: [Inspections]
       summary: Histórico de inspeções (apenas COMPLETED por padrão)

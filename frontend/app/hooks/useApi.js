@@ -432,10 +432,23 @@ export function useDayReport(reportId) {
 }
 
 // Envio único: a vistoria inteira (todos os andares) vai de uma vez só
+/**
+ * Envia a vistoria inteira.
+ *
+ * Recebe `{ idempotencyKey, payload }` e não só o corpo: a chave viaja no
+ * cabeçalho `Idempotency-Key`, e é o que faz o toque duplo — ou o retry
+ * automático numa rede ruim — devolver o relatório que já foi criado em vez de
+ * criar um segundo. Em campo, no celular, isso não é hipótese.
+ */
 export function useSubmitInspection() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data) => api.post('/inspections', data).then((r) => r.data),
+    mutationFn: ({ idempotencyKey, payload }) =>
+      api
+        .post('/inspections', payload, {
+          headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+        })
+        .then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['inspections'] });
       qc.invalidateQueries({ queryKey: ['building-history'] });

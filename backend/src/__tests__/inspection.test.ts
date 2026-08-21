@@ -73,6 +73,17 @@ function gestor(id = 'gestor-1') {
 }
 
 // ── Testes: inspectionService.submit ─────────────────────────────────────────
+/**
+ * Espera o trabalho adiado com `setImmediate` — a planilha, hoje.
+ *
+ * Duas voltas: a primeira entrega o callback, a segunda deixa as promessas que
+ * ele criou (upload, gravação, auditoria) se resolverem.
+ */
+async function flushDeferred() {
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+}
+
 describe('inspectionService.submit', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -232,6 +243,26 @@ describe('inspectionService.submit', () => {
     ).rejects.toThrow(ConflictError);
   });
 
+  it('responde sem esperar a planilha', async () => {
+    // Numa vistoria de vinte andares a planilha levava segundos, e o inspetor
+    // ficava com a tela parada — em 4G, no corredor de um prédio. Agora ela vai
+    // atrás: quando `submit` volta, nada de storage aconteceu ainda.
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
+    mockInspectionRepo.findDayReports.mockResolvedValue([makeReport()] as any);
+
+    const result = await inspectionService.submit(
+      inspetor(),
+      payload([{ floor_id: FLOOR_6, records: [] }])
+    );
+
+    expect(result?.status).toBe(InspectionStatus.COMPLETED);
+    expect(mockStorage.uploadDayExcel).not.toHaveBeenCalled();
+
+    await flushDeferred();
+    expect(mockStorage.uploadDayExcel).toHaveBeenCalled();
+  });
+
   it('gera a planilha do dia inteiro, e não a da vistoria recém-enviada', async () => {
     mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
     mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
@@ -240,6 +271,7 @@ describe('inspectionService.submit', () => {
     mockInspectionRepo.findDayReports.mockResolvedValue(doDia as any);
 
     await inspectionService.submit(inspetor(), payload([{ floor_id: FLOOR_6, records: [] }]));
+    await flushDeferred();
 
     expect(mockGenerateExcel).toHaveBeenCalledWith(doDia);
     // O caminho novo vale para as duas vistorias daquele dia
@@ -258,9 +290,63 @@ describe('inspectionService.submit', () => {
     ] as any);
 
     await inspectionService.submit(inspetor(), payload([{ floor_id: FLOOR_6, records: [] }]));
+    await flushDeferred();
 
     // Nenhum relatório aponta mais para ela depois do setDayExcelPath
     expect(mockStorage.removeExcel).toHaveBeenCalledWith('report_day_predio_2026-08-20.xlsx');
+  });
+
+  // ── Envio duplicado ────────────────────────────────────────────────────────
+  it('devolve a mesma vistoria quando a chave de envio se repete', async () => {
+    // O toque duplo no corredor do prédio. Sem isto, dois relatórios idênticos,
+    // duas linhas no calendário e dois chamados por ocorrência.
+    const jaCriada = makeReport({ id: 'report-1' });
+    mockInspectionRepo.findBySubmissionKey.mockResolvedValue(jaCriada as any);
+
+    const result = await inspectionService.submit(
+      inspetor(),
+      payload([{ floor_id: FLOOR_6, records: [] }]),
+      'chave-de-envio-1'
+    );
+
+    expect(result?.id).toBe('report-1');
+    expect(mockInspectionRepo.createCompleted).not.toHaveBeenCalled();
+  });
+
+  it('resolve a corrida entre dois envios da mesma chave', async () => {
+    // Os dois toques chegam juntos: a consulta acima devolve nada nos dois, e o
+    // segundo insert bate no unique.
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
+    const jaCriada = makeReport({ id: 'report-1' });
+    mockInspectionRepo.findBySubmissionKey
+      .mockResolvedValueOnce(null as any)
+      .mockResolvedValueOnce(jaCriada as any);
+    mockInspectionRepo.createCompleted.mockRejectedValueOnce(
+      Object.assign(new Error('unique'), { code: 'P2002' })
+    );
+
+    const result = await inspectionService.submit(
+      inspetor(),
+      payload([{ floor_id: FLOOR_6, records: [] }]),
+      'chave-de-envio-2'
+    );
+
+    expect(result?.id).toBe('report-1');
+  });
+
+  it('recusa a chave de envio de outra pessoa', async () => {
+    mockInspectionRepo.findBySubmissionKey.mockResolvedValue(
+      makeReport({ inspector_id: 'outro-inspetor' }) as any
+    );
+
+    await expect(
+      inspectionService.submit(
+        inspetor(),
+        payload([{ floor_id: FLOOR_6, records: [] }]),
+        'chave-de-envio-3'
+      )
+    ).rejects.toThrow(ConflictError);
   });
 
   it('conclui a vistoria mesmo se a geração do Excel falhar', async () => {
@@ -272,6 +358,9 @@ describe('inspectionService.submit', () => {
       inspetor(),
       payload([{ floor_id: FLOOR_6, records: [] }])
     );
+    // A falha acontece depois da resposta; o que ela não pode é derrubar o
+    // processo com uma promessa sem tratamento.
+    await flushDeferred();
 
     expect(result?.status).toBe(InspectionStatus.COMPLETED);
   });

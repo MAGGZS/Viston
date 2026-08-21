@@ -33,4 +33,12 @@ export class ConflictError extends AppError {
   }
 }
 
-
+/**
+ * Requisição malformada em algo que não passa por um schema do zod — cabeçalho,
+ * combinação de parâmetros. O zod já responde 400 sozinho; isto é para o resto.
+ */
+export class ValidationError extends AppError {
+  constructor(message: string) {
+    super('VALIDATION_ERROR', message, 400);
+  }
+}

@@ -26,8 +26,18 @@ export function useExcelDownload() {
       if (!reportId) return;
       setPendingId(reportId);
       try {
-        const { data } = await api.get(`/inspections/${reportId}/excel`);
-        if (data?.excel_url) window.location.href = data.excel_url;
+        let url;
+        try {
+          ({ data: { excel_url: url } = {} } = await api.get(`/inspections/${reportId}/excel`));
+        } catch (e) {
+          // 404 aqui é "ainda não existe planilha", não "não pode ver" — o
+          // relatório responde antes de a planilha ficar pronta, e logo depois
+          // do envio é normal cair aqui. Mandar gerar resolve na hora, sem a
+          // pessoa precisar entender a diferença.
+          if (e?.response?.status !== 404) throw e;
+          ({ data: { excel_url: url } = {} } = await api.post(`/inspections/${reportId}/excel`));
+        }
+        if (url) window.location.href = url;
       } catch (e) {
         toast(e?.response?.data?.error?.message || 'Erro ao baixar a planilha', 'error');
       } finally {

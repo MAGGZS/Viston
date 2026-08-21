@@ -6,15 +6,38 @@ import { ok, created, noContent } from '../utils/response';
 import {
   inspectionFiltersSchema,
   calendarQuerySchema,
-  submitInspectionSchema,
   SubmitInspectionPayload,
 } from '../validators/inspection.validator';
+import { ValidationError } from '../utils/errors';
+
+/**
+ * A chave desta tentativa de envio, se o app mandou uma.
+ *
+ * Formato conferido antes de virar chave de busca: é texto do cliente, e vai
+ * para uma coluna com unique. Um UUID cabe em 36 caracteres; o teto e o
+ * alfabeto restrito cortam o resto.
+ */
+function submissionKeyOf(req: AuthenticatedRequest): string | undefined {
+  const raw = req.header('Idempotency-Key');
+  if (!raw) return undefined;
+
+  const key = raw.trim();
+  if (!/^[A-Za-z0-9._-]{8,64}$/.test(key)) {
+    throw new ValidationError('Idempotency-Key inválida');
+  }
+
+  return key;
+}
 
 export const inspectionController = {
   async submit(req: AuthenticatedRequest, res: Response) {
-    // Parse aqui (e não só no middleware) para aplicar os defaults do schema
-    const payload = submitInspectionSchema.parse(req.body) as SubmitInspectionPayload;
-    const report = await inspectionService.submit(req.user, payload);
+    // O corpo já vem validado pelo middleware `validate`, com os defaults do
+    // schema aplicados — ele reescreve `req.body` com o resultado do parse.
+    const report = await inspectionService.submit(
+      req.user,
+      req.body as SubmitInspectionPayload,
+      submissionKeyOf(req)
+    );
     created(res, report);
   },
 

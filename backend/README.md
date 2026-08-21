@@ -194,6 +194,20 @@ geração 0 — a migration não desloga ninguém.
 **Senhas.** bcrypt com custo 12 (OWASP). Hash gravado com custo menor continua
 válido e é refeito no primeiro login que der certo, sem pedir nada ao usuário.
 
+**Envio duplicado.** `POST /inspections` aceita o cabeçalho `Idempotency-Key`.
+O app gera a chave quando a vistoria começa, guarda junto do rascunho e a manda
+no envio: toque duplo ou retry de rede devolvem o relatório que já existe, em
+vez de criar um segundo. O caminho não é um índice único em
+(prédio, inspetor, dia) — duas vistorias do mesmo prédio no mesmo dia pelo mesmo
+inspetor são legítimas, e a planilha do dia existe justamente para juntá-las.
+
+**Planilha fora da resposta.** `submit` responde assim que grava o relatório; a
+planilha do dia é montada em seguida (`setImmediate`). Numa vistoria de vinte
+andares ela levava segundos, e o inspetor ficava com a tela parada em 4G. Se o
+processo morrer no meio — no plano gratuito do Render a instância dorme —, o
+relatório fica sem planilha e `POST /inspections/:id/excel` a refaz; o app já
+chama essa rota sozinho quando o download não acha o arquivo.
+
 **Planilhas.** O bucket `SUPABASE_BUCKET_EXCEL` é **privado**. A coluna
 `inspection_reports.excel_path` guarda o caminho do objeto, não a URL, e
 `GET /inspections/:id/excel` confere o vínculo com o prédio antes de assinar uma
