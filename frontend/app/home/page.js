@@ -11,10 +11,12 @@ import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { NotificacaoChamados } from '@/app/components/NotificacaoChamados';
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
+import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
 import { Skeleton } from '@/app/components/ui';
 import { M, MPage, MTopBar, MRound, MCard, MStats, MSectionHead } from '@/app/components/mobile/kit';
+import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
 import { useAuthStore } from '@/app/store/auth';
-import { useCalendar, useMyBuildings } from '@/app/hooks/useApi';
+import { useCalendar } from '@/app/hooks/useApi';
 import { canInspect } from '@/app/lib/roles';
 
 export default function HomePage() {
@@ -25,9 +27,16 @@ export default function HomePage() {
   const [year, setYear] = useState(now.getFullYear());
   const [dayModal, setDayModal] = useState(null);
 
-  const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
+  // O prédio de que esta tela fala. Com dois vínculos, quem escolhe é a pessoa
+  // — antes ela via só o primeiro da lista, sem saber que havia outro.
+  const {
+    buildings: myBuildings,
+    buildingId,
+    setActive,
+    hasChoice,
+    isLoading: buildingsLoading,
+  } = useActiveBuilding();
   const hasBuilding = myBuildings.length > 0;
-  const buildingId = myBuildings[0]?.building_id;
 
   const { data, isLoading } = useCalendar(
     hasBuilding ? { month, year, building_id: buildingId } : null,
@@ -108,7 +117,17 @@ export default function HomePage() {
 
         {!buildingsLoading && hasBuilding && (
           <>
-            <MSectionHead className="anim-fade-up anim-d2" title={myBuildings[0]?.name ?? 'Seu prédio'} />
+            <MSectionHead
+              className="anim-fade-up anim-d2"
+              title={hasChoice ? 'Prédio' : myBuildings[0]?.name ?? 'Seu prédio'}
+              action={
+                <BuildingSwitcher
+                  buildings={myBuildings}
+                  buildingId={buildingId}
+                  onChange={setActive}
+                />
+              }
+            />
 
             <MCard className="anim-fade-up anim-d3" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <MStats items={[

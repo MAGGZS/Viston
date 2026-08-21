@@ -9,14 +9,16 @@ import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
+import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { M, MPage, MTopBar, MRound, MCard, MButtonGhost, CONTENT_ID } from '@/app/components/mobile/kit';
 import { HistoricoSwitcher, OcorrenciasList, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { Badge, Button, Modal } from '@/app/components/ui';
-import { useInspections, useCalendar, useMyBuildings, useBuildingHistory } from '@/app/hooks/useApi';
+import { useInspections, useCalendar, useBuildingHistory } from '@/app/hooks/useApi';
 import { useIsDesktop } from '@/app/hooks/useMediaQuery';
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
+import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
 import { parseReportDate } from '@/app/lib/date';
 import { useAuthStore } from '@/app/store/auth';
 
@@ -262,10 +264,15 @@ export default function HistoricoPage() {
 
   const [filters, setFilters] = useState({ date_from: '', date_to: '' });
 
-  // Prédios do usuário (para mobile)
-  const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
+  // Prédios do usuário (para mobile). Com dois vínculos, quem escolhe é a
+  // pessoa — antes o histórico mostrava só o do primeiro da lista.
+  const {
+    buildings: myBuildings,
+    buildingId: myBuildingId,
+    setActive: setActiveBuilding,
+    isLoading: buildingsLoading,
+  } = useActiveBuilding();
   const hasBuilding = myBuildings.length > 0;
-  const myBuildingId = myBuildings[0]?.building_id;
 
   // Desktop: todas as inspeções (admin vê tudo)
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInspections(
@@ -409,6 +416,14 @@ export default function HistoricoPage() {
         </MCard>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Só aparece para quem tem mais de um vínculo — ver BuildingSwitcher. */}
+          <BuildingSwitcher
+            buildings={myBuildings}
+            buildingId={myBuildingId}
+            onChange={setActiveBuilding}
+            style={{ width: '100%' }}
+          />
+
           <HistoricoSwitcher
             className="anim-fade-down"
             title={historico.title}

@@ -6,8 +6,10 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { FloorForm } from '@/app/components/FloorForm';
 import { Button, Card, Modal, Spinner } from '@/app/components/ui';
 import { M, MRound, MCard, MButton, MButtonSoft, MButtonGhost, MSectionHead, MPill } from '@/app/components/mobile/kit';
-import { useFloors, useBuildingByKey, useSubmitInspection, useMyBuildings, useRequestAccess, useBuildingResponsibles } from '@/app/hooks/useApi';
+import { useFloors, useBuildingByKey, useSubmitInspection, useRequestAccess, useBuildingResponsibles } from '@/app/hooks/useApi';
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
+import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
+import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
 import { formatShareKey, normalizeShareKey, isCompleteShareKey } from '@/app/lib/shareKey';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
 import { clearDraft, loadDraft, saveDraft } from '@/app/lib/draft';
@@ -201,13 +203,18 @@ export default function InspecaoPage() {
    */
   const submissionKey = useRef(null);
 
-  const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
-  // O primeiro prédio em que esta pessoa vistoria — e não simplesmente o
-  // primeiro da lista: com papel por prédio, dá para ser inspetor num e só
-  // acompanhar outro, e abrir a vistoria no prédio errado só daria 403 no fim.
-  const myBuilding = myBuildings.find((b) => canInspect(user, b.building_id));
+  // Só os prédios em que esta pessoa vistoria — e não a lista inteira: com papel
+  // por prédio, dá para ser inspetor num e só acompanhar outro, e abrir a
+  // vistoria no prédio errado só daria 403 no fim. Com mais de um, quem escolhe
+  // é ela, e a escolha vale para a próxima vez.
+  const {
+    buildings: inspectableBuildings,
+    active: myBuilding,
+    buildingId,
+    setActive: setActiveBuilding,
+    isLoading: buildingsLoading,
+  } = useActiveBuilding({ filter: (b) => canInspect(user, b.building_id) });
   const hasBuilding = !!myBuilding;
-  const buildingId = myBuilding?.building_id;
 
   const { data: floorsData, isLoading: floorsLoading } = useFloors(myBuilding?.building_id);
   // Só os responsáveis daquele prédio entram no droplist da ocorrência.
@@ -370,11 +377,20 @@ export default function InspecaoPage() {
             ) : !hasBuilding ? (
               <StepSemVinculo />
             ) : (
-              <StepSelectFloors
-                building={myBuilding}
-                floors={orderedFloors}
-                onStart={handleStart}
-              />
+              <>
+                {/* Só aparece com mais de um prédio para vistoriar. */}
+                <BuildingSwitcher
+                  buildings={inspectableBuildings}
+                  buildingId={buildingId}
+                  onChange={setActiveBuilding}
+                  style={{ width: '100%', marginBottom: 14 }}
+                />
+                <StepSelectFloors
+                  building={myBuilding}
+                  floors={orderedFloors}
+                  onStart={handleStart}
+                />
+              </>
             )}
             </div>
           )}

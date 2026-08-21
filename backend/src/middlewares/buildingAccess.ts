@@ -17,6 +17,18 @@ function isAdmin(user: Actor): boolean {
 }
 
 /**
+ * O vínculo já consultado nesta requisição.
+ *
+ * `req.user` é um objeto novo por requisição (ver `authenticate`), então a
+ * `WeakMap` é uma cache com o tempo de vida certo: some junto com a requisição,
+ * sem precisar de invalidação e sem correr o risco de responder com o papel de
+ * ontem. O vínculo é perguntado duas ou três vezes na mesma chamada — pelo
+ * middleware da rota e de novo pelo serviço —, e cada pergunta era uma ida ao
+ * banco.
+ */
+const standingCache = new WeakMap<Actor, Map<string, BuildingStanding | null>>();
+
+/**
  * O que o ator é naquele prédio.
  *
  * Duas tabelas respondem, e a pergunta muda conforme o tipo da conta: gestor se
@@ -31,6 +43,24 @@ export async function getBuildingStanding(
 ): Promise<BuildingStanding | null> {
   if (isAdmin(user)) return 'GESTOR';
 
+  let byBuilding = standingCache.get(user);
+  if (byBuilding?.has(buildingId)) return byBuilding.get(buildingId) ?? null;
+
+  const standing = await resolveBuildingStanding(user, buildingId);
+
+  if (!byBuilding) {
+    byBuilding = new Map();
+    standingCache.set(user, byBuilding);
+  }
+  byBuilding.set(buildingId, standing);
+
+  return standing;
+}
+
+async function resolveBuildingStanding(
+  user: Actor,
+  buildingId: string
+): Promise<BuildingStanding | null> {
   if (user.kind === 'MANAGER') {
     const link = await buildingRepository.findManagerLink(buildingId, user.id);
     return link ? 'GESTOR' : null;
@@ -55,8 +85,9 @@ export async function canInspectBuilding(user: Actor, buildingId: string): Promi
   if (user.kind !== 'USER') return false;
   if (isAdmin(user)) return true;
 
-  const member = await buildingRepository.findMember(buildingId, user.id);
-  return member?.role === BuildingRole.INSPECTOR;
+  // Pela mesma porta que o resto: o vínculo já foi consultado nesta requisição
+  // pelo middleware da rota, e aqui a resposta vem da cache.
+  return (await getBuildingStanding(user, buildingId)) === BuildingRole.INSPECTOR;
 }
 
 /**

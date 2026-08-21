@@ -332,11 +332,22 @@ export default function PerfilPage() {
   const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
   const hasBuilding = myBuildings.length > 0;
   const myBuilding = myBuildings[0];
+  /**
+   * O que a linha do perfil mostra como "prédio".
+   *
+   * Com mais de um vínculo, o nome do primeiro seria mentira por omissão — a
+   * pessoa lia o perfil e concluía que só pertencia àquele.
+   */
+  const buildingLabel = !hasBuilding
+    ? 'Sem vínculo'
+    : myBuildings.length === 1
+      ? myBuilding.name
+      : `${myBuildings.length} prédios`;
 
-  async function handleLeave() {
-    if (!confirm('Tem certeza que deseja sair deste prédio?')) return;
+  async function handleLeave(building) {
+    if (!confirm(`Tem certeza que deseja sair de "${building.name}"?`)) return;
     try {
-      await leaveBuilding.mutateAsync(myBuilding.building_id);
+      await leaveBuilding.mutateAsync(building.building_id);
       toast('Você saiu do prédio', 'info');
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao sair do prédio', 'error');
@@ -364,18 +375,24 @@ export default function PerfilPage() {
         {buildingsLoading ? (
           <div style={{ height: 48, background: '#232323', borderRadius: 12 }} />
         ) : hasBuilding ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <Building2 size={18} color="#F5C518" />
-              <div>
-                <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14 }}>{myBuilding.name}</p>
-                {myBuilding.description && <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 12, marginTop: 2 }}>{myBuilding.description}</p>}
+          // Todos os vínculos, e não só o primeiro. Quem trabalha em dois
+          // prédios via um só aqui — e a saída aplicava sempre àquele.
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {myBuildings.map((building) => (
+              <div key={building.building_id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Building2 size={18} color="#F5C518" style={{ flexShrink: 0 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14 }}>{building.name}</p>
+                    {building.description && <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 12, marginTop: 2 }}>{building.description}</p>}
+                  </div>
+                </div>
+                <button type="button" onClick={() => handleLeave(building)} disabled={leaveBuilding.isPending}
+                  className="w-full text-sm text-red-400 border border-red-900/40 bg-red-900/10 rounded-2xl py-2.5 hover:bg-red-900/20 transition-colors disabled:opacity-50">
+                  {leaveBuilding.isPending ? 'Saindo...' : `Sair de ${building.name}`}
+                </button>
               </div>
-            </div>
-            <button onClick={handleLeave} disabled={leaveBuilding.isPending}
-              className="w-full text-sm text-red-400 border border-red-900/40 bg-red-900/10 rounded-2xl py-2.5 hover:bg-red-900/20 transition-colors disabled:opacity-50">
-              {leaveBuilding.isPending ? 'Saindo...' : 'Sair deste prédio'}
-            </button>
+            ))}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -419,7 +436,7 @@ export default function PerfilPage() {
             <Tile label="Função" value={roleLabel(user)} />
             <Tile
               label="Prédio"
-              value={isManager(user) ? 'Todos os seus' : myBuilding?.name ?? 'Sem vínculo'}
+              value={isManager(user) ? 'Todos os seus' : buildingLabel}
             />
           </div>
 
@@ -430,7 +447,7 @@ export default function PerfilPage() {
               className="anim-fade-up anim-d4"
               icon={Building2}
               label="Prédio"
-              hint={hasBuilding ? myBuilding?.name : 'Sem vínculo'}
+              hint={buildingLabel}
               onClick={() => setSheet('building')}
             />
           )}
@@ -478,7 +495,7 @@ export default function PerfilPage() {
             <Tile label="Função" value={roleLabel(user)} />
             <Tile
               label="Prédio"
-              value={isManager(user) ? 'Todos os seus' : myBuilding?.name ?? 'Sem vínculo'}
+              value={isManager(user) ? 'Todos os seus' : buildingLabel}
             />
           </div>
 
@@ -488,7 +505,7 @@ export default function PerfilPage() {
             <Row
               icon={Building2}
               label="Prédio"
-              hint={hasBuilding ? myBuilding?.name : 'Sem vínculo'}
+              hint={buildingLabel}
               onClick={() => setSheet('building')}
             />
           )}
