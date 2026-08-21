@@ -1,8 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Download, FileSpreadsheet, FileText, X } from 'lucide-react';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
-import { Badge, Button, Spinner } from '@/app/components/ui';
+import { Badge, Button, Dialog, Spinner } from '@/app/components/ui';
 import { useDayReport, useGenerateExcel } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
@@ -12,7 +12,7 @@ import { useToastStore } from '@/app/store/toast';
 import { T, R, W } from '@/app/lib/theme';
 
 const S = {
-  th: { textAlign: 'left', padding: '10px 12px', color: T.mute, fontSize: 11, fontWeight: W.body, whiteSpace: 'nowrap' },
+  th: { textAlign: 'left', padding: '10px 12px', color: T.mute, fontSize: 12, fontWeight: W.body, whiteSpace: 'nowrap' },
   td: { padding: '10px 12px', color: T.text, fontSize: 12, borderTop: `1px solid ${T.line}`, verticalAlign: 'top' },
 };
 
@@ -89,7 +89,7 @@ export function InspectionPreview({ report, reportId }) {
         </p>
 
         {rows.length === 0 ? (
-          <p style={{ color: T.mute, fontSize: 13, padding: '16px 0' }}>
+          <p style={{ color: T.mute, fontSize: 14, padding: '16px 0' }}>
             Nenhuma ocorrência relatada neste dia.
           </p>
         ) : (
@@ -135,6 +135,7 @@ export function InspectionPreview({ report, reportId }) {
 /** Casca de modal para abrir a prévia a partir de uma linha de histórico. */
 export function InspectionPreviewModal({ open, onClose, reportId }) {
   const { mounted, closing } = useExitTransition(open);
+  const titleId = useId();
   // Segura o id na saída para a prévia não virar esqueleto ao fechar
   const shownId = useKeepWhileClosing(reportId, open);
   const { data: report, isLoading } = useDayReport(mounted ? shownId : null);
@@ -142,13 +143,19 @@ export function InspectionPreviewModal({ open, onClose, reportId }) {
   if (!mounted) return null;
 
   return (
-    <div className={closing ? 'anim-fade-out' : 'anim-fade-in'} style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
-
-      <div className={closing ? 'anim-scale-out' : 'anim-scale-in'} style={{ position: 'relative', background: T.card, borderRadius: R.card, width: '100%', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+    <Dialog
+      onClose={onClose}
+      className={closing ? 'is-closing' : ''}
+      labelledBy={titleId}
+      style={{ width: 860, maxHeight: '85vh' }}
+    >
+      <div
+        className={closing ? 'anim-scale-out' : 'anim-scale-in'}
+        style={{ background: T.card, borderRadius: R.card, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '20px 24px 14px', borderBottom: `1px solid ${T.line}` }}>
-          <h2 style={{ color: T.text, fontWeight: W.title, fontSize: 16 }}>Prévia do dia</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 4 }}>
+          <h2 id={titleId} style={{ color: T.text, fontWeight: W.title, fontSize: 16 }}>Prévia do dia</h2>
+          <button onClick={onClose} aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 4 }}>
             <X size={18} />
           </button>
         </div>
@@ -158,6 +165,6 @@ export function InspectionPreviewModal({ open, onClose, reportId }) {
           {report && <InspectionPreview report={report} reportId={shownId} />}
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }

@@ -28,21 +28,21 @@ function FloorTags({ labels, onRemove, input, onInputChange, onAdd }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           Andares ({labels.length})
         </p>
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, minHeight: 36 }}>
         {labels.length === 0 && (
-          <span style={{ color: 'rgba(255,255,255,0.26)', fontSize: 13 }}>Nenhum andar adicionado</span>
+          <span style={{ color: 'rgba(255,255,255,0.52)', fontSize: 14 }}>Nenhum andar adicionado</span>
         )}
         {labels.map(label => (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px 6px 12px', borderRadius: 20, border: '1px solid rgba(245,197,24,0.3)', background: 'rgba(245,197,24,0.08)' }}>
-            <span style={{ color: '#F5C518', fontSize: 13, fontWeight: 600 }}>{label}</span>
-            <button onClick={() => onRemove(label)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.26)', display: 'flex', alignItems: 'center', padding: 0, lineHeight: 1 }}
+            <span style={{ color: '#F5C518', fontSize: 14, fontWeight: 600 }}>{label}</span>
+            <button onClick={() => onRemove(label)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.52)', display: 'flex', alignItems: 'center', padding: 0, lineHeight: 1 }}
               onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.26)'}>
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.52)'}>
               <X size={12} />
             </button>
           </div>
@@ -51,7 +51,7 @@ function FloorTags({ labels, onRemove, input, onInputChange, onAdd }) {
 
       <div style={{ display: 'flex', gap: 8 }}>
         <input
-          style={{ flex: 1, background: '#232323', borderRadius: 12, padding: '9px 14px', color: 'rgba(255,255,255,0.96)', fontSize: 13, outline: 'none' }}
+          style={{ flex: 1, background: '#232323', borderRadius: 12, padding: '9px 14px', color: 'rgba(255,255,255,0.96)', fontSize: 14, outline: 'none' }}
           placeholder="Ex: 1, 2, Cobertura, Subsolo... (Enter para adicionar)"
           value={input}
           onChange={e => onInputChange(e.target.value)}

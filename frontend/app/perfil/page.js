@@ -107,7 +107,7 @@ function Tile({ label, value, className = '' }) {
 
 function Group({ title, className = '' }) {
   return (
-    <p className={className} style={{ color: T.mute, fontSize: 13, margin: '22px 0 8px 4px' }}>{title}</p>
+    <p className={className} style={{ color: T.mute, fontSize: 14, margin: '22px 0 8px 4px' }}>{title}</p>
   );
 }
 
@@ -116,6 +116,7 @@ function Row({ icon: Icon, label, hint, tone, onClick, className = '' }) {
   const color = tone === 'danger' ? T.danger : T.text;
   return (
     <button
+      type="button"
       onClick={onClick}
       className={`profile-row ${className}`}
       style={{
@@ -127,7 +128,7 @@ function Row({ icon: Icon, label, hint, tone, onClick, className = '' }) {
       <Icon size={18} color={color} strokeWidth={1.8} style={{ flexShrink: 0 }} />
       <span style={{ flex: 1, minWidth: 0, fontSize: 15, color }}>{label}</span>
       {hint && (
-        <span style={{ color: T.faint, fontSize: 13, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ color: T.faint, fontSize: 14, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {hint}
         </span>
       )}
@@ -160,7 +161,7 @@ function Credential({ user, onEditAvatar }) {
       <p className="anim-fade-up anim-d1" style={{ fontFamily: T.display, fontWeight: W.title, fontSize: 22, letterSpacing: '-0.015em', color: T.text, marginTop: 16 }}>
         {user?.name ?? ''}
       </p>
-      <p className="anim-fade-up anim-d2" style={{ color: T.mute, fontSize: 13, marginTop: 4, wordBreak: 'break-all' }}>
+      <p className="anim-fade-up anim-d2" style={{ color: T.mute, fontSize: 14, marginTop: 4, wordBreak: 'break-all' }}>
         {user?.email}
       </p>
 
@@ -168,7 +169,7 @@ function Credential({ user, onEditAvatar }) {
 
       <div style={{ alignSelf: 'stretch', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Logo size={13} style={{ color: T.mute, WebkitTextStroke: '0px' }} />
-        <span style={{ fontSize: 11, color: T.faint, ...NUM, letterSpacing: '0.06em' }}>
+        <span style={{ fontSize: 12, color: T.faint, ...NUM, letterSpacing: '0.06em' }}>
           Nº {(user?.id ?? '').slice(0, 8).toUpperCase() || '—'}
         </span>
       </div>
@@ -293,17 +294,17 @@ function FeedbackBox() {
       ) : sent.length > 0 && (
         <>
           <div style={{ height: 1, background: T.line, margin: '4px 0' }} />
-          <p style={{ color: T.mute, fontSize: 13 }}>Você já mandou</p>
+          <p style={{ color: T.mute, fontSize: 14 }}>Você já mandou</p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
             {sent.map((item) => (
               <div key={item.id} style={{ background: T.chip, borderRadius: 14, padding: '11px 13px' }}>
-                <p style={{ color: T.text, fontSize: 13, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{item.message}</p>
+                <p style={{ color: T.text, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{item.message}</p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#4ade80', fontSize: 11 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#4ade80', fontSize: 12 }}>
                     <Check size={12} strokeWidth={2.4} /> Recebido
                   </span>
-                  <span style={{ color: T.faint, fontSize: 11 }}>
+                  <span style={{ color: T.faint, fontSize: 12 }}>
                     {format(new Date(item.created_at), "d/MM/yyyy 'às' HH:mm")}
                   </span>
                 </div>
@@ -368,7 +369,7 @@ export default function PerfilPage() {
               <Building2 size={18} color="#F5C518" />
               <div>
                 <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14 }}>{myBuilding.name}</p>
-                {myBuilding.description && <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 12, marginTop: 2 }}>{myBuilding.description}</p>}
+                {myBuilding.description && <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 12, marginTop: 2 }}>{myBuilding.description}</p>}
               </div>
             </div>
             <button onClick={handleLeave} disabled={leaveBuilding.isPending}
@@ -378,7 +379,7 @@ export default function PerfilPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 13 }}>Você não está vinculado a nenhum prédio.</p>
+            <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 14 }}>Você não está vinculado a nenhum prédio.</p>
             <JoinBuildingForm />
           </div>
         )}
@@ -402,7 +403,7 @@ export default function PerfilPage() {
           <Logo size={16} />
           <button onClick={async () => { await logout(); router.replace('/login'); }}
             className="transition-colors duration-150"
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: T.mute, fontSize: 13 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: T.mute, fontSize: 14 }}
             onMouseEnter={e => e.currentTarget.style.color = T.danger}
             onMouseLeave={e => e.currentTarget.style.color = T.mute}>
             <LogOut size={16} /> Sair
@@ -468,7 +469,7 @@ export default function PerfilPage() {
             <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 21, color: M.text, marginTop: 16 }}>
               {user?.name}
             </p>
-            <p style={{ color: M.mute, fontSize: 13, marginTop: 4, wordBreak: 'break-all' }}>
+            <p style={{ color: M.mute, fontSize: 14, marginTop: 4, wordBreak: 'break-all' }}>
               {user?.email}
             </p>
           </div>

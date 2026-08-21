@@ -60,13 +60,13 @@ function StepSemVinculo() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 20, padding: 16 }}>
-        <p style={{ color: 'rgba(255,255,255,0.96)', fontSize: 13, lineHeight: 1.6 }}>
+        <p style={{ color: 'rgba(255,255,255,0.96)', fontSize: 14, lineHeight: 1.6 }}>
           Você não tem vínculo com nenhum prédio. Digite a chave fornecida pelo administrador e solicite acesso.
         </p>
       </div>
 
       <Card>
-        <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Chave do Prédio</p>
+        <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Chave do Prédio</p>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             style={{ flex: 1, background: '#232323', borderRadius: 16, padding: '11px 14px', color: 'rgba(255,255,255,0.96)', fontSize: 14, outline: 'none', fontWeight: 600, letterSpacing: '0.18em' }}
@@ -83,7 +83,7 @@ function StepSemVinculo() {
       </Card>
 
       {isLoading && <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}><Spinner /></div>}
-      {error && <p style={{ color: '#f87171', fontSize: 13, textAlign: 'center' }}>Chave inválida ou prédio não encontrado</p>}
+      {error && <p style={{ color: '#f87171', fontSize: 14, textAlign: 'center' }}>Chave inválida ou prédio não encontrado</p>}
 
       {data && !requested && (
         <div className="anim-fade-up" style={{ background: '#232323', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -93,7 +93,7 @@ function StepSemVinculo() {
             </div>
             <div>
               <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 15 }}>{data.name}</p>
-              {data.description && <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 12 }}>{data.description}</p>}
+              {data.description && <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 12 }}>{data.description}</p>}
             </div>
           </div>
           <Button onClick={handleRequest} loading={requestAccess.isPending} className="w-full">
@@ -106,7 +106,7 @@ function StepSemVinculo() {
         <div className="anim-scale-in" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 20, padding: 20, textAlign: 'center' }}>
           <p style={{ fontSize: 28, marginBottom: 8 }}>✓</p>
           <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 15 }}>Solicitação enviada!</p>
-          <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 13, marginTop: 4 }}>Aguarde o administrador aprovar seu acesso.</p>
+          <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 14, marginTop: 4 }}>Aguarde o administrador aprovar seu acesso.</p>
         </div>
       )}
     </div>

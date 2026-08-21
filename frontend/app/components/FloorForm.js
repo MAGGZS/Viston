@@ -1,4 +1,5 @@
 'use client';
+import { useId } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
@@ -14,7 +15,7 @@ import {
 import { T, R, W } from '@/app/lib/theme';
 
 const S = {
-  label: { fontSize: 11, fontWeight: W.body, color: T.mute },
+  label: { fontSize: 12, fontWeight: W.body, color: T.mute },
   error: { fontSize: 12, color: T.danger },
   readonly: { background: T.chip, borderRadius: R.control, padding: '13px 15px', color: T.mute, fontSize: 14, display: 'flex', alignItems: 'center', gap: 10 },
 };
@@ -43,6 +44,36 @@ const schema = yup.object({
 });
 
 /** Um droplist do formulário. */
+/**
+ * O que foi encontrado no andar.
+ *
+ * Componente próprio por causa do `useId`: o erro precisa de um id para ser
+ * amarrado ao campo, e hook não pode nascer dentro do `map` das ocorrências.
+ * `role="alert"` é o que faz o leitor de tela anunciar o erro no instante em que
+ * ele aparece — é aqui que o inspetor mais erra, porque é o único campo livre.
+ */
+function DescriptionField({ index, register, error }) {
+  const fieldId = useId();
+  const errorId = `${fieldId}-erro`;
+
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      <span style={{ color: M.mute, fontSize: 12 }}>Descrição</span>
+      <textarea
+        rows={3}
+        placeholder="O que foi encontrado?"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        style={{ background: M.chip, border: 'none', borderRadius: 16, padding: '14px 16px', color: M.text, fontSize: 16, outline: 'none', width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
+        {...register(`records.${index}.description`)}
+      />
+      {error && (
+        <span id={errorId} role="alert" style={{ color: M.danger, fontSize: 12 }}>{error}</span>
+      )}
+    </label>
+  );
+}
+
 function Field({ control, name, label, options, placeholder, error }) {
   return (
     <Controller
@@ -101,13 +132,13 @@ export function FloorForm({ floor, inspectorName, initialRecords, responsibles =
       <MCard style={{ display: 'flex', gap: 8 }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           <UserRound size={15} color={M.accent} style={{ flexShrink: 0 }} />
-          <span style={{ color: M.mute, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ color: M.mute, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {inspectorName || '—'}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <CalendarDays size={15} color={M.accent} />
-          <span style={{ color: M.mute, fontSize: 13 }}>{today}</span>
+          <span style={{ color: M.mute, fontSize: 14 }}>{today}</span>
         </div>
       </MCard>
 
@@ -145,25 +176,18 @@ export function FloorForm({ floor, inspectorName, initialRecords, responsibles =
             options={PRIORITIES} placeholder="Selecione a prioridade"
             error={errors.records?.[index]?.priority?.message} />
 
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-            <span style={{ color: M.mute, fontSize: 12 }}>Descrição</span>
-            <textarea
-              rows={3}
-              placeholder="O que foi encontrado?"
-              style={{ background: M.chip, border: 'none', borderRadius: 16, padding: '14px 16px', color: M.text, fontSize: 15, outline: 'none', width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
-              {...register(`records.${index}.description`)}
-            />
-            {errors.records?.[index]?.description && (
-              <span style={{ color: M.danger, fontSize: 12 }}>{errors.records[index].description.message}</span>
-            )}
-          </label>
+          <DescriptionField
+            index={index}
+            register={register}
+            error={errors.records?.[index]?.description?.message}
+          />
 
           {responsibles.length > 0 ? (
             <Field control={control} name={`records.${index}.responsible_id`} label="Responsável (opcional)"
               options={responsibleOptions} placeholder="Deixar para o moderador encaminhar"
               error={errors.records?.[index]?.responsible_id?.message} />
           ) : (
-            <p className="anim-fade-in" style={{ color: M.faint, fontSize: 11, lineHeight: 1.5 }}>
+            <p className="anim-fade-in" style={{ color: M.faint, fontSize: 12, lineHeight: 1.5 }}>
               Este prédio ainda não tem responsáveis cadastrados. O chamado vai
               para o moderador encaminhar.
             </p>

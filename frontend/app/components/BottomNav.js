@@ -27,7 +27,7 @@ export function BottomNav() {
     : items;
 
   return (
-    <nav style={{
+    <nav aria-label="Navegação principal" style={{
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
       background: M.bg, borderTop: `1px solid ${M.line}`,
       padding: '10px 8px calc(14px + env(safe-area-inset-bottom))',
@@ -42,7 +42,7 @@ export function BottomNav() {
             color: active ? M.accent : M.faint, transition: 'color 0.2s',
           }}>
             <Icon size={21} strokeWidth={active ? 2.4 : 1.8} />
-            <span style={{ fontFamily: M.display, fontSize: 11, fontWeight: active ? 600 : 500 }}>{label}</span>
+            <span style={{ fontFamily: M.display, fontSize: 12, fontWeight: active ? 600 : 500 }}>{label}</span>
           </Link>
         );
       })}

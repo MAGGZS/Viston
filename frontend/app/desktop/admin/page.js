@@ -12,6 +12,7 @@ import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/app/hoo
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { rolesLabel } from '@/app/lib/roles';
 import { useToastStore } from '@/app/store/toast';
+import { CONTENT_ID } from '@/app/components/mobile/kit';
 
 // Sem `role`: a conta nasce sem vínculo nenhum. O papel dela aparece dentro de
 // um prédio — criando um (vira gestora dele) ou sendo aprovada num pela chave.
@@ -145,7 +146,7 @@ export default function AdminUsersPage() {
     <RouteGuard roles={['ADMIN']}>
       <div className="hidden lg:flex min-h-screen bg-page">
         <AdminSidebar />
-        <main className="flex-1 p-8">
+        <main id={CONTENT_ID} className="flex-1 p-8">
           <div className="flex items-center justify-between mb-8">
             <div className="anim-fade-down">
               <h1 className="text-2xl font-semibold text-white">Usuários</h1>

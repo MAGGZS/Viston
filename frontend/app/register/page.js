@@ -21,10 +21,10 @@ const schema = yup.object({
 
 const S = {
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
-  label: { fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.44)' },
-  input: { background: '#232323', border: '1px solid transparent', borderRadius: 16, padding: '13px 16px', color: 'rgba(255,255,255,0.96)', fontSize: 15, outline: 'none', width: '100%' },
+  label: { fontSize: 12, fontWeight: 400, color: 'rgba(255,255,255,0.68)' },
+  input: { background: '#232323', border: '1px solid transparent', borderRadius: 16, padding: '13px 16px', color: 'rgba(255,255,255,0.96)', fontSize: 16, outline: 'none', width: '100%' },
   inputWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
-  eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: 'rgba(255,255,255,0.44)', display: 'flex', alignItems: 'center' },
+  eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: 'rgba(255,255,255,0.68)', display: 'flex', alignItems: 'center' },
   btn: { width: '100%', background: '#F5C518', color: '#000', fontWeight: 500, fontSize: 15, padding: '14px', borderRadius: 16, border: 'none', cursor: 'pointer', marginTop: 4 },
 };
 
@@ -63,11 +63,11 @@ export default function RegisterPage() {
       subtitle="Depois de entrar, peça a chave do prédio ao administrador para começar a vistoriar."
       footer={
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 14 }}>
+          <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 14 }}>
             Já tem conta?{' '}
             <a href="/login" style={{ color: 'rgba(245,197,24,0.85)', fontWeight: 600, textDecoration: 'none' }}>Entrar</a>
           </p>
-          <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 13 }}>
+          <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 14 }}>
             Vai administrar um prédio?{' '}
             <a href="/register/gestor" style={{ color: 'rgba(245,197,24,0.85)', fontWeight: 600, textDecoration: 'none' }}>Cadastre-se como gestor</a>
           </p>
@@ -101,7 +101,7 @@ export default function RegisterPage() {
             })}
             {apiError && (
               <div style={{ background: 'rgba(248,113,113,0.13)', borderRadius: 16, padding: '11px 14px' }}>
-                <p style={{ color: '#F87171', fontSize: 13, textAlign: 'center' }}>{apiError}</p>
+                <p style={{ color: '#F87171', fontSize: 14, textAlign: 'center' }}>{apiError}</p>
               </div>
             )}
         <button type="submit" disabled={isPending} style={{ ...S.btn, opacity: isPending ? 0.6 : 1 }}>

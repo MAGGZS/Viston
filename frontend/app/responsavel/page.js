@@ -127,7 +127,7 @@ function TicketCard({ ticket, className = '' }) {
       </div>
 
       <p style={{
-        color: M.text, fontSize: 13, lineHeight: 1.6,
+        color: M.text, fontSize: 14, lineHeight: 1.6,
         display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
       }}>
         {ticket.description}
@@ -135,19 +135,19 @@ function TicketCard({ ticket, className = '' }) {
 
       {ticket.maintenance_note && (
         <div style={{ background: M.chip, borderRadius: 16, padding: '11px 13px' }}>
-          <p style={{ color: M.mute, fontSize: 11, marginBottom: 4 }}>Do moderador</p>
+          <p style={{ color: M.mute, fontSize: 12, marginBottom: 4 }}>Do moderador</p>
           <p style={{ color: M.text, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
             {ticket.maintenance_note}
           </p>
           {ticket.maintenance_cost !== null && ticket.maintenance_cost !== undefined && (
-            <p style={{ color: M.mute, fontSize: 11, marginTop: 6 }}>
+            <p style={{ color: M.mute, fontSize: 12, marginTop: 6 }}>
               Valor: {formatCost(ticket.maintenance_cost)}
             </p>
           )}
         </div>
       )}
 
-      <p style={{ color: M.faint, fontSize: 11 }}>
+      <p style={{ color: M.faint, fontSize: 12 }}>
         {labelOf(CATEGORIES, ticket.category)}
         {day ? ` · relatado em ${format(day, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}` : ''}
       </p>
@@ -252,7 +252,7 @@ export default function ResponsavelPage() {
             <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text }}>
               Nenhum chamado com você
             </p>
-            <p style={{ color: M.mute, fontSize: 13, marginTop: 6, lineHeight: 1.6 }}>
+            <p style={{ color: M.mute, fontSize: 14, marginTop: 6, lineHeight: 1.6 }}>
               {user?.name?.split(' ')[0]}, quando o moderador encaminhar uma
               ocorrência para você, ela aparece aqui.
             </p>

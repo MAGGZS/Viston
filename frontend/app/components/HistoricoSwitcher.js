@@ -86,7 +86,7 @@ export function HistoricoSwitcher({ title, subtitle, onPrev, onNext, className =
           {title}
         </h2>
         {subtitle && (
-          <p key={subtitle} className="anim-fade-down" style={{ color: T.faint, fontSize: 11, marginTop: 2 }}>
+          <p key={subtitle} className="anim-fade-down" style={{ color: T.faint, fontSize: 12, marginTop: 2 }}>
             {subtitle}
           </p>
         )}

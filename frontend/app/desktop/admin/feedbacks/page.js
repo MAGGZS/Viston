@@ -10,6 +10,7 @@ import { Button, Badge, Modal, Skeleton } from '@/app/components/ui';
 import { useFeedbacks, useReviewFeedback, useDiscardFeedback } from '@/app/hooks/useApi';
 import { useToastStore } from '@/app/store/toast';
 import { T, R, W } from '@/app/lib/theme';
+import { CONTENT_ID } from '@/app/components/mobile/kit';
 
 /**
  * As três caixas do admin, na ordem em que o feedback anda.
@@ -78,11 +79,10 @@ function FeedbackCard({ feedback, status, index, onOpen, onReview, onDiscard, bu
   const clickable = status === 'MENSAGEM';
 
   return (
-    <article
-      className={`anim-fade-up anim-d${Math.min(index + 1, 6)} bg-card rounded-card p-5`}
-      style={clickable ? { cursor: 'pointer' } : undefined}
-      onClick={clickable ? onOpen : undefined}
-    >
+    // O cartão não é o alvo: ele já tem botões dentro (receber, descartar), e
+    // botão dentro de botão o teclado não alcança. Quem abre a leitura completa
+    // é o próprio texto, logo abaixo, que vira botão quando há o que abrir.
+    <article className={`anim-fade-up anim-d${Math.min(index + 1, 6)} bg-card rounded-card p-5`}>
       <div className="flex items-start justify-between gap-4">
         <Author author={feedback.author} />
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -93,19 +93,26 @@ function FeedbackCard({ feedback, status, index, onOpen, onReview, onDiscard, bu
         </div>
       </div>
 
-      <p
-        className="text-sm mt-4"
-        style={{
-          color: T.text, lineHeight: 1.6, whiteSpace: 'pre-wrap',
-          ...(clickable
-            ? { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
-            : {}),
-        }}
-      >
-        {feedback.message}
-      </p>
+      {clickable ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          className="text-sm mt-4 block w-full text-left cursor-pointer"
+          style={{
+            color: T.text, lineHeight: 1.6, whiteSpace: 'pre-wrap', background: 'none',
+            border: 'none', padding: 0, font: 'inherit',
+            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+          }}
+        >
+          {feedback.message}
+        </button>
+      ) : (
+        <p className="text-sm mt-4" style={{ color: T.text, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+          {feedback.message}
+        </p>
+      )}
 
-      <div className="flex gap-2 mt-5" onClick={(e) => e.stopPropagation()}>
+      <div className="flex gap-2 mt-5">
         {status === 'PENDENTE' && (
           <>
             <Button onClick={() => onReview('TAREFA')} disabled={busy}>
@@ -199,7 +206,7 @@ function TaskRow({ feedback, index, checked, onToggle, onMove, busy }) {
       </div>
 
       {checked ? (
-        <Button variant="ghost" onClick={onToggle} style={{ padding: '7px 12px', fontSize: 13 }}>
+        <Button variant="ghost" onClick={onToggle} style={{ padding: '7px 12px', fontSize: 14 }}>
           Desfazer
         </Button>
       ) : (
@@ -294,7 +301,7 @@ export default function AdminFeedbacksPage() {
     <RouteGuard roles={['ADMIN']}>
       <div className="hidden lg:flex min-h-screen bg-page">
         <AdminSidebar />
-        <main className="flex-1 p-8 overflow-auto">
+        <main id={CONTENT_ID} className="flex-1 p-8 overflow-auto">
           <div className="anim-fade-down flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-semibold text-white">Feedbacks</h1>
@@ -321,7 +328,7 @@ export default function AdminFeedbacksPage() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8,
                     padding: '9px 16px', borderRadius: R.control, border: 'none', cursor: 'pointer',
-                    fontFamily: T.display, fontSize: 13, fontWeight: active ? W.strong : W.body,
+                    fontFamily: T.display, fontSize: 14, fontWeight: active ? W.strong : W.body,
                     background: active ? T.accent : T.card,
                     color: active ? T.onAccent : T.mute,
                   }}
@@ -330,7 +337,7 @@ export default function AdminFeedbacksPage() {
                   {label}
                   {status === 'PENDENTE' && data?.pending > 0 && (
                     <span style={{
-                      minWidth: 18, padding: '0 5px', borderRadius: R.badge, fontSize: 11,
+                      minWidth: 18, padding: '0 5px', borderRadius: R.badge, fontSize: 12,
                       background: active ? 'rgba(0,0,0,0.18)' : T.accentSoft,
                       color: active ? T.onAccent : T.accent,
                     }}>

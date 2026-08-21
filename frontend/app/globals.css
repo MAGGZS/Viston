@@ -12,8 +12,9 @@
   --color-accent-hover: #FFD230;
   --color-accent-soft: rgba(245, 197, 24, 0.13);
   --color-ink: rgba(255, 255, 255, 0.96);
-  --color-mute: rgba(255, 255, 255, 0.44);
-  --color-faint: rgba(255, 255, 255, 0.26);
+  /* Ver app/lib/theme.js: 0,44 e 0,26 não passavam em 4,5:1 sobre o cartão. */
+  --color-mute: rgba(255, 255, 255, 0.68);
+  --color-faint: rgba(255, 255, 255, 0.52);
   --color-danger: #F87171;
   --color-danger-soft: rgba(248, 113, 113, 0.13);
 
@@ -156,6 +157,94 @@ input:-webkit-autofill:focus {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/**
+ * Botão do produto.
+ *
+ * O realce de hover era feito em JS (`onMouseEnter` mexendo no `style`), e isso
+ * custava três coisas: o teclado não ganhava realce nenhum (não existe
+ * `:focus-visible` em JS), o toque no telefone deixava o estado grudado — não há
+ * `mouseleave` num dedo que sai —, e a restauração dependia de um `??` que
+ * adivinhava a cor original. Em CSS, cada variante diz sua cor de hover em uma
+ * variável e o resto é uma regra só.
+ */
+.btn {
+  transition: background-color 0.15s ease, opacity 0.2s;
+}
+
+/* `:hover` só onde existe cursor: no toque, `hover` gruda depois do dedo sair. */
+@media (hover: hover) {
+  .btn:not(:disabled):hover { background-color: var(--btn-hover); }
+}
+
+/* O mesmo realce que o `Select` já dava — teclado enxerga onde está */
+.btn:focus-visible {
+  outline: 2px solid rgba(245, 197, 24, 0.6);
+  outline-offset: 2px;
+}
+
+/**
+ * "Pular para o conteúdo" — ver app/layout.js.
+ *
+ * Fora da tela até receber foco, e não `display: none`: o que está escondido
+ * assim não recebe foco, e o link nunca apareceria. É a primeira parada do Tab.
+ */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 12px 18px;
+  background: var(--color-accent);
+  color: #000;
+  font-weight: 600;
+  border-radius: 0 0 var(--radius-control) 0;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+/**
+ * Caixa de diálogo do produto.
+ *
+ * `<dialog>` aberto com `showModal()`, e não uma `<div>` com sobreposição. O que
+ * o elemento nativo traz de graça é justamente o que faltava: o leitor de tela
+ * anuncia que abriu um diálogo, o `Tab` fica preso dentro dele, `Escape` fecha,
+ * o resto da página vira inerte e o foco volta para o botão que abriu. Reproduzir
+ * isso à mão é o tipo de código que envelhece mal.
+ *
+ * O elemento entra na *top layer*: ele não se posiciona em relação a ancestral
+ * nenhum, então some junto a armadilha do `transform` (ver MPage e Select) — a
+ * caixa aberta de dentro de um cartão animado não fica mais presa e recortada
+ * ali. Caixa sobre caixa também empilha na ordem de abertura, sem z-index.
+ *
+ * Sem preenchimento de propósito: é o que faz o clique no fundo ser distinguível
+ * do clique na caixa (`e.target === dialog`). Quem desenha o miolo põe o próprio.
+ */
+.dialog {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-ink);
+  max-width: min(100vw - 32px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: visible;
+}
+
+/* O fundo entra e sai junto com a caixa — sem isso ele aparece de estalo */
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+  animation: fade-in 0.25s ease both;
+}
+
+.dialog.is-closing::backdrop { animation: fade-out 0.18s ease both; }
+
+/* Caixa que ocupa a tela inteira no telefone (o relatório do dia) */
+.dialog--full {
+  max-width: 100vw;
+  max-height: 100vh;
 }
 
 /**

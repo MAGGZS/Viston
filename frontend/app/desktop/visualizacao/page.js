@@ -16,6 +16,7 @@ import { useCalendar, useBuildingHistory, useMyBuildings } from '@/app/hooks/use
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { parseReportDate } from '@/app/lib/date';
 import { useAuthStore } from '@/app/store/auth';
+import { CONTENT_ID } from '@/app/components/mobile/kit';
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success', COMPLETED: 'success' };
@@ -78,7 +79,7 @@ export default function VisualizacaoPage() {
         </header>
 
         {/* Main */}
-        <main className="flex-1 p-8 overflow-auto flex flex-col">
+        <main id={CONTENT_ID} className="flex-1 p-8 overflow-auto flex flex-col">
           <div className="anim-fade-up mb-8">
             <h1 className="text-2xl font-semibold text-white">
               Olá, <span style={{ color: '#F5C518' }}>{user?.name ?? ''}</span>

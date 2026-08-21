@@ -89,7 +89,7 @@ export default function HomePage() {
             </div>
             <div>
               <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 17, color: '#000' }}>Nova vistoria</p>
-              <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginTop: 2 }}>Andar por andar, do topo ao subsolo</p>
+              <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 2 }}>Andar por andar, do topo ao subsolo</p>
             </div>
           </MCard>
         )}
@@ -99,7 +99,7 @@ export default function HomePage() {
             <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text, textAlign: 'center' }}>
               Nenhum prédio ainda
             </p>
-            <p style={{ color: M.mute, fontSize: 13, marginTop: 6, marginBottom: 18, lineHeight: 1.6, textAlign: 'center' }}>
+            <p style={{ color: M.mute, fontSize: 14, marginTop: 6, marginBottom: 18, lineHeight: 1.6, textAlign: 'center' }}>
               Peça a chave ao gestor do prédio e digite abaixo para se conectar.
             </p>
             <JoinBuildingForm />
@@ -132,7 +132,7 @@ export default function HomePage() {
                   <CalendarHeatmap heatmap={heatmap} month={month} year={year} onDayClick={(day, info) => setDayModal({ day, info })} />
                 )}
 
-                <p style={{ color: M.faint, fontSize: 11, marginTop: 12, textAlign: 'center' }}>
+                <p style={{ color: M.faint, fontSize: 12, marginTop: 12, textAlign: 'center' }}>
                   Toque num dia com marca para ver o relatório
                 </p>
               </div>

@@ -37,8 +37,8 @@ export function stampLabel(value) {
 function Fact({ label, children }) {
   return (
     <div>
-      <p style={{ color: T.mute, fontSize: 11 }}>{label}</p>
-      <div style={{ color: T.text, fontSize: 13, marginTop: 3, fontWeight: W.strong }}>{children}</div>
+      <p style={{ color: T.mute, fontSize: 12 }}>{label}</p>
+      <div style={{ color: T.text, fontSize: 14, marginTop: 3, fontWeight: W.strong }}>{children}</div>
     </div>
   );
 }
@@ -47,8 +47,8 @@ function Fact({ label, children }) {
 function NoteBlock({ label, children }) {
   return (
     <div style={{ background: T.chip, borderRadius: R.control, padding: '12px 14px' }}>
-      <p style={{ color: T.mute, fontSize: 11, marginBottom: 5 }}>{label}</p>
-      <p style={{ color: T.text, fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{children}</p>
+      <p style={{ color: T.mute, fontSize: 12, marginBottom: 5 }}>{label}</p>
+      <p style={{ color: T.text, fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{children}</p>
     </div>
   );
 }
@@ -87,7 +87,7 @@ export function OcorrenciaModal({ occurrence, open, onClose }) {
           </div>
 
           <div>
-            <p style={{ color: T.mute, fontSize: 11, marginBottom: 6 }}>O que está acontecendo</p>
+            <p style={{ color: T.mute, fontSize: 12, marginBottom: 6 }}>O que está acontecendo</p>
             <p style={{ color: T.text, fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
               {occurrence.description}
             </p>

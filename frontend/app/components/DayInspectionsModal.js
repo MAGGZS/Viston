@@ -1,8 +1,9 @@
 'use client';
+import { useId } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { X } from 'lucide-react';
-import { Spinner } from '@/app/components/ui';
+import { Dialog, Spinner } from '@/app/components/ui';
 import { InspectionPreview } from '@/app/components/InspectionPreview';
 import { useDayReport } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
@@ -18,6 +19,7 @@ import { T, R, W } from '@/app/lib/theme';
  */
 export function DayInspectionsModal({ open, onClose, day, info }) {
   const { mounted, closing } = useExitTransition(open);
+  const titleId = useId();
   // O dia e os relatórios ficam congelados na saída — a tela que abre zera o
   // estado no `onClose` e a caixa sairia vazia.
   const shownDay = useKeepWhileClosing(day, open);
@@ -35,19 +37,25 @@ export function DayInspectionsModal({ open, onClose, day, info }) {
   const dayLabel = shownDay ? format(new Date(`${shownDay}T12:00:00`), "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : '';
 
   return (
-    <div className={closing ? 'anim-fade-out' : 'anim-fade-in'} style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
-
-      <div className={closing ? 'anim-scale-out' : 'anim-scale-in'} style={{ position: 'relative', background: T.card, borderRadius: R.card, width: '100%', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+    <Dialog
+      onClose={onClose}
+      className={closing ? 'is-closing' : ''}
+      labelledBy={titleId}
+      style={{ width: 860, maxHeight: '85vh' }}
+    >
+      <div
+        className={closing ? 'anim-scale-out' : 'anim-scale-in'}
+        style={{ background: T.card, borderRadius: R.card, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
+      >
         {/* Cabeçalho */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '20px 24px 14px', borderBottom: `1px solid ${T.line}` }}>
           <div>
-            <h2 style={{ color: T.text, fontWeight: W.title, fontSize: 16, textTransform: 'capitalize' }}>{dayLabel}</h2>
+            <h2 id={titleId} style={{ color: T.text, fontWeight: W.title, fontSize: 16, textTransform: 'capitalize' }}>{dayLabel}</h2>
             <p style={{ color: T.mute, fontSize: 12, marginTop: 2 }}>
               {reports.length} vistoria{reports.length !== 1 ? 's' : ''} neste dia
             </p>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 4 }}>
+          <button onClick={onClose} aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 4 }}>
             <X size={18} />
           </button>
         </div>
@@ -57,6 +65,6 @@ export function DayInspectionsModal({ open, onClose, day, info }) {
           {report && <InspectionPreview report={report} reportId={anchorId} />}
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }

@@ -16,8 +16,23 @@ export const T = {
   /** Texto sobre dourado. Preto puro dá 12,6:1 — nenhum tom rebaixado chega perto. */
   onAccent: '#000',
   text: 'rgba(255,255,255,0.96)',
-  mute: 'rgba(255,255,255,0.44)',
-  faint: 'rgba(255,255,255,0.26)',
+  /**
+   * Texto secundário — e secundário não quer dizer opcional.
+   *
+   * `mute` carrega o e-mail da conta, a dica de cada linha do perfil, o nome do
+   * inspetor e a data no formulário de vistoria: informação que alguém precisa
+   * ler. A 0,44 ele dava ~3,6:1 sobre o cartão, abaixo dos 4,5:1 que a WCAG
+   * pede para texto. A 0,68 dá ~8,4:1, e continua sendo claramente o segundo
+   * nível de leitura.
+   */
+  mute: 'rgba(255,255,255,0.68)',
+  /**
+   * O nível mais apagado, e o único com regra de uso: separador, marca d'água,
+   * rótulo de apoio. Nunca texto que alguém precise ler de fato — para isso
+   * existe `mute`. A 0,52 ele passa em 4,5:1 mesmo assim, porque "de apoio"
+   * costuma virar "importante" com o tempo.
+   */
+  faint: 'rgba(255,255,255,0.52)',
   danger: '#F87171',
   dangerSoft: 'rgba(248,113,113,0.13)',
   display: 'var(--font-poppins), sans-serif',

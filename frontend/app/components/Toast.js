@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import { Dialog } from '@/app/components/ui';
 import { useToastStore } from '@/app/store/toast';
 import { X, CheckCircle, AlertCircle, Info, ChevronRight } from 'lucide-react';
 import { T, R, W } from '@/app/lib/theme';
@@ -18,6 +19,9 @@ function formatDetail(detail) {
 }
 
 function ErrorLogModal({ toast, onClose }) {
+  // Antes do `return null`: hook não pode ficar atrás de saída condicional.
+  const titleId = useId();
+
   if (!toast) return null;
   const detail = toast.detail;
   const lines = [];
@@ -56,16 +60,16 @@ function ErrorLogModal({ toast, onClose }) {
   if (lines.length === 1 && detail) lines.push(`Detalhe:\n${formatDetail(detail)}`);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)' }}
-      onClick={onClose}>
-      <div style={{ background: T.card, borderRadius: R.card, padding: 22, maxWidth: 560, width: '90%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', gap: 14 }}
-        onClick={e => e.stopPropagation()}>
+    // Mesma caixa de diálogo do resto do produto: Escape fecha, o Tab fica
+    // dentro, e o foco volta para o toast que a abriu.
+    <Dialog onClose={onClose} labelledBy={titleId} style={{ width: 560 }}>
+      <div style={{ background: T.card, borderRadius: R.card, padding: 22, maxHeight: '80vh', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <AlertCircle size={17} color={T.danger} />
-            <span style={{ color: T.danger, fontWeight: W.title, fontSize: 14 }}>Log do erro</span>
+            <span id={titleId} style={{ color: T.danger, fontWeight: W.title, fontSize: 14 }}>Log do erro</span>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, display: 'flex' }}>
+          <button onClick={onClose} aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, display: 'flex' }}>
             <X size={16} />
           </button>
         </div>
@@ -78,7 +82,7 @@ function ErrorLogModal({ toast, onClose }) {
           Copiar log
         </button>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -94,17 +98,28 @@ export function Toast() {
           const Icon = s.icon;
           const hasDetail = t.type === 'error' && t.detail;
           return (
+            // `role="status"` faz o leitor de tela anunciar o aviso quando ele
+            // chega — antes ele aparecia e sumia sem nada dizer.
+            //
+            // "Ver log" virou botão em vez de clique no aviso inteiro: como
+            // `<div onClick>` ele era alcançável só pelo mouse, e o aviso já
+            // carrega o botão de fechar dentro — botão dentro de botão o
+            // teclado não alcança.
             <div key={t.id}
-              style={{ pointerEvents: 'all', display: 'flex', alignItems: 'center', gap: 10, background: T.card, borderRadius: R.control, padding: '12px 16px', minWidth: 260, maxWidth: 420, animation: 'toast-in 0.25s ease', cursor: hasDetail ? 'pointer' : 'default' }}
-              onClick={() => hasDetail && setOpenLog(t)}>
+              role="status"
+              style={{ pointerEvents: 'all', display: 'flex', alignItems: 'center', gap: 10, background: T.card, borderRadius: R.control, padding: '12px 16px', minWidth: 260, maxWidth: 420, animation: 'toast-in 0.25s ease' }}>
               <Icon size={17} color={s.color} style={{ flexShrink: 0 }} />
               <span style={{ color: T.text, fontSize: 14, flex: 1 }}>{t.message}</span>
               {hasDetail && (
-                <span style={{ color: T.faint, fontSize: 11, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 2 }}>
+                <button
+                  type="button"
+                  onClick={() => setOpenLog(t)}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: T.faint, fontSize: 12, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 2, font: 'inherit' }}
+                >
                   ver log <ChevronRight size={12} />
-                </span>
+                </button>
               )}
-              <button onClick={(e) => { e.stopPropagation(); dismiss(t.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 2, display: 'flex' }}>
+              <button type="button" onClick={() => dismiss(t.id)} aria-label="Dispensar aviso" style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 2, display: 'flex' }}>
                 <X size={15} />
               </button>
             </div>

@@ -57,7 +57,7 @@ export function JoinBuildingForm({ align = 'left' }) {
         <input
           style={{
             flex: 1, background: T.chip, borderRadius: 16, padding: '11px 14px',
-            color: T.text, fontSize: 13, outline: 'none', fontWeight: W.title,
+            color: T.text, fontSize: 14, outline: 'none', fontWeight: W.title,
             letterSpacing: '0.18em', border: 'none', minWidth: 0,
           }}
           placeholder="ABCD-EFGH-JKMN"
@@ -70,8 +70,8 @@ export function JoinBuildingForm({ align = 'left' }) {
         <Button variant="secondary" onClick={handleSearch}>Buscar</Button>
       </div>
 
-      {isLoading && <p className="anim-fade-in" style={{ color: T.faint, fontSize: 13 }}>Buscando...</p>}
-      {error && <p className="anim-fade-in" style={{ color: T.danger, fontSize: 13 }}>Chave inválida ou prédio não encontrado</p>}
+      {isLoading && <p className="anim-fade-in" style={{ color: T.faint, fontSize: 14 }}>Buscando...</p>}
+      {error && <p className="anim-fade-in" style={{ color: T.danger, fontSize: 14 }}>Chave inválida ou prédio não encontrado</p>}
 
       {building && (
         <div className="anim-fade-up" style={{ background: T.chip, borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
