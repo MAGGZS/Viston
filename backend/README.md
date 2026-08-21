@@ -123,6 +123,13 @@ Cobertura mínima implementada:
 - Caixa de feedback: autoria na coluna certa (usuário ou gestor), destino do
   feedback e restrição das rotas de leitura ao ADMIN
   (`__tests__/feedback.test.ts`)
+- Ciclo de vida da sessão: geração de token, saída, troca de senha e exclusão
+  de conta (`__tests__/session.test.ts`)
+- Validação de data no filtro e conferência dos bytes da foto de perfil
+  (`__tests__/hardening.test.ts`)
+
+Tudo isso roda em cada push e em cada PR — ver `.github/workflows/ci.yml`, que
+faz `tsc --noEmit` + `npm test` no backend e `eslint` + `next build` no frontend.
 
 ---
 
@@ -184,13 +191,62 @@ conferida no lugar errado.
 (~59 bits). Só aparece em respostas para ADMIN; as demais rotas devolvem o
 prédio pelos campos públicos (`id`, `name`, `description`).
 
-**Limites por IP.** 300 req/min no geral; 20 tentativas por 15 min em `/auth/*`
-(sucesso não conta); 60/h no cadastro, no `lookup` de chave e no pedido de
-acesso.
+**Sessão.** O access token dura 15 minutos e não consulta o banco. O refresh
+token dura 7 dias e carrega `tv`, a geração das sessões da conta
+(`users.token_version` / `managers.token_version`): sair (`POST /auth/logout`),
+trocar a senha e excluir a conta incrementam a coluna, e todo refresh token
+emitido antes disso para de valer na hora. Token antigo, sem `tv`, vale como
+geração 0 — a migration não desloga ninguém.
+
+**Senhas.** bcrypt com custo 12 (OWASP). Hash gravado com custo menor continua
+válido e é refeito no primeiro login que der certo, sem pedir nada ao usuário.
+
+**Envio duplicado.** `POST /inspections` aceita o cabeçalho `Idempotency-Key`.
+O app gera a chave quando a vistoria começa, guarda junto do rascunho e a manda
+no envio: toque duplo ou retry de rede devolvem o relatório que já existe, em
+vez de criar um segundo. O caminho não é um índice único em
+(prédio, inspetor, dia) — duas vistorias do mesmo prédio no mesmo dia pelo mesmo
+inspetor são legítimas, e a planilha do dia existe justamente para juntá-las.
+
+**Planilha fora da resposta.** `submit` responde assim que grava o relatório; a
+planilha do dia é montada em seguida (`setImmediate`). Numa vistoria de vinte
+andares ela levava segundos, e o inspetor ficava com a tela parada em 4G. Se o
+processo morrer no meio — no plano gratuito do Render a instância dorme —, o
+relatório fica sem planilha e `POST /inspections/:id/excel` a refaz; o app já
+chama essa rota sozinho quando o download não acha o arquivo.
+
+**Planilhas.** O bucket `SUPABASE_BUCKET_EXCEL` é **privado**. A coluna
+`inspection_reports.excel_path` guarda o caminho do objeto, não a URL, e
+`GET /inspections/:id/excel` confere o vínculo com o prédio antes de assinar uma
+URL de 5 minutos. Nenhuma listagem devolve o caminho — só `has_excel`. O bucket
+de fotos segue público de propósito: o avatar aparece em `<img>` em dezenas de
+telas, e URL assinada expiraria com a imagem já na página.
+
+**Limites.** 300 req/min por IP no geral; 20 tentativas por 15 min em `/auth/*`
+(sucesso não conta), chaveadas por **IP + e-mail** — só por IP, um escritório
+inteiro atrás de um NAT dividia a mesma cota e um ataque distribuído tinha uma
+cota por máquina; 60/h no cadastro, no `lookup` de chave e no pedido de acesso.
+
+**Log.** `pino` com id por requisição (`pino-http`). `console.error` solto no
+painel do Render não dizia de qual chamada cada linha era — e quando aparece um
+500, o que interessa é o que veio antes dele na mesma requisição. `redact`
+esconde `Authorization`, senha, hash e os tokens: log é o lugar clássico onde
+essas coisas vazam, porque ninguém espera que vazem ali. `LOG_LEVEL` sobrescreve
+o nível (padrão: `info` em produção, `debug` fora).
+
+Falta o passo seguinte, que depende de uma conta externa: um coletor de erros
+(Sentry ou equivalente) pendurado no ramo 500 do `errorHandler`. Hoje um 500 em
+produção só aparece se alguém olhar o log do Render.
+
+**Saúde.** `/health` é liveness — o processo está de pé. `/health/ready` é
+readiness: faz `SELECT 1` e responde 503 se o banco não atender. São separados
+de propósito: checar o banco no liveness faria uma queda do Postgres virar um
+ciclo de reinícios que não conserta nada.
 
 **Cabeçalhos.** `helmet` com CSP `default-src 'none'` (a API só devolve JSON),
 `frame-ancestors 'none'`, `Referrer-Policy: no-referrer` e `x-powered-by`
 desligado. `trust proxy` em 1 para o rate limit enxergar o IP real no Render.
+O frontend tem CSP própria em `next.config.mjs` — é lá que o token vive.
 
 ---
 
@@ -288,10 +344,28 @@ Configure todas as variáveis do `.env.example` com os valores de produção. Ve
 | `SUPABASE_SERVICE_ROLE_KEY` | chave local do `supabase start` | service_role key do painel Supabase |
 | `JWT_SECRET` | qualquer string | string aleatória 64+ chars |
 | `JWT_REFRESH_SECRET` | qualquer string | string aleatória 64+ chars (diferente do JWT_SECRET) |
-| `FRONTEND_URL` | `http://localhost:5173` | URL da Vercel (ex: `https://viston.vercel.app`) |
+| `FRONTEND_URL` | `http://localhost:5173` | URL da Vercel (ex: `https://viston.vercel.app`) — **obrigatória em produção**: sem ela o boot falha, em vez de o CORS barrar tudo em silêncio |
 | `NODE_ENV` | `development` | `production` |
+| `LOG_LEVEL` | opcional (`debug`) | opcional (`info`) |
+
+Do lado da Vercel, `NEXT_PUBLIC_API_URL` passa a valer para todo host que não
+seja o domínio de produção. Sem ela, cada pré-visualização de branch batia na
+API de produção e escrevia dados reais.
 
 > Nenhuma alteração de código é necessária — apenas substituição das variáveis de ambiente.
+
+> **Bucket das planilhas.** `SUPABASE_BUCKET_EXCEL` precisa estar marcado como
+> **privado** no painel do Supabase (Storage → o bucket → Make private). A API
+> assina a URL na hora do download; enquanto o bucket for público, qualquer link
+> que alguém já tenha guardado continua abrindo sem autenticação. Os arquivos
+> não precisam ser movidos — o caminho dentro do bucket é o mesmo.
+
+**Backup.** O Supabase faz backup automático do Postgres conforme o plano —
+diário no gratuito, com retenção de 7 dias, e point-in-time nos planos pagos.
+A restauração é feita pelo painel (Database → Backups) e substitui o banco
+inteiro, não linhas soltas. O que **não** está coberto: os buckets do Storage
+(planilhas e fotos), que não entram no backup do banco. Para uma cópia dos dois,
+`supabase db dump` mais uma cópia dos buckets, guardados fora do Supabase.
 
 > **Região do Render:** o `render.yaml` usa `frankfurt` por ser a região mais próxima do Supabase em `sa-east-1` (São Paulo). Se `frankfurt` não estiver disponível no seu plano, troque para `oregon` — funciona, mas adiciona ~150ms de latência por query.
 
@@ -302,6 +376,8 @@ Configure todas as variáveis do `.env.example` com os valores de produção. Ve
 ```
 POST   /auth/login
 POST   /auth/refresh
+POST   /auth/logout                        (autenticado — encerra as sessões da conta)
+GET    /auth/me                            (autenticado)
 
 POST   /users                              (ADMIN)
 GET    /users                              (ADMIN)

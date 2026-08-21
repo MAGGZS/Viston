@@ -29,6 +29,14 @@ export const managerRepository = {
     return prisma.manager.update({ where: { id }, data });
   },
 
+  /** Derruba as sessões abertas da conta — ver `userRepository.bumpTokenVersion`. */
+  bumpTokenVersion(id: string) {
+    return prisma.manager.update({
+      where: { id },
+      data: { token_version: { increment: 1 } },
+    });
+  },
+
   findAll(page: number, limit: number) {
     const skip = (page - 1) * limit;
     return Promise.all([

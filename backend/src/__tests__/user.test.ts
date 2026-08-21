@@ -6,6 +6,7 @@ import { submitInspectionSchema } from '../validators/inspection.validator';
 import { createUserSchema } from '../validators/auth.validator';
 import { UserStatus } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { PASSWORD_ROUNDS } from '../utils/password';
 
 jest.mock('../repositories/user.repository');
 // O serviço consulta os vínculos antes de apagar uma conta: prédio não pode
@@ -46,7 +47,7 @@ describe('userService.create', () => {
       password: 'Senha@123',
     });
 
-    expect(mockBcrypt.hash).toHaveBeenCalledWith('Senha@123', 10);
+    expect(mockBcrypt.hash).toHaveBeenCalledWith('Senha@123', PASSWORD_ROUNDS);
     expect(mockUserRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({ password_hash: '$2b$10$hashed' })
     );

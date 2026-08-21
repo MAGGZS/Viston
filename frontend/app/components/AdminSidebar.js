@@ -18,7 +18,7 @@ const items = [
 const itemBase = {
   display: 'flex', alignItems: 'center', gap: 10,
   padding: '10px 12px', borderRadius: 14,
-  fontFamily: T.display, fontSize: 13, textDecoration: 'none',
+  fontFamily: T.display, fontSize: 14, textDecoration: 'none',
   transition: 'background-color 0.15s, color 0.15s',
 };
 
@@ -39,7 +39,7 @@ function PendingBadge({ count, active }) {
       // dourado não se lê, e o número é justamente o que precisa ser visto.
       background: active ? 'rgba(0,0,0,0.18)' : T.accent,
       color: T.onAccent,
-      fontSize: 11, fontWeight: W.strong, textAlign: 'center', ...NUM,
+      fontSize: 12, fontWeight: W.strong, textAlign: 'center', ...NUM,
     }}>
       {count}
     </span>
@@ -84,7 +84,7 @@ export function AdminSidebar() {
 
       <div style={{ padding: '0 12px 22px' }}>
         <button
-          onClick={() => { logout(); router.replace('/login'); }}
+          onClick={async () => { await logout(); router.replace('/login'); }}
           style={{ ...itemBase, fontWeight: W.body, color: T.mute, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' }}
           onMouseEnter={e => { e.currentTarget.style.background = T.chip; }}
           onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}

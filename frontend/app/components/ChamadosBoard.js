@@ -55,7 +55,7 @@ function TicketRow({ ticket, active, onClick, group, className = '' }) {
       onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = T.card; }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{ color: T.text, fontSize: 13, fontWeight: W.title, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ color: T.text, fontSize: 14, fontWeight: W.title, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {ticket.floor?.label} · {labelOf(MAINTENANCE_TYPES, ticket.maintenance_type)}
         </span>
         <Badge variant={PRIORITY_VARIANT[ticket.priority] ?? 'default'}>
@@ -70,7 +70,7 @@ function TicketRow({ ticket, active, onClick, group, className = '' }) {
         {ticket.description}
       </p>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: T.faint, fontSize: 11 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: T.faint, fontSize: 12 }}>
         {/* Na fila do que espera aceite, a data que importa é a do
             encaminhamento: é ela que diz há quanto tempo ninguém respondeu. */}
         <span>
@@ -91,8 +91,8 @@ function TicketRow({ ticket, active, onClick, group, className = '' }) {
 function Fact({ label, children }) {
   return (
     <div>
-      <p style={{ color: T.mute, fontSize: 11 }}>{label}</p>
-      <div style={{ color: T.text, fontSize: 13, marginTop: 3, fontWeight: W.strong }}>{children}</div>
+      <p style={{ color: T.mute, fontSize: 12 }}>{label}</p>
+      <div style={{ color: T.text, fontSize: 14, marginTop: 3, fontWeight: W.strong }}>{children}</div>
     </div>
   );
 }
@@ -181,18 +181,18 @@ function MaintenanceBox({ ticket }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <span style={{ color: T.mute, fontSize: 11 }}>Manutenção necessária</span>
+        <span style={{ color: T.mute, fontSize: 12 }}>Manutenção necessária</span>
         <textarea
           rows={3}
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="O que precisa ser feito, o que ficou combinado…"
-          style={{ background: T.chip, border: 'none', borderRadius: R.control, padding: '12px 14px', color: T.text, fontSize: 13, outline: 'none', width: '100%', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }}
+          style={{ background: T.chip, border: 'none', borderRadius: R.control, padding: '12px 14px', color: T.text, fontSize: 14, outline: 'none', width: '100%', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }}
         />
       </label>
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <span style={{ color: T.mute, fontSize: 11 }}>Valor (R$)</span>
+        <span style={{ color: T.mute, fontSize: 12 }}>Valor (R$)</span>
         <input
           type="number"
           min="0"
@@ -200,7 +200,7 @@ function MaintenanceBox({ ticket }) {
           value={cost}
           onChange={(e) => setCost(e.target.value)}
           placeholder="0,00"
-          style={{ background: T.chip, border: 'none', borderRadius: R.control, padding: '11px 14px', color: T.text, fontSize: 13, outline: 'none', width: '100%' }}
+          style={{ background: T.chip, border: 'none', borderRadius: R.control, padding: '11px 14px', color: T.text, fontSize: 14, outline: 'none', width: '100%' }}
         />
       </label>
 
@@ -292,7 +292,7 @@ function TicketDetail({ ticket, buildingId, group }) {
       </div>
 
       <div>
-        <p style={{ color: T.mute, fontSize: 11, marginBottom: 6 }}>O que está acontecendo</p>
+        <p style={{ color: T.mute, fontSize: 12, marginBottom: 6 }}>O que está acontecendo</p>
         <p style={{ color: T.text, fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
           {ticket.description}
         </p>
@@ -343,7 +343,7 @@ function TicketDetail({ ticket, buildingId, group }) {
       )}
 
       {group === 'ANDAMENTO' && ticket.maintenance_cost !== null && (
-        <p style={{ color: T.faint, fontSize: 11 }}>
+        <p style={{ color: T.faint, fontSize: 12 }}>
           Valor lançado: {formatCost(ticket.maintenance_cost)}
         </p>
       )}
@@ -419,7 +419,7 @@ export function ChamadosBoard({ buildingId, group }) {
         {selected ? (
           <TicketDetail key={selected.id} ticket={selected} buildingId={buildingId} group={group} />
         ) : (
-          <div className="anim-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.mute, fontSize: 13, gap: 8 }}>
+          <div className="anim-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.mute, fontSize: 14, gap: 8 }}>
             <ArrowRight size={15} /> Escolha uma ocorrência à esquerda
           </div>
         )}

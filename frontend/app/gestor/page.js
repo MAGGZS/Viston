@@ -11,6 +11,7 @@ import { useManagedBuildings, useDeleteBuilding } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { formatShareKey } from '@/app/lib/shareKey';
 import { T, R, W } from '@/app/lib/theme';
+import { CONTENT_ID } from '@/app/components/mobile/kit';
 
 const CARD_WIDTH = 300;
 
@@ -53,7 +54,7 @@ function CreateTile({ onClick, standalone, className = '' }) {
         Criar prédio
       </span>
       {standalone && (
-        <span style={{ color: T.mute, fontSize: 13, maxWidth: 220, lineHeight: 1.5 }}>
+        <span style={{ color: T.mute, fontSize: 14, maxWidth: 220, lineHeight: 1.5 }}>
           Cadastre o prédio e os andares para começar a receber vistorias
         </span>
       )}
@@ -75,7 +76,7 @@ function BuildingCard({ building, onOpen, onShare, onEdit, onDelete, className =
           {building.name}
         </p>
         {building.description && (
-          <p style={{ color: T.mute, fontSize: 13, marginTop: 6, lineHeight: 1.5 }}>{building.description}</p>
+          <p style={{ color: T.mute, fontSize: 14, marginTop: 6, lineHeight: 1.5 }}>{building.description}</p>
         )}
       </div>
 
@@ -147,7 +148,7 @@ export default function GestorHomePage() {
       <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', flexDirection: 'column' }}>
         <GestorHeader />
 
-        <main style={{
+        <main id={CONTENT_ID} style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center', padding: '48px 24px 72px', gap: 28,
         }}>

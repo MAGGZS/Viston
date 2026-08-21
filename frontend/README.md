@@ -17,10 +17,27 @@ npm run dev
 
 Sobe em <http://localhost:3001> (a porta 3000 fica livre para outros serviços).
 
-A URL da API é resolvida sozinha em [`app/lib/api.js`](app/lib/api.js): página
-servida de `localhost` aponta para `http://localhost:4000`; qualquer outro host
-aponta para a API de produção. Só defina `NEXT_PUBLIC_API_URL` para sobrescrever
-essa lógica — veja [`.env.example`](.env.example).
+A URL da API sai de `NEXT_PUBLIC_API_URL` (veja [`.env.example`](.env.example)).
+Sem ela, [`app/lib/api.js`](app/lib/api.js) resolve só dois casos: `localhost`
+aponta para `http://localhost:4000`, e o domínio de produção aponta para a API
+de produção. **Qualquer outro host falha alto**, de propósito: antes, "host que
+não é localhost" bastava para cair em produção, e toda pré-visualização de
+branch na Vercel escrevia dados reais.
+
+## Testes
+
+```bash
+npm test          # jest + testing-library + jest-axe
+npm run test:watch
+```
+
+O que está coberto: a caixa de diálogo (`role`, nome, Escape), o campo com erro
+(`aria-invalid`, `role="alert"`), o droplist pelo teclado, a guarda de rota, o
+formulário de um andar, o rascunho da vistoria, a resolução da URL da API e o
+redirecionamento por papel. `jest-axe` roda junto nos componentes compartilhados.
+
+Tudo isso, mais o lint e o build, roda em cada push e em cada PR — ver
+`.github/workflows/ci.yml`.
 
 ## Estrutura
 
@@ -33,7 +50,7 @@ app/
 ├── historico/  perfil/
 ├── desktop/               # painel admin e tela de visualização
 ├── components/            # UI compartilhada (ui/, mobile/kit.js)
-├── hooks/                 # useApi (TanStack Query), useMediaQuery
+├── hooks/                 # useApi (TanStack Query), useMediaQuery, prédio ativo
 ├── lib/                   # api, providers, site, helpers de data e chave
 └── store/                 # zustand: auth e toast
 ```
@@ -45,9 +62,16 @@ app/
 | `ADMIN` | Gerencia prédios, andares, membros e solicitações; vê todos os prédios |
 | `INSPECTOR` | Realiza vistorias nos prédios em que está vinculado |
 | `VIEWER` | Só consulta, e apenas pelo desktop |
+| `MODERADOR` | Recebe os chamados abertos pelas vistorias, encaminha e fecha |
+| `RESPONSAVEL` | Atende o chamado encaminhado e informa quando terminou |
 
-Todo cadastro novo nasce como `VIEWER` e precisa ser aprovado em um prédio (pela
+Todo cadastro novo nasce sem vínculo e precisa ser aprovado em um prédio (pela
 chave de compartilhamento) antes de ter utilidade.
+
+Os papéis são **por prédio**: a mesma conta pode ser inspetora de um e
+visualizadora de outro. Quem tem mais de um vínculo escolhe de qual prédio a
+tela está falando (ver `hooks/useActiveBuilding.js`) — a escolha fica guardada
+no aparelho.
 
 ## SEO e metadata
 

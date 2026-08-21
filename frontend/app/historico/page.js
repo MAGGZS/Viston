@@ -9,20 +9,23 @@ import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
+import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
-import { M, MPage, MTopBar, MRound, MCard, MButtonGhost } from '@/app/components/mobile/kit';
+import { M, MPage, MTopBar, MRound, MCard, MButtonGhost, CONTENT_ID } from '@/app/components/mobile/kit';
 import { HistoricoSwitcher, OcorrenciasList, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { Badge, Button, Modal } from '@/app/components/ui';
-import { useInspections, useCalendar, useMyBuildings, useBuildingHistory } from '@/app/hooks/useApi';
+import { useInspections, useCalendar, useBuildingHistory } from '@/app/hooks/useApi';
 import { useIsDesktop } from '@/app/hooks/useMediaQuery';
+import { useExcelDownload } from '@/app/hooks/useExcelDownload';
+import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
 import { parseReportDate } from '@/app/lib/date';
 import { useAuthStore } from '@/app/store/auth';
 
 const S = {
   page: { minHeight: '100vh', background: '#0B0B0B' },
-  label: { fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.44)' },
-  input: { background: '#232323', border: 'none', borderRadius: 16, padding: '11px 14px', color: 'rgba(255,255,255,0.96)', fontSize: 14, outline: 'none', width: '100%' },
+  label: { fontSize: 12, fontWeight: 400, color: 'rgba(255,255,255,0.68)' },
+  input: { background: '#232323', border: 'none', borderRadius: 16, padding: '11px 14px', color: 'rgba(255,255,255,0.96)', fontSize: 16, outline: 'none', width: '100%' },
 };
 
 function NoPredioState({ isMobile }) {
@@ -30,7 +33,7 @@ function NoPredioState({ isMobile }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '80px 0' : '120px 0', textAlign: 'center' }}>
       <p style={{ fontSize: 40, marginBottom: 16 }}>🏢</p>
       <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>Você não tem ligação a nenhum prédio</p>
-      <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 13, lineHeight: 1.6, marginBottom: 20 }}>Peça a chave ao gestor do prédio e digite abaixo para se conectar.</p>
+      <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>Peça a chave ao gestor do prédio e digite abaixo para se conectar.</p>
       <div style={{ width: '100%', maxWidth: 380 }}>
         <JoinBuildingForm />
       </div>
@@ -56,12 +59,12 @@ function MonthGrid({ heatmap, year, month, onDayClick, compact = false }) {
   return (
     <div>
       {!compact && (
-        <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 11, fontWeight: 600, marginBottom: 8, textTransform: 'capitalize' }}>
+        <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 12, fontWeight: 600, marginBottom: 8, textTransform: 'capitalize' }}>
           {format(new Date(year, month - 1), 'MMMM', { locale: ptBR })}
         </p>
       )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap, marginBottom: gap }}>
-        {DAYS_LABEL.map((d, i) => <span key={i} style={{ textAlign: 'center', fontSize: 9, color: 'rgba(255,255,255,0.26)' }}>{d}</span>)}
+        {DAYS_LABEL.map((d, i) => <span key={i} style={{ textAlign: 'center', fontSize: 9, color: 'rgba(255,255,255,0.52)' }}>{d}</span>)}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap }}>
         {blanks.map((_, i) => <div key={`b${i}`} />)}
@@ -87,31 +90,34 @@ function MonthGrid({ heatmap, year, month, onDayClick, compact = false }) {
 
 // Clicar no card abre o relatório completo da vistoria
 function InspectionCard({ inspection, onPreview, onOpenReport, className = '' }) {
+  const { download, pendingId } = useExcelDownload();
   const totalRecords = inspection.floor_form_entries?.reduce(
     (sum, e) => sum + (e._count?.maintenance_records ?? 0), 0
   ) ?? 0;
 
   return (
+    // `role="button"` saiu do cartão. Ele embrulhava outros botões (baixar,
+    // prévia), e botão dentro de botão o teclado não alcança — o `Tab` entra num
+    // e não sai. Quem abre o relatório agora é a própria data, que virou botão:
+    // o nome do que se abre é o rótulo dele, sem precisar de `aria-label`.
     <div
-      onClick={() => onOpenReport(inspection.id)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={e => e.key === 'Enter' && onOpenReport(inspection.id)}
-      className={className}
-      style={{ background: M.card, borderRadius: 26, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer', transition: 'background 0.15s' }}
-      onMouseEnter={e => { e.currentTarget.style.background = M.chip; }}
-      onMouseLeave={e => { e.currentTarget.style.background = M.card; }}
+      className={`profile-row ${className}`}
+      style={{ background: M.card, borderRadius: 26, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-        <div>
+        <button
+          type="button"
+          onClick={() => onOpenReport(inspection.id)}
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', font: 'inherit', flex: 1, minWidth: 0 }}
+        >
           <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14 }}>
             {format(parseReportDate(inspection.date), "d 'de' MMMM yyyy", { locale: ptBR })}
           </p>
-          <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 12, marginTop: 2 }}>
+          <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 12, marginTop: 2 }}>
             {inspection.inspector?.name} · {totalRecords} ocorrência{totalRecords !== 1 ? 's' : ''}
           </p>
-        </div>
-        <ChevronRight size={18} color="rgba(255,255,255,0.26)" />
+        </button>
+        <ChevronRight size={18} color="rgba(255,255,255,0.52)" style={{ flexShrink: 0 }} />
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {inspection.floor_form_entries?.map(e => (
@@ -121,16 +127,19 @@ function InspectionCard({ inspection, onPreview, onOpenReport, className = '' })
         ))}
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
-        {inspection.excel_url && (
-          <a href={inspection.excel_url} target="_blank" rel="noreferrer" style={{ flex: 1 }} onClick={e => e.stopPropagation()}>
-            <Button variant="secondary" style={{ width: '100%', fontSize: 12, padding: '8px 12px' }}>
-              <FileSpreadsheet size={13} /> Baixar planilha
-            </Button>
-          </a>
+        {inspection.has_excel && (
+          <Button
+            variant="secondary"
+            style={{ flex: 1, fontSize: 12, padding: '8px 12px' }}
+            loading={pendingId === inspection.id}
+            onClick={() => download(inspection.id)}
+          >
+            <FileSpreadsheet size={13} /> Baixar planilha
+          </Button>
         )}
         {onPreview && (
           <Button variant="secondary" style={{ flex: 1, fontSize: 12, padding: '8px 12px' }}
-            onClick={e => { e.stopPropagation(); onPreview(inspection.id); }}>
+            onClick={() => onPreview(inspection.id)}>
             <Eye size={13} /> Prévia
           </Button>
         )}
@@ -149,11 +158,16 @@ function InspectionCard({ inspection, onPreview, onOpenReport, className = '' })
  * motivo — um botão de largura inteira por cartão dominava a rolagem.
  */
 function MobileInspectionCard({ inspection, onOpenReport, className = '' }) {
+  const { download, pendingId } = useExcelDownload();
   const entries = inspection.floor_form_entries ?? [];
   const ocorrencias = entries.reduce((sum, e) => sum + (e._count?.maintenance_records ?? 0), 0);
 
   return (
-    <MCard onClick={() => onOpenReport(inspection.id)} className={className} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    // O cartão não é o alvo: ele já tem um botão dentro (baixar planilha), e
+    // botão dentro de botão é marcação inválida — o teclado deixaria de alcançar
+    // um dos dois. Quem abre o relatório é a seta, que virou botão de verdade,
+    // com alvo grande o bastante para o dedo.
+    <MCard className={className} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 15, color: M.text, textTransform: 'capitalize' }}>
@@ -165,24 +179,30 @@ function MobileInspectionCard({ inspection, onOpenReport, className = '' }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-          {inspection.excel_url && (
-            <a
-              href={inspection.excel_url}
-              target="_blank"
-              rel="noreferrer"
-              onClick={e => e.stopPropagation()}
+          {inspection.has_excel && (
+            <button
+              type="button"
+              onClick={() => download(inspection.id)}
+              disabled={pendingId === inspection.id}
               aria-label="Baixar planilha"
               title="Baixar planilha"
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 36, height: 36, borderRadius: 12,
+                width: 36, height: 36, borderRadius: 12, border: 'none', cursor: 'pointer',
                 background: M.chip, color: M.accent, flexShrink: 0,
               }}
             >
               <Download size={16} />
-            </a>
+            </button>
           )}
-          <ChevronRight size={18} color={M.faint} />
+          <button
+            type="button"
+            onClick={() => onOpenReport(inspection.id)}
+            aria-label="Abrir relatório do dia"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: M.faint, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 12 }}
+          >
+            <ChevronRight size={18} />
+          </button>
         </div>
       </div>
 
@@ -244,10 +264,15 @@ export default function HistoricoPage() {
 
   const [filters, setFilters] = useState({ date_from: '', date_to: '' });
 
-  // Prédios do usuário (para mobile)
-  const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
+  // Prédios do usuário (para mobile). Com dois vínculos, quem escolhe é a
+  // pessoa — antes o histórico mostrava só o do primeiro da lista.
+  const {
+    buildings: myBuildings,
+    buildingId: myBuildingId,
+    setActive: setActiveBuilding,
+    isLoading: buildingsLoading,
+  } = useActiveBuilding();
   const hasBuilding = myBuildings.length > 0;
-  const myBuildingId = myBuildings[0]?.building_id;
 
   // Desktop: todas as inspeções (admin vê tudo)
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInspections(
@@ -268,7 +293,7 @@ export default function HistoricoPage() {
       {!(isAdmin ? isLoading : buildingLoading) && (isAdmin ? allInspections : buildingInspections).length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
           <p className="anim-pop-in" style={{ fontSize: 36, marginBottom: 12 }}>📋</p>
-          <p className="anim-fade-up anim-d1" style={{ color: 'rgba(255,255,255,0.26)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
+          <p className="anim-fade-up anim-d1" style={{ color: 'rgba(255,255,255,0.52)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
         </div>
       )}
       {(isAdmin ? allInspections : buildingInspections).map((i, idx) => (
@@ -290,13 +315,13 @@ export default function HistoricoPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={prevCal} style={{ background: '#232323', borderRadius: 10, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.44)', display: 'flex' }}><ChevronLeft size={16} /></button>
+          <button onClick={prevCal} style={{ background: '#232323', borderRadius: 10, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.68)', display: 'flex' }}><ChevronLeft size={16} /></button>
           <span key={navLabel} className="anim-fade-in" style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14, textTransform: 'capitalize', minWidth: 160, textAlign: 'center' }}>{navLabel}</span>
-          <button onClick={nextCal} style={{ background: '#232323', borderRadius: 10, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.44)', display: 'flex' }}><ChevronRight size={16} /></button>
+          <button onClick={nextCal} style={{ background: '#232323', borderRadius: 10, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.68)', display: 'flex' }}><ChevronRight size={16} /></button>
         </div>
         <div style={{ display: 'flex', background: '#232323', borderRadius: 12, padding: 3, gap: 2 }}>
           {MODES.map(m => (
-            <button key={m} onClick={() => setCalMode(m)} style={{ padding: '5px 12px', borderRadius: 9, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: calMode === m ? '#F5C518' : 'transparent', color: calMode === m ? '#000' : 'rgba(255,255,255,0.44)', transition: 'all 0.2s' }}>{m}</button>
+            <button key={m} onClick={() => setCalMode(m)} style={{ padding: '5px 12px', borderRadius: 9, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: calMode === m ? '#F5C518' : 'transparent', color: calMode === m ? '#000' : 'rgba(255,255,255,0.68)', transition: 'all 0.2s' }}>{m}</button>
           ))}
         </div>
       </div>
@@ -312,11 +337,11 @@ export default function HistoricoPage() {
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ color: 'rgba(255,255,255,0.26)', fontSize: 11 }}>Menos</span>
+        <span style={{ color: 'rgba(255,255,255,0.52)', fontSize: 12 }}>Menos</span>
         {['#232323', '#2E2A12', '#6B5A00', '#A88A00', '#F5C518'].map((c, i) => (
           <div key={i} style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
         ))}
-        <span style={{ color: 'rgba(255,255,255,0.26)', fontSize: 11 }}>Mais</span>
+        <span style={{ color: 'rgba(255,255,255,0.52)', fontSize: 12 }}>Mais</span>
       </div>
     </div>
   );
@@ -326,12 +351,12 @@ export default function HistoricoPage() {
       <div className="anim-fade-down" style={{ padding: '32px 32px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h1 style={{ color: 'rgba(255,255,255,0.96)', fontSize: 22, fontWeight: 600 }}>Histórico</h1>
         {!isAdmin && hasBuilding && (
-          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: '#232323', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.44)', cursor: 'pointer' }}>
+          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: '#232323', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.68)', cursor: 'pointer' }}>
             <SlidersHorizontal size={15} />
           </button>
         )}
         {isAdmin && (
-          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: '#232323', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.44)', cursor: 'pointer' }}>
+          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: '#232323', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.68)', cursor: 'pointer' }}>
             <SlidersHorizontal size={15} />
           </button>
         )}
@@ -385,12 +410,20 @@ export default function HistoricoPage() {
       ) : !hasBuilding ? (
         <MCard className="anim-fade-up anim-d1" style={{ textAlign: 'center', padding: '40px 20px' }}>
           <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text }}>Nenhum prédio vinculado</p>
-          <p style={{ color: M.mute, fontSize: 13, marginTop: 6, lineHeight: 1.6 }}>
+          <p style={{ color: M.mute, fontSize: 14, marginTop: 6, lineHeight: 1.6 }}>
             Peça a chave ao administrador e solicite acesso pelo perfil.
           </p>
         </MCard>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Só aparece para quem tem mais de um vínculo — ver BuildingSwitcher. */}
+          <BuildingSwitcher
+            buildings={myBuildings}
+            buildingId={myBuildingId}
+            onChange={setActiveBuilding}
+            style={{ width: '100%' }}
+          />
+
           <HistoricoSwitcher
             className="anim-fade-down"
             title={historico.title}
@@ -442,7 +475,7 @@ export default function HistoricoPage() {
           isAdmin ? (
             <div style={{ display: 'flex', minHeight: '100vh' }}>
               <AdminSidebar />
-              <main style={{ flex: 1, overflowY: 'auto' }}>{desktopContent}</main>
+              <main id={CONTENT_ID} style={{ flex: 1, overflowY: 'auto' }}>{desktopContent}</main>
             </div>
           ) : (
             desktopContent

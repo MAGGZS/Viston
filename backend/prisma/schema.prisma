@@ -140,6 +140,11 @@ model User {
   role          AccountRole @default(NONE)
   avatar_url    String?
   status        UserStatus  @default(ACTIVE)
+  /// Geração das sessões desta conta. O refresh token carrega o número que
+  /// valia quando foi emitido; incrementar aqui derruba todos os que já
+  /// existem — é o que faz sair, trocar de senha e excluir a conta valerem de
+  /// verdade, em vez de só apagar o token do navegador de quem saiu.
+  token_version Int         @default(0)
   created_at    DateTime    @default(now())
   updated_at    DateTime    @updatedAt
 
@@ -173,6 +178,8 @@ model Manager {
   password_hash String
   avatar_url    String?
   status        UserStatus @default(ACTIVE)
+  /// Mesma geração de sessões da conta de usuário — ver `User.token_version`.
+  token_version Int        @default(0)
   created_at    DateTime   @default(now())
   updated_at    DateTime   @updatedAt
 
@@ -282,7 +289,20 @@ model InspectionReport {
   finished_at           DateTime?
   floors_inspected      String[]
   status                InspectionStatus @default(IN_PROGRESS)
-  excel_url             String?
+  /// Identifica a *tentativa* de envio, não o relatório.
+  ///
+  /// O app gera a chave quando a vistoria começa e a manda no cabeçalho
+  /// `Idempotency-Key`. Reenviar com a mesma chave devolve o relatório que já
+  /// foi criado, em vez de criar um segundo — que é o que acontecia com toque
+  /// duplo ou retry de rede. Nula no que foi enviado antes disto existir.
+  submission_key        String?          @unique
+  /// Caminho do objeto no bucket, não a URL.
+  ///
+  /// O bucket é privado: a URL é assinada na hora do download (ver
+  /// `storageService.createExcelSignedUrl`) e dura minutos. Guardar a URL aqui
+  /// era guardar um acesso permanente e sem autenticação ao relatório — que a
+  /// API nega a quem não tem vínculo com o prédio.
+  excel_path            String?
   google_form_synced    Boolean          @default(false)
   google_form_synced_at DateTime?
   created_at            DateTime         @default(now())
@@ -294,6 +314,9 @@ model InspectionReport {
   // Histórico do prédio e calendário: os dois filtram por prédio e ordenam (ou
   // recortam a faixa) por `finished_at`.
   @@index([building_id, finished_at(sort: Desc)])
+  // "Vistorias que passaram por este andar" filtra um array de texto. Sem GIN é
+  // varredura da tabela inteira, e o custo cresce em linha reta com a base.
+  @@index([floors_inspected], type: Gin)
   @@map("inspection_reports")
 }
 
@@ -412,7 +435,11 @@ model AuditLog {
   manager  Manager?  @relation(fields: [manager_id], references: [id], onDelete: SetNull)
   building Building? @relation(fields: [building_id], references: [id], onDelete: SetNull)
 
-  @@index([building_id])
+  // Toda consulta da trilha é "de um prédio (ou de uma conta), do mais novo para
+  // o mais velho". Só por prédio, a ordenação percorria a tabela inteira — e ela
+  // ganha uma linha a cada login e nunca perde nenhuma.
+  @@index([building_id, timestamp(sort: Desc)])
+  @@index([user_id, timestamp(sort: Desc)])
   @@index([manager_id])
   @@map("audit_logs")
 }

@@ -2,6 +2,7 @@ import { AuditAction, BuildingRole, InspectionStatus, Prisma } from '@prisma/cli
 import { prisma } from '../lib/prisma';
 import { generateShareKey } from '../utils/shareKey';
 import { sortFloorsDesc } from '../utils/floorOrder';
+import { logger } from '../lib/logger';
 
 // Campos seguros para expor a quem nao e gestor (nunca inclui share_key).
 const PUBLIC_BUILDING_FIELDS = { id: true, name: true, description: true } as const;
@@ -457,7 +458,7 @@ export const auditRepository = {
       })
       .catch((err) => {
         // Nunca deixar falha de audit derrubar a operação principal
-        console.error('[AuditLog] Falha ao registrar:', err);
+        logger.error({ err }, '[AuditLog] Falha ao registrar');
       });
   },
 };

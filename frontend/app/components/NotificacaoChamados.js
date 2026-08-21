@@ -31,7 +31,7 @@ function ChamadoNovo({ ticket, onReceive, receiving }) {
           {ticket.report?.building?.name} · {ticket.floor?.label}
         </p>
         {ticket.forwarded_at && (
-          <p style={{ color: M.faint, fontSize: 11, marginTop: 2 }}>
+          <p style={{ color: M.faint, fontSize: 12, marginTop: 2 }}>
             Encaminhado em {format(new Date(ticket.forwarded_at), 'dd/MM/yyyy', { locale: ptBR })}
           </p>
         )}
@@ -96,7 +96,7 @@ export function NotificacaoChamados() {
             style={{
               position: 'absolute', top: -2, right: -2, minWidth: 20, height: 20,
               padding: '0 5px', borderRadius: 999, background: M.accent, color: '#000',
-              fontFamily: M.display, fontSize: 11, fontWeight: 600,
+              fontFamily: M.display, fontSize: 12, fontWeight: 600,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               // A borda é do fundo da página: sem ela o número encosta no botão
               // e os dois viram uma mancha só.
@@ -110,7 +110,7 @@ export function NotificacaoChamados() {
 
       <Modal open={open} onClose={() => setOpen(false)} title="Chamados encaminhados a você" maxWidth={420}>
         {pendentes.length === 0 ? (
-          <p style={{ color: M.mute, fontSize: 13, lineHeight: 1.6, padding: '8px 0 4px' }}>
+          <p style={{ color: M.mute, fontSize: 14, lineHeight: 1.6, padding: '8px 0 4px' }}>
             Nada esperando aceite. Quando o moderador encaminhar uma ocorrência
             para você, ela aparece aqui.
           </p>
@@ -124,7 +124,7 @@ export function NotificacaoChamados() {
                 receiving={receive.isPending}
               />
             ))}
-            <p style={{ color: M.faint, fontSize: 11, lineHeight: 1.6, marginTop: 12 }}>
+            <p style={{ color: M.faint, fontSize: 12, lineHeight: 1.6, marginTop: 12 }}>
               Receber leva você às manutenções, onde o chamado ganha o relatório
               do serviço e o botão de concluir.
             </p>

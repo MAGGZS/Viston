@@ -5,6 +5,7 @@ import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Button } from '@/app/components/ui';
 import { useSystemStats } from '@/app/hooks/useApi';
 import { T, R, W, NUM } from '@/app/lib/theme';
+import { CONTENT_ID } from '@/app/components/mobile/kit';
 
 /** Um número e o que ele significa. Nada além disso. */
 function StatCard({ icon: Icon, label, value, hint, loading }) {
@@ -124,7 +125,7 @@ export default function AdminDashboardPage() {
     <RouteGuard roles={['ADMIN']}>
       <div className="hidden lg:flex min-h-screen bg-page">
         <AdminSidebar />
-        <main className="flex-1 p-8 overflow-auto">
+        <main id={CONTENT_ID} className="flex-1 p-8 overflow-auto">
           <div className="anim-fade-down flex items-center justify-between mb-8">
             <div>
               <h1 className="text-2xl font-semibold text-white">Visão geral</h1>

@@ -22,8 +22,8 @@ const schema = yup.object({
 
 const S = {
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
-  label: { fontSize: 11, fontWeight: 400, color: T.mute },
-  input: { background: T.chip, border: '1px solid transparent', borderRadius: 16, padding: '13px 16px', color: T.text, fontSize: 15, outline: 'none', width: '100%' },
+  label: { fontSize: 12, fontWeight: 400, color: T.mute },
+  input: { background: T.chip, border: '1px solid transparent', borderRadius: 16, padding: '13px 16px', color: T.text, fontSize: 16, outline: 'none', width: '100%' },
   inputWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
   eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: T.mute, display: 'flex', alignItems: 'center' },
   btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: W.strong, fontSize: 15, padding: '14px', borderRadius: 16, border: 'none', cursor: 'pointer', marginTop: 4 },
@@ -74,7 +74,7 @@ export default function RegisterGestorPage() {
             Já tem conta?{' '}
             <a href="/login" style={{ color: 'rgba(245,197,24,0.85)', fontWeight: W.title, textDecoration: 'none' }}>Entrar</a>
           </p>
-          <p style={{ color: T.faint, fontSize: 13 }}>
+          <p style={{ color: T.faint, fontSize: 14 }}>
             Vai vistoriar um prédio de outra pessoa?{' '}
             <a href="/register" style={{ color: 'rgba(245,197,24,0.85)', fontWeight: W.title, textDecoration: 'none' }}>Criar conta comum</a>
           </p>
@@ -108,7 +108,7 @@ export default function RegisterGestorPage() {
         })}
         {apiError && (
           <div style={{ background: T.dangerSoft, borderRadius: 16, padding: '11px 14px' }}>
-            <p style={{ color: T.danger, fontSize: 13, textAlign: 'center' }}>{apiError}</p>
+            <p style={{ color: T.danger, fontSize: 14, textAlign: 'center' }}>{apiError}</p>
           </div>
         )}
         <button type="submit" disabled={isPending} style={{ ...S.btn, opacity: isPending ? 0.6 : 1 }}>

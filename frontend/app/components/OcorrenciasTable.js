@@ -12,7 +12,7 @@ import {
 } from '@/app/lib/maintenanceOptions';
 import { T, W } from '@/app/lib/theme';
 
-const CELL = { padding: '11px 22px', fontSize: 13 };
+const CELL = { padding: '11px 22px', fontSize: 14 };
 
 /**
  * As colunas de cada leitura.
@@ -71,7 +71,7 @@ export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTO
         <thead>
           <tr style={{ borderBottom: `1px solid ${T.line}` }}>
             {cols.map((c) => (
-              <th key={c.label} style={{ textAlign: 'left', padding: '10px 22px', color: T.mute, fontSize: 11, fontWeight: W.body }}>
+              <th key={c.label} style={{ textAlign: 'left', padding: '10px 22px', color: T.mute, fontSize: 12, fontWeight: W.body }}>
                 {c.label}
               </th>
             ))}
@@ -105,7 +105,7 @@ export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTO
 
           {!loading && rows.length === 0 && (
             <tr>
-              <td colSpan={cols.length} style={{ padding: '40px 22px', textAlign: 'center', color: T.mute, fontSize: 13 }}>
+              <td colSpan={cols.length} style={{ padding: '40px 22px', textAlign: 'center', color: T.mute, fontSize: 14 }}>
                 {emptyMessage}
               </td>
             </tr>

@@ -81,6 +81,15 @@ export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR" className={poppins.variable}>
       <body>
+        {/*
+          Primeira parada do Tab em qualquer tela.
+
+          Sem ele, quem navega por teclado atravessa a barra lateral inteira —
+          ou a de baixo — antes de chegar ao que veio ler, em toda troca de
+          página. Fica invisível até receber foco (ver `.skip-link`), e aterrissa
+          no `<main>` de cada tela.
+        */}
+        <a href="#conteudo" className="skip-link">Pular para o conteúdo</a>
         <QueryProvider>
           <AuthProvider>
             <Toast />

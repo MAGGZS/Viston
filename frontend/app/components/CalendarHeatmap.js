@@ -34,7 +34,7 @@ export function CalendarHeatmap({ heatmap = {}, month, year, onDayClick }) {
       {/* Cabeçalho dos dias */}
       <div className="grid grid-cols-7 mb-1">
         {DAYS.map((d, i) => (
-          <div key={i} className="text-center text-[11px]" style={{ color: T.mute }}>{d}</div>
+          <div key={i} className="text-center text-xs" style={{ color: T.mute }}>{d}</div>
         ))}
       </div>
 

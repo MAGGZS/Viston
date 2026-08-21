@@ -12,9 +12,13 @@ import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { Badge, Skeleton, Button } from '@/app/components/ui';
-import { useCalendar, useBuildingHistory, useMyBuildings } from '@/app/hooks/useApi';
+import { useCalendar, useBuildingHistory } from '@/app/hooks/useApi';
+import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
+import { useExcelDownload } from '@/app/hooks/useExcelDownload';
+import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
 import { parseReportDate } from '@/app/lib/date';
 import { useAuthStore } from '@/app/store/auth';
+import { CONTENT_ID } from '@/app/components/mobile/kit';
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success', COMPLETED: 'success' };
@@ -33,6 +37,7 @@ function NoPredioState() {
 }
 
 export default function VisualizacaoPage() {
+  const { download, pendingId } = useExcelDownload();
   const { user } = useAuthStore();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -40,9 +45,16 @@ export default function VisualizacaoPage() {
   const [dayModal, setDayModal] = useState(null);
   const [previewId, setPreviewId] = useState(null);
 
-  const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
+  // Com dois vínculos, quem escolhe é a pessoa: antes esta tela mostrava só o
+  // primeiro prédio da lista, sem seletor e sem dizer que havia outro.
+  const {
+    buildings: myBuildings,
+    active: activeBuilding,
+    buildingId,
+    setActive: setActiveBuilding,
+    isLoading: buildingsLoading,
+  } = useActiveBuilding();
   const hasBuilding = myBuildings.length > 0;
-  const buildingId = myBuildings[0]?.building_id;
 
   const { data: calData, isLoading: calLoading } = useCalendar(
     hasBuilding ? { month, year, building_id: buildingId } : null
@@ -76,7 +88,7 @@ export default function VisualizacaoPage() {
         </header>
 
         {/* Main */}
-        <main className="flex-1 p-8 overflow-auto flex flex-col">
+        <main id={CONTENT_ID} className="flex-1 p-8 overflow-auto flex flex-col">
           <div className="anim-fade-up mb-8">
             <h1 className="text-2xl font-semibold text-white">
               Olá, <span style={{ color: '#F5C518' }}>{user?.name ?? ''}</span>
@@ -116,8 +128,15 @@ export default function VisualizacaoPage() {
 
               {/* Tabela de inspeções */}
               <div className="anim-fade-up anim-d2 col-span-2 bg-card rounded-card overflow-hidden">
-                <div className="px-6 py-4 border-b border-line">
-                  <h2 className="text-white font-semibold">Inspeções Recentes — {myBuildings[0]?.name}</h2>
+                <div className="px-6 py-4 border-b border-line flex items-center justify-between gap-4">
+                  <h2 className="text-white font-semibold">
+                    Inspeções Recentes{myBuildings.length > 1 ? '' : ` — ${activeBuilding?.name ?? ''}`}
+                  </h2>
+                  <BuildingSwitcher
+                    buildings={myBuildings}
+                    buildingId={buildingId}
+                    onChange={setActiveBuilding}
+                  />
                 </div>
                 <table className="w-full">
                   <thead>
@@ -146,11 +165,11 @@ export default function VisualizacaoPage() {
                         </td>
                         <td className="px-6 py-3">
                           <div className="flex items-center gap-4">
-                            {r.excel_url ? (
-                              <a href={r.excel_url} target="_blank" rel="noreferrer"
-                                className="flex items-center gap-1 text-accent text-sm hover:underline">
+                            {r.has_excel ? (
+                              <button type="button" onClick={() => download(r.id)} disabled={pendingId === r.id}
+                                className="flex items-center gap-1 text-accent text-sm hover:underline disabled:opacity-50">
                                 <Download size={13} /> Baixar
-                              </a>
+                              </button>
                             ) : <span className="text-mute text-sm">—</span>}
                             <button onClick={() => setPreviewId(r.id)}
                               className="flex items-center gap-1 text-mute text-sm hover:text-white transition-all duration-150 active:scale-95">

@@ -15,9 +15,11 @@ import { Badge, Skeleton, Button, Modal, Select } from '@/app/components/ui';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { OcorrenciasTable } from '@/app/components/OcorrenciasTable';
 import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember, useUpdateMemberRole, useDeleteInspection, useAccessRequests, useReviewAccessRequest, useAddBuildingManager, useRemoveBuildingManager } from '@/app/hooks/useApi';
+import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { formatShareKey } from '@/app/lib/shareKey';
 import { parseReportDate } from '@/app/lib/date';
 import { useToastStore } from '@/app/store/toast';
+import { CONTENT_ID } from '@/app/components/mobile/kit';
 
 // Gestor não está aqui: é outro tipo de conta, e entra pelo e-mail (ver
 // AddManagerForm). Os quatro papéis de vínculo trocam livremente entre si.
@@ -53,7 +55,7 @@ function MonthGrid({ heatmap, year, month, onDayClick }) {
     <div style={{ width: '100%' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 6 }}>
         {['D','S','T','Q','Q','S','S'].map((d, i) => (
-          <div key={i} style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.26)', fontWeight: 600, padding: '2px 0' }}>{d}</div>
+          <div key={i} style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.52)', fontWeight: 600, padding: '2px 0' }}>{d}</div>
         ))}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
@@ -118,9 +120,9 @@ function MemberRow({ member, buildingId, onRemove, className = '' }) {
       />
       <button
         onClick={onRemove}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.26)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0 }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.52)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0 }}
         onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.26)'}
+        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.52)'}
         title="Remover vínculo">
         <UserMinus size={15} />
       </button>
@@ -163,9 +165,9 @@ function ManagerRow({ link, buildingId, sole, className = '' }) {
       <button
         onClick={handleRemove}
         disabled={sole || removeManager.isPending}
-        style={{ background: 'none', border: 'none', cursor: sole ? 'not-allowed' : 'pointer', color: 'rgba(255,255,255,0.26)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0, opacity: sole ? 0.4 : 1 }}
+        style={{ background: 'none', border: 'none', cursor: sole ? 'not-allowed' : 'pointer', color: 'rgba(255,255,255,0.52)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0, opacity: sole ? 0.4 : 1 }}
         onMouseEnter={e => { if (!sole) e.currentTarget.style.color = '#f87171'; }}
-        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.26)'}
+        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.52)'}
         title={sole ? 'Este é o único gestor do prédio. Adicione outro antes.' : 'Tirar da gestão'}>
         <UserMinus size={15} />
       </button>
@@ -265,6 +267,7 @@ function RequestRow({ request, buildingId, className = '' }) {
 }
 
 export default function GestorBuildingPage() {
+  const { download, pendingId } = useExcelDownload();
   const { id } = useParams();
 
   // O mesmo cartão de histórico do painel do moderador e do histórico do
@@ -343,11 +346,11 @@ export default function GestorBuildingPage() {
               </td>
               <td className="px-6 py-3">
                 <div className="flex items-center gap-4">
-                  {r.excel_url ? (
-                    <a href={r.excel_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
-                      className="flex items-center gap-1 text-accent text-sm hover:underline">
+                  {r.has_excel ? (
+                    <button type="button" onClick={e => { e.stopPropagation(); download(r.id); }} disabled={pendingId === r.id}
+                      className="flex items-center gap-1 text-accent text-sm hover:underline disabled:opacity-50">
                       <Download size={13} /> Baixar
-                    </a>
+                    </button>
                   ) : <span className="text-mute text-sm">—</span>}
                   <button onClick={e => { e.stopPropagation(); setPreviewId(r.id); }}
                     className="flex items-center gap-1 text-mute text-sm hover:text-white transition-colors">
@@ -360,9 +363,9 @@ export default function GestorBuildingPage() {
                   onClick={e => { e.stopPropagation(); setConfirmDiscard(r); }}
                   disabled={deleteInspection.isPending}
                   title="Descartar vistoria"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.26)', padding: 4, borderRadius: 8 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.52)', padding: 4, borderRadius: 8 }}
                   onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.26)'}>
+                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.52)'}>
                   <Trash2 size={15} />
                 </button>
               </td>
@@ -385,7 +388,7 @@ export default function GestorBuildingPage() {
     <RouteGuard manages={id}>
       <div className="hidden lg:flex flex-col min-h-screen bg-page">
         <GestorHeader back="/gestor" />
-        <main className="flex-1 p-8 overflow-auto">
+        <main id={CONTENT_ID} className="flex-1 p-8 overflow-auto">
 
           {/* Header */}
           <div className="anim-fade-down flex items-center justify-between mb-8">
@@ -600,7 +603,7 @@ export default function GestorBuildingPage() {
                 Descartar a vistoria de <span style={{ color: '#fff', fontWeight: 600 }}>{confirmDiscard?.inspector?.name}</span>
                 {confirmDiscard && ` de ${format(parseReportDate(confirmDiscard.date), 'dd/MM/yyyy', { locale: ptBR })}`}?
               </p>
-              <p style={{ marginTop: 10, color: 'rgba(255,255,255,0.44)' }}>
+              <p style={{ marginTop: 10, color: 'rgba(255,255,255,0.68)' }}>
                 Some o relatório e todas as ocorrências registradas — inclusive os chamados abertos por elas. Sai do histórico e do calendário, e a planilha do dia é refeita com o que sobrar. <span style={{ color: '#f87171' }}>Não tem como desfazer.</span>
               </p>
             </div>

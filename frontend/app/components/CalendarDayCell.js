@@ -18,14 +18,29 @@ export function CalendarDayCell({ dayNumber, dayKey, info, background, size, onC
 
   return (
     <div style={{ position: 'relative' }}>
-      <div
+      {/*
+        Botão de verdade — o dia com vistoria abre o relatório daquela data.
+        Como `<div onClick>` ele era alcançável só pelo mouse: o teclado
+        atravessava o calendário inteiro sem parar em nenhum dia. Dia vazio
+        continua sendo um quadradinho sem ação (`disabled`), e por isso não
+        entra na ordem do Tab.
+      */}
+      <button
+        type="button"
+        disabled={!hasData}
+        aria-label={hasData ? `${dayNumber}: ${count} vistoria${count !== 1 ? 's' : ''}` : undefined}
         onMouseEnter={() => hasData && setHover(true)}
         onMouseLeave={() => setHover(false)}
+        onFocus={() => hasData && setHover(true)}
+        onBlur={() => setHover(false)}
         onClick={() => hasData && onClick?.(dayKey, info)}
         style={{
           ...boxStyle,
           borderRadius: 5,
           background,
+          border: 'none',
+          padding: 0,
+          font: 'inherit',
           cursor: hasData ? 'pointer' : 'default',
           display: 'flex',
           alignItems: 'center',
@@ -34,8 +49,8 @@ export function CalendarDayCell({ dayNumber, dayKey, info, background, size, onC
           transform: hover ? 'scale(1.12)' : 'scale(1)',
         }}
       >
-        <span style={{ fontSize: 11, color: count >= 4 ? T.onAccent : 'rgba(255,255,255,0.44)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{dayNumber}</span>
-      </div>
+        <span aria-hidden="true" style={{ fontSize: 12, color: count >= 4 ? T.onAccent : 'rgba(255,255,255,0.68)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{dayNumber}</span>
+      </button>
 
       {hover && hasData && (
         <div
@@ -53,15 +68,15 @@ export function CalendarDayCell({ dayNumber, dayKey, info, background, size, onC
             pointerEvents: 'none',
           }}
         >
-          <p style={{ color: T.accent, fontSize: 11, fontWeight: W.strong, marginBottom: 6 }}>
+          <p style={{ color: T.accent, fontSize: 12, fontWeight: W.strong, marginBottom: 6 }}>
             {count} vistoria{count !== 1 ? 's' : ''}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {(info.inspectors ?? []).map((name, i) => (
-              <span key={i} style={{ color: T.text, fontSize: 11, lineHeight: 1.4 }}>{name}</span>
+              <span key={i} style={{ color: T.text, fontSize: 12, lineHeight: 1.4 }}>{name}</span>
             ))}
           </div>
-          <p style={{ color: T.faint, fontSize: 11, marginTop: 6 }}>Clique para ver o relatório</p>
+          <p style={{ color: T.faint, fontSize: 12, marginTop: 6 }}>Clique para ver o relatório</p>
         </div>
       )}
     </div>

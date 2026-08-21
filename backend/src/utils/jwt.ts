@@ -18,12 +18,19 @@ export type AccountKind = 'USER' | 'MANAGER';
  * Papel de prédio não cabe aqui: um usuário pode ser inspetor de um prédio e
  * visualizador de outro, e um gestor administra um conjunto que muda sem o
  * token expirar. Quem responde isso é `buildingAccess`, por requisição.
+ *
+ * `tv` é a geração das sessões da conta (ver `User.token_version`) e só o
+ * refresh token a consulta: o access token dura quinze minutos e é conferido a
+ * cada requisição — cobrá-la ali custaria uma ida ao banco por chamada para
+ * antecipar em minutos o que o refresh já recusa.
  */
 export interface TokenPayload {
   sub: string;
   kind: AccountKind;
   role: string;
   type: 'access' | 'refresh';
+  /** Ausente nos tokens emitidos antes da revogação existir: valem como 0. */
+  tv?: number;
 }
 
 export function signAccessToken(userId: string, role: string, kind: AccountKind = 'USER'): string {
@@ -34,9 +41,14 @@ export function signAccessToken(userId: string, role: string, kind: AccountKind 
   );
 }
 
-export function signRefreshToken(userId: string, role: string, kind: AccountKind = 'USER'): string {
+export function signRefreshToken(
+  userId: string,
+  role: string,
+  kind: AccountKind = 'USER',
+  tokenVersion = 0
+): string {
   return jwt.sign(
-    { sub: userId, kind, role, type: 'refresh' } as TokenPayload,
+    { sub: userId, kind, role, type: 'refresh', tv: tokenVersion } as TokenPayload,
     config.jwt.refreshSecret,
     { expiresIn: config.jwt.refreshExpiresIn } as jwt.SignOptions
   );

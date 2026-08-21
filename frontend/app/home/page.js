@@ -11,10 +11,12 @@ import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { NotificacaoChamados } from '@/app/components/NotificacaoChamados';
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
+import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
 import { Skeleton } from '@/app/components/ui';
 import { M, MPage, MTopBar, MRound, MCard, MStats, MSectionHead } from '@/app/components/mobile/kit';
+import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
 import { useAuthStore } from '@/app/store/auth';
-import { useCalendar, useMyBuildings } from '@/app/hooks/useApi';
+import { useCalendar } from '@/app/hooks/useApi';
 import { canInspect } from '@/app/lib/roles';
 
 export default function HomePage() {
@@ -25,9 +27,16 @@ export default function HomePage() {
   const [year, setYear] = useState(now.getFullYear());
   const [dayModal, setDayModal] = useState(null);
 
-  const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
+  // O prédio de que esta tela fala. Com dois vínculos, quem escolhe é a pessoa
+  // — antes ela via só o primeiro da lista, sem saber que havia outro.
+  const {
+    buildings: myBuildings,
+    buildingId,
+    setActive,
+    hasChoice,
+    isLoading: buildingsLoading,
+  } = useActiveBuilding();
   const hasBuilding = myBuildings.length > 0;
-  const buildingId = myBuildings[0]?.building_id;
 
   const { data, isLoading } = useCalendar(
     hasBuilding ? { month, year, building_id: buildingId } : null,
@@ -89,7 +98,7 @@ export default function HomePage() {
             </div>
             <div>
               <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 17, color: '#000' }}>Nova vistoria</p>
-              <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginTop: 2 }}>Andar por andar, do topo ao subsolo</p>
+              <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 2 }}>Andar por andar, do topo ao subsolo</p>
             </div>
           </MCard>
         )}
@@ -99,7 +108,7 @@ export default function HomePage() {
             <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 16, color: M.text, textAlign: 'center' }}>
               Nenhum prédio ainda
             </p>
-            <p style={{ color: M.mute, fontSize: 13, marginTop: 6, marginBottom: 18, lineHeight: 1.6, textAlign: 'center' }}>
+            <p style={{ color: M.mute, fontSize: 14, marginTop: 6, marginBottom: 18, lineHeight: 1.6, textAlign: 'center' }}>
               Peça a chave ao gestor do prédio e digite abaixo para se conectar.
             </p>
             <JoinBuildingForm />
@@ -108,7 +117,17 @@ export default function HomePage() {
 
         {!buildingsLoading && hasBuilding && (
           <>
-            <MSectionHead className="anim-fade-up anim-d2" title={myBuildings[0]?.name ?? 'Seu prédio'} />
+            <MSectionHead
+              className="anim-fade-up anim-d2"
+              title={hasChoice ? 'Prédio' : myBuildings[0]?.name ?? 'Seu prédio'}
+              action={
+                <BuildingSwitcher
+                  buildings={myBuildings}
+                  buildingId={buildingId}
+                  onChange={setActive}
+                />
+              }
+            />
 
             <MCard className="anim-fade-up anim-d3" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <MStats items={[
@@ -132,7 +151,7 @@ export default function HomePage() {
                   <CalendarHeatmap heatmap={heatmap} month={month} year={year} onDayClick={(day, info) => setDayModal({ day, info })} />
                 )}
 
-                <p style={{ color: M.faint, fontSize: 11, marginTop: 12, textAlign: 'center' }}>
+                <p style={{ color: M.faint, fontSize: 12, marginTop: 12, textAlign: 'center' }}>
                   Toque num dia com marca para ver o relatório
                 </p>
               </div>

@@ -15,7 +15,7 @@ function makeFullReport(overrides: any = {}) {
     finished_at: new Date('2024-01-15T10:00:00Z'),
     floors_inspected: ['floor-1', 'floor-2'],
     status: InspectionStatus.COMPLETED,
-    excel_url: null,
+    excel_path: null,
     created_at: new Date(),
     inspector: { id: 'user-1', name: 'Carlos', email: 'carlos@test.com', role: 'INSPECTOR' },
     building: { id: 'building-1', name: 'Edifício Principal' },

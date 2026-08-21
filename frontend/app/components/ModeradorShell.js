@@ -3,6 +3,7 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { ModeradorSidebar } from '@/app/components/ModeradorSidebar';
 import { useMyBuildings } from '@/app/hooks/useApi';
 import { T, W } from '@/app/lib/theme';
+import { CONTENT_ID } from '@/app/components/mobile/kit';
 
 /**
  * O prédio de que esta pessoa é moderadora.
@@ -47,7 +48,7 @@ function NoBuilding() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 48 }}>
       <p className="anim-pop-in" style={{ fontSize: 40, marginBottom: 14 }}>🏢</p>
       <p className="anim-fade-up anim-d1" style={{ color: T.text, fontWeight: W.title, fontSize: 16 }}>Você não modera nenhum prédio</p>
-      <p className="anim-fade-up anim-d2" style={{ color: T.mute, fontSize: 13, marginTop: 8, lineHeight: 1.6, maxWidth: 380 }}>
+      <p className="anim-fade-up anim-d2" style={{ color: T.mute, fontSize: 14, marginTop: 8, lineHeight: 1.6, maxWidth: 380 }}>
         Peça ao gestor do prédio para vincular sua conta como moderador — é ele
         quem define os papéis em Colaboradores.
       </p>
@@ -68,14 +69,14 @@ export function ModeradorShell({ building, isLoading, title, subtitle, actions, 
       <div className="hidden lg:flex" style={{ minHeight: '100vh', background: T.bg }}>
         <ModeradorSidebar buildingId={building?.building_id} buildingName={building?.name} />
 
-        <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: '100vh', overflow: 'hidden' }}>
+        <main id={CONTENT_ID} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: '100vh', overflow: 'hidden' }}>
           {/* A barra lateral não anima: ela remonta a cada navegação entre as
               telas do moderador, e piscar o menu inteiro a cada clique seria
               ruído. Quem entra é o conteúdo, que é o que mudou. */}
           <header className="anim-fade-down" style={{ padding: '28px 32px 20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
             <div>
               <h1 style={{ color: T.text, fontSize: 22, fontWeight: W.title }}>{title}</h1>
-              {subtitle && <p style={{ color: T.mute, fontSize: 13, marginTop: 4 }}>{subtitle}</p>}
+              {subtitle && <p style={{ color: T.mute, fontSize: 14, marginTop: 4 }}>{subtitle}</p>}
             </div>
             {actions}
           </header>

@@ -26,7 +26,7 @@ const items = [
 const itemBase = {
   display: 'flex', alignItems: 'center', gap: 10,
   padding: '10px 12px', borderRadius: 14,
-  fontFamily: T.display, fontSize: 13, textDecoration: 'none',
+  fontFamily: T.display, fontSize: 14, textDecoration: 'none',
   transition: 'background-color 0.15s, color 0.15s',
 };
 
@@ -46,7 +46,7 @@ function CountBadge({ count, active }) {
       marginLeft: 'auto', minWidth: 20, padding: '1px 6px', borderRadius: R.badge,
       background: active ? 'rgba(0,0,0,0.18)' : T.accent,
       color: T.onAccent,
-      fontSize: 11, fontWeight: W.strong, textAlign: 'center', ...NUM,
+      fontSize: 12, fontWeight: W.strong, textAlign: 'center', ...NUM,
     }}>
       {count}
     </span>
@@ -64,7 +64,7 @@ export function ModeradorSidebar({ buildingId, buildingName }) {
       <div style={{ padding: '22px 18px 18px' }}>
         <Logo size={19} />
         {buildingName && (
-          <p style={{ color: T.faint, fontSize: 11, marginTop: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <p style={{ color: T.faint, fontSize: 12, marginTop: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {buildingName}
           </p>
         )}
@@ -106,7 +106,7 @@ export function ModeradorSidebar({ buildingId, buildingName }) {
           Perfil
         </Link>
         <button
-          onClick={() => { logout(); router.replace('/login'); }}
+          onClick={async () => { await logout(); router.replace('/login'); }}
           style={{ ...itemBase, fontWeight: W.body, color: T.mute, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' }}
           onMouseEnter={(e) => { e.currentTarget.style.background = T.chip; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}

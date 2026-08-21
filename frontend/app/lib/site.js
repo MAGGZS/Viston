@@ -1,10 +1,12 @@
 /**
  * Dados fixos do site, usados por metadata, sitemap, robots e manifest.
  *
- * A URL pública vem de NEXT_PUBLIC_SITE_URL (defina na Vercel). O fallback
- * cobre build local e preview, onde a URL absoluta só importa para o OG image.
+ * A URL pública vem de NEXT_PUBLIC_SITE_URL (defina na Vercel). O fallback é o
+ * domínio de produção de verdade — ele entra em canonical, sitemap e Open
+ * Graph, e apontar para um domínio que não existe manda buscador e prévia de
+ * link para lugar nenhum.
  */
-export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://viston.vercel.app').replace(/\/$/, '');
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://viston-nine.vercel.app').replace(/\/$/, '');
 
 export const SITE_NAME = 'Viston';
 export const SITE_TITLE = 'Viston — Sistema de Vistoria Predial';

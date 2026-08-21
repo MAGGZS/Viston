@@ -11,6 +11,7 @@ import { Badge, Button, Skeleton } from '@/app/components/ui';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { OcorrenciasTable } from '@/app/components/OcorrenciasTable';
 import { useCalendar, useBuildingHistory, useTicketStats } from '@/app/hooks/useApi';
+import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { parseReportDate } from '@/app/lib/date';
 import { T, R, W, NUM } from '@/app/lib/theme';
 
@@ -44,6 +45,7 @@ function StatCard({ icon: Icon, label, value, isLoading, className = '' }) {
  * inspetor e do visualizador — e o calendário do que aconteceu em cada dia.
  */
 export default function ModeradorPage() {
+  const { download, pendingId } = useExcelDownload();
   const { building, isLoading: buildingLoading } = useModeratorBuilding();
   const buildingId = building?.building_id;
 
@@ -81,7 +83,7 @@ export default function ModeradorPage() {
         <thead>
           <tr style={{ borderBottom: `1px solid ${T.line}` }}>
             {['Inspetor', 'Status', 'Dia', 'Planilha'].map((h) => (
-              <th key={h} style={{ textAlign: 'left', padding: '10px 22px', color: T.mute, fontSize: 11, fontWeight: W.body }}>{h}</th>
+              <th key={h} style={{ textAlign: 'left', padding: '10px 22px', color: T.mute, fontSize: 12, fontWeight: W.body }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -103,27 +105,26 @@ export default function ModeradorPage() {
               onMouseEnter={(e) => { e.currentTarget.style.background = T.chip; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
             >
-              <td style={{ padding: '11px 22px', color: T.text, fontSize: 13 }}>{r.inspector?.name ?? '—'}</td>
+              <td style={{ padding: '11px 22px', color: T.text, fontSize: 14 }}>{r.inspector?.name ?? '—'}</td>
               <td style={{ padding: '11px 22px' }}>
                 <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
               </td>
               {/* Só o dia: a planilha e o relatório passaram a ser do dia */}
-              <td style={{ padding: '11px 22px', color: T.mute, fontSize: 13 }}>
+              <td style={{ padding: '11px 22px', color: T.mute, fontSize: 14 }}>
                 {format(parseReportDate(r.date), 'dd/MM/yyyy', { locale: ptBR })}
               </td>
               <td style={{ padding: '11px 22px' }}>
-                {r.excel_url ? (
-                  <a
-                    href={r.excel_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: T.accent, fontSize: 13 }}
+                {r.has_excel ? (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); download(r.id); }}
+                    disabled={pendingId === r.id}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: T.accent, fontSize: 14, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                   >
                     <Download size={13} /> Baixar
-                  </a>
+                  </button>
                 ) : (
-                  <span style={{ color: T.mute, fontSize: 13 }}>—</span>
+                  <span style={{ color: T.mute, fontSize: 14 }}>—</span>
                 )}
               </td>
             </tr>
@@ -131,7 +132,7 @@ export default function ModeradorPage() {
 
           {!histLoading && rows.length === 0 && (
             <tr>
-              <td colSpan={4} style={{ padding: '40px 22px', textAlign: 'center', color: T.mute, fontSize: 13 }}>
+              <td colSpan={4} style={{ padding: '40px 22px', textAlign: 'center', color: T.mute, fontSize: 14 }}>
                 Nenhuma vistoria neste prédio ainda
               </td>
             </tr>
@@ -175,7 +176,7 @@ export default function ModeradorPage() {
               <button onClick={prev} aria-label="Mês anterior" style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 4, display: 'flex' }}>
                 <ChevronLeft size={17} />
               </button>
-              <span key={monthLabel} className="anim-fade-in" style={{ color: T.text, fontSize: 13, fontWeight: W.title, textTransform: 'capitalize' }}>
+              <span key={monthLabel} className="anim-fade-in" style={{ color: T.text, fontSize: 14, fontWeight: W.title, textTransform: 'capitalize' }}>
                 {monthLabel}
               </span>
               <button onClick={next} aria-label="Próximo mês" style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 4, display: 'flex' }}>
@@ -195,11 +196,11 @@ export default function ModeradorPage() {
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 14, justifyContent: 'flex-end' }}>
-              <span style={{ color: T.mute, fontSize: 11 }}>Menos</span>
+              <span style={{ color: T.mute, fontSize: 12 }}>Menos</span>
               {['#232323', '#2E2A12', '#6B5A00', '#A88A00', '#F5C518'].map((c) => (
                 <div key={c} style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
               ))}
-              <span style={{ color: T.mute, fontSize: 11 }}>Mais</span>
+              <span style={{ color: T.mute, fontSize: 12 }}>Mais</span>
             </div>
           </div>
 

@@ -1,17 +1,20 @@
 'use client';
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/app/store/auth';
 import api from '@/app/lib/api';
+import { getAccessToken, SESSION_EXPIRED } from '@/app/lib/session';
 
 export function AuthProvider({ children }) {
   // Ações do zustand têm referência estável, então listá-las nas dependências
   // não faz o efeito rodar de novo.
   const setUser = useAuthStore((s) => s.setUser);
   const setLoading = useAuthStore((s) => s.setLoading);
-  const logout = useAuthStore((s) => s.logout);
+  const clearSession = useAuthStore((s) => s.clearSession);
+  const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
+    const token = getAccessToken();
     if (!token) {
       setLoading(false);
       return;
@@ -21,9 +24,27 @@ export function AuthProvider({ children }) {
     api
       .get('/auth/me')
       .then(({ data }) => setUser(data))
-      .catch(() => logout())
+      // `clearSession` e não `logout`: o token já não vale, então não há a quem
+      // pedir para sair — só o que apagar daqui.
+      .catch(() => clearSession())
       .finally(() => setLoading(false));
-  }, [setUser, setLoading, logout]);
+  }, [setUser, setLoading, clearSession]);
+
+  /**
+   * A sessão expirou no meio do uso (o interceptor não conseguiu renovar).
+   *
+   * A volta ao login passa pelo router, e não por `window.location`: recarregar
+   * a página joga fora o cache das consultas e o estado das telas, e o usuário
+   * espera o app inteiro subir de novo para ver um formulário.
+   */
+  useEffect(() => {
+    function onExpired() {
+      clearSession();
+      router.replace('/login');
+    }
+    window.addEventListener(SESSION_EXPIRED, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED, onExpired);
+  }, [clearSession, router]);
 
   return children;
 }

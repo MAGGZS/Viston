@@ -107,7 +107,7 @@ function Tile({ label, value, className = '' }) {
 
 function Group({ title, className = '' }) {
   return (
-    <p className={className} style={{ color: T.mute, fontSize: 13, margin: '22px 0 8px 4px' }}>{title}</p>
+    <p className={className} style={{ color: T.mute, fontSize: 14, margin: '22px 0 8px 4px' }}>{title}</p>
   );
 }
 
@@ -116,6 +116,7 @@ function Row({ icon: Icon, label, hint, tone, onClick, className = '' }) {
   const color = tone === 'danger' ? T.danger : T.text;
   return (
     <button
+      type="button"
       onClick={onClick}
       className={`profile-row ${className}`}
       style={{
@@ -127,7 +128,7 @@ function Row({ icon: Icon, label, hint, tone, onClick, className = '' }) {
       <Icon size={18} color={color} strokeWidth={1.8} style={{ flexShrink: 0 }} />
       <span style={{ flex: 1, minWidth: 0, fontSize: 15, color }}>{label}</span>
       {hint && (
-        <span style={{ color: T.faint, fontSize: 13, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ color: T.faint, fontSize: 14, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {hint}
         </span>
       )}
@@ -160,7 +161,7 @@ function Credential({ user, onEditAvatar }) {
       <p className="anim-fade-up anim-d1" style={{ fontFamily: T.display, fontWeight: W.title, fontSize: 22, letterSpacing: '-0.015em', color: T.text, marginTop: 16 }}>
         {user?.name ?? ''}
       </p>
-      <p className="anim-fade-up anim-d2" style={{ color: T.mute, fontSize: 13, marginTop: 4, wordBreak: 'break-all' }}>
+      <p className="anim-fade-up anim-d2" style={{ color: T.mute, fontSize: 14, marginTop: 4, wordBreak: 'break-all' }}>
         {user?.email}
       </p>
 
@@ -168,7 +169,7 @@ function Credential({ user, onEditAvatar }) {
 
       <div style={{ alignSelf: 'stretch', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Logo size={13} style={{ color: T.mute, WebkitTextStroke: '0px' }} />
-        <span style={{ fontSize: 11, color: T.faint, ...NUM, letterSpacing: '0.06em' }}>
+        <span style={{ fontSize: 12, color: T.faint, ...NUM, letterSpacing: '0.06em' }}>
           Nº {(user?.id ?? '').slice(0, 8).toUpperCase() || '—'}
         </span>
       </div>
@@ -293,17 +294,17 @@ function FeedbackBox() {
       ) : sent.length > 0 && (
         <>
           <div style={{ height: 1, background: T.line, margin: '4px 0' }} />
-          <p style={{ color: T.mute, fontSize: 13 }}>Você já mandou</p>
+          <p style={{ color: T.mute, fontSize: 14 }}>Você já mandou</p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
             {sent.map((item) => (
               <div key={item.id} style={{ background: T.chip, borderRadius: 14, padding: '11px 13px' }}>
-                <p style={{ color: T.text, fontSize: 13, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{item.message}</p>
+                <p style={{ color: T.text, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{item.message}</p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#4ade80', fontSize: 11 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#4ade80', fontSize: 12 }}>
                     <Check size={12} strokeWidth={2.4} /> Recebido
                   </span>
-                  <span style={{ color: T.faint, fontSize: 11 }}>
+                  <span style={{ color: T.faint, fontSize: 12 }}>
                     {format(new Date(item.created_at), "d/MM/yyyy 'às' HH:mm")}
                   </span>
                 </div>
@@ -317,7 +318,7 @@ function FeedbackBox() {
 }
 
 export default function PerfilPage() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, clearSession } = useAuthStore();
   const { show: toast } = useToastStore();
   const router = useRouter();
   const [deleteModal, setDeleteModal] = useState(false);
@@ -331,11 +332,22 @@ export default function PerfilPage() {
   const { data: myBuildings = [], isLoading: buildingsLoading } = useMyBuildings();
   const hasBuilding = myBuildings.length > 0;
   const myBuilding = myBuildings[0];
+  /**
+   * O que a linha do perfil mostra como "prédio".
+   *
+   * Com mais de um vínculo, o nome do primeiro seria mentira por omissão — a
+   * pessoa lia o perfil e concluía que só pertencia àquele.
+   */
+  const buildingLabel = !hasBuilding
+    ? 'Sem vínculo'
+    : myBuildings.length === 1
+      ? myBuilding.name
+      : `${myBuildings.length} prédios`;
 
-  async function handleLeave() {
-    if (!confirm('Tem certeza que deseja sair deste prédio?')) return;
+  async function handleLeave(building) {
+    if (!confirm(`Tem certeza que deseja sair de "${building.name}"?`)) return;
     try {
-      await leaveBuilding.mutateAsync(myBuilding.building_id);
+      await leaveBuilding.mutateAsync(building.building_id);
       toast('Você saiu do prédio', 'info');
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao sair do prédio', 'error');
@@ -345,7 +357,9 @@ export default function PerfilPage() {
   async function handleDelete() {
     try {
       await deleteMe.mutateAsync();
-      logout();
+      // A conta já foi apagada: não há sessão a encerrar no servidor, só o que
+      // limpar daqui.
+      clearSession();
       router.replace('/login');
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao excluir conta', 'error');
@@ -361,22 +375,28 @@ export default function PerfilPage() {
         {buildingsLoading ? (
           <div style={{ height: 48, background: '#232323', borderRadius: 12 }} />
         ) : hasBuilding ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <Building2 size={18} color="#F5C518" />
-              <div>
-                <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14 }}>{myBuilding.name}</p>
-                {myBuilding.description && <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 12, marginTop: 2 }}>{myBuilding.description}</p>}
+          // Todos os vínculos, e não só o primeiro. Quem trabalha em dois
+          // prédios via um só aqui — e a saída aplicava sempre àquele.
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {myBuildings.map((building) => (
+              <div key={building.building_id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Building2 size={18} color="#F5C518" style={{ flexShrink: 0 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14 }}>{building.name}</p>
+                    {building.description && <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 12, marginTop: 2 }}>{building.description}</p>}
+                  </div>
+                </div>
+                <button type="button" onClick={() => handleLeave(building)} disabled={leaveBuilding.isPending}
+                  className="w-full text-sm text-red-400 border border-red-900/40 bg-red-900/10 rounded-2xl py-2.5 hover:bg-red-900/20 transition-colors disabled:opacity-50">
+                  {leaveBuilding.isPending ? 'Saindo...' : `Sair de ${building.name}`}
+                </button>
               </div>
-            </div>
-            <button onClick={handleLeave} disabled={leaveBuilding.isPending}
-              className="w-full text-sm text-red-400 border border-red-900/40 bg-red-900/10 rounded-2xl py-2.5 hover:bg-red-900/20 transition-colors disabled:opacity-50">
-              {leaveBuilding.isPending ? 'Saindo...' : 'Sair deste prédio'}
-            </button>
+            ))}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 13 }}>Você não está vinculado a nenhum prédio.</p>
+            <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 14 }}>Você não está vinculado a nenhum prédio.</p>
             <JoinBuildingForm />
           </div>
         )}
@@ -398,9 +418,9 @@ export default function PerfilPage() {
             <ArrowLeft size={18} /> Voltar
           </button>
           <Logo size={16} />
-          <button onClick={() => { logout(); router.replace('/login'); }}
+          <button onClick={async () => { await logout(); router.replace('/login'); }}
             className="transition-colors duration-150"
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: T.mute, fontSize: 13 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: T.mute, fontSize: 14 }}
             onMouseEnter={e => e.currentTarget.style.color = T.danger}
             onMouseLeave={e => e.currentTarget.style.color = T.mute}>
             <LogOut size={16} /> Sair
@@ -416,7 +436,7 @@ export default function PerfilPage() {
             <Tile label="Função" value={roleLabel(user)} />
             <Tile
               label="Prédio"
-              value={isManager(user) ? 'Todos os seus' : myBuilding?.name ?? 'Sem vínculo'}
+              value={isManager(user) ? 'Todos os seus' : buildingLabel}
             />
           </div>
 
@@ -427,7 +447,7 @@ export default function PerfilPage() {
               className="anim-fade-up anim-d4"
               icon={Building2}
               label="Prédio"
-              hint={hasBuilding ? myBuilding?.name : 'Sem vínculo'}
+              hint={buildingLabel}
               onClick={() => setSheet('building')}
             />
           )}
@@ -466,7 +486,7 @@ export default function PerfilPage() {
             <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 21, color: M.text, marginTop: 16 }}>
               {user?.name}
             </p>
-            <p style={{ color: M.mute, fontSize: 13, marginTop: 4, wordBreak: 'break-all' }}>
+            <p style={{ color: M.mute, fontSize: 14, marginTop: 4, wordBreak: 'break-all' }}>
               {user?.email}
             </p>
           </div>
@@ -475,7 +495,7 @@ export default function PerfilPage() {
             <Tile label="Função" value={roleLabel(user)} />
             <Tile
               label="Prédio"
-              value={isManager(user) ? 'Todos os seus' : myBuilding?.name ?? 'Sem vínculo'}
+              value={isManager(user) ? 'Todos os seus' : buildingLabel}
             />
           </div>
 
@@ -485,7 +505,7 @@ export default function PerfilPage() {
             <Row
               icon={Building2}
               label="Prédio"
-              hint={hasBuilding ? myBuilding?.name : 'Sem vínculo'}
+              hint={buildingLabel}
               onClick={() => setSheet('building')}
             />
           )}
@@ -505,7 +525,7 @@ export default function PerfilPage() {
           <Row icon={Trash2} label="Excluir conta" tone="danger" onClick={() => setDeleteModal(true)} />
 
           <button
-            onClick={() => { logout(); router.replace('/login'); }}
+            onClick={async () => { await logout(); router.replace('/login'); }}
             style={{
               display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none',
               cursor: 'pointer', color: M.danger, fontSize: 15, fontWeight: 500,

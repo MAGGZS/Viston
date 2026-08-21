@@ -1,12 +1,11 @@
 import bcrypt from 'bcrypt';
 import { managerRepository } from '../repositories/manager.repository';
+import { PASSWORD_ROUNDS } from '../utils/password';
 import { userRepository } from '../repositories/user.repository';
 import { buildingRepository } from '../repositories/building.repository';
 import { storageService } from './storage.service';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
-
-/** Teto da foto depois de decodificada. O recorte do app entrega bem menos. */
-const MAX_AVATAR_BYTES = 1_500_000;
+import { decodeAvatarDataUrl } from '../utils/image';
 
 /**
  * O e-mail precisa ser livre nas duas tabelas.
@@ -60,7 +59,7 @@ export const managerService = {
   async create(data: { name: string; email: string; password: string }) {
     await assertEmailIsFree(data.email);
 
-    const password_hash = await bcrypt.hash(data.password, 10);
+    const password_hash = await bcrypt.hash(data.password, PASSWORD_ROUNDS);
     const manager = await managerRepository.create({
       name: data.name,
       email: data.email,
@@ -108,13 +107,8 @@ export const managerService = {
     const manager = await managerRepository.findById(id);
     if (!manager || manager.status === 'DELETED') throw new NotFoundError('Gestor');
 
-    const [header, base64] = dataUrl.split(',');
-    const contentType = header.slice(header.indexOf(':') + 1, header.indexOf(';'));
-    const buffer = Buffer.from(base64, 'base64');
-
-    if (buffer.byteLength > MAX_AVATAR_BYTES) {
-      throw new ConflictError('Imagem muito grande. O limite é 1,5 MB.');
-    }
+    // O tipo sai dos bytes, não do rótulo do data URL: ver `decodeAvatarDataUrl`.
+    const { buffer, contentType } = decodeAvatarDataUrl(dataUrl);
 
     const avatar_url = await storageService.uploadAvatar(id, buffer, contentType);
     await managerRepository.update(id, { avatar_url });
@@ -143,14 +137,18 @@ export const managerService = {
     const valid = await bcrypt.compare(currentPassword, manager.password_hash);
     if (!valid) throw new UnauthorizedError('Senha atual incorreta');
 
-    const password_hash = await bcrypt.hash(newPassword, 10);
+    const password_hash = await bcrypt.hash(newPassword, PASSWORD_ROUNDS);
     await managerRepository.update(id, { password_hash });
+    // Ver `userService.changePassword`: trocar a senha encerra o que já estava
+    // aberto, senão a troca não tira ninguém de dentro.
+    await managerRepository.bumpTokenVersion(id);
   },
 
   async softDelete(id: string) {
     await this.findById(id);
     await assertNotSoleManager(id);
     await managerRepository.softDelete(id);
+    await managerRepository.bumpTokenVersion(id);
   },
 
   /** Lista do painel do admin. */

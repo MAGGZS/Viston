@@ -1,12 +1,14 @@
 'use client';
+import { useId } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Download, FileSpreadsheet, X } from 'lucide-react';
 import { Logo } from '@/app/components/Logo';
-import { Button, Spinner } from '@/app/components/ui';
+import { Button, Dialog, Spinner } from '@/app/components/ui';
 import { useDayReport, useGenerateExcel } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { useIsDesktop } from '@/app/hooks/useMediaQuery';
+import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
 import { parseReportDate } from '@/app/lib/date';
 import { MAINTENANCE_TYPES, CATEGORIES, PRIORITIES, RECORD_STATUS, labelOf } from '@/app/lib/maintenanceOptions';
@@ -21,16 +23,16 @@ const RULE = T.line;
 
 const D = {
   sheet: { background: PAPER, padding: '48px 56px 56px', color: INK, fontSize: 14, lineHeight: 1.65 },
-  eyebrow: { fontSize: 11, color: INK_SOFT, fontWeight: W.body },
+  eyebrow: { fontSize: 12, color: INK_SOFT, fontWeight: W.body },
   title: { fontSize: 26, fontWeight: W.title, letterSpacing: '-0.015em', marginTop: 6, color: INK },
   metaGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px 32px', marginTop: 24 },
-  metaLabel: { fontSize: 11, color: INK_SOFT, fontWeight: W.body },
+  metaLabel: { fontSize: 12, color: INK_SOFT, fontWeight: W.body },
   metaValue: { fontSize: 14, color: INK, marginTop: 2, fontWeight: W.strong },
   rule: { border: 'none', borderTop: `1px solid ${RULE}`, margin: '28px 0 0' },
   floorTitle: { fontSize: 17, fontWeight: W.title, color: INK },
-  th: { textAlign: 'left', padding: '8px 12px 8px 0', fontSize: 11, color: INK_SOFT, fontWeight: W.body, borderBottom: `1px solid ${RULE}`, whiteSpace: 'nowrap' },
-  td: { padding: '10px 12px 10px 0', fontSize: 13, color: INK, borderBottom: `1px solid ${RULE}`, verticalAlign: 'top' },
-  empty: { fontSize: 13, color: INK_SOFT, marginTop: 8 },
+  th: { textAlign: 'left', padding: '8px 12px 8px 0', fontSize: 12, color: INK_SOFT, fontWeight: W.body, borderBottom: `1px solid ${RULE}`, whiteSpace: 'nowrap' },
+  td: { padding: '10px 12px 10px 0', fontSize: 14, color: INK, borderBottom: `1px solid ${RULE}`, verticalAlign: 'top' },
+  empty: { fontSize: 14, color: INK_SOFT, marginTop: 8 },
 };
 
 const FLOOR_STATUS_LABEL = { OK: 'OK', ATENCAO: 'Atenção', PROBLEMA: 'Problema' };
@@ -47,7 +49,7 @@ const PRIORITY_COLOR = { ALTA: T.danger, MEDIA: T.accent, BAIXA: INK_SOFT };
 function FloorStatus({ value, pill = false }) {
   const color = FLOOR_STATUS_COLOR[value] ?? INK_SOFT;
   const base = {
-    fontSize: 11, fontWeight: 600, letterSpacing: '0.1em',
+    fontSize: 12, fontWeight: 600, letterSpacing: '0.1em',
     textTransform: 'uppercase', color, whiteSpace: 'nowrap',
   };
 
@@ -143,7 +145,7 @@ function DesktopSheet({ report, entries, totalRecords }) {
 
       <hr style={{ ...D.rule, marginTop: 40 }} />
       {/* Sem hora: a unidade do relatório é o dia. */}
-      <p style={{ fontSize: 11, color: INK_SOFT, marginTop: 12 }}>
+      <p style={{ fontSize: 12, color: INK_SOFT, marginTop: 12 }}>
         {report.reports?.length ?? 1} vistoria{(report.reports?.length ?? 1) !== 1 ? 's' : ''} neste dia · Viston
       </p>
     </div>
@@ -171,16 +173,16 @@ function MobileRecord({ record }) {
         <span style={{ fontSize: 14, fontWeight: W.title, color: INK }}>
           {labelOf(MAINTENANCE_TYPES, record.maintenance_type)}
         </span>
-        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: priorityColor }}>
+        <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: priorityColor }}>
           {labelOf(PRIORITIES, record.priority)}
         </span>
       </div>
 
-      <p style={{ fontSize: 13, lineHeight: 1.6, color: INK, whiteSpace: 'pre-wrap' }}>
+      <p style={{ fontSize: 14, lineHeight: 1.6, color: INK, whiteSpace: 'pre-wrap' }}>
         {record.description}
       </p>
 
-      <p style={{ fontSize: 11, color: INK_SOFT, lineHeight: 1.5 }}>
+      <p style={{ fontSize: 12, color: INK_SOFT, lineHeight: 1.5 }}>
         {labelOf(CATEGORIES, record.category)} · {record.responsible ?? 'A encaminhar'} ·{' '}
         {labelOf(RECORD_STATUS, record.status)}
         {record.inspector ? ` · relatado por ${record.inspector}` : ''}
@@ -200,10 +202,10 @@ function MobileSheet({ report, entries, totalRecords }) {
       <h1 style={{ fontSize: 22, fontWeight: W.title, letterSpacing: '-0.015em', lineHeight: 1.25 }}>
         {report.building?.name}
       </h1>
-      <p style={{ fontSize: 13, color: INK_SOFT, marginTop: 6, lineHeight: 1.5 }}>
+      <p style={{ fontSize: 14, color: INK_SOFT, marginTop: 6, lineHeight: 1.5 }}>
         {format(parseReportDate(report.date), "d 'de' MMMM 'de' yyyy", { locale: ptBR })}
       </p>
-      <p style={{ fontSize: 13, color: INK_SOFT, marginTop: 2 }}>
+      <p style={{ fontSize: 14, color: INK_SOFT, marginTop: 2 }}>
         Por {(report.inspectors ?? []).join(' / ') || '—'}
       </p>
 
@@ -216,7 +218,7 @@ function MobileSheet({ report, entries, totalRecords }) {
         ].map(([value, label]) => (
           <div key={label} style={{ background: T.chip, borderRadius: R.control, padding: '12px 8px', textAlign: 'center' }}>
             <p style={{ fontSize: 20, fontWeight: W.title, lineHeight: 1.1 }}>{value}</p>
-            <p style={{ fontSize: 11, color: INK_SOFT, marginTop: 3 }}>{label}</p>
+            <p style={{ fontSize: 12, color: INK_SOFT, marginTop: 3 }}>{label}</p>
           </div>
         ))}
       </div>
@@ -234,7 +236,7 @@ function MobileSheet({ report, entries, totalRecords }) {
             }}>
               <div style={{ minWidth: 0 }}>
                 <h2 style={{ fontSize: 16, fontWeight: W.title, lineHeight: 1.2 }}>{entry.floor?.label}</h2>
-                <p style={{ fontSize: 11, color: INK_SOFT, marginTop: 2 }}>
+                <p style={{ fontSize: 12, color: INK_SOFT, marginTop: 2 }}>
                   {records.length === 0
                     ? 'Sem ocorrências'
                     : `${records.length} ocorrência${records.length > 1 ? 's' : ''}`}
@@ -244,7 +246,7 @@ function MobileSheet({ report, entries, totalRecords }) {
             </div>
 
             {records.length === 0 ? (
-              <p style={{ fontSize: 13, color: INK_SOFT, padding: '14px 0 2px' }}>
+              <p style={{ fontSize: 14, color: INK_SOFT, padding: '14px 0 2px' }}>
                 Nada a relatar neste andar.
               </p>
             ) : (
@@ -259,7 +261,7 @@ function MobileSheet({ report, entries, totalRecords }) {
       })}
 
       <div style={{ marginTop: 30, paddingTop: 16, borderTop: `1px solid ${RULE}`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
-        <p style={{ fontSize: 11, color: INK_SOFT, lineHeight: 1.6 }}>
+        <p style={{ fontSize: 12, color: INK_SOFT, lineHeight: 1.6 }}>
           {report.reports?.length ?? 1} vistoria{(report.reports?.length ?? 1) !== 1 ? 's' : ''}<br />
           neste dia
         </p>
@@ -278,11 +280,13 @@ function MobileSheet({ report, entries, totalRecords }) {
  */
 export function ReportDocumentModal({ open, onClose, reportId }) {
   const { mounted, closing } = useExitTransition(open);
+  const titleId = useId();
   // Segura o id na saída para a folha não esvaziar antes da animação acabar
   const shownId = useKeepWhileClosing(reportId, open);
   const { data: report, isLoading } = useDayReport(mounted ? shownId : null);
   const generateExcel = useGenerateExcel();
   const { show: toast } = useToastStore();
+  const { download, pendingId } = useExcelDownload();
   const isDesktop = useIsDesktop();
 
   if (!mounted) return null;
@@ -296,7 +300,8 @@ export function ReportDocumentModal({ open, onClose, reportId }) {
     try {
       const { excel_url } = await generateExcel.mutateAsync(shownId);
       toast('Planilha gerada!', 'success');
-      if (excel_url) window.open(excel_url, '_blank', 'noreferrer');
+      // A URL vem assinada e vale minutos: a planilha desce agora, não depois.
+      if (excel_url) window.location.href = excel_url;
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao gerar planilha', 'error');
     }
@@ -305,40 +310,47 @@ export function ReportDocumentModal({ open, onClose, reportId }) {
   // No telefone o relatório ocupa a tela inteira: sobra de margem só encolhe a
   // única coisa que interessa aqui, que é o texto da ocorrência.
   const shellStyle = isDesktop
-    ? { width: '100%', maxWidth: 1000, maxHeight: '92vh', borderRadius: R.control }
-    : { width: '100%', height: '100%', maxHeight: '100%', borderRadius: 0 };
+    ? { width: 1000, maxHeight: '92vh', borderRadius: R.control }
+    : { width: '100vw', height: '100vh', maxHeight: '100vh', borderRadius: 0 };
 
   return (
-    <div
-      className={closing ? 'anim-fade-out' : 'anim-fade-in'}
-      style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isDesktop ? 20 : 0 }}
+    <Dialog
+      onClose={onClose}
+      className={`${closing ? 'is-closing' : ''} ${isDesktop ? '' : 'dialog--full'}`}
+      labelledBy={titleId}
+      style={isDesktop ? { width: 1000 } : { width: '100vw', maxWidth: '100vw', height: '100vh' }}
     >
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)' }} onClick={onClose} />
-
-      <div className={closing ? 'anim-scale-out' : 'anim-scale-in'} style={{ position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden', ...shellStyle }}>
+      <div className={closing ? 'anim-scale-out' : 'anim-scale-in'} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', ...shellStyle }}>
         {/* Barra de ações — fora da folha, para o documento ficar limpo */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isDesktop ? '12px 16px' : '14px 14px 14px 18px', background: T.bg, borderBottom: `1px solid ${RULE}`, flexShrink: 0 }}>
-          <span style={{ color: T.mute, fontSize: 12, fontWeight: W.body }}>
+          <span id={titleId} style={{ color: T.mute, fontSize: 12, fontWeight: W.body }}>
             Relatório do dia
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: isDesktop ? 8 : 4 }}>
-            {report?.excel_url ? (
-              <a
-                href={report.excel_url}
-                target="_blank"
-                rel="noreferrer"
-                aria-label="Baixar planilha"
-                title="Baixar planilha"
-                style={isDesktop ? undefined : { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: R.control, background: T.chip, color: T.accent }}
-              >
-                {isDesktop ? (
-                  <Button variant="secondary" style={{ fontSize: 12, padding: '7px 13px' }}>
-                    <Download size={13} /> Baixar planilha
-                  </Button>
-                ) : (
+            {report?.has_excel ? (
+              isDesktop ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => download(shownId)}
+                  loading={pendingId === shownId}
+                  aria-label="Baixar planilha"
+                  title="Baixar planilha"
+                  style={{ fontSize: 12, padding: '7px 13px' }}
+                >
+                  <Download size={13} /> Baixar planilha
+                </Button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => download(shownId)}
+                  disabled={pendingId === shownId}
+                  aria-label="Baixar planilha"
+                  title="Baixar planilha"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: R.control, border: 'none', cursor: 'pointer', background: T.chip, color: T.accent }}
+                >
                   <Download size={18} />
-                )}
-              </a>
+                </button>
+              )
             ) : report ? (
               <Button
                 onClick={handleGenerate}
@@ -374,6 +386,6 @@ export function ReportDocumentModal({ open, onClose, reportId }) {
           )}
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }

@@ -42,8 +42,8 @@ info:
 
     ## Limites de requisição
     - Geral: 300 req/min por IP
-    - `/auth/*`: 20 tentativas por 15 min (sucesso não conta)
-    - Cadastro, `/buildings/lookup` e pedido de acesso: 60/h por IP
+    - `/auth/*`: 20 tentativas por 15 min, por **IP + e-mail** (sucesso não conta)
+    - Cadastro, `POST /buildings/lookup` e pedido de acesso: 60/h por IP
 
     Estouro devolve `429` com o corpo de erro padrão.
 
@@ -187,7 +187,7 @@ components:
             é o que o moderador escreve do lado dele.
         closed_at: { type: string, format: date-time, nullable: true }
         maintenance_note: { type: string, nullable: true }
-        maintenance_cost: { type: number, nullable: true, description: Valor da manutenção, em reais }
+        maintenance_cost: { type: number, nullable: true, description: 'Valor da manutenção, em reais' }
         created_at: { type: string, format: date-time }
 
     FloorFormEntry:
@@ -216,7 +216,12 @@ components:
         finished_at: { type: string, format: date-time, nullable: true }
         floors_inspected: { type: array, items: { type: string, format: uuid } }
         status: { type: string, enum: [IN_PROGRESS, COMPLETED] }
-        excel_url: { type: string, format: uri, nullable: true }
+        has_excel:
+          type: boolean
+          description: |
+            Se existe planilha do dia para este relatório. O caminho do objeto no
+            bucket nunca sai da API — o bucket é privado e a URL é assinada em
+            `GET /inspections/{id}/excel`, que confere o vínculo com o prédio.
         google_form_synced: { type: boolean }
         google_form_synced_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
@@ -313,6 +318,11 @@ paths:
     post:
       tags: [Auth]
       summary: Renovar access token
+      description: |
+        O refresh token carrega a geração das sessões da conta (`tv`). Sair,
+        trocar a senha ou excluir a conta incrementa essa geração, e todo
+        refresh token emitido antes disso passa a devolver 401 — não é preciso
+        esperar os 7 dias de validade.
       security: []
       requestBody:
         required: true
@@ -334,7 +344,22 @@ paths:
                   access_token: { type: string }
                   refresh_token: { type: string }
         '401':
-          description: Refresh token inválido
+          description: Refresh token inválido, ou emitido antes da última saída
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Sair
+      description: |
+        Encerra **todas** as sessões da conta: incrementa a geração
+        (`token_version`), o que derruba na hora qualquer refresh token já
+        emitido, e grava `LOGOUT` na trilha de auditoria. O access token que já
+        está na mão continua valendo até expirar — no máximo 15 minutos.
+      responses:
+        '204':
+          description: Sessões encerradas
+        '401':
+          description: Token ausente ou inválido
 
   /users:
     post:
@@ -618,7 +643,23 @@ paths:
   /inspections:
     post:
       tags: [Inspections]
-      summary: Enviar vistoria completa — grava, gera a planilha do dia e publica no histórico (INSPECTOR do prédio)
+      summary: Enviar vistoria completa — grava e publica no histórico (INSPECTOR do prédio)
+      description: |
+        Responde assim que o relatório é gravado. A planilha do dia é montada
+        logo em seguida, fora da resposta: numa vistoria de vinte andares ela
+        levava segundos, e o inspetor ficava com a tela parada em 4G. Por isso
+        `has_excel` costuma vir `false` aqui — o histórico já mostra o estado
+        atualizado, e `POST /inspections/{id}/excel` força a geração.
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema: { type: string, pattern: '^[A-Za-z0-9._-]{8,64}$' }
+          description: |
+            Identifica a *tentativa* de envio. Reenviar com a mesma chave devolve
+            o relatório que já foi criado, em vez de criar um segundo — que é o
+            que acontecia com toque duplo ou retry de rede. O app gera a chave
+            quando a vistoria começa e a guarda junto do rascunho.
       requestBody:
         required: true
         content:
@@ -626,14 +667,14 @@ paths:
             schema: { $ref: '#/components/schemas/SubmitInspectionPayload' }
       responses:
         '201':
-          description: Vistoria registrada como COMPLETED
+          description: Vistoria registrada como COMPLETED (ou a já criada por esta chave)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/InspectionReport' }
         '400':
-          description: Payload inválido
+          description: Payload inválido, ou `Idempotency-Key` fora do formato
         '409':
-          description: Andar repetido ou andar que não pertence ao prédio
+          description: Andar repetido, andar que não pertence ao prédio, ou chave de envio de outra conta
     get:
       tags: [Inspections]
       summary: Histórico de inspeções (apenas COMPLETED por padrão)
@@ -731,7 +772,7 @@ paths:
                       properties:
                         id: { type: string, format: uuid }
                         inspector: { $ref: '#/components/schemas/User' }
-                  excel_url: { type: string, format: uri, nullable: true }
+                  has_excel: { type: boolean }
                   floor_form_entries:
                     type: array
                     items: { $ref: '#/components/schemas/FloorFormEntry' }
@@ -979,9 +1020,13 @@ paths:
           name: id
           required: true
           schema: { type: string, format: uuid }
+      description: |
+        Devolve uma URL assinada, válida por 5 minutos, com
+        `Content-Disposition: attachment`. O bucket é privado: o vínculo com o
+        prédio é conferido a cada pedido, e o link não sobrevive a quem sair.
       responses:
         '200':
-          description: URL do arquivo Excel
+          description: URL assinada do arquivo Excel (expira em 5 minutos)
           content:
             application/json:
               schema:
@@ -989,7 +1034,7 @@ paths:
                 properties:
                   excel_url: { type: string, format: uri }
         '404':
-          description: Excel ainda não gerado
+          description: Excel ainda não gerado, ou relatório fora dos prédios do usuário
 
   /calendar:
     get:

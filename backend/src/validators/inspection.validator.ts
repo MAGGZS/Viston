@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { MaintenanceCategory, MaintenanceType, Priority } from '@prisma/client';
 
 // ── Ocorrência relatada em um andar ──────────────────────────────────────────
 export const maintenanceRecordSchema = z.object({
@@ -35,38 +34,48 @@ export const maintenanceRecordSchema = z.object({
   responsible_id: z.string().uuid('Responsável inválido').optional().nullable(),
 });
 
-// Tipos escritos à mão: com "strict": false no tsconfig, a inferência do zod
-// marca todo campo como opcional. Aqui o contrato precisa ser explícito.
-export type MaintenanceRecordPayload = {
-  maintenance_type: MaintenanceType;
-  category: MaintenanceCategory;
-  priority: Priority;
-  description: string;
-  responsible_id?: string | null;
-};
+// Inferido, e não escrito à mão. A cópia manual existia porque, com
+// `strict: false`, a inferência do zod marcava todo campo como opcional — o
+// projeto mantinha duas versões do mesmo contrato, e nada garantia que
+// continuassem iguais. Com `strict` ligado, o schema é a única fonte.
+export type MaintenanceRecordPayload = z.infer<typeof maintenanceRecordSchema>;
 
 // ── Envio único: toda a vistoria chega de uma vez ─────────────────────────────
-export const submitInspectionSchema = z.object({
-  building_id: z.string().uuid('building_id deve ser um UUID válido'),
-  floors: z
-    .array(
-      z.object({
-        floor_id: z.string().uuid(),
-        records: z
-          .array(maintenanceRecordSchema)
-          .max(20, 'Máximo de 20 ocorrências por andar')
-          .default([]),
-      })
-    )
-    .min(1, 'Selecione ao menos um andar')
-    .max(20, 'Máximo de 20 andares'),
-});
+//
+// `.strict()` como os demais: campo fora do contrato faz o envio falhar em vez
+// de ser descartado em silêncio. A chave da tentativa de envio não entra aqui —
+// ela viaja no cabeçalho `Idempotency-Key`, não no corpo.
+export const submitInspectionSchema = z
+  .object({
+    building_id: z.string().uuid('building_id deve ser um UUID válido'),
+    floors: z
+      .array(
+        z
+          .object({
+            floor_id: z.string().uuid(),
+            records: z
+              .array(maintenanceRecordSchema)
+              .max(20, 'Máximo de 20 ocorrências por andar')
+              .default([]),
+          })
+          .strict()
+      )
+      .min(1, 'Selecione ao menos um andar')
+      .max(20, 'Máximo de 20 andares'),
+  })
+  .strict();
 
-// Tipo escrito à mão: a inferência aninhada do zod perde os campos obrigatórios aqui.
-export type SubmitInspectionPayload = {
-  building_id: string;
-  floors: Array<{ floor_id: string; records: MaintenanceRecordPayload[] }>;
-};
+export type SubmitInspectionPayload = z.infer<typeof submitInspectionSchema>;
+
+/**
+ * Data de filtro vinda da querystring.
+ *
+ * `errorMap` e não `invalid_type_error`: a data coagida falha com o código
+ * `invalid_date`, que o `invalid_type_error` não alcança — a mensagem sairia em
+ * inglês, do zod, no meio de uma API que responde em português.
+ */
+const dateFilter = (label: string) =>
+  z.coerce.date({ errorMap: () => ({ message: `${label} inválida` }) }).optional();
 
 // ── Filtros de histórico ──────────────────────────────────────────────────────
 export const inspectionFiltersSchema = z.object({
@@ -75,8 +84,12 @@ export const inspectionFiltersSchema = z.object({
   status: z.enum(['IN_PROGRESS', 'COMPLETED']).optional(),
   inspector_id: z.string().uuid().optional(),
   floor_id: z.string().uuid().optional(),
-  date_from: z.string().optional(),
-  date_to: z.string().optional(),
+  // `coerce.date` e não `string`: com string, `?date_from=abc` virava
+  // `new Date('abc')` lá no repositório, o Prisma recusava a data inválida e a
+  // resposta era 500 — erro do servidor para um filtro que o usuário digitou.
+  // Aqui o mesmo pedido é 400, com a mensagem no campo certo.
+  date_from: dateFilter('Data inicial'),
+  date_to: dateFilter('Data final'),
 });
 
 // ── Filtros de calendário ─────────────────────────────────────────────────────

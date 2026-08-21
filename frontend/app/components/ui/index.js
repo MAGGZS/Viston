@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
 import { T, R, W } from '@/app/lib/theme';
@@ -18,17 +18,27 @@ const G = {
     borderRadius: R.control,
     padding: '13px 15px',
     color: T.text,
-    fontSize: 15,
+    // 16px, e não 15: abaixo de 16 o iOS dá zoom automático ao focar o campo, e
+    // o formulário de vistoria sai do lugar no meio do preenchimento.
+    fontSize: 16,
     fontWeight: W.body,
     outline: 'none',
     width: '100%',
     transition: 'border-color 0.2s',
   },
   inputError: { borderColor: 'rgba(248,113,113,0.5)' },
-  label: { fontSize: 11, fontWeight: W.body, color: T.mute },
+  label: { fontSize: 12, fontWeight: W.body, color: T.mute },
 };
 
-export function Button({ children, variant = 'primary', className = '', loading = false, style = {}, ...props }) {
+/**
+ * Botão do produto.
+ *
+ * O hover mora no CSS (`.btn`, em globals.css) e a cor de cada variante entra
+ * por variável. Em JS ele custava caro: teclado sem realce, estado grudado
+ * depois do toque no telefone, e a cor original adivinhada na volta. `type` é
+ * `button` por padrão — dentro de `<form>`, o padrão do HTML é enviar.
+ */
+export function Button({ children, variant = 'primary', className = '', loading = false, style = {}, type = 'button', ...props }) {
   const styles = {
     primary: { background: T.accent, color: T.onAccent, hover: '#FFD230' },
     secondary: { background: T.chip, color: T.text, hover: '#2E2E2E' },
@@ -36,23 +46,23 @@ export function Button({ children, variant = 'primary', className = '', loading 
     danger: { background: T.dangerSoft, color: T.danger, hover: 'rgba(248,113,113,0.2)' },
   };
   const { hover, ...base } = styles[variant];
-  const idle = base.background;
 
   return (
     <button
-      className={className}
+      type={type}
+      className={`btn ${className}`}
       style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         fontFamily: T.display, fontWeight: W.strong, fontSize: 14,
         padding: '12px 20px', borderRadius: R.control, border: 'none',
         cursor: props.disabled || loading ? 'not-allowed' : 'pointer',
         opacity: props.disabled || loading ? 0.5 : 1,
-        transition: 'background-color 0.15s ease, opacity 0.2s',
         ...base,
         ...style,
+        // Depois do `style` de quem chama: quem troca a cor de fundo troca junto
+        // a de hover, senão o realce voltaria à cor da variante.
+        '--btn-hover': style.background ? undefined : hover,
       }}
-      onMouseEnter={e => { if (!props.disabled && !loading) e.currentTarget.style.background = hover; }}
-      onMouseLeave={e => { e.currentTarget.style.background = style.background ?? idle; }}
       disabled={loading || props.disabled}
       {...props}
     >
@@ -61,12 +71,34 @@ export function Button({ children, variant = 'primary', className = '', loading 
   );
 }
 
-export function Input({ label, error, style = {}, ...props }) {
+/**
+ * Campo de texto.
+ *
+ * O erro é amarrado ao campo (`aria-describedby`) e anunciado quando aparece
+ * (`role="alert"`). Sem isso ele era só um texto vermelho ao lado: quem usa
+ * leitor de tela mandava o formulário, ouvia silêncio e não sabia nem que havia
+ * erro nem em qual campo — e no formulário de vistoria são cinco campos por
+ * ocorrência.
+ *
+ * O rótulo vira `<label htmlFor>` de verdade: `<label>` solto não liga a nada, e
+ * o campo ficava sem nome.
+ */
+export function Input({ label, error, id, style = {}, ...props }) {
+  const generatedId = useId();
+  const inputId = id ?? props.name ?? generatedId;
+  const errorId = `${inputId}-erro`;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {label && <label style={G.label}>{label}</label>}
-      <input style={{ ...G.input, ...(error ? G.inputError : {}), ...style }} {...props} />
-      {error && <span style={{ fontSize: 12, color: T.danger }}>{error}</span>}
+      {label && <label htmlFor={inputId} style={G.label}>{label}</label>}
+      <input
+        id={inputId}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        style={{ ...G.input, ...(error ? G.inputError : {}), ...style }}
+        {...props}
+      />
+      {error && <span id={errorId} role="alert" style={{ fontSize: 12, color: T.danger }}>{error}</span>}
     </div>
   );
 }
@@ -78,12 +110,20 @@ export function Input({ label, error, style = {}, ...props }) {
  * pessoa escreve mais de uma linha. `resize: vertical` fica: quem tem muito a
  * dizer estica, e o horizontal quebraria a caixa.
  */
-export function Textarea({ label, error, hint, rows = 5, style = {}, ...props }) {
+export function Textarea({ label, error, hint, id, rows = 5, style = {}, ...props }) {
+  const generatedId = useId();
+  const fieldId = id ?? props.name ?? generatedId;
+  const errorId = `${fieldId}-erro`;
+  const hintId = `${fieldId}-dica`;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {label && <label style={G.label}>{label}</label>}
+      {label && <label htmlFor={fieldId} style={G.label}>{label}</label>}
       <textarea
+        id={fieldId}
         rows={rows}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : hint ? hintId : undefined}
         style={{
           ...G.input,
           ...(error ? G.inputError : {}),
@@ -93,9 +133,9 @@ export function Textarea({ label, error, hint, rows = 5, style = {}, ...props })
         {...props}
       />
       {error ? (
-        <span style={{ fontSize: 12, color: T.danger }}>{error}</span>
+        <span id={errorId} role="alert" style={{ fontSize: 12, color: T.danger }}>{error}</span>
       ) : (
-        hint && <span style={{ fontSize: 12, color: T.faint }}>{hint}</span>
+        hint && <span id={hintId} style={{ fontSize: 12, color: T.faint }}>{hint}</span>
       )}
     </div>
   );
@@ -125,21 +165,38 @@ export function Badge({ children, variant = 'default', className = '' }) {
     accent: { background: T.accentSoft, color: T.accent },
   };
   return (
-    <span className={className} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: R.badge, fontSize: 11, fontWeight: W.body, ...colors[variant] }}>
+    <span className={className} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: R.badge, fontSize: 12, fontWeight: W.body, ...colors[variant] }}>
       {children}
     </span>
   );
 }
 
+/**
+ * Chave liga/desliga.
+ *
+ * Um `<input type="checkbox">` de verdade por baixo, escondido só visualmente:
+ * a `<div onClick>` que existia aqui não recebia foco, não virava com Espaço e
+ * o leitor de tela não sabia dizer se estava ligada. E ela decide coisa séria —
+ * é o "nada a relatar" do andar.
+ *
+ * `opacity: 0` e não `display: none`: o que está escondido assim sai da ordem
+ * do Tab, e voltaríamos ao começo.
+ */
 export function Toggle({ checked, onChange, label }) {
   return (
     <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-      <div
-        onClick={() => onChange(!checked)}
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, margin: 0 }}
+      />
+      <span
+        aria-hidden="true"
         style={{ position: 'relative', width: 44, height: 24, borderRadius: R.badge, transition: 'background 0.2s', background: checked ? T.accent : T.chip, flexShrink: 0 }}
       >
-        <div style={{ position: 'absolute', top: 4, left: checked ? 24 : 4, width: 16, height: 16, background: checked ? '#000' : T.text, borderRadius: '50%', transition: 'left 0.2s' }} />
-      </div>
+        <span style={{ position: 'absolute', top: 4, left: checked ? 24 : 4, width: 16, height: 16, background: checked ? '#000' : T.text, borderRadius: '50%', transition: 'left 0.2s' }} />
+      </span>
       {label && <span style={{ color: T.text, fontSize: 14 }}>{label}</span>}
     </label>
   );
@@ -150,15 +207,98 @@ export function Skeleton({ className = '', style = {} }) {
 }
 
 /**
+ * Quantas caixas estão abertas.
+ *
+ * O `<dialog>` deixa o fundo inerte ao clique e ao teclado, mas não impede a
+ * roda do mouse de rolar a página atrás — o texto anda embaixo da caixa
+ * enquanto se lê. A trava é nossa; a contagem existe porque caixa abre sobre
+ * caixa (o dia do calendário abre a prévia, que abre o relatório), e a primeira
+ * a fechar não pode destravar o que a segunda ainda segura.
+ */
+let openDialogs = 0;
+
+function lockPageScroll() {
+  if (openDialogs === 0) document.body.style.overflow = 'hidden';
+  openDialogs += 1;
+
+  return () => {
+    openDialogs -= 1;
+    if (openDialogs === 0) document.body.style.overflow = '';
+  };
+}
+
+/**
+ * A caixa de diálogo do produto — `<dialog>` de verdade.
+ *
+ * O que era uma `<div>` com sobreposição não era um diálogo para ninguém que
+ * não enxergasse a tela: nada anunciava a abertura, `Tab` continuava passeando
+ * pela página atrás, `Escape` não fechava e, no fim, o foco voltava para o
+ * `<body>` em vez do botão que abriu. Tudo isso o elemento nativo faz sozinho,
+ * e faz igual em todo navegador.
+ *
+ * A caixa também deixa de precisar de portal: `showModal()` põe o elemento na
+ * *top layer*, fora de qualquer bloco de contenção — que era exatamente o
+ * problema que o portal contornava (ver a nota do `transform` no MPage).
+ *
+ * Quem chama continua mandando em `open`: `onCancel` (o Escape) e o clique no
+ * fundo só avisam, e é o estado de fora que fecha. É o que mantém a animação de
+ * saída, e o que impede a caixa de fechar sem quem a abriu ficar sabendo.
+ */
+export function Dialog({
+  onClose,
+  className = '',
+  style = {},
+  labelledBy,
+  'aria-label': ariaLabel,
+  children,
+}) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    if (!el.open) el.showModal();
+    return lockPageScroll();
+    // Roda uma vez por montagem: quem controla a saída é `useExitTransition`,
+    // que mantém o elemento no DOM até a animação acabar — e tirá-lo do DOM já
+    // fecha o diálogo. Fechar aqui, no `open` falso, cortaria a animação.
+  }, []);
+
+  return (
+    // O `onClick` aqui é o clique no *backdrop*, que só o próprio `<dialog>`
+    // recebe — e o equivalente de teclado é o Escape, que o `onCancel` logo
+    // abaixo trata. A regra não sabe disso: para ela, `<dialog>` é elemento sem
+    // interação.
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
+    <dialog
+      ref={ref}
+      className={`dialog ${className}`}
+      style={style}
+      aria-labelledby={labelledBy}
+      aria-label={ariaLabel}
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose?.();
+      }}
+      // Clique no fundo: só o próprio `<dialog>` recebe o evento do backdrop,
+      // porque o miolo é um filho e nenhum preenchimento sobra em volta dele.
+      onClick={(e) => {
+        if (e.target === ref.current) onClose?.();
+      }}
+    >
+      {children}
+    </dialog>
+  );
+}
+
+/**
  * `maxWidth` existe para as caixas que listam linhas com controle do lado
  * direito (colaboradores, solicitações): em 400px o dropdown espreme o nome.
  * O padrão continua sendo 400 — formulário e confirmação não querem mais.
  */
-/** Assinatura vazia: o "estou no cliente?" do Modal nunca muda depois de montar. */
-const NEVER_CHANGES = () => () => {};
-
 export function Modal({ open, onClose, title, children, maxWidth = 400 }) {
   const { mounted, closing } = useExitTransition(open);
+  const titleId = useId();
 
   // O conteúdo é congelado na saída: quase toda chamada zera o estado no
   // `onClose` (`setDeleteModal(null)`), e sem isso o texto sumiria antes da
@@ -166,43 +306,28 @@ export function Modal({ open, onClose, title, children, maxWidth = 400 }) {
   const shownTitle = useKeepWhileClosing(title, open);
   const shownChildren = useKeepWhileClosing(children, open);
 
-  /**
-   * A caixa é desenhada no `body`, e não onde foi escrita.
-   *
-   * Ela é `position: fixed`, e fixed se mede pela janela — menos quando algum
-   * ancestral tem `transform`, que vira bloco de contenção e prende a caixa
-   * dentro dele. Isso não é caso raro aqui: as classes de animação terminam com
-   * um transform aplicado (o `both` do fill-mode segura o último quadro), então
-   * qualquer modal aberto de dentro de um cartão ou lista animada aparecia preso
-   * ali, recortado, em vez de cobrir a tela. É a mesma armadilha anotada no
-   * MPage, e a mesma saída do droplist do Select.
-   *
-   * Com o portal, onde o modal é escrito deixa de importar: ele fica ao lado do
-   * estado que o abre, que é onde o código pertence.
-   */
-  // `document` não existe na geração estática das páginas: o portal só pode
-  // nascer depois de montar no navegador. `useSyncExternalStore` é o que
-  // responde "estou no cliente?" sem mentir na hidratação — o servidor lê o
-  // último argumento, o navegador lê o do meio.
-  const portalReady = useSyncExternalStore(NEVER_CHANGES, () => true, () => false);
+  if (!mounted) return null;
 
-  if (!mounted || !portalReady) return null;
-
-  return createPortal(
-    <div
-      className={closing ? 'anim-fade-out' : 'anim-fade-in'}
-      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+  return (
+    <Dialog
+      onClose={onClose}
+      className={closing ? 'is-closing' : ''}
+      style={{ width: maxWidth, maxWidth: 'min(100vw - 32px, 100%)' }}
+      labelledBy={shownTitle ? titleId : undefined}
+      aria-label={shownTitle ? undefined : 'Caixa de diálogo'}
     >
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
       <div
         className={closing ? 'anim-scale-out' : 'anim-scale-in'}
-        style={{ position: 'relative', background: T.card, borderRadius: R.card, padding: 22, width: '100%', maxWidth }}
+        style={{ background: T.card, borderRadius: R.card, padding: 22 }}
       >
-        {shownTitle && <h2 style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text, marginBottom: 16 }}>{shownTitle}</h2>}
+        {shownTitle && (
+          <h2 id={titleId} style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text, marginBottom: 16 }}>
+            {shownTitle}
+          </h2>
+        )}
         {shownChildren}
       </div>
-    </div>,
-    document.body
+    </Dialog>
   );
 }
 
@@ -249,13 +374,14 @@ export function Select({
   const triggerRef = useRef(null);
   const listRef = useRef(null);
   const listId = useId();
+  const errorId = `${listId}-erro`;
 
   const selectedIndex = options.findIndex((o) => String(o.value) === String(value));
   const selected = options[selectedIndex];
 
   // Controle miúdo (a linha de colaborador) pede item miúdo: opção com a altura
   // do formulário ao lado de um gatilho de 34px faz a lista parecer outra peça.
-  const compact = (style.fontSize ?? 15) <= 13;
+  const compact = (style.fontSize ?? 16) <= 14;
   const optionStyle = compact
     ? { padding: '7px 10px', fontSize: 12 }
     : { padding: '10px 12px', fontSize: 14 };
@@ -371,9 +497,11 @@ export function Select({
         aria-controls={open ? listId : undefined}
         aria-activedescendant={open && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
         aria-label={ariaLabel}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
         disabled={disabled}
         className={`select-trigger ${raised ? 'select-trigger--raised' : ''} ${open ? 'is-open' : ''} ${error ? 'is-error' : ''} ${className}`}
-        style={{ padding: '13px 38px 13px 15px', fontSize: 15, fontWeight: W.body, ...style }}
+        style={{ padding: '13px 38px 13px 15px', fontSize: 16, fontWeight: W.body, ...style }}
         onClick={() => (open ? setOpen(false) : openList(selectedIndex >= 0 ? selectedIndex : 0))}
         onKeyDown={handleKeyDown}
         onBlur={onBlur}
@@ -417,7 +545,7 @@ export function Select({
         document.body
       )}
 
-      {error && <span style={{ fontSize: 12, color: T.danger }}>{error}</span>}
+      {error && <span id={errorId} role="alert" style={{ fontSize: 12, color: T.danger }}>{error}</span>}
     </div>
   );
 }
