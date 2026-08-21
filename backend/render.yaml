@@ -15,6 +15,11 @@ services:
     buildCommand: npm ci --include=dev && npm run build && npm run prisma:migrate:deploy
     startCommand: npm start
     envVars:
+      # O cliente do Supabase usa o WebSocket nativo do Node, que só existe a
+      # partir do 22 — numa versão anterior ele quebra na carga do módulo, e o
+      # serviço nem sobe. Mesmo piso do `engines` no package.json.
+      - key: NODE_VERSION
+        value: "22"
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL

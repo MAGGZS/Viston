@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Viston - Sistema de Vistoria Predial - Backend API",
   "main": "dist/server.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "npx prisma generate && tsc",
