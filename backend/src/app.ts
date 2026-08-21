@@ -40,7 +40,11 @@ app.use(
       : [...config.cors.origins, 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'],
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    // Esta lista é uma permissão explícita, e o navegador barra no preflight
+    // qualquer cabeçalho fora dela — antes da requisição sair. Todo cabeçalho
+    // novo que o app mandar precisa entrar aqui: `Idempotency-Key` é o do envio
+    // da vistoria (ver POST /inspections).
+    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
   })
 );
 

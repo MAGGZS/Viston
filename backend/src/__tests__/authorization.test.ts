@@ -602,6 +602,32 @@ describe('edição de usuários pelo admin', () => {
   });
 });
 
+/**
+ * O preflight do navegador.
+ *
+ * Esta é a falha que não aparece em teste de rota nenhum: a requisição é
+ * recusada *antes* de sair, pelo navegador, porque o cabeçalho não está na
+ * lista do CORS. No servidor não chega nada — nem log, nem erro. Só o app
+ * quebrado, e sem pista.
+ */
+describe('CORS', () => {
+  const origem = 'http://localhost:3001';
+
+  it('deixa passar os cabeçalhos que o app manda', async () => {
+    const res = await request(app)
+      .options('/inspections')
+      .set('Origin', origem)
+      .set('Access-Control-Request-Method', 'POST')
+      .set('Access-Control-Request-Headers', 'content-type,authorization,idempotency-key');
+
+    const permitidos = String(res.headers['access-control-allow-headers']).toLowerCase();
+    expect(permitidos).toContain('authorization');
+    expect(permitidos).toContain('content-type');
+    // Sem este, o envio da vistoria nem sai do navegador.
+    expect(permitidos).toContain('idempotency-key');
+  });
+});
+
 describe('acesso a relatórios', () => {
   const report = {
     id: REPORT_ID,
