@@ -227,6 +227,17 @@ telas, e URL assinada expiraria com a imagem já na página.
 inteiro atrás de um NAT dividia a mesma cota e um ataque distribuído tinha uma
 cota por máquina; 60/h no cadastro, no `lookup` de chave e no pedido de acesso.
 
+**Log.** `pino` com id por requisição (`pino-http`). `console.error` solto no
+painel do Render não dizia de qual chamada cada linha era — e quando aparece um
+500, o que interessa é o que veio antes dele na mesma requisição. `redact`
+esconde `Authorization`, senha, hash e os tokens: log é o lugar clássico onde
+essas coisas vazam, porque ninguém espera que vazem ali. `LOG_LEVEL` sobrescreve
+o nível (padrão: `info` em produção, `debug` fora).
+
+Falta o passo seguinte, que depende de uma conta externa: um coletor de erros
+(Sentry ou equivalente) pendurado no ramo 500 do `errorHandler`. Hoje um 500 em
+produção só aparece se alguém olhar o log do Render.
+
 **Saúde.** `/health` é liveness — o processo está de pé. `/health/ready` é
 readiness: faz `SELECT 1` e responde 503 se o banco não atender. São separados
 de propósito: checar o banco no liveness faria uma queda do Postgres virar um
@@ -335,6 +346,7 @@ Configure todas as variáveis do `.env.example` com os valores de produção. Ve
 | `JWT_REFRESH_SECRET` | qualquer string | string aleatória 64+ chars (diferente do JWT_SECRET) |
 | `FRONTEND_URL` | `http://localhost:5173` | URL da Vercel (ex: `https://viston.vercel.app`) — **obrigatória em produção**: sem ela o boot falha, em vez de o CORS barrar tudo em silêncio |
 | `NODE_ENV` | `development` | `production` |
+| `LOG_LEVEL` | opcional (`debug`) | opcional (`info`) |
 
 Do lado da Vercel, `NEXT_PUBLIC_API_URL` passa a valer para todo host que não
 seja o domínio de produção. Sem ela, cada pré-visualização de branch batia na
@@ -347,6 +359,13 @@ API de produção e escrevia dados reais.
 > assina a URL na hora do download; enquanto o bucket for público, qualquer link
 > que alguém já tenha guardado continua abrindo sem autenticação. Os arquivos
 > não precisam ser movidos — o caminho dentro do bucket é o mesmo.
+
+**Backup.** O Supabase faz backup automático do Postgres conforme o plano —
+diário no gratuito, com retenção de 7 dias, e point-in-time nos planos pagos.
+A restauração é feita pelo painel (Database → Backups) e substitui o banco
+inteiro, não linhas soltas. O que **não** está coberto: os buckets do Storage
+(planilhas e fotos), que não entram no backup do banco. Para uma cópia dos dois,
+`supabase db dump` mais uma cópia dos buckets, guardados fora do Supabase.
 
 > **Região do Render:** o `render.yaml` usa `frankfurt` por ser a região mais próxima do Supabase em `sa-east-1` (São Paulo). Se `frankfurt` não estiver disponível no seu plano, troque para `oregon` — funciona, mas adiciona ~150ms de latência por query.
 

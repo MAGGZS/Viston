@@ -4,6 +4,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { config } from './config';
 import { prisma } from './lib/prisma';
+import pinoHttp from 'pino-http';
+import { logger } from './lib/logger';
 import buildingRoutes from './routes/building.routes';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
@@ -47,6 +49,26 @@ app.use(
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
+// ── Log de requisição ─────────────────────────────────────────────────────────
+//
+// Cada requisição ganha um id e uma linha de entrada e saída. É o id que liga
+// um 500 ao que veio antes dele na mesma chamada — antes, o painel do Render
+// tinha só `console.error` soltos, sem nada que dissesse de qual requisição
+// cada um era.
+app.use(
+  pinoHttp({
+    logger,
+    // O health check é chamado a cada dez minutos pelo keep-alive: no nível
+    // normal ele afogaria o resto.
+    autoLogging: { ignore: (req) => req.url === '/health' },
+    customLogLevel: (_req, res, err) => {
+      if (err || res.statusCode >= 500) return 'error';
+      if (res.statusCode >= 400) return 'warn';
+      return 'info';
+    },
+  })
+);
+
 // ── Rate limiting geral (os limites finos ficam nas rotas) ────────────────────
 app.use(generalLimiter);
 
@@ -68,7 +90,7 @@ app.get('/health/ready', async (_req, res) => {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: 'ok', db: 'up', timestamp: new Date().toISOString() });
   } catch (err) {
-    console.error('[Health] Banco indisponível:', err);
+    logger.error({ err }, '[Health] Banco indisponível');
     res.status(503).json({ status: 'degraded', db: 'down', timestamp: new Date().toISOString() });
   }
 });

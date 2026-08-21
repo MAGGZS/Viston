@@ -33,6 +33,7 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ci
       JWT_SECRET: ci-jwt-secret-nao-usado-em-producao
       JWT_REFRESH_SECRET: ci-jwt-refresh-secret-nao-usado-em-producao
+      FRONTEND_URL: http://localhost:3001
 
     steps:
       - uses: actions/checkout@v4

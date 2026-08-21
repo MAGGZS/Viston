@@ -7,6 +7,7 @@ import { UnauthorizedError } from '../utils/errors';
 import { hashPassword, needsRehash } from '../utils/password';
 import { Actor } from '../middlewares/authenticate';
 import { AuditAction } from '@prisma/client';
+import { logger } from '../lib/logger';
 
 /**
  * O token pertence à geração corrente da conta?
@@ -83,7 +84,7 @@ export const authService = {
       const password_hash = await hashPassword(password);
       const repo = account.kind === 'MANAGER' ? managerRepository : userRepository;
       await repo.update(account.id, { password_hash }).catch((err: unknown) =>
-        console.error('[Auth] Falha ao atualizar o custo do hash:', err)
+        logger.error({ err, account_id: account.id }, '[Auth] Falha ao atualizar o custo do hash')
       );
     }
 

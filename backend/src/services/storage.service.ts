@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { config } from '../config';
+import { logger } from '../lib/logger';
 
 /**
  * Validade da URL assinada da planilha.
@@ -139,6 +140,6 @@ export const storageService = {
     if (!fileName || !fileName.startsWith('avatar_') || fileName.includes('..')) return;
 
     const { error } = await supabase.storage.from(config.supabase.bucketPhotos).remove([fileName]);
-    if (error) console.error('[Avatar] Falha ao remover foto antiga:', error.message);
+    if (error) logger.error({ err: error }, '[Avatar] Falha ao remover foto antiga');
   },
 };

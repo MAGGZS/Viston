@@ -12,10 +12,21 @@ import { SITE_URL } from '@/app/lib/site';
 const LOCAL_API_URL = 'http://localhost:4000';
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
 
-/** Backend em produção (Render). Só vale no domínio de produção — ver abaixo. */
+/** Backend em produção (Render). Só vale em produção — ver abaixo. */
 const PRODUCTION_API_URL = 'https://viston.onrender.com';
-/** O domínio de produção, e só ele. Preview da Vercel nunca cai aqui. */
-const PRODUCTION_HOST = new URL(SITE_URL).hostname;
+
+/**
+ * É a produção de verdade?
+ *
+ * A Vercel expõe `NEXT_PUBLIC_VERCEL_ENV` sozinha, e ela vale `production`,
+ * `preview` ou `development` — é a resposta exata, e não um palpite sobre o
+ * nome do host. O domínio entra como segunda via, para o caso de o projeto ter
+ * as variáveis de sistema desligadas.
+ */
+function isProductionHost(host) {
+  if (process.env.NEXT_PUBLIC_VERCEL_ENV === 'production') return true;
+  return !!host && host === new URL(SITE_URL).hostname;
+}
 
 /**
  * Onde fica a API.
@@ -38,7 +49,7 @@ export function resolveApiBaseUrl() {
   const host = typeof window === 'undefined' ? null : window.location.hostname;
 
   if (host && LOCAL_HOSTS.includes(host)) return LOCAL_API_URL;
-  if (host === PRODUCTION_HOST) return PRODUCTION_API_URL;
+  if (isProductionHost(host)) return PRODUCTION_API_URL;
 
   throw new Error(
     `NEXT_PUBLIC_API_URL não definida para "${host ?? 'servidor'}". Defina a URL da API ` +

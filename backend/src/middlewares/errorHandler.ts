@@ -2,10 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
 import { AppError } from '../utils/errors';
+import { logger } from '../lib/logger';
 
 export function errorHandler(
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
@@ -55,7 +56,8 @@ export function errorHandler(
     }
   }
 
-  console.error('[Unhandled Error]', err);
+  // O id da requisição vai junto: é ele que liga este 500 ao que veio antes.
+  logger.error({ err, req_id: (req as { id?: string }).id }, 'Erro não tratado');
   res.status(500).json({
     error: { code: 'INTERNAL_ERROR', message: 'Erro interno do servidor' },
   });

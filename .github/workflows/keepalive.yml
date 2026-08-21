@@ -1,0 +1,36 @@
+# Mantém a instância do Render acordada.
+#
+# No plano gratuito ela dorme depois de ~15 minutos sem tráfego, e o primeiro
+# login da manhã espera quase um minuto pelo cold start. Quem abre o app nessa
+# hora não conclui "o servidor está subindo": conclui que o sistema está fora do
+# ar, e vai perguntar. Um pedido a cada dez minutos resolve por zero reais — o
+# repositório é público, e minutos de Actions em repositório público não são
+# cobrados.
+#
+# Se um dia o serviço migrar para um plano pago, este workflow pode sair: ele
+# existe só por causa do sono da instância gratuita.
+name: Keep-alive
+
+on:
+  schedule:
+    # A cada 10 minutos. O agendador do GitHub não é pontual e às vezes atrasa
+    # alguns minutos; dez dá folga para a janela de quinze do Render.
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Acordar a API
+        run: |
+          # `/health` é liveness: não toca no banco, então o ping não vira
+          # consulta a cada dez minutos. `--fail` não é usado de propósito —
+          # a API respondendo com erro ainda significa instância acordada, que
+          # é o que este workflow quer, e não vale acordar ninguém por isso.
+          codigo=$(curl --silent --show-error --max-time 90 \
+            --output /dev/null --write-out '%{http_code}' \
+            "${API_URL}/health" || echo "sem resposta")
+          echo "GET ${API_URL}/health -> ${codigo}"
+        env:
+          API_URL: https://viston.onrender.com

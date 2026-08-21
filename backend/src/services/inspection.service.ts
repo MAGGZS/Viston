@@ -10,6 +10,7 @@ import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
 import { floorRank } from '../utils/floorOrder';
 import { inspectorNames } from '../utils/inspectors';
 import { withExcelFlag } from '../utils/reportShape';
+import { logger } from '../lib/logger';
 import { zonedDateOnly, zonedDayKey, zonedParts, zonedRange } from '../utils/timezone';
 
 export type CalendarDay = {
@@ -125,7 +126,7 @@ async function buildAndStoreDayExcel(buildingId: string, date: Date, userId?: st
     try {
       await storageService.removeExcel(replaced);
     } catch (err) {
-      console.error('[Excel] Falha ao remover a planilha anterior do dia:', err);
+      logger.error({ err, building_id: buildingId }, '[Excel] Falha ao remover a planilha anterior do dia');
     }
   }
 
@@ -333,7 +334,7 @@ export const inspectionService = {
      */
     setImmediate(() => {
       buildAndStoreDayExcel(payload.building_id, report.date, inspectorId).catch((err) =>
-        console.error('[Excel] Falha na geração:', err)
+        logger.error({ err, building_id: payload.building_id }, '[Excel] Falha na geração')
       );
     });
 
@@ -405,7 +406,7 @@ export const inspectionService = {
         await storageService.removeExcel(report.excel_path);
       }
     } catch (err) {
-      console.error('[Excel] Falha ao atualizar a planilha do dia:', err);
+      logger.error({ err, building_id: report.building_id }, '[Excel] Falha ao atualizar a planilha do dia');
       // Arquivo órfão no bucket não impede o descarte do relatório
     }
 
