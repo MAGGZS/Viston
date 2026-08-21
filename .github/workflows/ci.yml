@@ -1,0 +1,84 @@
+# Verificação de cada mudança, antes de ela chegar à `main`.
+#
+# Não havia nenhuma: o que garantia que os 200 testes ainda passavam era alguém
+# lembrar de rodá-los. As três checagens abaixo são as mesmas que se roda na
+# máquina, e juntas levam poucos minutos.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Push seguido de push no mesmo branch: o primeiro job vira trabalho perdido.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend — tipos e testes
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      # As suítes trocam os repositórios por mock e nunca abrem conexão, mas
+      # `config.ts` lê as variáveis obrigatórias na carga do módulo e derruba o
+      # processo se faltar alguma. Valores de fachada bastam.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+      SUPABASE_URL: http://localhost:54321
+      SUPABASE_SERVICE_ROLE_KEY: ci
+      JWT_SECRET: ci-jwt-secret-nao-usado-em-producao
+      JWT_REFRESH_SECRET: ci-jwt-refresh-secret-nao-usado-em-producao
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+
+      # O client do Prisma é gerado, não versionado: sem isto, `tsc` não acha
+      # nem os tipos das tabelas nem os enums.
+      - run: npx prisma generate
+
+      - name: Tipos
+        run: npx tsc --noEmit
+
+      - name: Testes
+        run: npm test
+
+  frontend:
+    name: Frontend — lint e build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      # Inclui as regras de acessibilidade (ver eslint.config.mjs): `<div onClick>`
+      # e rótulo órfão param aqui, e não na revisão.
+      - name: Lint
+        run: npx eslint app
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: https://viston.onrender.com

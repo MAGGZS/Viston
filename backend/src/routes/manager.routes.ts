@@ -13,23 +13,23 @@ import {
 
 const router = Router();
 
-const auth = authenticate as any;
-const adminOnly = authorize('ADMIN') as any;
+const auth = authenticate;
+const adminOnly = authorize('ADMIN');
 
 // Cadastro público de gestor. A conta nasce em `managers`, e já pode cadastrar
 // prédio — cada prédio que ela cadastrar tem ela como gestora.
-router.post('/', sensitiveLimiter, validate(createUserSchema), managerController.create as any);
+router.post('/', sensitiveLimiter, validate(createUserSchema), managerController.create);
 
 // Conta própria — antes de /:id para não ser capturado pelo parâmetro dinâmico
-router.get('/me', auth, managerController.getMe as any);
-router.patch('/me', auth, validate(updateMeSchema), managerController.updateMe as any);
-router.patch('/me/password', auth, validate(changePasswordSchema), managerController.changePassword as any);
-router.patch('/me/avatar', auth, validate(updateAvatarSchema), managerController.updateAvatar as any);
-router.delete('/me/avatar', auth, managerController.removeAvatar as any);
-router.delete('/me', auth, managerController.deleteMe as any);
+router.get('/me', auth, managerController.getMe);
+router.patch('/me', auth, validate(updateMeSchema), managerController.updateMe);
+router.patch('/me/password', auth, validate(changePasswordSchema), managerController.changePassword);
+router.patch('/me/avatar', auth, validate(updateAvatarSchema), managerController.updateAvatar);
+router.delete('/me/avatar', auth, managerController.removeAvatar);
+router.delete('/me', auth, managerController.deleteMe);
 
 // Painel do admin
-router.get('/', auth, adminOnly, managerController.findAll as any);
-router.delete('/:id', auth, adminOnly, managerController.remove as any);
+router.get('/', auth, adminOnly, managerController.findAll);
+router.delete('/:id', auth, adminOnly, managerController.remove);
 
 export default router;

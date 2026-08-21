@@ -314,6 +314,9 @@ model InspectionReport {
   // Histórico do prédio e calendário: os dois filtram por prédio e ordenam (ou
   // recortam a faixa) por `finished_at`.
   @@index([building_id, finished_at(sort: Desc)])
+  // "Vistorias que passaram por este andar" filtra um array de texto. Sem GIN é
+  // varredura da tabela inteira, e o custo cresce em linha reta com a base.
+  @@index([floors_inspected], type: Gin)
   @@map("inspection_reports")
 }
 
@@ -432,7 +435,11 @@ model AuditLog {
   manager  Manager?  @relation(fields: [manager_id], references: [id], onDelete: SetNull)
   building Building? @relation(fields: [building_id], references: [id], onDelete: SetNull)
 
-  @@index([building_id])
+  // Toda consulta da trilha é "de um prédio (ou de uma conta), do mais novo para
+  // o mais velho". Só por prédio, a ordenação percorria a tabela inteira — e ela
+  // ganha uma linha a cada login e nunca perde nenhuma.
+  @@index([building_id, timestamp(sort: Desc)])
+  @@index([user_id, timestamp(sort: Desc)])
   @@index([manager_id])
   @@map("audit_logs")
 }

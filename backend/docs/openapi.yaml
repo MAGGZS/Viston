@@ -42,8 +42,8 @@ info:
 
     ## Limites de requisição
     - Geral: 300 req/min por IP
-    - `/auth/*`: 20 tentativas por 15 min (sucesso não conta)
-    - Cadastro, `/buildings/lookup` e pedido de acesso: 60/h por IP
+    - `/auth/*`: 20 tentativas por 15 min, por **IP + e-mail** (sucesso não conta)
+    - Cadastro, `POST /buildings/lookup` e pedido de acesso: 60/h por IP
 
     Estouro devolve `429` com o corpo de erro padrão.
 
@@ -187,7 +187,7 @@ components:
             é o que o moderador escreve do lado dele.
         closed_at: { type: string, format: date-time, nullable: true }
         maintenance_note: { type: string, nullable: true }
-        maintenance_cost: { type: number, nullable: true, description: Valor da manutenção, em reais }
+        maintenance_cost: { type: number, nullable: true, description: 'Valor da manutenção, em reais' }
         created_at: { type: string, format: date-time }
 
     FloorFormEntry:

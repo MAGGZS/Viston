@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { config } from './config';
+import { prisma } from './lib/prisma';
 import buildingRoutes from './routes/building.routes';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
@@ -50,8 +51,26 @@ app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(generalLimiter);
 
 // ── Health check ──────────────────────────────────────────────────────────────
+//
+// Dois, e a diferença importa. `/health` é liveness: o processo está de pé e
+// respondendo — é o que o Render usa para decidir se reinicia o serviço, e
+// checar o banco aqui faria uma queda do Postgres virar um ciclo de reinícios
+// que não conserta nada.
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// `/health/ready` é readiness: dá para atender de verdade? Sem isto, "a API
+// está no ar" e "a API funciona" eram a mesma resposta, e um banco fora do ar
+// só aparecia como 500 na cara do usuário.
+app.get('/health/ready', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok', db: 'up', timestamp: new Date().toISOString() });
+  } catch (err) {
+    console.error('[Health] Banco indisponível:', err);
+    res.status(503).json({ status: 'degraded', db: 'down', timestamp: new Date().toISOString() });
+  }
 });
 
 // ── Rotas ─────────────────────────────────────────────────────────────────────

@@ -123,6 +123,13 @@ Cobertura mínima implementada:
 - Caixa de feedback: autoria na coluna certa (usuário ou gestor), destino do
   feedback e restrição das rotas de leitura ao ADMIN
   (`__tests__/feedback.test.ts`)
+- Ciclo de vida da sessão: geração de token, saída, troca de senha e exclusão
+  de conta (`__tests__/session.test.ts`)
+- Validação de data no filtro e conferência dos bytes da foto de perfil
+  (`__tests__/hardening.test.ts`)
+
+Tudo isso roda em cada push e em cada PR — ver `.github/workflows/ci.yml`, que
+faz `tsc --noEmit` + `npm test` no backend e `eslint` + `next build` no frontend.
 
 ---
 
@@ -219,6 +226,11 @@ telas, e URL assinada expiraria com a imagem já na página.
 (sucesso não conta), chaveadas por **IP + e-mail** — só por IP, um escritório
 inteiro atrás de um NAT dividia a mesma cota e um ataque distribuído tinha uma
 cota por máquina; 60/h no cadastro, no `lookup` de chave e no pedido de acesso.
+
+**Saúde.** `/health` é liveness — o processo está de pé. `/health/ready` é
+readiness: faz `SELECT 1` e responde 503 se o banco não atender. São separados
+de propósito: checar o banco no liveness faria uma queda do Postgres virar um
+ciclo de reinícios que não conserta nada.
 
 **Cabeçalhos.** `helmet` com CSP `default-src 'none'` (a API só devolve JSON),
 `frame-ancestors 'none'`, `Referrer-Policy: no-referrer` e `x-powered-by`
@@ -321,10 +333,20 @@ Configure todas as variáveis do `.env.example` com os valores de produção. Ve
 | `SUPABASE_SERVICE_ROLE_KEY` | chave local do `supabase start` | service_role key do painel Supabase |
 | `JWT_SECRET` | qualquer string | string aleatória 64+ chars |
 | `JWT_REFRESH_SECRET` | qualquer string | string aleatória 64+ chars (diferente do JWT_SECRET) |
-| `FRONTEND_URL` | `http://localhost:5173` | URL da Vercel (ex: `https://viston.vercel.app`) |
+| `FRONTEND_URL` | `http://localhost:5173` | URL da Vercel (ex: `https://viston.vercel.app`) — **obrigatória em produção**: sem ela o boot falha, em vez de o CORS barrar tudo em silêncio |
 | `NODE_ENV` | `development` | `production` |
 
+Do lado da Vercel, `NEXT_PUBLIC_API_URL` passa a valer para todo host que não
+seja o domínio de produção. Sem ela, cada pré-visualização de branch batia na
+API de produção e escrevia dados reais.
+
 > Nenhuma alteração de código é necessária — apenas substituição das variáveis de ambiente.
+
+> **Bucket das planilhas.** `SUPABASE_BUCKET_EXCEL` precisa estar marcado como
+> **privado** no painel do Supabase (Storage → o bucket → Make private). A API
+> assina a URL na hora do download; enquanto o bucket for público, qualquer link
+> que alguém já tenha guardado continua abrindo sem autenticação. Os arquivos
+> não precisam ser movidos — o caminho dentro do bucket é o mesmo.
 
 > **Região do Render:** o `render.yaml` usa `frankfurt` por ser a região mais próxima do Supabase em `sa-east-1` (São Paulo). Se `frankfurt` não estiver disponível no seu plano, troque para `oregon` — funciona, mas adiciona ~150ms de latência por query.
 
@@ -335,6 +357,8 @@ Configure todas as variáveis do `.env.example` com os valores de produção. Ve
 ```
 POST   /auth/login
 POST   /auth/refresh
+POST   /auth/logout                        (autenticado — encerra as sessões da conta)
+GET    /auth/me                            (autenticado)
 
 POST   /users                              (ADMIN)
 GET    /users                              (ADMIN)

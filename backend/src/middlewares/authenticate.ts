@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import { BuildingRole } from '@prisma/client';
 import { AccountKind, verifyAccessToken } from '../utils/jwt';
 import { UnauthorizedError } from '../utils/errors';
 
@@ -14,14 +13,13 @@ import { UnauthorizedError } from '../utils/errors';
  */
 export type Actor = { id: string; kind: AccountKind; role: string };
 
-export interface AuthenticatedRequest extends Request {
-  user: Actor;
-  /**
-   * Papel no prédio da rota, preenchido por `requireBuildingManager` /
-   * `requireBuildingMember`. 'GESTOR' quando o ator é gestor daquele prédio.
-   */
-  buildingRole?: BuildingRole | 'GESTOR' | null;
-}
+/**
+ * `AuthenticatedRequest` não existe mais: `req.user` e `req.buildingRole` estão
+ * declarados no próprio tipo do Express (ver src/types/express.d.ts), e é isso
+ * que dispensou o `as any` de toda linha de rota. O apelido fica porque ele
+ * lê melhor na assinatura dos controllers.
+ */
+export type AuthenticatedRequest = Request;
 
 export function authenticate(req: Request, _res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
@@ -44,6 +42,6 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
   // Gestor não tem papel de sistema: estar em `managers` já é o que ele é.
   const role = kind === 'USER' && payload.role === 'ADMIN' ? 'ADMIN' : 'NONE';
 
-  (req as AuthenticatedRequest).user = { id: payload.sub, kind, role };
+  req.user = { id: payload.sub, kind, role };
   next();
 }

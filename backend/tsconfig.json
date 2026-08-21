@@ -5,8 +5,13 @@
     "lib": ["ES2020"],
     "outDir": "./dist",
     "rootDir": "./src",
-    "strict": false,
-    "noImplicitAny": false,
+    // Ligado depois que os `as any` das rotas saíram (ver src/types/express.d.ts):
+    // eram eles que escondiam o que faltava tipar. Com `strict`, o zod passa a
+    // inferir os payloads sozinho — antes, os tipos do envio da vistoria eram
+    // escritos à mão porque a inferência marcava todo campo como opcional, e a
+    // cópia manual do contrato podia divergir dele em silêncio.
+    "strict": true,
+    "noImplicitAny": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

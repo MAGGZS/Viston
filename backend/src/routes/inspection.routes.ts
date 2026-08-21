@@ -6,7 +6,7 @@ import { submitInspectionSchema } from '../validators/inspection.validator';
 
 const router = Router();
 
-const auth = authenticate as any;
+const auth = authenticate;
 
 // Nenhuma destas rotas tem guarda por papel global: quem pode vistoriar,
 // descartar ou ler um relatório depende do prédio dele, e isso o serviço
@@ -26,19 +26,19 @@ router.post(
   '/inspections',
   auth,
   validate(submitInspectionSchema),
-  inspectionController.submit as any
+  inspectionController.submit
 );
-router.get('/inspections', auth, inspectionController.findAll as any);
-router.get('/inspections/:id', auth, inspectionController.findById as any);
+router.get('/inspections', auth, inspectionController.findAll);
+router.get('/inspections/:id', auth, inspectionController.findById);
 // Relatório completo do dia: as vistorias daquele prédio naquela data, juntas
-router.get('/inspections/:id/day', auth, inspectionController.getDayReport as any);
+router.get('/inspections/:id/day', auth, inspectionController.getDayReport);
 // Descarte da vistoria: só o gestor do prédio
-router.delete('/inspections/:id', auth, inspectionController.remove as any);
-router.get('/inspections/:id/excel', auth, inspectionController.getExcelUrl as any);
+router.delete('/inspections/:id', auth, inspectionController.remove);
+router.get('/inspections/:id/excel', auth, inspectionController.getExcelUrl);
 // Refaz a planilha quando o upload falhou no envio
-router.post('/inspections/:id/excel', auth, inspectionController.generateExcel as any);
+router.post('/inspections/:id/excel', auth, inspectionController.generateExcel);
 
 // ── Calendário ────────────────────────────────────────────────────────────────
-router.get('/calendar', auth, inspectionController.getCalendar as any);
+router.get('/calendar', auth, inspectionController.getCalendar);
 
 export default router;

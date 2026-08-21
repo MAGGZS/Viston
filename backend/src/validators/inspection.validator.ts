@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { MaintenanceCategory, MaintenanceType, Priority } from '@prisma/client';
 
 // ── Ocorrência relatada em um andar ──────────────────────────────────────────
 export const maintenanceRecordSchema = z.object({
@@ -35,15 +34,11 @@ export const maintenanceRecordSchema = z.object({
   responsible_id: z.string().uuid('Responsável inválido').optional().nullable(),
 });
 
-// Tipos escritos à mão: com "strict": false no tsconfig, a inferência do zod
-// marca todo campo como opcional. Aqui o contrato precisa ser explícito.
-export type MaintenanceRecordPayload = {
-  maintenance_type: MaintenanceType;
-  category: MaintenanceCategory;
-  priority: Priority;
-  description: string;
-  responsible_id?: string | null;
-};
+// Inferido, e não escrito à mão. A cópia manual existia porque, com
+// `strict: false`, a inferência do zod marcava todo campo como opcional — o
+// projeto mantinha duas versões do mesmo contrato, e nada garantia que
+// continuassem iguais. Com `strict` ligado, o schema é a única fonte.
+export type MaintenanceRecordPayload = z.infer<typeof maintenanceRecordSchema>;
 
 // ── Envio único: toda a vistoria chega de uma vez ─────────────────────────────
 //
@@ -70,11 +65,7 @@ export const submitInspectionSchema = z
   })
   .strict();
 
-// Tipo escrito à mão: a inferência aninhada do zod perde os campos obrigatórios aqui.
-export type SubmitInspectionPayload = {
-  building_id: string;
-  floors: Array<{ floor_id: string; records: MaintenanceRecordPayload[] }>;
-};
+export type SubmitInspectionPayload = z.infer<typeof submitInspectionSchema>;
 
 /**
  * Data de filtro vinda da querystring.

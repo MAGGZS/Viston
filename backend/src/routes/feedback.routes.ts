@@ -12,22 +12,22 @@ import {
 
 const router = Router();
 
-const auth = authenticate as any;
-const adminOnly = authorize('ADMIN') as any;
+const auth = authenticate;
+const adminOnly = authorize('ADMIN');
 
 // ── Quem manda ────────────────────────────────────────────────────────────────
 // Qualquer conta autenticada, das duas naturezas, quantas vezes quiser. O teto
 // por IP é o mesmo do cadastro público — segura enxurrada sem atrapalhar quem
 // tem duas coisas a dizer no mesmo dia.
-router.post('/', auth, sensitiveLimiter, validate(createFeedbackSchema), feedbackController.create as any);
+router.post('/', auth, sensitiveLimiter, validate(createFeedbackSchema), feedbackController.create);
 
 // Os próprios envios — antes de /:id para não cair no parâmetro dinâmico
-router.get('/me', auth, feedbackController.listMine as any);
+router.get('/me', auth, feedbackController.listMine);
 
 // ── A caixa do admin ─────────────────────────────────────────────────────────
-router.get('/', auth, adminOnly, validate(listFeedbackQuerySchema, 'query'), feedbackController.findAll as any);
-router.patch('/:id', auth, adminOnly, validate(updateFeedbackSchema), feedbackController.review as any);
+router.get('/', auth, adminOnly, validate(listFeedbackQuerySchema, 'query'), feedbackController.findAll);
+router.patch('/:id', auth, adminOnly, validate(updateFeedbackSchema), feedbackController.review);
 // Descartar é apagar: o feedback não volta de lugar nenhum.
-router.delete('/:id', auth, adminOnly, feedbackController.discard as any);
+router.delete('/:id', auth, adminOnly, feedbackController.discard);
 
 export default router;
