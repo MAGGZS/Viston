@@ -34,8 +34,18 @@ router.get('/stats', auth, adminOnly, buildingController.getStats as any);
 // Tela inicial do gestor: os prédios em que ele é GESTOR
 router.get('/managed', auth, buildingController.managedBuildings as any);
 router.get('/me', auth, buildingController.myBuildings as any);
-// Busca por chave de compartilhamento
-router.get('/lookup', auth, sensitiveLimiter, buildingController.lookupByKey as any);
+// Busca por chave de compartilhamento.
+//
+// POST numa consulta é incomum, e é de propósito: a chave vai no corpo porque
+// querystring é registrada em log de acesso, em proxy e no histórico do
+// navegador — ver o comentário no controller.
+router.post(
+  '/lookup',
+  auth,
+  sensitiveLimiter,
+  validate(accessRequestSchema),
+  buildingController.lookupByKey as any
+);
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 // Criar prédio é aberto a qualquer conta: quem cria vira o GESTOR dele, no mesmo

@@ -4,9 +4,7 @@ import { PASSWORD_ROUNDS } from '../utils/password';
 import { buildingRepository } from '../repositories/building.repository';
 import { storageService } from './storage.service';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
-
-/** Teto da foto depois de decodificada. O recorte do app entrega bem menos. */
-const MAX_AVATAR_BYTES = 1_500_000;
+import { decodeAvatarDataUrl } from '../utils/image';
 
 /**
  * Cadastro público. Toda conta nasce igual: sem poder nenhum.
@@ -124,13 +122,8 @@ export const userService = {
     const user = await userRepository.findById(id);
     if (!user || user.status === 'DELETED') throw new NotFoundError('Usuário');
 
-    const [header, base64] = dataUrl.split(',');
-    const contentType = header.slice(header.indexOf(':') + 1, header.indexOf(';'));
-    const buffer = Buffer.from(base64, 'base64');
-
-    if (buffer.byteLength > MAX_AVATAR_BYTES) {
-      throw new ConflictError('Imagem muito grande. O limite é 1,5 MB.');
-    }
+    // O tipo sai dos bytes, não do rótulo do data URL: ver `decodeAvatarDataUrl`.
+    const { buffer, contentType } = decodeAvatarDataUrl(dataUrl);
 
     const avatar_url = await storageService.uploadAvatar(id, buffer, contentType);
     const updated = await userRepository.update(id, { avatar_url });

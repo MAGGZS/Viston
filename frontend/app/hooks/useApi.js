@@ -354,11 +354,18 @@ export function useRemoveMember() {
   });
 }
 
-// Busca o prédio pela chave de compartilhamento (não expõe o id do prédio)
+/**
+ * Busca o prédio pela chave de compartilhamento (não expõe o id do prédio).
+ *
+ * POST, e não GET: a chave é a credencial de entrada no prédio, e na
+ * querystring ela ficaria guardada no log de acesso do servidor, no proxy e no
+ * histórico do navegador. Continua sendo uma consulta — o cache do React Query
+ * responde por isso.
+ */
 export function useBuildingByKey(shareKey) {
   return useQuery({
     queryKey: ['building-by-key', shareKey],
-    queryFn: () => api.get('/buildings/lookup', { params: { key: shareKey } }).then((r) => r.data),
+    queryFn: () => api.post('/buildings/lookup', { key: shareKey }).then((r) => r.data),
     enabled: !!shareKey,
     retry: false,
   });

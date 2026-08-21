@@ -68,6 +68,16 @@ export type SubmitInspectionPayload = {
   floors: Array<{ floor_id: string; records: MaintenanceRecordPayload[] }>;
 };
 
+/**
+ * Data de filtro vinda da querystring.
+ *
+ * `errorMap` e não `invalid_type_error`: a data coagida falha com o código
+ * `invalid_date`, que o `invalid_type_error` não alcança — a mensagem sairia em
+ * inglês, do zod, no meio de uma API que responde em português.
+ */
+const dateFilter = (label: string) =>
+  z.coerce.date({ errorMap: () => ({ message: `${label} inválida` }) }).optional();
+
 // ── Filtros de histórico ──────────────────────────────────────────────────────
 export const inspectionFiltersSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -75,8 +85,12 @@ export const inspectionFiltersSchema = z.object({
   status: z.enum(['IN_PROGRESS', 'COMPLETED']).optional(),
   inspector_id: z.string().uuid().optional(),
   floor_id: z.string().uuid().optional(),
-  date_from: z.string().optional(),
-  date_to: z.string().optional(),
+  // `coerce.date` e não `string`: com string, `?date_from=abc` virava
+  // `new Date('abc')` lá no repositório, o Prisma recusava a data inválida e a
+  // resposta era 500 — erro do servidor para um filtro que o usuário digitou.
+  // Aqui o mesmo pedido é 400, com a mensagem no campo certo.
+  date_from: dateFilter('Data inicial'),
+  date_to: dateFilter('Data final'),
 });
 
 // ── Filtros de calendário ─────────────────────────────────────────────────────

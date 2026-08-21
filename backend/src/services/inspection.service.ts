@@ -382,8 +382,8 @@ export const inspectionService = {
       status?: InspectionStatus;
       inspector_id?: string;
       floor_id?: string;
-      date_from?: string;
-      date_to?: string;
+      date_from?: Date;
+      date_to?: Date;
     },
     buildingIds: string[] | null
   ) {

@@ -320,9 +320,17 @@ export const buildingController = {
   },
 
   // ── Vínculo por chave de compartilhamento ─────────────────────────────────
-  /** Consulta prévia: mostra o nome do prédio dono da chave, sem expor o id. */
+  /**
+   * Consulta prévia: mostra o nome do prédio dono da chave, sem expor o id.
+   *
+   * POST, e não GET com a chave na querystring. A chave é a credencial de
+   * entrada no prédio (~59 bits, bem dimensionada), e querystring é a parte da
+   * requisição que aparece em log de acesso do Render, em log de proxy e no
+   * histórico do navegador — três lugares onde uma credencial não deveria ficar
+   * guardada em claro. No corpo ela não é registrada por ninguém.
+   */
   async lookupByKey(req: AuthenticatedRequest, res: Response) {
-    const building = await findBuildingByKeyOrFail(req.query.key);
+    const building = await findBuildingByKeyOrFail(req.body?.key);
     ok(res, { name: building.name, description: building.description });
   },
 

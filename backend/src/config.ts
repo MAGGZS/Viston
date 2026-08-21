@@ -9,10 +9,12 @@ function required(key: string): string {
   return value;
 }
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
-  isProduction: process.env.NODE_ENV === 'production',
+  isProduction,
 
   database: {
     url: required('DATABASE_URL'),
@@ -37,8 +39,12 @@ export const config = {
      * FRONTEND_URL aceita uma ou várias origens separadas por vírgula.
      * Ex: "https://viston.vercel.app,http://localhost:3001"
      * Permite manter a nuvem no ar enquanto se desenvolve localmente.
+     *
+     * Obrigatória em produção. Sem ela, o fallback de desenvolvimento entrava
+     * calado e o CORS barrava o app inteiro — de fora, isso parece o servidor
+     * fora do ar, e o diagnóstico começa no lugar errado. Melhor não subir.
      */
-    origins: (process.env.FRONTEND_URL || 'http://localhost:3001')
+    origins: (isProduction ? required('FRONTEND_URL') : process.env.FRONTEND_URL || 'http://localhost:3001')
       .split(',')
       .map((url) => url.trim())
       .filter(Boolean)
