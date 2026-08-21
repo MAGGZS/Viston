@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma';
+import { withExcelFlag } from '../utils/reportShape';
 
 const reportInclude = {
   inspector: { select: { id: true, name: true, email: true, role: true, avatar_url: true } },
@@ -110,14 +111,14 @@ export const inspectionRepository = {
   /**
    * Aponta todas as vistorias do dia para a mesma planilha.
    *
-   * A planilha passou a ser do dia, mas a URL continua em cada relatório: é o
-   * que faz cada linha do histórico ter seu botão de baixar sem a tela precisar
-   * saber que o arquivo é compartilhado.
+   * A planilha passou a ser do dia, mas o caminho continua em cada relatório: é
+   * o que faz cada linha do histórico ter seu botão de baixar sem a tela
+   * precisar saber que o arquivo é compartilhado.
    */
-  setDayExcelUrl(buildingId: string, date: Date, excelUrl: string) {
+  setDayExcelPath(buildingId: string, date: Date, excelPath: string) {
     return prisma.inspectionReport.updateMany({
       where: { building_id: buildingId, date },
-      data: { excel_url: excelUrl },
+      data: { excel_path: excelPath },
     });
   },
 
@@ -159,24 +160,28 @@ export const inspectionRepository = {
     };
 
     return Promise.all([
-      prisma.inspectionReport.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { finished_at: 'desc' },
-        include: {
-          inspector: { select: { id: true, name: true, email: true, avatar_url: true } },
-          building: { select: { id: true, name: true } },
-          floor_form_entries: {
-            select: {
-              floor_id: true,
-              status_geral: true,
-              floor: { select: { label: true } },
-              _count: { select: { maintenance_records: true } },
+      prisma.inspectionReport
+        .findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { finished_at: 'desc' },
+          include: {
+            inspector: { select: { id: true, name: true, email: true, avatar_url: true } },
+            building: { select: { id: true, name: true } },
+            floor_form_entries: {
+              select: {
+                floor_id: true,
+                status_geral: true,
+                floor: { select: { label: true } },
+                _count: { select: { maintenance_records: true } },
+              },
             },
           },
-        },
-      }),
+        })
+        // O caminho no bucket não sai daqui: a tela só precisa saber se existe
+        // planilha para mostrar o botão, e quem clica pede a URL assinada.
+        .then((reports) => reports.map(withExcelFlag)),
       prisma.inspectionReport.count({ where }),
     ]);
   },
@@ -209,7 +214,7 @@ export const inspectionRepository = {
       select: {
         id: true,
         finished_at: true,
-        excel_url: true,
+        excel_path: true,
         inspector: { select: { id: true, name: true } },
       },
     });

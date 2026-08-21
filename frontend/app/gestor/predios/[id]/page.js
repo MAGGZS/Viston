@@ -15,6 +15,7 @@ import { Badge, Skeleton, Button, Modal, Select } from '@/app/components/ui';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { OcorrenciasTable } from '@/app/components/OcorrenciasTable';
 import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember, useUpdateMemberRole, useDeleteInspection, useAccessRequests, useReviewAccessRequest, useAddBuildingManager, useRemoveBuildingManager } from '@/app/hooks/useApi';
+import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { formatShareKey } from '@/app/lib/shareKey';
 import { parseReportDate } from '@/app/lib/date';
 import { useToastStore } from '@/app/store/toast';
@@ -265,6 +266,7 @@ function RequestRow({ request, buildingId, className = '' }) {
 }
 
 export default function GestorBuildingPage() {
+  const { download, pendingId } = useExcelDownload();
   const { id } = useParams();
 
   // O mesmo cartão de histórico do painel do moderador e do histórico do
@@ -343,11 +345,11 @@ export default function GestorBuildingPage() {
               </td>
               <td className="px-6 py-3">
                 <div className="flex items-center gap-4">
-                  {r.excel_url ? (
-                    <a href={r.excel_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
-                      className="flex items-center gap-1 text-accent text-sm hover:underline">
+                  {r.has_excel ? (
+                    <button type="button" onClick={e => { e.stopPropagation(); download(r.id); }} disabled={pendingId === r.id}
+                      className="flex items-center gap-1 text-accent text-sm hover:underline disabled:opacity-50">
                       <Download size={13} /> Baixar
-                    </a>
+                    </button>
                   ) : <span className="text-mute text-sm">—</span>}
                   <button onClick={e => { e.stopPropagation(); setPreviewId(r.id); }}
                     className="flex items-center gap-1 text-mute text-sm hover:text-white transition-colors">

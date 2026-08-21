@@ -184,13 +184,32 @@ conferida no lugar errado.
 (~59 bits). Só aparece em respostas para ADMIN; as demais rotas devolvem o
 prédio pelos campos públicos (`id`, `name`, `description`).
 
-**Limites por IP.** 300 req/min no geral; 20 tentativas por 15 min em `/auth/*`
-(sucesso não conta); 60/h no cadastro, no `lookup` de chave e no pedido de
-acesso.
+**Sessão.** O access token dura 15 minutos e não consulta o banco. O refresh
+token dura 7 dias e carrega `tv`, a geração das sessões da conta
+(`users.token_version` / `managers.token_version`): sair (`POST /auth/logout`),
+trocar a senha e excluir a conta incrementam a coluna, e todo refresh token
+emitido antes disso para de valer na hora. Token antigo, sem `tv`, vale como
+geração 0 — a migration não desloga ninguém.
+
+**Senhas.** bcrypt com custo 12 (OWASP). Hash gravado com custo menor continua
+válido e é refeito no primeiro login que der certo, sem pedir nada ao usuário.
+
+**Planilhas.** O bucket `SUPABASE_BUCKET_EXCEL` é **privado**. A coluna
+`inspection_reports.excel_path` guarda o caminho do objeto, não a URL, e
+`GET /inspections/:id/excel` confere o vínculo com o prédio antes de assinar uma
+URL de 5 minutos. Nenhuma listagem devolve o caminho — só `has_excel`. O bucket
+de fotos segue público de propósito: o avatar aparece em `<img>` em dezenas de
+telas, e URL assinada expiraria com a imagem já na página.
+
+**Limites.** 300 req/min por IP no geral; 20 tentativas por 15 min em `/auth/*`
+(sucesso não conta), chaveadas por **IP + e-mail** — só por IP, um escritório
+inteiro atrás de um NAT dividia a mesma cota e um ataque distribuído tinha uma
+cota por máquina; 60/h no cadastro, no `lookup` de chave e no pedido de acesso.
 
 **Cabeçalhos.** `helmet` com CSP `default-src 'none'` (a API só devolve JSON),
 `frame-ancestors 'none'`, `Referrer-Policy: no-referrer` e `x-powered-by`
 desligado. `trust proxy` em 1 para o rate limit enxergar o IP real no Render.
+O frontend tem CSP própria em `next.config.mjs` — é lá que o token vive.
 
 ---
 

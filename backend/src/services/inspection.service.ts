@@ -9,12 +9,13 @@ import { Actor } from '../middlewares/authenticate';
 import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
 import { floorRank } from '../utils/floorOrder';
 import { inspectorNames } from '../utils/inspectors';
+import { withExcelFlag } from '../utils/reportShape';
 import { zonedDateOnly, zonedDayKey, zonedParts, zonedRange } from '../utils/timezone';
 
 export type CalendarDay = {
   count: number;
   inspectors: string[];
-  reports: Array<{ id: string; inspector: string; excel_url: string | null; finished_at: Date }>;
+  reports: Array<{ id: string; inspector: string; has_excel: boolean; finished_at: Date }>;
 };
 
 /**
@@ -28,7 +29,7 @@ export function buildHeatmap(
   data: Array<{
     id: string;
     finished_at: Date | null;
-    excel_url: string | null;
+    excel_path: string | null;
     inspector: { id: string; name: string } | null;
   }>
 ): Record<string, CalendarDay> {
@@ -47,7 +48,7 @@ export function buildHeatmap(
     heatmap[day].reports.push({
       id: item.id,
       inspector: inspectorName,
-      excel_url: item.excel_url,
+      has_excel: Boolean(item.excel_path),
       finished_at: item.finished_at,
     });
   }
@@ -56,6 +57,28 @@ export function buildHeatmap(
 }
 
 export type Viewer = Actor;
+
+/**
+ * Nome com que a planilha chega ao computador de quem baixa.
+ *
+ * O objeto no bucket se chama `report_day_<uuid>_<data>_<timestamp>.xlsx`, que
+ * não diz nada a ninguém depois de salvo na pasta de downloads.
+ */
+function downloadName(report: { building: { name: string }; date: Date }): string {
+  const slug = report.building.name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+  const day = new Date(report.date).toISOString().slice(0, 10);
+
+  return `vistoria-${slug || 'predio'}-${day}.xlsx`;
+}
+
+function signExcel(path: string, report: { building: { name: string }; date: Date }) {
+  return storageService.createExcelSignedUrl(path, downloadName(report));
+}
 
 /**
  * O relatório só é visível a quem tem ligação com o prédio dele — o gestor pela
@@ -91,14 +114,14 @@ async function buildAndStoreDayExcel(buildingId: string, date: Date, userId?: st
   if (reports.length === 0) return null;
 
   const buffer = await generateDayExcel(reports as Parameters<typeof generateDayExcel>[0]);
-  const excelUrl = await storageService.uploadDayExcel(buildingId, date, buffer);
-  const replaced = reports.find((r) => r.excel_url)?.excel_url ?? null;
-  await inspectionRepository.setDayExcelUrl(buildingId, date, excelUrl);
+  const excelPath = await storageService.uploadDayExcel(buildingId, date, buffer);
+  const replaced = reports.find((r) => r.excel_path)?.excel_path ?? null;
+  await inspectionRepository.setDayExcelPath(buildingId, date, excelPath);
 
   // A versão anterior do arquivo do dia não serve mais a ninguém: nenhum
   // relatório aponta para ela depois da linha acima. Sem esta limpeza o bucket
   // ganharia um arquivo morto a cada vistoria enviada no mesmo dia.
-  if (replaced && replaced !== excelUrl) {
+  if (replaced && replaced !== excelPath) {
     try {
       await storageService.removeExcel(replaced);
     } catch (err) {
@@ -112,10 +135,10 @@ async function buildAndStoreDayExcel(buildingId: string, date: Date, userId?: st
     action: AuditAction.GENERATE_EXCEL,
     entity: 'InspectionReport',
     entity_id: reports[0].id,
-    metadata: { excel_url: excelUrl, reports: reports.length },
+    metadata: { excel_path: excelPath, reports: reports.length },
   });
 
-  return excelUrl;
+  return excelPath;
 }
 
 /**
@@ -168,7 +191,7 @@ function buildDayReport(reports: FullReport[]) {
     // "Inspeção feita por: A / B / C" — a mesma linha da planilha.
     inspectors: inspectorNames(reports),
     reports: reports.map((r) => ({ id: r.id, inspector: r.inspector })),
-    excel_url: reports.find((r) => r.excel_url)?.excel_url ?? null,
+    has_excel: reports.some((r) => r.excel_path),
     floor_form_entries: [...byFloor.values()],
   };
 }
@@ -267,13 +290,13 @@ export const inspectionService = {
     // Gerar Excel e fazer upload (síncrono — bloqueia a resposta). É a planilha
     // do dia inteiro: se já houver vistorias desta data, esta entra nelas.
     try {
-      const excelUrl = await buildAndStoreDayExcel(payload.building_id, report.date, inspectorId);
-      return { ...report, excel_url: excelUrl };
+      const excelPath = await buildAndStoreDayExcel(payload.building_id, report.date, inspectorId);
+      return withExcelFlag({ ...report, excel_path: excelPath });
     } catch (err) {
       console.error('[Excel] Falha na geração:', err);
-      // Não bloqueia o envio — relatório fica COMPLETED sem excel_url
-      // e a planilha pode ser gerada depois em POST /inspections/:id/excel
-      return report;
+      // Não bloqueia o envio — relatório fica COMPLETED sem planilha
+      // e ela pode ser gerada depois em POST /inspections/:id/excel
+      return withExcelFlag(report);
     }
   },
 
@@ -286,8 +309,10 @@ export const inspectionService = {
       throw new ConflictError('Relatório ainda não foi concluído');
     }
 
-    const excelUrl = await buildAndStoreDayExcel(report.building_id, report.date, user.id);
-    return { excel_url: excelUrl };
+    const excelPath = await buildAndStoreDayExcel(report.building_id, report.date, user.id);
+    if (!excelPath) throw new NotFoundError('Relatório');
+
+    return { excel_url: await signExcel(excelPath, report) };
   },
 
   /**
@@ -332,8 +357,8 @@ export const inspectionService = {
       const remaining = await inspectionRepository.findDayReports(report.building_id, report.date);
       if (remaining.length > 0) {
         await buildAndStoreDayExcel(report.building_id, report.date, user.id);
-      } else if (report.excel_url) {
-        await storageService.removeExcel(report.excel_url);
+      } else if (report.excel_path) {
+        await storageService.removeExcel(report.excel_path);
       }
     } catch (err) {
       console.error('[Excel] Falha ao atualizar a planilha do dia:', err);
@@ -378,15 +403,24 @@ export const inspectionService = {
       throw new NotFoundError('Relatório');
     }
     await assertCanSeeReport(user, report.building_id);
-    return report;
+    return withExcelFlag(report);
   },
 
+  /**
+   * A URL de download da planilha, assinada na hora.
+   *
+   * É aqui que o isolamento por prédio finalmente vale para o arquivo: o
+   * vínculo é conferido a cada pedido, e o que sai é um link de poucos minutos.
+   * Antes, a coluna guardava uma URL pública e permanente — quem saísse do
+   * prédio continuava baixando o relatório com o link que já tinha.
+   */
   async getExcelUrl(id: string, user: Viewer) {
     const report = await inspectionRepository.findById(id);
     if (!report) throw new NotFoundError('Relatório');
     await assertCanSeeReport(user, report.building_id);
-    if (!report.excel_url) throw new NotFoundError('Excel ainda não gerado para este relatório');
-    return { excel_url: report.excel_url };
+    if (!report.excel_path) throw new NotFoundError('Excel ainda não gerado para este relatório');
+
+    return { excel_url: await signExcel(report.excel_path, report) };
   },
 
   async getCalendar(

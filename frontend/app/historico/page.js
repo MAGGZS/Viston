@@ -16,6 +16,7 @@ import { HistoricoSwitcher, OcorrenciasList, useHistoricoView } from '@/app/comp
 import { Badge, Button, Modal } from '@/app/components/ui';
 import { useInspections, useCalendar, useMyBuildings, useBuildingHistory } from '@/app/hooks/useApi';
 import { useIsDesktop } from '@/app/hooks/useMediaQuery';
+import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { parseReportDate } from '@/app/lib/date';
 import { useAuthStore } from '@/app/store/auth';
 
@@ -87,6 +88,7 @@ function MonthGrid({ heatmap, year, month, onDayClick, compact = false }) {
 
 // Clicar no card abre o relatório completo da vistoria
 function InspectionCard({ inspection, onPreview, onOpenReport, className = '' }) {
+  const { download, pendingId } = useExcelDownload();
   const totalRecords = inspection.floor_form_entries?.reduce(
     (sum, e) => sum + (e._count?.maintenance_records ?? 0), 0
   ) ?? 0;
@@ -121,12 +123,15 @@ function InspectionCard({ inspection, onPreview, onOpenReport, className = '' })
         ))}
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
-        {inspection.excel_url && (
-          <a href={inspection.excel_url} target="_blank" rel="noreferrer" style={{ flex: 1 }} onClick={e => e.stopPropagation()}>
-            <Button variant="secondary" style={{ width: '100%', fontSize: 12, padding: '8px 12px' }}>
-              <FileSpreadsheet size={13} /> Baixar planilha
-            </Button>
-          </a>
+        {inspection.has_excel && (
+          <Button
+            variant="secondary"
+            style={{ flex: 1, fontSize: 12, padding: '8px 12px' }}
+            loading={pendingId === inspection.id}
+            onClick={e => { e.stopPropagation(); download(inspection.id); }}
+          >
+            <FileSpreadsheet size={13} /> Baixar planilha
+          </Button>
         )}
         {onPreview && (
           <Button variant="secondary" style={{ flex: 1, fontSize: 12, padding: '8px 12px' }}
@@ -149,6 +154,7 @@ function InspectionCard({ inspection, onPreview, onOpenReport, className = '' })
  * motivo — um botão de largura inteira por cartão dominava a rolagem.
  */
 function MobileInspectionCard({ inspection, onOpenReport, className = '' }) {
+  const { download, pendingId } = useExcelDownload();
   const entries = inspection.floor_form_entries ?? [];
   const ocorrencias = entries.reduce((sum, e) => sum + (e._count?.maintenance_records ?? 0), 0);
 
@@ -165,22 +171,21 @@ function MobileInspectionCard({ inspection, onOpenReport, className = '' }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-          {inspection.excel_url && (
-            <a
-              href={inspection.excel_url}
-              target="_blank"
-              rel="noreferrer"
-              onClick={e => e.stopPropagation()}
+          {inspection.has_excel && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); download(inspection.id); }}
+              disabled={pendingId === inspection.id}
               aria-label="Baixar planilha"
               title="Baixar planilha"
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 36, height: 36, borderRadius: 12,
+                width: 36, height: 36, borderRadius: 12, border: 'none', cursor: 'pointer',
                 background: M.chip, color: M.accent, flexShrink: 0,
               }}
             >
               <Download size={16} />
-            </a>
+            </button>
           )}
           <ChevronRight size={18} color={M.faint} />
         </div>

@@ -1,9 +1,35 @@
 import { supabase } from '../lib/supabase';
 import { config } from '../config';
 
+/**
+ * Validade da URL assinada da planilha.
+ *
+ * Curta de propósito: ela é gerada no clique de quem já provou ter vínculo com
+ * o prédio, e o download começa em seguida. Cinco minutos cobrem rede ruim e
+ * dedo lento; mais que isso é transformar de novo o link numa credencial que
+ * viaja por mensagem.
+ */
+const EXCEL_URL_TTL_SECONDS = 300;
+
+/**
+ * Todo objeto de planilha se chama `report_...` — inclusive a do dia, que passa
+ * por `uploadExcel` com o dia no lugar do id.
+ */
+const EXCEL_PREFIX = 'report_';
+
+/** Nada de barra, `..` ou nome vazio: o caminho é montado aqui, nunca vem do cliente. */
+function assertSafeExcelPath(path: string): void {
+  if (!path || path.includes('/') || path.includes('\\') || path.includes('..')) {
+    throw new Error(`Caminho inválido no storage: "${path}"`);
+  }
+  if (!path.startsWith(EXCEL_PREFIX)) {
+    throw new Error(`Caminho fora do esperado no storage: "${path}"`);
+  }
+}
+
 export const storageService = {
   /**
-   * Sobe a planilha do dia de um prédio.
+   * Sobe a planilha do dia de um prédio e devolve o caminho dela no bucket.
    *
    * O nome carrega prédio e dia porque o arquivo é do dia — mas também o
    * instante do envio: a planilha é refeita a cada vistoria nova daquela data, e
@@ -27,21 +53,50 @@ export const storageService = {
 
     if (error) throw new Error(`Falha no upload do Excel: ${error.message}`);
 
-    const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
-    return data.publicUrl;
+    // O caminho, e não a URL: o bucket é privado, e quem baixa passa por
+    // `GET /inspections/:id/excel`, que confere o vínculo antes de assinar.
+    return fileName;
   },
 
-  /** Apaga a planilha do bucket a partir da URL pública gravada no relatório. */
-  async removeExcel(excelUrl: string): Promise<void> {
-    const fileName = decodeURIComponent(excelUrl.split('/').pop() ?? '');
-    if (!fileName) return;
+  /**
+   * URL de download da planilha, válida por poucos minutos.
+   *
+   * `download` faz o Supabase devolver `Content-Disposition: attachment` com o
+   * nome legível — sem ele o navegador abriria uma aba com o nome interno do
+   * objeto, que é `day_<uuid>_<data>_<timestamp>.xlsx`.
+   */
+  async createExcelSignedUrl(path: string, downloadName?: string): Promise<string> {
+    assertSafeExcelPath(path);
 
-    const { error } = await supabase.storage.from(config.supabase.bucketExcel).remove([fileName]);
+    const { data, error } = await supabase.storage
+      .from(config.supabase.bucketExcel)
+      .createSignedUrl(path, EXCEL_URL_TTL_SECONDS, downloadName ? { download: downloadName } : {});
+
+    if (error || !data) {
+      throw new Error(`Falha ao assinar a URL do Excel: ${error?.message ?? 'sem resposta'}`);
+    }
+
+    return data.signedUrl;
+  },
+
+  /** Apaga a planilha do bucket pelo caminho gravado no relatório. */
+  async removeExcel(path: string): Promise<void> {
+    if (!path) return;
+    assertSafeExcelPath(path);
+
+    const { error } = await supabase.storage.from(config.supabase.bucketExcel).remove([path]);
     if (error) throw new Error(`Falha ao remover o Excel: ${error.message}`);
   },
 
   /**
    * Sobe a foto de perfil já recortada pelo app.
+   *
+   * Este bucket segue público, e de propósito: a foto aparece em `<img>` em
+   * dezenas de lugares (lista de membros, autor da vistoria, cabeçalho), e URL
+   * assinada expira — a tela mostraria imagem quebrada minutos depois de
+   * carregada, ou exigiria reassinar a cada listagem. O nome do objeto é
+   * imprevisível e a foto não é o relatório: o que precisava sair de público
+   * era a planilha.
    *
    * O nome carrega o instante do envio porque a URL antiga fica em cache no
    * navegador: reusar o mesmo nome deixaria a foto trocada e a tela mostrando a
@@ -65,12 +120,23 @@ export const storageService = {
   /**
    * Apaga a foto do bucket a partir da URL pública.
    *
+   * O nome sai do último segmento do caminho da URL, e não do texto inteiro:
+   * `split('/')` cru pegaria querystring e fragmento junto. O prefixo é conferido
+   * porque este método é o único que apaga em nome de uma URL — e a URL, um dia,
+   * pode vir de lugar menos confiável que a própria coluna.
+   *
    * Nunca derruba a operação de quem chamou: trocar a foto tem de funcionar
    * mesmo que o arquivo velho já tenha sumido do bucket.
    */
   async removeAvatar(avatarUrl: string): Promise<void> {
-    const fileName = decodeURIComponent(avatarUrl.split('/').pop() ?? '');
-    if (!fileName || !fileName.startsWith('avatar_')) return;
+    let fileName: string;
+    try {
+      fileName = decodeURIComponent(new URL(avatarUrl).pathname.split('/').pop() ?? '');
+    } catch {
+      return;
+    }
+
+    if (!fileName || !fileName.startsWith('avatar_') || fileName.includes('..')) return;
 
     const { error } = await supabase.storage.from(config.supabase.bucketPhotos).remove([fileName]);
     if (error) console.error('[Avatar] Falha ao remover foto antiga:', error.message);

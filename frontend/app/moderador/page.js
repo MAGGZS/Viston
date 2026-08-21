@@ -11,6 +11,7 @@ import { Badge, Button, Skeleton } from '@/app/components/ui';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { OcorrenciasTable } from '@/app/components/OcorrenciasTable';
 import { useCalendar, useBuildingHistory, useTicketStats } from '@/app/hooks/useApi';
+import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { parseReportDate } from '@/app/lib/date';
 import { T, R, W, NUM } from '@/app/lib/theme';
 
@@ -44,6 +45,7 @@ function StatCard({ icon: Icon, label, value, isLoading, className = '' }) {
  * inspetor e do visualizador — e o calendário do que aconteceu em cada dia.
  */
 export default function ModeradorPage() {
+  const { download, pendingId } = useExcelDownload();
   const { building, isLoading: buildingLoading } = useModeratorBuilding();
   const buildingId = building?.building_id;
 
@@ -112,16 +114,15 @@ export default function ModeradorPage() {
                 {format(parseReportDate(r.date), 'dd/MM/yyyy', { locale: ptBR })}
               </td>
               <td style={{ padding: '11px 22px' }}>
-                {r.excel_url ? (
-                  <a
-                    href={r.excel_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: T.accent, fontSize: 13 }}
+                {r.has_excel ? (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); download(r.id); }}
+                    disabled={pendingId === r.id}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: T.accent, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                   >
                     <Download size={13} /> Baixar
-                  </a>
+                  </button>
                 ) : (
                   <span style={{ color: T.mute, fontSize: 13 }}>—</span>
                 )}

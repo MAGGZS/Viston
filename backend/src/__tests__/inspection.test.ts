@@ -50,7 +50,7 @@ function makeReport(overrides = {}) {
     finished_at: new Date(),
     floors_inspected: [FLOOR_6, FLOOR_SUB1],
     status: InspectionStatus.COMPLETED,
-    excel_url: null,
+    excel_path: null,
     inspector: { id: 'user-1', name: 'Carlos', email: 'carlos@test.com', role: 'INSPECTOR' },
     building: mockBuilding,
     floor_form_entries: [],
@@ -77,7 +77,7 @@ describe('inspectionService.submit', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGenerateExcel.mockResolvedValue(Buffer.from('excel'));
-    mockStorage.uploadDayExcel.mockResolvedValue('https://storage.example.com/day.xlsx');
+    mockStorage.uploadDayExcel.mockResolvedValue('report_day_predio_2026-08-21.xlsx');
     mockInspectionRepo.createCompleted.mockResolvedValue(makeReport());
     mockInspectionRepo.findById.mockResolvedValue(makeReport());
     mockInspectionRepo.findDayReports.mockResolvedValue([makeReport()]);
@@ -242,11 +242,11 @@ describe('inspectionService.submit', () => {
     await inspectionService.submit(inspetor(), payload([{ floor_id: FLOOR_6, records: [] }]));
 
     expect(mockGenerateExcel).toHaveBeenCalledWith(doDia);
-    // A URL nova vale para as duas vistorias daquele dia
-    expect(mockInspectionRepo.setDayExcelUrl).toHaveBeenCalledWith(
+    // O caminho novo vale para as duas vistorias daquele dia
+    expect(mockInspectionRepo.setDayExcelPath).toHaveBeenCalledWith(
       BUILDING_ID,
       expect.any(Date),
-      'https://storage.example.com/day.xlsx'
+      'report_day_predio_2026-08-21.xlsx'
     );
   });
 
@@ -254,13 +254,13 @@ describe('inspectionService.submit', () => {
     mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
     mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
     mockInspectionRepo.findDayReports.mockResolvedValue([
-      makeReport({ excel_url: 'https://storage.example.com/day-antiga.xlsx' }),
+      makeReport({ excel_path: 'report_day_predio_2026-08-20.xlsx' }),
     ] as any);
 
     await inspectionService.submit(inspetor(), payload([{ floor_id: FLOOR_6, records: [] }]));
 
-    // Nenhum relatório aponta mais para ela depois do setDayExcelUrl
-    expect(mockStorage.removeExcel).toHaveBeenCalledWith('https://storage.example.com/day-antiga.xlsx');
+    // Nenhum relatório aponta mais para ela depois do setDayExcelPath
+    expect(mockStorage.removeExcel).toHaveBeenCalledWith('report_day_predio_2026-08-20.xlsx');
   });
 
   it('conclui a vistoria mesmo se a geração do Excel falhar', async () => {
@@ -282,13 +282,13 @@ describe('inspectionService.remove', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGenerateExcel.mockResolvedValue(Buffer.from('excel'));
-    mockStorage.uploadDayExcel.mockResolvedValue('https://storage.example.com/day-2.xlsx');
+    mockStorage.uploadDayExcel.mockResolvedValue('report_day_predio_2026-08-22.xlsx');
     // Quem descarta é o gestor do prédio
     mockBuildingRepo.findManagerLink.mockResolvedValue({ id: 'bm1' } as any);
   });
 
   it('refaz a planilha do dia quando ainda sobra vistoria naquela data', async () => {
-    const alvo = makeReport({ excel_url: 'https://storage.example.com/day.xlsx' });
+    const alvo = makeReport({ excel_path: 'report_day_predio_2026-08-21.xlsx' });
     mockInspectionRepo.findById.mockResolvedValue(alvo);
     mockInspectionRepo.findDayReports.mockResolvedValue([makeReport({ id: 'report-2' })] as any);
 
@@ -296,19 +296,19 @@ describe('inspectionService.remove', () => {
 
     expect(mockInspectionRepo.delete).toHaveBeenCalledWith('report-1');
     // O arquivo é de todas as vistorias do dia: apagá-lo deixaria as que
-    // sobraram apontando para uma URL morta.
-    expect(mockStorage.removeExcel).not.toHaveBeenCalledWith('https://storage.example.com/day.xlsx');
-    expect(mockInspectionRepo.setDayExcelUrl).toHaveBeenCalled();
+    // sobraram apontando para um objeto que não existe mais.
+    expect(mockStorage.removeExcel).not.toHaveBeenCalledWith('report_day_predio_2026-08-21.xlsx');
+    expect(mockInspectionRepo.setDayExcelPath).toHaveBeenCalled();
   });
 
   it('tira a planilha do bucket quando o dia fica sem nenhuma vistoria', async () => {
-    const alvo = makeReport({ excel_url: 'https://storage.example.com/day.xlsx' });
+    const alvo = makeReport({ excel_path: 'report_day_predio_2026-08-21.xlsx' });
     mockInspectionRepo.findById.mockResolvedValue(alvo);
     mockInspectionRepo.findDayReports.mockResolvedValue([]);
 
     await inspectionService.remove('report-1', gestor());
 
-    expect(mockStorage.removeExcel).toHaveBeenCalledWith('https://storage.example.com/day.xlsx');
+    expect(mockStorage.removeExcel).toHaveBeenCalledWith('report_day_predio_2026-08-21.xlsx');
   });
 });
 
@@ -393,7 +393,7 @@ describe('isolamento por prédio', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGenerateExcel.mockResolvedValue(Buffer.from('excel'));
-    mockStorage.uploadDayExcel.mockResolvedValue('https://storage.example.com/day.xlsx');
+    mockStorage.uploadDayExcel.mockResolvedValue('report_day_predio_2026-08-21.xlsx');
     mockInspectionRepo.createCompleted.mockResolvedValue(makeReport());
     mockInspectionRepo.findById.mockResolvedValue(makeReport());
     mockInspectionRepo.findDayReports.mockResolvedValue([makeReport()]);

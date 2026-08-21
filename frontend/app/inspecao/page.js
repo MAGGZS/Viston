@@ -7,6 +7,7 @@ import { FloorForm } from '@/app/components/FloorForm';
 import { Button, Card, Spinner } from '@/app/components/ui';
 import { M, MRound, MCard, MButton, MButtonSoft, MButtonGhost, MSectionHead, MPill } from '@/app/components/mobile/kit';
 import { useFloors, useBuildingByKey, useSubmitInspection, useMyBuildings, useRequestAccess, useBuildingResponsibles } from '@/app/hooks/useApi';
+import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { formatShareKey, normalizeShareKey, isCompleteShareKey } from '@/app/lib/shareKey';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
 import { useAuthStore } from '@/app/store/auth';
@@ -175,6 +176,7 @@ function StepSelectFloors({ building, floors, onStart }) {
 }
 
 export default function InspecaoPage() {
+  const { download, pendingId } = useExcelDownload();
   const router = useRouter();
   const { user } = useAuthStore();
   const [step, setStep] = useState('select');
@@ -316,10 +318,14 @@ export default function InspecaoPage() {
                 <p style={{ color: M.mute, fontSize: 14, marginTop: 6 }}>Relatório e planilha já estão no histórico</p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
-                {finishedReport?.excel_url && (
-                  <a href={finishedReport.excel_url} target="_blank" rel="noreferrer">
-                    <MButtonSoft style={{ width: '100%' }}>Baixar planilha</MButtonSoft>
-                  </a>
+                {finishedReport?.has_excel && (
+                  <MButtonSoft
+                    onClick={() => download(finishedReport.id)}
+                    loading={pendingId === finishedReport.id}
+                    style={{ width: '100%' }}
+                  >
+                    Baixar planilha
+                  </MButtonSoft>
                 )}
                 <MButton onClick={() => router.push('/historico')} style={{ width: '100%' }}>Ver histórico</MButton>
                 <MButtonGhost onClick={resetToSelect} style={{ width: '100%' }}>Nova vistoria</MButtonGhost>

@@ -16,6 +16,7 @@ import { inspectionRepository } from '../repositories/inspection.repository';
 import { ticketRepository } from '../repositories/ticket.repository';
 import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
+import { storageService } from '../services/storage.service';
 import { signAccessToken } from '../utils/jwt';
 
 const mockBuildingRepo = buildingRepository as jest.Mocked<typeof buildingRepository>;
@@ -23,6 +24,7 @@ const mockInspectionRepo = inspectionRepository as jest.Mocked<typeof inspection
 const mockTicketRepo = ticketRepository as jest.Mocked<typeof ticketRepository>;
 const mockUserRepo = userRepository as jest.Mocked<typeof userRepository>;
 const mockManagerRepo = managerRepository as jest.Mocked<typeof managerRepository>;
+const mockStorage = storageService as jest.Mocked<typeof storageService>;
 
 const BUILDING_ID = '11111111-1111-4111-8111-111111111111';
 const FLOOR_ID = '44444444-4444-4444-8444-444444444444';
@@ -605,7 +607,7 @@ describe('acesso a relatórios', () => {
     id: REPORT_ID,
     building_id: BUILDING_ID,
     status: 'COMPLETED',
-    excel_url: 'https://storage.example.com/report.xlsx',
+    excel_path: 'report_day_predio_2026-08-21.xlsx',
   };
 
   it('esconde relatório de prédio em que o usuário não é membro', async () => {
@@ -627,6 +629,45 @@ describe('acesso a relatórios', () => {
 
     expect(res.status).toBe(404);
     expect(res.text).not.toContain('report.xlsx');
+    // Nem assinar chegou a acontecer: quem não tem vínculo para antes.
+    expect(mockStorage.createExcelSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it('assina a URL na hora para quem é membro do prédio', async () => {
+    comoMembro('VIEWER');
+    mockInspectionRepo.findById.mockResolvedValue({
+      ...report,
+      date: new Date('2026-08-21'),
+      building: { id: BUILDING_ID, name: 'Edifício Principal' },
+    } as any);
+    mockStorage.createExcelSignedUrl.mockResolvedValue('https://storage/assinada?token=abc');
+
+    const res = await request(app)
+      .get(`/inspections/${REPORT_ID}/excel`)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.excel_url).toBe('https://storage/assinada?token=abc');
+    expect(mockStorage.createExcelSignedUrl).toHaveBeenCalledWith(
+      'report_day_predio_2026-08-21.xlsx',
+      'vistoria-edificio-principal-2026-08-21.xlsx'
+    );
+  });
+
+  it('a listagem nunca devolve o caminho do arquivo no bucket', async () => {
+    // O caminho é metade do que falta para chegar ao objeto. A tela só precisa
+    // saber que existe planilha — o link vem assinado, e só a quem pedir.
+    mockBuildingRepo.getMemberBuildingIds.mockResolvedValue([BUILDING_ID]);
+    mockInspectionRepo.findAll.mockResolvedValue([
+      [{ id: REPORT_ID, building_id: BUILDING_ID, has_excel: true }],
+      1,
+    ] as any);
+
+    const res = await request(app).get('/inspections').set('Authorization', `Bearer ${tokenViewer}`);
+
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('excel_path');
+    expect(res.body.inspections[0].has_excel).toBe(true);
   });
 
   it('restringe a listagem aos prédios do usuário', async () => {

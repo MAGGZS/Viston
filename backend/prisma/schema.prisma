@@ -289,7 +289,13 @@ model InspectionReport {
   finished_at           DateTime?
   floors_inspected      String[]
   status                InspectionStatus @default(IN_PROGRESS)
-  excel_url             String?
+  /// Caminho do objeto no bucket, não a URL.
+  ///
+  /// O bucket é privado: a URL é assinada na hora do download (ver
+  /// `storageService.createExcelSignedUrl`) e dura minutos. Guardar a URL aqui
+  /// era guardar um acesso permanente e sem autenticação ao relatório — que a
+  /// API nega a quem não tem vínculo com o prédio.
+  excel_path            String?
   google_form_synced    Boolean          @default(false)
   google_form_synced_at DateTime?
   created_at            DateTime         @default(now())

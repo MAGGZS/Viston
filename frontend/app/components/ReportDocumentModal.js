@@ -7,6 +7,7 @@ import { Button, Spinner } from '@/app/components/ui';
 import { useDayReport, useGenerateExcel } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { useIsDesktop } from '@/app/hooks/useMediaQuery';
+import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
 import { parseReportDate } from '@/app/lib/date';
 import { MAINTENANCE_TYPES, CATEGORIES, PRIORITIES, RECORD_STATUS, labelOf } from '@/app/lib/maintenanceOptions';
@@ -283,6 +284,7 @@ export function ReportDocumentModal({ open, onClose, reportId }) {
   const { data: report, isLoading } = useDayReport(mounted ? shownId : null);
   const generateExcel = useGenerateExcel();
   const { show: toast } = useToastStore();
+  const { download, pendingId } = useExcelDownload();
   const isDesktop = useIsDesktop();
 
   if (!mounted) return null;
@@ -296,7 +298,8 @@ export function ReportDocumentModal({ open, onClose, reportId }) {
     try {
       const { excel_url } = await generateExcel.mutateAsync(shownId);
       toast('Planilha gerada!', 'success');
-      if (excel_url) window.open(excel_url, '_blank', 'noreferrer');
+      // A URL vem assinada e vale minutos: a planilha desce agora, não depois.
+      if (excel_url) window.location.href = excel_url;
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao gerar planilha', 'error');
     }
@@ -322,23 +325,30 @@ export function ReportDocumentModal({ open, onClose, reportId }) {
             Relatório do dia
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: isDesktop ? 8 : 4 }}>
-            {report?.excel_url ? (
-              <a
-                href={report.excel_url}
-                target="_blank"
-                rel="noreferrer"
-                aria-label="Baixar planilha"
-                title="Baixar planilha"
-                style={isDesktop ? undefined : { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: R.control, background: T.chip, color: T.accent }}
-              >
-                {isDesktop ? (
-                  <Button variant="secondary" style={{ fontSize: 12, padding: '7px 13px' }}>
-                    <Download size={13} /> Baixar planilha
-                  </Button>
-                ) : (
+            {report?.has_excel ? (
+              isDesktop ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => download(shownId)}
+                  loading={pendingId === shownId}
+                  aria-label="Baixar planilha"
+                  title="Baixar planilha"
+                  style={{ fontSize: 12, padding: '7px 13px' }}
+                >
+                  <Download size={13} /> Baixar planilha
+                </Button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => download(shownId)}
+                  disabled={pendingId === shownId}
+                  aria-label="Baixar planilha"
+                  title="Baixar planilha"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: R.control, border: 'none', cursor: 'pointer', background: T.chip, color: T.accent }}
+                >
                   <Download size={18} />
-                )}
-              </a>
+                </button>
+              )
             ) : report ? (
               <Button
                 onClick={handleGenerate}

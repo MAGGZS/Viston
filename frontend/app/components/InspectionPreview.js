@@ -5,6 +5,7 @@ import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Button, Spinner } from '@/app/components/ui';
 import { useDayReport, useGenerateExcel } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
+import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
 import { MAINTENANCE_TYPES, CATEGORIES, PRIORITIES, RECORD_STATUS, labelOf } from '@/app/lib/maintenanceOptions';
 import { useToastStore } from '@/app/store/toast';
@@ -29,6 +30,7 @@ export function InspectionPreview({ report, reportId }) {
   const [showDocument, setShowDocument] = useState(false);
   const generateExcel = useGenerateExcel();
   const { show: toast } = useToastStore();
+  const { download, pendingId } = useExcelDownload();
 
   const anchorId = reportId ?? report?.reports?.[0]?.id;
 
@@ -43,7 +45,8 @@ export function InspectionPreview({ report, reportId }) {
     try {
       const { excel_url } = await generateExcel.mutateAsync(anchorId);
       toast('Planilha gerada!', 'success');
-      if (excel_url) window.open(excel_url, '_blank', 'noreferrer');
+      // A URL vem assinada e vale minutos: a planilha desce agora, não depois.
+      if (excel_url) window.location.href = excel_url;
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao gerar planilha', 'error');
     }
@@ -59,12 +62,15 @@ export function InspectionPreview({ report, reportId }) {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {report.excel_url ? (
-            <a href={report.excel_url} target="_blank" rel="noreferrer">
-              <Button variant="secondary" style={{ fontSize: 12, padding: '8px 14px' }}>
-                <Download size={13} /> Baixar planilha
-              </Button>
-            </a>
+          {report.has_excel ? (
+            <Button
+              variant="secondary"
+              onClick={() => download(anchorId)}
+              loading={pendingId === anchorId}
+              style={{ fontSize: 12, padding: '8px 14px' }}
+            >
+              <Download size={13} /> Baixar planilha
+            </Button>
           ) : (
             <Button onClick={handleGenerate} loading={generateExcel.isPending} style={{ fontSize: 12, padding: '8px 14px' }}>
               <FileSpreadsheet size={13} /> Gerar planilha

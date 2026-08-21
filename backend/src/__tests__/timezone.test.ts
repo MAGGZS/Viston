@@ -34,7 +34,7 @@ describe('buildHeatmap', () => {
       {
         id: 'report-1',
         finished_at: LATE_NIGHT,
-        excel_url: null,
+        excel_path: null,
         inspector: { id: 'user-1', name: 'Carlos' },
       },
     ]);
@@ -45,6 +45,6 @@ describe('buildHeatmap', () => {
   });
 
   it('ignora relatório sem conclusão', () => {
-    expect(buildHeatmap([{ id: 'r', finished_at: null, excel_url: null, inspector: null }])).toEqual({});
+    expect(buildHeatmap([{ id: 'r', finished_at: null, excel_path: null, inspector: null }])).toEqual({});
   });
 });

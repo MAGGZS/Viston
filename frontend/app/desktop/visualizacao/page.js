@@ -13,6 +13,7 @@ import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { Badge, Skeleton, Button } from '@/app/components/ui';
 import { useCalendar, useBuildingHistory, useMyBuildings } from '@/app/hooks/useApi';
+import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { parseReportDate } from '@/app/lib/date';
 import { useAuthStore } from '@/app/store/auth';
 
@@ -33,6 +34,7 @@ function NoPredioState() {
 }
 
 export default function VisualizacaoPage() {
+  const { download, pendingId } = useExcelDownload();
   const { user } = useAuthStore();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -146,11 +148,11 @@ export default function VisualizacaoPage() {
                         </td>
                         <td className="px-6 py-3">
                           <div className="flex items-center gap-4">
-                            {r.excel_url ? (
-                              <a href={r.excel_url} target="_blank" rel="noreferrer"
-                                className="flex items-center gap-1 text-accent text-sm hover:underline">
+                            {r.has_excel ? (
+                              <button type="button" onClick={() => download(r.id)} disabled={pendingId === r.id}
+                                className="flex items-center gap-1 text-accent text-sm hover:underline disabled:opacity-50">
                                 <Download size={13} /> Baixar
-                              </a>
+                              </button>
                             ) : <span className="text-mute text-sm">—</span>}
                             <button onClick={() => setPreviewId(r.id)}
                               className="flex items-center gap-1 text-mute text-sm hover:text-white transition-all duration-150 active:scale-95">
