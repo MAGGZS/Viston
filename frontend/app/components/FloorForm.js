@@ -56,10 +56,15 @@ function DescriptionField({ index, register, error }) {
   const fieldId = useId();
   const errorId = `${fieldId}-erro`;
 
+  // O erro fica *fora* do `<label>`, e o rótulo aponta para o campo por
+  // `htmlFor`. Dentro do label, o texto do erro entrava no nome do campo: o
+  // leitor de tela passava a anunciar "Descrição Descreva a ocorrência" como
+  // se fosse o rótulo — e o rótulo mudava conforme o erro ia e vinha.
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-      <span style={{ color: M.mute, fontSize: 12 }}>Descrição</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      <label htmlFor={fieldId} style={{ color: M.mute, fontSize: 12 }}>Descrição</label>
       <textarea
+        id={fieldId}
         rows={3}
         placeholder="O que foi encontrado?"
         aria-invalid={error ? true : undefined}
@@ -70,7 +75,7 @@ function DescriptionField({ index, register, error }) {
       {error && (
         <span id={errorId} role="alert" style={{ color: M.danger, fontSize: 12 }}>{error}</span>
       )}
-    </label>
+    </div>
   );
 }
 

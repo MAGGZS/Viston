@@ -43,10 +43,13 @@ function isProductionHost(host) {
  * O atalho para localhost fica: rodar `npm run dev` sem nenhum `.env` é o caso
  * comum, e ali o alvo nunca é a nuvem.
  */
-export function resolveApiBaseUrl() {
+export function resolveApiBaseUrl(hostname) {
   if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
 
-  const host = typeof window === 'undefined' ? null : window.location.hostname;
+  // O host entra por parâmetro (o teste passa o dele) e, na falta, vem da
+  // janela: `window.location` não é redefinível no jsdom, e sem esta porta o
+  // caso que mais importa — a pré-visualização da Vercel — não teria teste.
+  const host = hostname ?? (typeof window === 'undefined' ? null : window.location.hostname);
 
   if (host && LOCAL_HOSTS.includes(host)) return LOCAL_API_URL;
   if (isProductionHost(host)) return PRODUCTION_API_URL;

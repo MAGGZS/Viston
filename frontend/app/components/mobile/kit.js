@@ -186,9 +186,12 @@ export function MField({ label, error, style = {}, ...props }) {
   const fieldId = props.id ?? props.name ?? generatedId;
   const errorId = `${fieldId}-erro`;
 
+  // Rótulo e erro como irmãos, e não com o erro dentro do `<label>`: ali o
+  // texto do erro entrava no nome do campo, e o leitor de tela anunciava os
+  // dois juntos como se fossem o rótulo.
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-      {label && <span style={{ color: M.mute, fontSize: 12 }}>{label}</span>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      {label && <label htmlFor={fieldId} style={{ color: M.mute, fontSize: 12 }}>{label}</label>}
       <input
         id={fieldId}
         aria-invalid={error ? true : undefined}
@@ -202,7 +205,7 @@ export function MField({ label, error, style = {}, ...props }) {
         {...props}
       />
       {error && <span id={errorId} role="alert" style={{ color: M.danger, fontSize: 12 }}>{error}</span>}
-    </label>
+    </div>
   );
 }
 
@@ -214,7 +217,9 @@ export function MField({ label, error, style = {}, ...props }) {
 export function MSelect({ label, error, options = [], ...props }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-      {label && <span style={{ color: M.mute, fontSize: 12 }}>{label}</span>}
+      {/* `aria-hidden`: quem nomeia o droplist é o `aria-label` do gatilho, logo
+          abaixo. Sem isto o leitor de tela lê o rótulo duas vezes. */}
+      {label && <span aria-hidden="true" style={{ color: M.mute, fontSize: 12 }}>{label}</span>}
       <Select
         options={options}
         error={error}
