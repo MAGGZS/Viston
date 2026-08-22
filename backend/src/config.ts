@@ -1,7 +1,22 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+/**
+ * `.env.local` em desenvolvimento, `.env` em produção.
+ *
+ * A separação é o que permite rodar na máquina apontando para os mesmos dados da
+ * nuvem, sem que o arquivo local se confunda com o de produção. Em produção o
+ * Render injeta as variáveis direto no processo e nenhum arquivo existe — o
+ * dotenv apenas não encontra nada e segue.
+ *
+ * O que não volta é o fallback para `.env.example` que existia junto com isto:
+ * o exemplo é versionado e vem preenchido, então ele fazia o `required()` abaixo
+ * nunca disparar. Faltando `JWT_SECRET`, o servidor subia calado assinando token
+ * com `your-jwt-secret-change-in-production` — a falha que a checagem existe para
+ * impedir, escondida pela rede de segurança.
+ */
+const envFile = process.env.NODE_ENV === 'production' ? '.env' : '.env.local';
+dotenv.config({ path: path.resolve(process.cwd(), envFile) });
 
 function required(key: string): string {
   const value = process.env[key];
