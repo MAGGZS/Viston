@@ -14,7 +14,12 @@ const G = {
   card: { background: T.card, borderRadius: R.card },
   input: {
     background: T.chip,
-    border: '1px solid transparent',
+    // Separadas, e não o atalho `border`: o estado de erro sobrepõe apenas
+    // `borderColor`, e misturar os dois faz o React avisar e a borda não voltar
+    // à cor original quando o erro some.
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: 'transparent',
     borderRadius: R.control,
     padding: '13px 15px',
     color: T.text,

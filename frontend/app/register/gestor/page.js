@@ -23,7 +23,7 @@ const schema = yup.object({
 const S = {
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
   label: { fontSize: 12, fontWeight: 400, color: T.mute },
-  input: { background: T.chip, border: '1px solid transparent', borderRadius: 16, padding: '13px 16px', color: T.text, fontSize: 16, outline: 'none', width: '100%' },
+  input: { background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent', borderRadius: 16, padding: '13px 16px', color: T.text, fontSize: 16, outline: 'none', width: '100%' },
   inputWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
   eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: T.mute, display: 'flex', alignItems: 'center' },
   btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: W.strong, fontSize: 15, padding: '14px', borderRadius: 16, border: 'none', cursor: 'pointer', marginTop: 4 },

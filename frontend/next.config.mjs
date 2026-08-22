@@ -9,6 +9,17 @@
 const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL || 'https://viston.onrender.com';
 
 /**
+ * O backend rodando na máquina, que `app/lib/api.js` escolhe sozinho quando a
+ * página é servida de localhost. Sem ele no `connect-src`, o navegador barra a
+ * chamada antes de sair — o login local falha com a API no ar e o backend sem
+ * receber requisição nenhuma, que é o pior lugar para começar a procurar.
+ *
+ * Entra só em desenvolvimento: em produção a origem não existe, e listá-la
+ * abriria o app a um servidor local qualquer.
+ */
+const LOCAL_API_ORIGIN = 'http://localhost:4000';
+
+/**
  * Cabeçalhos de segurança do app.
  *
  * O `helmet` do backend protege a API, que só devolve JSON. O que faltava era
@@ -29,7 +40,9 @@ const csp = [
   // Avatar e planilha vêm do Storage do Supabase; `data:` é o recorte no canvas.
   "img-src 'self' https://*.supabase.co data: blob:",
   "font-src 'self' data:",
-  `connect-src 'self' ${API_ORIGIN} https://*.supabase.co`,
+  process.env.NODE_ENV === 'development'
+    ? `connect-src 'self' ${API_ORIGIN} ${LOCAL_API_ORIGIN} https://*.supabase.co`
+    : `connect-src 'self' ${API_ORIGIN} https://*.supabase.co`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
