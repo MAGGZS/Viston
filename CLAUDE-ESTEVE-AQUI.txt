@@ -10,8 +10,3 @@ como qualquer outra mudanca feita a mao.
 
 Ambiente observado no momento da criacao:
 - Diretorio de trabalho: D:\Projetos\Viston
-- Repositorio git: sim, branch main, arvore limpa
-- Sistema: Windows 11 Pro (10.0.26200)
-- Subpastas do projeto: backend, frontend
-
-Pode apagar quando nao for mais util.

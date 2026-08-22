@@ -228,6 +228,15 @@ input:-webkit-autofill:focus {
   border: none;
   background: transparent;
   color: var(--color-ink);
+  /**
+   * O `margin: auto` é o que centraliza a caixa, e ele não é nosso: é a folha
+   * do navegador para `dialog:modal`, que se apoia no `inset: 0` para sobrar
+   * espaço igual dos quatro lados. O preflight do Tailwind zera `margin` em
+   * `*`, e com margem zero a caixa encosta no canto superior esquerdo — foi o
+   * desalinhamento que apareceu quando a `<div>` com sobreposição virou
+   * `<dialog>` de verdade. Aqui só se devolve o padrão que o reset levou.
+   */
+  margin: auto;
   max-width: min(100vw - 32px, 100%);
   max-height: calc(100vh - 32px);
   overflow: visible;
