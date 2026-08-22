@@ -321,6 +321,23 @@ input:-webkit-autofill:focus {
 .select-option.is-selected { color: var(--color-accent); }
 
 /**
+ * Seta de paginação (ver components/Paginator.js).
+ *
+ * Hover e foco em CSS pelo mesmo motivo do `.btn`: em JS o teclado não ganharia
+ * realce nenhum, e o toque no telefone deixaria o estado grudado.
+ */
+@media (hover: hover) {
+  .pager-btn:not(:disabled):hover { background-color: #2E2E2E; }
+}
+
+.pager-btn { transition: background-color 0.15s ease, opacity 0.15s ease; }
+
+.pager-btn:focus-visible {
+  outline: 2px solid rgba(245, 197, 24, 0.6);
+  outline-offset: 2px;
+}
+
+/**
  * Linha do perfil.
  *
  * O cartão inteiro é o alvo, então é ele quem responde ao cursor. A seta anda

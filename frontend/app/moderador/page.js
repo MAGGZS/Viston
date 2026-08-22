@@ -7,9 +7,10 @@ import { ModeradorShell, useModeratorBuilding } from '@/app/components/Moderador
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
-import { Badge, Button, Skeleton } from '@/app/components/ui';
+import { Badge, Skeleton } from '@/app/components/ui';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { OcorrenciasTable } from '@/app/components/OcorrenciasTable';
+import { Paginator } from '@/app/components/Paginator';
 import { useCalendar, useBuildingHistory, useTicketStats } from '@/app/hooks/useApi';
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { parseReportDate } from '@/app/lib/date';
@@ -63,10 +64,10 @@ export default function ModeradorPage() {
   const { data: calData, isLoading: calLoading } = useCalendar(
     buildingId ? { month, year, building_id: buildingId } : null
   );
-  const { data: histData, isLoading: histLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useBuildingHistory(buildingId);
-
-  const rows = histData?.pages?.flatMap((p) => p.inspections) ?? [];
+  // Oito por página: quem anda pelo resto é o rodapé de setas do cartão.
+  const vistorias = useBuildingHistory(buildingId);
+  const rows = vistorias.rows;
+  const histLoading = vistorias.isLoading;
   const monthLabel = format(new Date(year, month - 1), 'MMMM yyyy', { locale: ptBR });
 
   function prev() { if (month === 1) { setMonth(12); setYear((y) => y - 1); } else setMonth((m) => m - 1); }
@@ -87,7 +88,8 @@ export default function ModeradorPage() {
             ))}
           </tr>
         </thead>
-        <tbody>
+        {/* `key` na página: as linhas entram de novo a cada seta. */}
+        <tbody key={vistorias.page}>
           {histLoading && [1, 2, 3].map((i) => (
             <tr key={i} style={{ borderBottom: `1px solid ${T.line}` }}>
               {[1, 2, 3, 4].map((j) => (
@@ -140,13 +142,17 @@ export default function ModeradorPage() {
         </tbody>
       </table>
 
-      {hasNextPage && (
-        <div style={{ padding: '14px 22px', borderTop: `1px solid ${T.line}`, display: 'flex', justifyContent: 'center' }}>
-          <Button variant="secondary" onClick={() => fetchNextPage()} loading={isFetchingNextPage}>
-            Carregar mais
-          </Button>
-        </div>
-      )}
+      <Paginator
+        page={vistorias.page}
+        pages={vistorias.pages}
+        total={vistorias.total}
+        count={rows.length}
+        pageSize={vistorias.pageSize}
+        onPrev={vistorias.prev}
+        onNext={vistorias.next}
+        isFetching={vistorias.isFetching}
+        style={{ borderTop: `1px solid ${T.line}`, padding: '12px 22px' }}
+      />
     </>
   );
 

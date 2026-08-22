@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MRound } from '@/app/components/mobile/kit';
 import { Badge, Skeleton } from '@/app/components/ui';
 import { OcorrenciaModal, dayLabel } from '@/app/components/OcorrenciaModal';
+import { Paginator } from '@/app/components/Paginator';
 import { useBuildingOccurrences } from '@/app/hooks/useApi';
 import {
   MAINTENANCE_TYPES,
@@ -111,12 +112,12 @@ export function HistoricoSwitcher({ title, subtitle, onPrev, onNext, className =
  * encontrado no prédio, e é isso que a torna livre para qualquer vínculo.
  */
 function useOcorrencias(buildingId) {
-  const { data, isLoading } = useBuildingOccurrences(buildingId);
+  const paged = useBuildingOccurrences(buildingId);
   const [picked, setPicked] = useState(null);
 
   return {
-    occurrences: data?.tickets ?? [],
-    isLoading: !!buildingId && isLoading,
+    ...paged,
+    occurrences: paged.rows,
     picked,
     open: setPicked,
     close: () => setPicked(null),
@@ -169,7 +170,7 @@ function OcorrenciaCard({ occurrence, onOpen, className = '' }) {
 
 /** As ocorrências em cartões — a forma da lista de vistorias do histórico. */
 export function OcorrenciasList({ buildingId }) {
-  const { occurrences, isLoading, picked, open, close } = useOcorrencias(buildingId);
+  const { occurrences, isLoading, picked, open, close, ...pager } = useOcorrencias(buildingId);
 
   if (!buildingId) {
     return <p style={{ color: T.faint, fontSize: 14, textAlign: 'center', padding: '60px 0' }}>{NO_BUILDING_MESSAGE}</p>;
@@ -196,7 +197,10 @@ export function OcorrenciasList({ buildingId }) {
 
   return (
     <>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* `key` na página: a lista entra de novo a cada seta, com a mesma
+          animação da troca de visão — sem isso, oito linhas trocam de conteúdo
+          no lugar e nada diz que a página andou. */}
+      <div key={pager.page} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {occurrences.map((o, idx) => (
           <OcorrenciaCard
             key={o.id}
@@ -206,6 +210,18 @@ export function OcorrenciasList({ buildingId }) {
           />
         ))}
       </div>
+
+      <Paginator
+        page={pager.page}
+        pages={pager.pages}
+        total={pager.total}
+        count={occurrences.length}
+        pageSize={pager.pageSize}
+        onPrev={pager.prev}
+        onNext={pager.next}
+        isFetching={pager.isFetching}
+        style={{ padding: '12px 4px 0' }}
+      />
 
       <OcorrenciaModal open={!!picked} occurrence={picked} onClose={close} />
     </>

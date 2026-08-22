@@ -10,9 +10,10 @@ import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
+import { Paginator } from '@/app/components/Paginator';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
-import { M, MPage, MTopBar, MRound, MCard, MButtonGhost, CONTENT_ID } from '@/app/components/mobile/kit';
+import { M, MPage, MTopBar, MRound, MCard, CONTENT_ID } from '@/app/components/mobile/kit';
 import { HistoricoSwitcher, OcorrenciasList, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { Badge, Button, Modal } from '@/app/components/ui';
 import { useInspections, useCalendar, useBuildingHistory } from '@/app/hooks/useApi';
@@ -274,40 +275,52 @@ export default function HistoricoPage() {
   } = useActiveBuilding();
   const hasBuilding = myBuildings.length > 0;
 
-  // Desktop: todas as inspeções (admin vê tudo)
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInspections(
-    Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''))
+  // O ADMIN vê o sistema inteiro; o resto vê o prédio escolhido. As duas
+  // consultas existem lado a lado porque hook não pode ser condicional — mas só
+  // a que a tela usa é ligada, senão quem não é ADMIN pagava uma requisição por
+  // carregamento para um resultado que ninguém lê.
+  const admin = useInspections(
+    Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== '')),
+    isAdmin
   );
+  const predio = useBuildingHistory(hasBuilding ? myBuildingId : null);
 
-  // Mobile: histórico do prédio vinculado
-  const { data: buildingData, isLoading: buildingLoading, fetchNextPage: buildingFetchNext, hasNextPage: buildingHasNext, isFetchingNextPage: buildingFetchingNext } = useBuildingHistory(
-    hasBuilding ? myBuildingId : null
-  );
-
-  const allInspections = data?.pages?.flatMap(p => p.inspections) || [];
-  const buildingInspections = buildingData?.pages?.flatMap(p => p.inspections) || [];
+  // Oito por página nas duas: quem pagina é o rodapé de setas do cartão.
+  const vistorias = isAdmin ? admin : predio;
 
   const listaPanel = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {(isAdmin ? isLoading : buildingLoading) && [1, 2, 3].map(i => <div key={i} style={{ height: 120, background: '#232323', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />)}
-      {!(isAdmin ? isLoading : buildingLoading) && (isAdmin ? allInspections : buildingInspections).length === 0 && (
+      {vistorias.isLoading && [1, 2, 3].map(i => <div key={i} style={{ height: 120, background: '#232323', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />)}
+      {!vistorias.isLoading && vistorias.rows.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
           <p className="anim-pop-in" style={{ fontSize: 36, marginBottom: 12 }}>📋</p>
           <p className="anim-fade-up anim-d1" style={{ color: 'rgba(255,255,255,0.52)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
         </div>
       )}
-      {(isAdmin ? allInspections : buildingInspections).map((i, idx) => (
-        <InspectionCard
-          key={i.id}
-          inspection={i}
-          onPreview={setPreviewId}
-          onOpenReport={setReportId}
-          className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
-        />
-      ))}
-      {(isAdmin ? hasNextPage : buildingHasNext) && (
-        <Button variant="secondary" style={{ width: '100%' }} onClick={() => isAdmin ? fetchNextPage() : buildingFetchNext()} loading={isAdmin ? isFetchingNextPage : buildingFetchingNext}>Carregar mais</Button>
-      )}
+      {/* `key` na página: os cartões entram de novo a cada seta. */}
+      <div key={vistorias.page} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {vistorias.rows.map((i, idx) => (
+          <InspectionCard
+            key={i.id}
+            inspection={i}
+            onPreview={setPreviewId}
+            onOpenReport={setReportId}
+            className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
+          />
+        ))}
+      </div>
+
+      <Paginator
+        page={vistorias.page}
+        pages={vistorias.pages}
+        total={vistorias.total}
+        count={vistorias.rows.length}
+        pageSize={vistorias.pageSize}
+        onPrev={vistorias.prev}
+        onNext={vistorias.next}
+        isFetching={vistorias.isFetching}
+        style={{ padding: '4px 4px 0' }}
+      />
     </div>
   );
 
@@ -436,28 +449,36 @@ export default function HistoricoPage() {
           <div key={historico.view} className="anim-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {historico.isVistorias ? (
               <>
-                {buildingLoading && [1, 2, 3].map(i => <div key={i} style={{ height: 128, background: M.card, borderRadius: 26 }} />)}
+                {predio.isLoading && [1, 2, 3].map(i => <div key={i} style={{ height: 128, background: M.card, borderRadius: 26 }} />)}
 
-                {!buildingLoading && buildingInspections.length === 0 && (
+                {!predio.isLoading && predio.rows.length === 0 && (
                   <MCard className="anim-fade-up anim-d1" style={{ textAlign: 'center', padding: '40px 20px' }}>
                     <p style={{ color: M.mute, fontSize: 14 }}>Nenhuma vistoria por aqui ainda</p>
                   </MCard>
                 )}
 
-                {buildingInspections.map((i, idx) => (
-                  <MobileInspectionCard
-                    key={i.id}
-                    inspection={i}
-                    onOpenReport={setReportId}
-                    className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
-                  />
-                ))}
+                <div key={predio.page} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {predio.rows.map((i, idx) => (
+                    <MobileInspectionCard
+                      key={i.id}
+                      inspection={i}
+                      onOpenReport={setReportId}
+                      className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
+                    />
+                  ))}
+                </div>
 
-                {buildingHasNext && (
-                  <MButtonGhost onClick={() => buildingFetchNext()} disabled={buildingFetchingNext} style={{ width: '100%' }}>
-                    {buildingFetchingNext ? 'Carregando...' : 'Carregar mais'}
-                  </MButtonGhost>
-                )}
+                <Paginator
+                  page={predio.page}
+                  pages={predio.pages}
+                  total={predio.total}
+                  count={predio.rows.length}
+                  pageSize={predio.pageSize}
+                  onPrev={predio.prev}
+                  onNext={predio.next}
+                  isFetching={predio.isFetching}
+                  style={{ padding: 0 }}
+                />
               </>
             ) : (
               <OcorrenciasList buildingId={myBuildingId} />

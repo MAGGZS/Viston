@@ -11,11 +11,12 @@ import { Logo } from '@/app/components/Logo';
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
-import { Badge, Skeleton, Button } from '@/app/components/ui';
+import { Badge, Skeleton } from '@/app/components/ui';
 import { useCalendar, useBuildingHistory } from '@/app/hooks/useApi';
 import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
+import { Paginator } from '@/app/components/Paginator';
 import { parseReportDate } from '@/app/lib/date';
 import { useAuthStore } from '@/app/store/auth';
 import { CONTENT_ID } from '@/app/components/mobile/kit';
@@ -59,11 +60,10 @@ export default function VisualizacaoPage() {
   const { data: calData, isLoading: calLoading } = useCalendar(
     hasBuilding ? { month, year, building_id: buildingId } : null
   );
-  const { data: inspData, isLoading: inspLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useBuildingHistory(
-    hasBuilding ? buildingId : null
-  );
-
-  const rows = inspData?.pages?.flatMap((p) => p.inspections) ?? [];
+  // Oito por página: quem anda pelo resto é o rodapé de setas do cartão.
+  const vistorias = useBuildingHistory(hasBuilding ? buildingId : null);
+  const rows = vistorias.rows;
+  const inspLoading = vistorias.isLoading;
 
   function prev() {
     if (month === 1) { setMonth(12); setYear((y) => y - 1); }
@@ -146,7 +146,8 @@ export default function VisualizacaoPage() {
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
+                  {/* `key` na página: as linhas entram de novo a cada seta. */}
+                  <tbody key={vistorias.page}>
                     {inspLoading && [1, 2, 3].map((i) => (
                       <tr key={i} className="border-b border-line">
                         {[1, 2, 3, 4].map((j) => <td key={j} className="px-6 py-3"><Skeleton className="h-4 w-full" /></td>)}
@@ -184,11 +185,18 @@ export default function VisualizacaoPage() {
                     )}
                   </tbody>
                 </table>
-                {hasNextPage && (
-                  <div className="px-6 py-4 border-t border-line flex justify-center">
-                    <Button variant="secondary" onClick={() => fetchNextPage()} loading={isFetchingNextPage}>Carregar mais</Button>
-                  </div>
-                )}
+                <Paginator
+                  page={vistorias.page}
+                  pages={vistorias.pages}
+                  total={vistorias.total}
+                  count={rows.length}
+                  pageSize={vistorias.pageSize}
+                  onPrev={vistorias.prev}
+                  onNext={vistorias.next}
+                  isFetching={vistorias.isFetching}
+                  className="border-t border-line"
+                  style={{ padding: '12px 24px' }}
+                />
               </div>
             </div>
           )}

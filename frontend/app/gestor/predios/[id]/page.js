@@ -14,6 +14,7 @@ import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Skeleton, Button, Modal, Select } from '@/app/components/ui';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { OcorrenciasTable } from '@/app/components/OcorrenciasTable';
+import { Paginator } from '@/app/components/Paginator';
 import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember, useUpdateMemberRole, useDeleteInspection, useAccessRequests, useReviewAccessRequest, useAddBuildingManager, useRemoveBuildingManager } from '@/app/hooks/useApi';
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { formatShareKey } from '@/app/lib/shareKey';
@@ -288,7 +289,8 @@ export default function GestorBuildingPage() {
   const [reportId, setReportId] = useState(null); // relatório completo aberto
 
   const { data, isLoading } = useBuildingDashboard(id);
-  const { data: histData, isLoading: histLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useBuildingHistory(id);
+  // Oito por página: quem anda pelo resto é o rodapé de setas do cartão.
+  const vistorias = useBuildingHistory(id);
   const { data: membersData, isLoading: membersLoading } = useBuildingMembers(membersModal ? id : null);
   // Buscado sempre, e não só com o modal aberto: sem isso o gestor teria de
   // abrir a caixa para descobrir que existe alguém esperando aprovação.
@@ -298,7 +300,8 @@ export default function GestorBuildingPage() {
   const { show: toast } = useToastStore();
   const managers = membersData?.managers ?? [];
   const members = membersData?.members ?? [];
-  const rows = histData?.pages?.flatMap((p) => p.inspections) ?? [];
+  const rows = vistorias.rows;
+  const histLoading = vistorias.isLoading;
 
   const heatmap = data?.heatmap ?? {};
   const shareKey = formatShareKey(data?.building?.share_key);
@@ -322,7 +325,8 @@ export default function GestorBuildingPage() {
             ))}
           </tr>
         </thead>
-        <tbody>
+        {/* `key` na página: as linhas entram de novo a cada seta. */}
+        <tbody key={vistorias.page}>
           {histLoading && [1,2,3].map(i => (
             <tr key={i} className="border-b border-line">
               {[1,2,3,4,5].map(j => <td key={j} className="px-6 py-3"><Skeleton className="h-4 w-full" /></td>)}
@@ -376,11 +380,18 @@ export default function GestorBuildingPage() {
           )}
         </tbody>
       </table>
-      {hasNextPage && (
-        <div className="px-6 py-4 border-t border-line flex justify-center">
-          <Button variant="secondary" onClick={() => fetchNextPage()} loading={isFetchingNextPage}>Carregar mais</Button>
-        </div>
-      )}
+      <Paginator
+        page={vistorias.page}
+        pages={vistorias.pages}
+        total={vistorias.total}
+        count={rows.length}
+        pageSize={vistorias.pageSize}
+        onPrev={vistorias.prev}
+        onNext={vistorias.next}
+        isFetching={vistorias.isFetching}
+        className="border-t border-line"
+        style={{ padding: '12px 24px' }}
+      />
     </>
   );
 

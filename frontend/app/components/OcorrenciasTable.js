@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import { Badge, Skeleton } from '@/app/components/ui';
 import { OcorrenciaModal, shortDay } from '@/app/components/OcorrenciaModal';
-import { useTickets } from '@/app/hooks/useApi';
+import { Paginator } from '@/app/components/Paginator';
+import { useBuildingOccurrences } from '@/app/hooks/useApi';
 import {
   MAINTENANCE_TYPES,
   OCCURRENCE_STATUS_LABEL,
@@ -54,12 +55,10 @@ const COLUMN_SETS = {
  * lista deixar de ser lista.
  */
 export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTORICO', empty }) {
-  const { data, isLoading } = useTickets(buildingId, group);
+  const { rows, isLoading: loading, ...pager } = useBuildingOccurrences(buildingId, group);
   const [picked, setPicked] = useState(null);
 
-  const rows = data?.tickets ?? [];
   const cols = COLUMN_SETS[columns];
-  const loading = !!buildingId && isLoading;
 
   const emptyMessage = buildingId
     ? empty ?? 'Nenhuma ocorrência neste prédio ainda'
@@ -77,7 +76,9 @@ export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTO
             ))}
           </tr>
         </thead>
-        <tbody>
+        {/* `key` na página: as linhas entram de novo a cada seta — sem isso o
+            texto troca no lugar e nada diz que a página andou. */}
+        <tbody key={pager.page}>
           {loading && [1, 2, 3].map((i) => (
             <tr key={i} style={{ borderBottom: `1px solid ${T.line}` }}>
               {cols.map((c) => (
@@ -112,6 +113,18 @@ export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTO
           )}
         </tbody>
       </table>
+
+      <Paginator
+        page={pager.page}
+        pages={pager.pages}
+        total={pager.total}
+        count={rows.length}
+        pageSize={pager.pageSize}
+        onPrev={pager.prev}
+        onNext={pager.next}
+        isFetching={pager.isFetching}
+        style={{ borderTop: `1px solid ${T.line}`, padding: '12px 22px' }}
+      />
 
       <OcorrenciaModal open={!!picked} occurrence={picked} onClose={() => setPicked(null)} />
     </>

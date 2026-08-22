@@ -1,7 +1,63 @@
 'use client';
-import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import api from '@/app/lib/api';
+import { HISTORY_PAGE_SIZE } from '@/app/lib/pagination';
 import { useAuthStore } from '@/app/store/auth';
+
+/**
+ * Uma página de cada vez, e a página mora aqui dentro.
+ *
+ * As três listagens de histórico eram `useInfiniteQuery` com "Carregar mais",
+ * e o botão empilhava página sobre página até o cartão ficar mais alto que a
+ * tela — a coluna ao lado, com calendário e contadores, acabava pendurada num
+ * vazio. Aqui a lista tem tamanho fixo e as setas do rodapé andam por ela.
+ *
+ * `placeholderData` segura a página anterior enquanto a próxima chega: sem
+ * isso, cada clique pisca uma tabela vazia e o cartão sanfona de altura.
+ *
+ * A página volta para a primeira quando o que se está listando muda — outro
+ * prédio, outro filtro. Sem isso, quem estava na página 3 de um prédio com
+ * trinta vistorias trocava para um com cinco e via um cartão vazio, sem
+ * entender por quê. O ajuste é feito no próprio render, como no
+ * `useExitTransition`: num efeito, o cartão vazio chegaria a aparecer.
+ */
+function usePagedList({ queryKey, url, params, pick, enabled = true }) {
+  const [page, setPage] = useState(1);
+
+  const scope = JSON.stringify(queryKey);
+  const [lastScope, setLastScope] = useState(scope);
+  if (scope !== lastScope) {
+    setLastScope(scope);
+    setPage(1);
+  }
+
+  const query = useQuery({
+    queryKey: [...queryKey, 'page', page],
+    queryFn: () =>
+      api
+        .get(url, { params: { ...params, page, limit: HISTORY_PAGE_SIZE } })
+        .then((r) => r.data),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+
+  const rows = query.data ? pick(query.data) : [];
+
+  return {
+    rows,
+    total: query.data?.total ?? 0,
+    pages: query.data?.pages ?? 0,
+    page,
+    pageSize: HISTORY_PAGE_SIZE,
+    // A primeira carga é esqueleto; a troca de página não — ali a lista
+    // anterior continua na tela (ver `placeholderData`).
+    isLoading: enabled && query.isLoading,
+    isFetching: query.isFetching,
+    prev: () => setPage((p) => Math.max(1, p - 1)),
+    next: () => setPage((p) => (query.data?.pages ? Math.min(query.data.pages, p + 1) : p)),
+  };
+}
 
 /**
  * Recarrega o perfil depois de uma mudança que mexe nos vínculos de quem está
@@ -221,13 +277,13 @@ export function useBuildingDashboard(id) {
   });
 }
 
+/** O histórico de vistorias de um prédio, oito por página. */
 export function useBuildingHistory(id, params = {}) {
-  return useInfiniteQuery({
+  return usePagedList({
     queryKey: ['building-history', id, params],
-    queryFn: ({ pageParam = 1 }) =>
-      api.get(`/buildings/${id}/history`, { params: { ...params, page: pageParam, limit: 20 } }).then((r) => r.data),
-    getNextPageParam: (last) => last.page < last.pages ? last.page + 1 : undefined,
-    initialPageParam: 1,
+    url: `/buildings/${id}/history`,
+    params,
+    pick: (d) => d.inspections ?? [],
     enabled: !!id,
   });
 }
@@ -406,13 +462,20 @@ export function useFloors(buildingId) {
 }
 
 // ── Inspections ───────────────────────────────────────────────────────────────
-export function useInspections(filters = {}) {
-  return useInfiniteQuery({
+/**
+ * As vistorias visíveis à conta, oito por página.
+ *
+ * `enabled` existe porque a tela de histórico chama as duas listagens — esta e
+ * a do prédio — e usa só uma: sem ele, quem não é ADMIN pagava uma requisição
+ * por carregamento para um resultado que nenhuma parte da tela lê.
+ */
+export function useInspections(filters = {}, enabled = true) {
+  return usePagedList({
     queryKey: ['inspections', filters],
-    queryFn: ({ pageParam = 1 }) =>
-      api.get('/inspections', { params: { ...filters, page: pageParam, limit: 20 } }).then((r) => r.data),
-    getNextPageParam: (last) => last.page < last.pages ? last.page + 1 : undefined,
-    initialPageParam: 1,
+    url: '/inspections',
+    params: filters,
+    pick: (d) => d.inspections ?? [],
+    enabled,
   });
 }
 
@@ -527,8 +590,14 @@ export function useTickets(buildingId, group = 'NOVOS') {
  * com o prédio, e é isso que o inspetor e o visualizador veem no histórico.
  * Ler não move nada: nenhuma ação sai daqui.
  */
-export function useBuildingOccurrences(buildingId) {
-  return useTickets(buildingId, 'TODOS');
+export function useBuildingOccurrences(buildingId, group = 'TODOS') {
+  return usePagedList({
+    queryKey: ['tickets', buildingId, group],
+    url: `/buildings/${buildingId}/tickets`,
+    params: { group },
+    pick: (d) => d.tickets ?? [],
+    enabled: !!buildingId,
+  });
 }
 
 /** Contadores do painel do moderador: aberto, encaminhado, em andamento, concluído. */
