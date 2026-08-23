@@ -422,3 +422,136 @@ describe('ticketService.stats', () => {
     expect(stats.em_andamento).not.toBe(11);
   });
 });
+
+// ── Cancelar o envio ──────────────────────────────────────────────────────────
+describe('ticketService.unforward', () => {
+  it('devolve o chamado à fila de novos, sem dono e sem carimbos', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({
+        status: 'ENCAMINHADO',
+        responsible_id: RESPONSIBLE_ID,
+        responsible: 'Marina',
+        forwarded_at: new Date(),
+      })
+    );
+
+    await ticketService.unforward(TICKET_ID, moderador);
+
+    const [, patch] = mockTicketRepo.update.mock.calls[0];
+    expect(patch.status).toBe('ABERTO');
+    expect(patch.responsible_id).toBeNull();
+    expect(patch.responsible).toBeNull();
+    // Sem limpar a data, o chamado voltaria para "novos" dizendo que foi enviado
+    expect(patch.forwarded_at).toBeNull();
+  });
+
+  it('recusa depois que o responsável já recebeu — aí o caminho é reencaminhar', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID, received_at: new Date() })
+    );
+
+    await expect(ticketService.unforward(TICKET_ID, moderador)).rejects.toThrow(ConflictError);
+    expect(mockTicketRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('recusa em chamado que nunca foi encaminhado', async () => {
+    comPapel('MODERADOR');
+
+    await expect(ticketService.unforward(TICKET_ID, moderador)).rejects.toThrow(ConflictError);
+  });
+
+  it('recusa quem não modera o prédio', async () => {
+    comPapel('INSPECTOR');
+    mockTicketRepo.findById.mockResolvedValue(makeTicket({ status: 'ENCAMINHADO' }));
+
+    await expect(ticketService.unforward(TICKET_ID, visualizador)).rejects.toThrow(ForbiddenError);
+  });
+});
+
+// ── Finalizar com relatório ───────────────────────────────────────────────────
+describe('ticketService.close', () => {
+  it('grava o relatório e o gasto do moderador junto do fechamento', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findById.mockResolvedValue(makeTicket({ status: 'AGUARDANDO_FECHAMENTO' }));
+
+    await ticketService.close(TICKET_ID, moderador, {
+      maintenance_note: 'Trocado o disjuntor do ramal',
+      maintenance_cost: 1200.5,
+    });
+
+    const [, patch] = mockTicketRepo.update.mock.calls[0];
+    expect(patch.status).toBe('CONCLUIDO');
+    expect(patch.closed_at).toBeInstanceOf(Date);
+    expect(patch.maintenance_note).toBe('Trocado o disjuntor do ramal');
+    // DECIMAL, não ponto flutuante: dinheiro não some no arredondamento
+    expect(String(patch.maintenance_cost)).toBe('1200.5');
+  });
+
+  it('fecha sem relatório nenhum — o app antigo manda o corpo vazio', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findById.mockResolvedValue(makeTicket({ status: 'AGUARDANDO_FECHAMENTO' }));
+
+    await ticketService.close(TICKET_ID, moderador);
+
+    const [, patch] = mockTicketRepo.update.mock.calls[0];
+    expect(patch.status).toBe('CONCLUIDO');
+    // Não mandar o campo é diferente de mandá-lo nulo: sem isso, fechar
+    // apagaria a nota que já estava lá
+    expect('maintenance_note' in patch).toBe(false);
+    expect('maintenance_cost' in patch).toBe(false);
+  });
+
+  it('não fecha duas vezes', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findById.mockResolvedValue(makeTicket({ status: 'CONCLUIDO' }));
+
+    await expect(ticketService.close(TICKET_ID, moderador)).rejects.toThrow(ConflictError);
+  });
+});
+
+// ── Relatório do período ──────────────────────────────────────────────────────
+describe('ticketService.reportPeriod', () => {
+  beforeEach(() => {
+    mockBuildingRepo.findById.mockResolvedValue({ id: BUILDING_ID, name: 'Edifício Principal' } as any);
+    mockTicketRepo.findClosedBetween.mockResolvedValue([]);
+  });
+
+  it('recorta o período pelo calendário local, não pelo relógio UTC', async () => {
+    comPapel('MODERADOR');
+
+    await ticketService.reportPeriod(BUILDING_ID, moderador, '2026-08-01', '2026-08-31');
+
+    const [, from, to] = mockTicketRepo.findClosedBetween.mock.calls[0];
+    // Meia-noite de 1º de agosto em São Paulo = 03:00 UTC do mesmo dia
+    expect((from as Date).toISOString()).toBe('2026-08-01T03:00:00.000Z');
+    // O fim é o último instante de 31/08 local, já em 1º de setembro UTC —
+    // sem isso, a manutenção fechada às 22h do dia 31 ficava fora do relatório
+    expect((to as Date).toISOString()).toBe('2026-09-01T02:59:59.999Z');
+  });
+
+  it('soma o gasto das manutenções finalizadas, ignorando as sem custo', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findClosedBetween.mockResolvedValue([
+      makeTicket({ status: 'CONCLUIDO', maintenance_cost: 1200 }),
+      makeTicket({ status: 'CONCLUIDO', maintenance_cost: null }),
+      makeTicket({ status: 'CONCLUIDO', maintenance_cost: 650.5 }),
+    ] as any);
+
+    const data = await ticketService.reportPeriod(BUILDING_ID, moderador, '2026-08-01', '2026-08-31');
+
+    expect(data.tickets).toHaveLength(3);
+    // Sem custo é ausência de despesa, não zero somado
+    expect(data.total_cost).toBe(1850.5);
+    expect(data.building.name).toBe('Edifício Principal');
+  });
+
+  it('recusa quem não modera o prédio', async () => {
+    comPapel('INSPECTOR');
+
+    await expect(
+      ticketService.reportPeriod(BUILDING_ID, visualizador, '2026-08-01', '2026-08-31')
+    ).rejects.toThrow(ForbiddenError);
+  });
+});

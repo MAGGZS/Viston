@@ -121,6 +121,31 @@ export const ticketRepository = {
     return zeroed;
   },
 
+  /**
+   * Os chamados fechados do prédio dentro de um período — a matéria-prima do
+   * relatório em .docx.
+   *
+   * O corte é por `closed_at`, e não por quando a ocorrência nasceu: o relatório
+   * responde "o que foi resolvido neste mês", e uma ocorrência aberta em janeiro
+   * e fechada em março pertence a março. Sem paginação de propósito — o
+   * documento é do período inteiro, e devolvê-lo pela metade seria pior do que
+   * demorar.
+   *
+   * Da mais antiga para a mais nova: o documento se lê como uma linha do tempo,
+   * ao contrário das telas, que mostram o mais recente primeiro.
+   */
+  findClosedBetween(buildingId: string, from: Date, to: Date) {
+    return prisma.maintenanceRecord.findMany({
+      where: {
+        ...inBuilding(buildingId),
+        status: RecordStatus.CONCLUIDO,
+        closed_at: { gte: from, lte: to },
+      },
+      include: ticketInclude,
+      orderBy: { closed_at: 'asc' },
+    });
+  },
+
   update(id: string, data: Prisma.MaintenanceRecordUncheckedUpdateInput) {
     return prisma.maintenanceRecord.update({ where: { id }, data, include: ticketInclude });
   },

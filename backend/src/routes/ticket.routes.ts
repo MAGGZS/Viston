@@ -17,6 +17,9 @@ const member = requireBuildingMember();
 router.get('/buildings/:id/tickets', auth, member, ticketController.findByBuilding);
 // Os contadores continuam do moderador: são o painel de trabalho dele.
 router.get('/buildings/:id/tickets/stats', auth, moderator, ticketController.stats);
+// O relatório do período, em .docx. De moderador: é o consolidado do trabalho
+// dele, com gasto de manutenção dentro, e não leitura de quem só acompanha.
+router.get('/buildings/:id/tickets/report', auth, moderator, ticketController.report);
 
 // A lista de responsáveis é de vínculo, não de moderação: quem vistoria precisa
 // dela para preencher o formulário.
@@ -27,6 +30,8 @@ router.get('/buildings/:id/responsibles', auth, member, ticketController.respons
 // só o serviço sabe qual é depois de carregá-lo (ver services/ticket.service.ts).
 router.get('/tickets/me', auth, ticketController.mine);
 router.post('/tickets/:id/forward', auth, ticketController.forward);
+// Cancelar o envio: o oposto de encaminhar, e só enquanto ninguém aceitou.
+router.post('/tickets/:id/unforward', auth, ticketController.unforward);
 router.patch('/tickets/:id', auth, ticketController.update);
 // O responsável confirma o recebimento — encaminhar não começa mais o trabalho.
 router.post('/tickets/:id/receive', auth, ticketController.receive);

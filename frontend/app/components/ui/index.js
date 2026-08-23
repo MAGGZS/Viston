@@ -376,6 +376,19 @@ export function Select({
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [box, setBox] = useState(null);
+  /**
+   * Onde a lista é pendurada.
+   *
+   * Normalmente o `body`. Dentro de um `Modal`, não: `<dialog>` aberto com
+   * `showModal()` vive na *top layer* do navegador, que é pintada acima de todo
+   * o documento — nenhum `z-index` no `body` alcança lá, e a lista sumia atrás
+   * da caixa. Pendurada no próprio `<dialog>`, ela sobe junto.
+   *
+   * O `position: fixed` continua valendo porque `.dialog` não tem transform:
+   * um ancestral transformado viraria o bloco de contenção e as coordenadas de
+   * tela passariam a ser medidas a partir dele.
+   */
+  const [host, setHost] = useState(null);
   const triggerRef = useRef(null);
   const listRef = useRef(null);
   const listId = useId();
@@ -445,6 +458,9 @@ export function Select({
   function openList(startIndex) {
     if (disabled) return;
     setActiveIndex(startIndex);
+    // Resolvido na abertura, e não no render: é aqui que se sabe onde o gatilho
+    // está montado, e o mesmo Select pode servir dentro e fora de um modal.
+    setHost(triggerRef.current?.closest('dialog') ?? document.body);
     setOpen(true);
   }
 
@@ -547,7 +563,7 @@ export function Select({
             </button>
           ))}
         </div>,
-        document.body
+        host ?? document.body
       )}
 
       {error && <span id={errorId} role="alert" style={{ fontSize: 12, color: T.danger }}>{error}</span>}

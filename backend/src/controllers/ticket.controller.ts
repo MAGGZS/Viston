@@ -8,7 +8,10 @@ import {
   forwardTicketSchema,
   reportDoneSchema,
   updateTicketSchema,
+  closeTicketSchema,
+  ticketReportSchema,
 } from '../validators/ticket.validator';
+import { buildTicketReport, reportFileName } from '../services/ticketReport';
 
 export const ticketController = {
   /** A fila do moderador: um dos três estados, do mais novo para o mais velho. */
@@ -64,8 +67,42 @@ export const ticketController = {
     ok(res, await ticketService.reportDone(req.params.id, req.user, done_report));
   },
 
-  /** Fechar. Só o moderador chega aqui. */
+  /** Desfaz o encaminhamento — o chamado volta a ser novo, sem dono. */
+  async unforward(req: AuthenticatedRequest, res: Response) {
+    ok(res, await ticketService.unforward(req.params.id, req.user));
+  },
+
+  /**
+   * Fechar. Só o moderador chega aqui.
+   *
+   * O corpo é opcional: fechar sem relatório continua valendo, e o app antigo
+   * manda a requisição vazia.
+   */
   async close(req: AuthenticatedRequest, res: Response) {
-    ok(res, await ticketService.close(req.params.id, req.user));
+    const data = closeTicketSchema.parse(req.body ?? {});
+    ok(res, await ticketService.close(req.params.id, req.user, data));
+  },
+
+  /**
+   * O relatório do período, em .docx.
+   *
+   * Sai como arquivo, não como JSON: é a única rota de chamado que não devolve
+   * dado para a tela desenhar, e sim um documento para a pessoa guardar. Por
+   * isso escreve a resposta à mão, sem passar pelo `ok()`.
+   */
+  async report(req: AuthenticatedRequest, res: Response) {
+    const { from, to } = ticketReportSchema.parse(req.query);
+    const data = await ticketService.reportPeriod(req.params.id, req.user, from, to);
+    const buffer = await buildTicketReport(data);
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${reportFileName(data)}"`);
+    // O navegador precisa enxergar o nome do arquivo: numa resposta de outra
+    // origem, só os cabeçalhos expostos chegam ao JavaScript da página.
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+    res.send(buffer);
   },
 };

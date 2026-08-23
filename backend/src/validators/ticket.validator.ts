@@ -19,6 +19,18 @@ export const TICKET_GROUPS = {
   NOVOS: ['ABERTO'],
   ENCAMINHADOS: ['ENCAMINHADO'],
   ANDAMENTO: ['EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO', 'AGUARDANDO_FECHAMENTO'],
+  /**
+   * O que o responsável aceitou e ainda está fazendo.
+   *
+   * É `ANDAMENTO` menos o que já foi dado por terminado. A tela de processamento
+   * mostra os dois lado a lado, e somá-los apagaria a distinção que ela existe
+   * para mostrar: um ainda está sendo executado, o outro espera decisão do
+   * moderador. `ANDAMENTO` continua como estava — é o que a conta do responsável
+   * e os contadores usam.
+   */
+  EXECUCAO: ['EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO'],
+  /** O que o responsável concluiu e aguarda o moderador finalizar ou devolver. */
+  AGUARDANDO_FECHAMENTO: ['AGUARDANDO_FECHAMENTO'],
   CONCLUIDOS: ['CONCLUIDO'],
   TODOS: [
     'ABERTO',
@@ -33,7 +45,17 @@ export const TICKET_GROUPS = {
 export type TicketGroup = keyof typeof TICKET_GROUPS;
 
 export const ticketFiltersSchema = z.object({
-  group: z.enum(['NOVOS', 'ENCAMINHADOS', 'ANDAMENTO', 'CONCLUIDOS', 'TODOS']).default('NOVOS'),
+  group: z
+    .enum([
+      'NOVOS',
+      'ENCAMINHADOS',
+      'ANDAMENTO',
+      'EXECUCAO',
+      'AGUARDANDO_FECHAMENTO',
+      'CONCLUIDOS',
+      'TODOS',
+    ])
+    .default('NOVOS'),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(30),
 });
@@ -79,3 +101,55 @@ export const updateTicketSchema = z
     status: z.enum(['EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO']).optional(),
   })
   .strict();
+
+/**
+ * O que o moderador escreve ao finalizar.
+ *
+ * O relatório é dele, e diferente do `done_report` do responsável: um conta o
+ * que foi feito, o outro registra a decisão de encerrar. Grava em
+ * `maintenance_note` e `maintenance_cost`, que já eram as colunas dessa
+ * informação — fechar deixa de ser um carimbo sem contexto.
+ *
+ * O gasto é opcional porque nem toda manutenção custa. Quando vem, é número:
+ * dinheiro vai para DECIMAL, não para ponto flutuante.
+ */
+export const closeTicketSchema = z
+  .object({
+    maintenance_note: z.string().trim().max(2000).nullable().optional(),
+    maintenance_cost: z
+      .number()
+      .min(0, 'Valor não pode ser negativo')
+      .max(99_999_999.99, 'Valor fora da faixa')
+      .nullable()
+      .optional(),
+  })
+  .strict();
+
+/**
+ * O período do relatório em .docx.
+ *
+ * Dia de calendário, não instante: chega como 'AAAA-MM-DD' e o serviço o
+ * converte para o intervalo correspondente no fuso do produto. Aceitar um
+ * `Date` aqui trocaria o dia de quem pede — '2026-08-01' vira meia-noite UTC,
+ * que em São Paulo ainda é 31 de julho, e o relatório de agosto começaria em
+ * julho. Ver `utils/timezone`.
+ *
+ * Um intervalo só, em vez de "mês", "ano" ou "semestre" como opções separadas:
+ * a tela traduz a escolha da pessoa em duas datas antes de pedir, e o servidor
+ * não precisa conhecer calendário para responder. `to` é inclusivo — quem pede
+ * até dia 31 espera o dia 31 inteiro dentro.
+ */
+const diaDoCalendario = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use uma data no formato AAAA-MM-DD');
+
+export const ticketReportSchema = z
+  .object({
+    from: diaDoCalendario,
+    to: diaDoCalendario,
+  })
+  .strict()
+  .refine((v) => v.from <= v.to, {
+    message: 'A data inicial não pode ser depois da final',
+    path: ['from'],
+  });

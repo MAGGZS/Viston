@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Inbox, Send, Loader, CheckCheck, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, Inbox, Spline, CheckCheck, LogOut, User } from 'lucide-react';
 import { Logo } from '@/app/components/Logo';
 import { useAuthStore } from '@/app/store/auth';
 import { useTicketStats } from '@/app/hooks/useApi';
@@ -10,17 +10,19 @@ import { T, R, W, NUM } from '@/app/lib/theme';
 /**
  * O menu do moderador.
  *
- * As telas de chamado são o produto dele, e estão na ordem do caminho que o
- * chamado faz: o que chegou e ninguém encaminhou, o que foi mandado e espera
- * aceite, o que está correndo, e o que ele já fechou. O painel fica em cima
- * porque é onde ele cai ao entrar.
+ * Três telas, na ordem do caminho que o chamado faz: o que chegou e ninguém
+ * encaminhou, o que está em curso, e o que já foi encerrado. O painel fica em
+ * cima porque é onde ele cai ao entrar.
+ *
+ * "Processamento" reúne o que eram três abas — encaminhados, em andamento e
+ * concluídos pelo responsável. Separadas, obrigavam a trocar de tela para
+ * descobrir em que ponto o chamado estava; juntas, isso se vê de uma vez.
  */
 const items = [
   { href: '/moderador', icon: LayoutDashboard, label: 'Painel' },
   { href: '/moderador/chamados/novos', icon: Inbox, label: 'Novos chamados', badge: 'abertos' },
-  { href: '/moderador/chamados/encaminhados', icon: Send, label: 'Encaminhados', badge: 'encaminhados' },
-  { href: '/moderador/chamados/andamento', icon: Loader, label: 'Em andamento', badge: 'aguardando_fechamento' },
-  { href: '/moderador/chamados/concluidos', icon: CheckCheck, label: 'Concluídas' },
+  { href: '/moderador/chamados/processamento', icon: Spline, label: 'Processamento', badge: 'aguardando_fechamento' },
+  { href: '/moderador/chamados/finalizados', icon: CheckCheck, label: 'Finalizados' },
 ];
 
 const itemBase = {
@@ -33,10 +35,10 @@ const itemBase = {
 /**
  * Quantos chamados esperam ele.
  *
- * Em "Novos" é a fila inteira; em "Encaminhados", o que ainda não foi aceito —
- * é o que ele tem de cobrar. Em "Em andamento" é só o que o responsável já
- * disse ter terminado: o resto está com outra pessoa, e um número que sobe
- * sozinho por trabalho alheio vira ruído.
+ * Em "Novos" é a fila inteira. Em "Processamento" é só o que o responsável já
+ * disse ter terminado — o que espera decisão dele. O resto que aparece naquela
+ * tela está com outra pessoa, e um número que sobe sozinho por trabalho alheio
+ * vira ruído.
  */
 function CountBadge({ count, active }) {
   if (!count) return null;

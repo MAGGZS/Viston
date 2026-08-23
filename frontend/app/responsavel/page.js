@@ -90,6 +90,9 @@ function TicketCard({ ticket, className = '' }) {
   const [details, setDetails] = useState(false);
   const pending = ticket.status === 'ENCAMINHADO';
   const waiting = ticket.status === 'AGUARDANDO_FECHAMENTO';
+  // Finalizado pelo moderador. Só passa a aparecer nesta tela com a aba de
+  // concluídos — antes a lista parava em "aguardando o moderador".
+  const closed = ticket.status === 'CONCLUIDO';
 
   async function handleReceive() {
     try {
@@ -181,9 +184,31 @@ function TicketCard({ ticket, className = '' }) {
         </div>
       )}
 
+      {closed && (
+        <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: 16, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+          <CheckCheck size={15} color={M.accent} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <p style={{ color: M.text, fontSize: 12, lineHeight: 1.5 }}>
+              Aprovado e finalizado pelo moderador
+              {ticket.closed_at
+                ? ` em ${format(new Date(ticket.closed_at), 'dd/MM/yyyy', { locale: ptBR })}`
+                : ''}
+              .
+            </p>
+            {ticket.done_report && (
+              <p style={{ color: M.mute, fontSize: 12, lineHeight: 1.5, marginTop: 6, whiteSpace: 'pre-wrap' }}>
+                {ticket.done_report}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Um gesto de cada vez: a conclusão só existe depois do recebimento —
-          não se conclui o que não se recebeu. */}
-      {!pending && !waiting && <ConclusaoBox ticket={ticket} />}
+          não se conclui o que não se recebeu. E não existe mais depois de
+          fechado: oferecer "concluir" num chamado encerrado convidaria a
+          reabrir o que já acabou. */}
+      {!pending && !waiting && !closed && <ConclusaoBox ticket={ticket} />}
 
       <div style={{ display: 'flex', gap: 10 }}>
         <MButtonGhost onClick={() => setDetails(true)} style={{ flex: 1 }}>
@@ -202,18 +227,107 @@ function TicketCard({ ticket, className = '' }) {
 }
 
 /**
+ * As três filas do responsável.
+ *
+ * O mesmo chamado em três momentos: chegou e espera ele aceitar, está com ele,
+ * ou acabou. Antes vinham todos numa pilha só, e o que precisava de um gesto se
+ * perdia no meio do que já estava resolvido.
+ *
+ * A terceira junta o que ele concluiu com o que o moderador já aprovou de
+ * propósito: para quem executou, os dois são "trabalho que terminei" — a
+ * diferença é de quem fecha, e ela aparece dentro do cartão, não na fila.
+ */
+const ABAS = [
+  { id: 'RECEBER', label: 'A receber', status: ['ENCAMINHADO'] },
+  { id: 'ANDAMENTO', label: 'Em andamento', status: ['EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO'] },
+  { id: 'CONCLUIDOS', label: 'Concluídos', status: ['AGUARDANDO_FECHAMENTO', 'CONCLUIDO'] },
+];
+
+const VAZIO = {
+  RECEBER: 'Nenhum chamado esperando você receber',
+  ANDAMENTO: 'Nenhum chamado em andamento com você',
+  CONCLUIDOS: 'Você ainda não concluiu nenhum chamado',
+};
+
+/**
+ * O seletor de fila.
+ *
+ * Botões e não abas de navegação: trocar de fila não muda de tela nem de
+ * endereço, e a lista já está toda na memória — mandar o telefone buscar de
+ * novo a cada toque seria trabalho à toa.
+ *
+ * O número fica no próprio botão porque é ele que diz onde há trabalho: sem
+ * isso, descobrir que a fila está vazia custa um toque.
+ */
+function SeletorFila({ abas, atual, onPick, contagem }) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Filas de chamados"
+      style={{
+        display: 'flex', gap: 6, background: M.card, borderRadius: 999,
+        padding: 4, marginBottom: 16,
+      }}
+    >
+      {abas.map((aba) => {
+        const ativo = aba.id === atual;
+        return (
+          <button
+            key={aba.id}
+            role="tab"
+            aria-selected={ativo}
+            onClick={() => onPick(aba.id)}
+            style={{
+              flex: 1, border: 'none', cursor: 'pointer', borderRadius: 999,
+              padding: '9px 6px', fontFamily: M.display, fontSize: 13,
+              fontWeight: ativo ? 600 : 400,
+              background: ativo ? M.accent : 'transparent',
+              color: ativo ? M.onAccent : M.mute,
+              transition: 'background-color 0.15s, color 0.15s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {aba.label}
+            {contagem[aba.id] > 0 && (
+              <span style={{
+                fontSize: 11, fontWeight: 500,
+                color: ativo ? M.onAccent : M.faint,
+              }}>
+                {contagem[aba.id]}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
  * A tela do responsável: o que foi encaminhado a ele, em todos os prédios.
  *
- * Ele não escolhe prédio nem navega por fila: abre e vê o que é dele. São dois
- * gestos, e só eles: receber o que foi encaminhado e, depois, dizer que
- * terminou — fechar é do moderador.
+ * Ele não escolhe prédio: abre e vê o que é dele. Os gestos continuam dois, e
+ * só eles — receber o que foi encaminhado e, depois, dizer que terminou; fechar
+ * é do moderador. O que a tela ganhou foi separar em que ponto cada chamado
+ * está, em vez de empilhar tudo.
  */
 export default function ResponsavelPage() {
   const { user } = useAuthStore();
-  const { data, isLoading } = useMyTickets();
+  // Com os finalizados: são eles que dão fim à terceira fila — sem isso ela
+  // mostraria só o que ainda espera o moderador.
+  const { data, isLoading } = useMyTickets(true, true);
   const tickets = data?.tickets ?? [];
-  const pendentes = tickets.filter((t) => t.status !== 'AGUARDANDO_FECHAMENTO').length;
-  const aReceber = tickets.filter((t) => t.status === 'ENCAMINHADO').length;
+
+  const [aba, setAba] = useState('RECEBER');
+
+  const contagem = ABAS.reduce((acc, a) => {
+    acc[a.id] = tickets.filter((t) => a.status.includes(t.status)).length;
+    return acc;
+  }, {});
+
+  const abaAtual = ABAS.find((a) => a.id === aba) ?? ABAS[0];
+  const visiveis = tickets.filter((t) => abaAtual.status.includes(t.status));
 
   /**
    * O que a pessoa lê antes do título.
@@ -222,10 +336,10 @@ export default function ResponsavelPage() {
    * dela agora — o resto já está com ela.
    */
   const eyebrow =
-    aReceber > 0
-      ? `${aReceber} para receber`
-      : pendentes > 0
-        ? `${pendentes} para atender`
+    contagem.RECEBER > 0
+      ? `${contagem.RECEBER} para receber`
+      : contagem.ANDAMENTO > 0
+        ? `${contagem.ANDAMENTO} para atender`
         : 'Nada pendente';
 
   return (
@@ -238,6 +352,8 @@ export default function ResponsavelPage() {
           accent="chamados"
         />
 
+        <SeletorFila abas={ABAS} atual={aba} onPick={setAba} contagem={contagem} />
+
         {isLoading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[1, 2, 3].map((i) => (
@@ -246,6 +362,9 @@ export default function ResponsavelPage() {
           </div>
         )}
 
+        {/* Duas ausências diferentes, e a diferença importa: quem nunca recebeu
+            nada precisa saber que a tela funciona assim; quem tem chamados em
+            outra fila só precisa saber que esta está vazia. */}
         {!isLoading && tickets.length === 0 && (
           <MCard className="anim-fade-up anim-d1" style={{ textAlign: 'center', padding: '40px 20px' }}>
             <ClipboardList className="anim-pop-in anim-d2" size={34} color={M.faint} style={{ margin: '0 auto 12px' }} />
@@ -259,10 +378,19 @@ export default function ResponsavelPage() {
           </MCard>
         )}
 
+        {!isLoading && tickets.length > 0 && visiveis.length === 0 && (
+          <MCard className="anim-fade-up anim-d1" style={{ textAlign: 'center', padding: '32px 20px' }}>
+            <p style={{ color: M.mute, fontSize: 14, lineHeight: 1.6 }}>{VAZIO[abaAtual.id]}</p>
+          </MCard>
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {tickets.map((ticket, idx) => (
+          {visiveis.map((ticket, idx) => (
             <TicketCard
-              key={ticket.id}
+              // A fila entra na chave: sem isso o React reaproveita o cartão da
+              // fila anterior, e o texto do relatório digitado num chamado
+              // aparece em outro.
+              key={`${abaAtual.id}-${ticket.id}`}
               ticket={ticket}
               className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
             />

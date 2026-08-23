@@ -265,7 +265,7 @@ function TicketDetail({ ticket, buildingId, group }) {
 
   async function handleClose() {
     try {
-      await close.mutateAsync(ticket.id);
+      await close.mutateAsync({ id: ticket.id });
       toast('Chamado fechado', 'success');
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao fechar o chamado', 'error');
@@ -365,8 +365,10 @@ const EMPTY = {
  * direita. O que muda de uma fila para a outra é o que se pode fazer ali —
  * encaminhar, cobrar o aceite, ou acompanhar e fechar.
  *
- * As concluídas não passam por aqui: lá não há o que fazer, e uma mesa de duas
- * colunas para só ler é a tela errada (ver moderador/chamados/concluidos).
+ * As finalizadas não passam por aqui: lá não há o que fazer, e uma mesa de duas
+ * colunas para só ler é a tela errada (ver moderador/chamados/finalizados). O
+ * que está em curso também saiu — virou a mesa de três filas em
+ * moderador/chamados/processamento.
  */
 export function ChamadosBoard({ buildingId, group }) {
   const { data, isLoading } = useTickets(buildingId, group);

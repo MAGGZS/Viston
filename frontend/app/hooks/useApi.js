@@ -615,11 +615,21 @@ export function useTicketStats(buildingId) {
  *
  * `enabled` existe por causa do sino: ele mora numa tela que todo mundo abre, e
  * quem não atende chamado não tem o que buscar aqui.
+ *
+ * `includeClosed` traz também o que o moderador já finalizou. O sino não quer
+ * isso — ele avisa do que precisa de ação —, mas a tela do responsável mostra o
+ * que ele concluiu ao lado do que foi aprovado, e sem esses o histórico dele
+ * terminaria em "aguardando o moderador" para sempre. Vai na chave da consulta
+ * porque são duas listas diferentes, e compartilhá-la faria uma sobrescrever a
+ * outra no cache.
  */
-export function useMyTickets(enabled = true) {
+export function useMyTickets(enabled = true, includeClosed = false) {
   return useQuery({
-    queryKey: ['my-tickets'],
-    queryFn: () => api.get('/tickets/me').then((r) => r.data),
+    queryKey: ['my-tickets', includeClosed],
+    queryFn: () =>
+      api
+        .get('/tickets/me', { params: includeClosed ? { closed: 'true' } : undefined })
+        .then((r) => r.data),
     enabled,
   });
 }
@@ -681,12 +691,67 @@ export function useReportTicketDone() {
   });
 }
 
-/** Fechar. É o único caminho para concluído, e só o moderador passa por ele. */
+/** Cancela o envio: o chamado volta a ser novo, sem dono. */
+export function useUnforwardTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post(`/tickets/${id}/unforward`).then((r) => r.data),
+    onSuccess: () => invalidateTickets(qc),
+  });
+}
+
+/**
+ * Fechar. É o único caminho para concluído, e só o moderador passa por ele.
+ *
+ * O relatório do moderador e o gasto viajam junto: finalizar passou a ser um
+ * formulário, e não um botão só. Os dois são opcionais — fechar sem escrever
+ * nada continua valendo.
+ */
 export function useCloseTicket() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id) => api.post(`/tickets/${id}/close`).then((r) => r.data),
+    mutationFn: ({ id, ...data }) => api.post(`/tickets/${id}/close`, data).then((r) => r.data),
     onSuccess: () => invalidateTickets(qc),
+  });
+}
+
+/**
+ * O relatório do período, em .docx.
+ *
+ * Não é `useQuery`: o resultado não é estado da tela, é um arquivo que a pessoa
+ * pede uma vez. Guardá-lo em cache só encheria a memória com um blob que
+ * ninguém vai reler.
+ *
+ * O nome vem do `Content-Disposition` — é o servidor que sabe o nome do prédio
+ * e o período. Se o cabeçalho não chegar, um nome de reserva evita que o
+ * download saia sem extensão.
+ */
+export function useTicketReport() {
+  return useMutation({
+    mutationFn: async ({ buildingId, from, to }) => {
+      const res = await api.get(`/buildings/${buildingId}/tickets/report`, {
+        params: { from, to },
+        responseType: 'blob',
+      });
+
+      const match = /filename="([^"]+)"/.exec(res.headers['content-disposition'] ?? '');
+      const name = match?.[1] ?? `manutencoes-${from}-${to}.docx`;
+
+      // O clique é programático porque o arquivo só existe depois da resposta:
+      // um `<a href>` comum teria de repetir a rota sem o cabeçalho de sessão.
+      const url = URL.createObjectURL(res.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      // Sem revogar, cada relatório gerado deixa o blob inteiro na memória da
+      // aba até ela ser fechada.
+      URL.revokeObjectURL(url);
+
+      return name;
+    },
   });
 }
 

@@ -5,6 +5,7 @@ import { Actor } from '../middlewares/authenticate';
 import { canModerateBuilding } from '../middlewares/buildingAccess';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { TICKET_GROUPS, TicketGroup } from '../validators/ticket.validator';
+import { zonedTimeToUtc } from '../utils/timezone';
 
 /**
  * O chamado como as telas o leem.
@@ -304,10 +305,60 @@ export const ticketService = {
   },
 
   /**
+   * Devolve o chamado à fila de novos, desfazendo o encaminhamento.
+   *
+   * Existe porque encaminhar para a pessoa errada não tinha volta: trocar de
+   * responsável só passava o problema adiante, e a fila de "aguardando aceite"
+   * ficava com um chamado que ninguém ia aceitar. Aqui ele volta a ser novo, sem
+   * dono, e pode ser encaminhado de novo com calma.
+   *
+   * Só antes do aceite. Depois que o responsável confirmou o recebimento existe
+   * trabalho começado, e apagá-lo em silêncio faria sumir o histórico de quem
+   * pegou o chamado — nesse ponto o caminho é reencaminhar, que registra a
+   * troca.
+   */
+  async unforward(id: string, user: Actor) {
+    const { ticket, buildingId } = await loadTicket(id);
+    await assertModerator(user, buildingId);
+
+    if (ticket.status !== RecordStatus.ENCAMINHADO) {
+      if (ticket.status === RecordStatus.ABERTO) {
+        throw new ConflictError('Este chamado não está encaminhado');
+      }
+      if (ticket.status === RecordStatus.CONCLUIDO) {
+        throw new ConflictError('Este chamado já foi fechado');
+      }
+      throw new ConflictError('O responsável já recebeu este chamado — reencaminhe em vez de cancelar');
+    }
+
+    const updated = await ticketRepository.update(id, {
+      status: RecordStatus.ABERTO,
+      responsible_id: null,
+      responsible: null,
+      forwarded_at: null,
+      received_at: null,
+      done_at: null,
+    });
+
+    await logTicket(user, buildingId, id, { unforwarded_from: ticket.responsible_id });
+    return toTicket(updated);
+  },
+
+  /**
    * Fecha o chamado. É o único caminho para CONCLUIDO, e só o moderador passa
    * por ele — a regra central deste desenho.
+   *
+   * O relatório do moderador entra aqui junto: fechar sem dizer por quê deixava
+   * o chamado encerrado sem registro do que foi feito, e é esse texto que o
+   * relatório do período depois publica. O gasto é opcional — nem toda
+   * manutenção custa, e obrigar um número faria aparecer zero onde não houve
+   * despesa nenhuma, que é uma informação diferente.
    */
-  async close(id: string, user: Actor) {
+  async close(
+    id: string,
+    user: Actor,
+    data: { maintenance_note?: string | null; maintenance_cost?: number | null } = {}
+  ) {
     const { ticket, buildingId } = await loadTicket(id);
     await assertModerator(user, buildingId);
 
@@ -315,7 +366,15 @@ export const ticketService = {
       throw new ConflictError('Este chamado já foi fechado');
     }
 
+    const patch: Prisma.MaintenanceRecordUncheckedUpdateInput = {};
+    if (data.maintenance_note !== undefined) patch.maintenance_note = data.maintenance_note;
+    if (data.maintenance_cost !== undefined) {
+      patch.maintenance_cost =
+        data.maintenance_cost === null ? null : new Prisma.Decimal(data.maintenance_cost);
+    }
+
     const updated = await ticketRepository.update(id, {
+      ...patch,
       status: RecordStatus.CONCLUIDO,
       closed_at: new Date(),
       // Só conta de usuário assina o fechamento: `closed_by_id` aponta para
@@ -325,5 +384,43 @@ export const ticketService = {
 
     await logTicket(user, buildingId, id, { closed_by: user.id, kind: user.kind });
     return toTicket(updated);
+  },
+
+  /**
+   * O relatório do período: o que foi fechado, e quanto custou.
+   *
+   * Devolve dados, não documento. Quem monta o `.docx` é `ticketReport.ts` — a
+   * regra de "quais chamados entram" é do domínio, e a de "como isso vira um
+   * arquivo do Word" não. Separadas, dá para mudar o layout do documento sem
+   * tocar na consulta, e testar a consulta sem abrir um zip.
+   *
+   * As pontas chegam como dia de calendário ('AAAA-MM-DD') e viram instantes no
+   * fuso do produto: o início é a meia-noite local do primeiro dia, e o fim o
+   * último milissegundo do último. Tratá-las como UTC deslocaria o relatório em
+   * três horas — quem pedisse agosto receberia de 31 de julho às 21h a 31 de
+   * agosto às 21h, perdendo a última noite do mês e ganhando a véspera.
+   */
+  async reportPeriod(buildingId: string, user: Actor, from: string, to: string) {
+    await assertModerator(user, buildingId);
+
+    const [fy, fm, fd] = from.split('-').map(Number);
+    const [ty, tm, td] = to.split('-').map(Number);
+    const start = zonedTimeToUtc(fy, fm - 1, fd);
+    const end = zonedTimeToUtc(ty, tm - 1, td, 23, 59, 59, 999);
+
+    const rows = await ticketRepository.findClosedBetween(buildingId, start, end);
+    const tickets = rows.map(toTicket);
+
+    const building = await buildingRepository.findById(buildingId);
+
+    return {
+      building: { id: buildingId, name: building?.name ?? 'Prédio' },
+      from: start,
+      to: end,
+      tickets,
+      // Somado aqui, e não na tela: é a mesma conta para o documento e para
+      // qualquer outro consumidor, e dinheiro somado em dois lugares diverge.
+      total_cost: tickets.reduce((sum, t) => sum + (t.maintenance_cost ?? 0), 0),
+    };
   },
 };
