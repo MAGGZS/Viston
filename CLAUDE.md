@@ -2,6 +2,8 @@
 
 ## Deploy
 
+apenas quando o proprietáreio permitir o commit
+
 O que eu escrever termina na `main`. A Vercel (frontend) e o Render (backend)
 publicam em produção a partir dela — qualquer outro branch vira só preview, que
 não é o que se quer ao pedir uma mudança.
