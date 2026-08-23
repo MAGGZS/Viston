@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Inbox, Spline, CheckCheck, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, Inbox, Workflow, CheckCheck, LogOut, User } from 'lucide-react';
 import { Logo } from '@/app/components/Logo';
 import { useAuthStore } from '@/app/store/auth';
 import { useTicketStats } from '@/app/hooks/useApi';
@@ -21,7 +21,7 @@ import { T, R, W, NUM } from '@/app/lib/theme';
 const items = [
   { href: '/moderador', icon: LayoutDashboard, label: 'Painel' },
   { href: '/moderador/chamados/novos', icon: Inbox, label: 'Novos chamados', badge: 'abertos' },
-  { href: '/moderador/chamados/processamento', icon: Spline, label: 'Processamento', badge: 'aguardando_fechamento' },
+  { href: '/moderador/chamados/processamento', icon: Workflow, label: 'Processamento', badge: 'aguardando_fechamento' },
   { href: '/moderador/chamados/finalizados', icon: CheckCheck, label: 'Finalizados' },
 ];
 
