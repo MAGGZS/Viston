@@ -37,7 +37,7 @@ export function GestorHeader({ back }) {
             <ArrowLeft size={16} />
           </button>
         )}
-        <Logo size={17} />
+        <Logo size={17} variant="horizontal" />
       </div>
 
       <Link href="/perfil" aria-label="Abrir perfil" className="transition-transform duration-150 hover:scale-105">

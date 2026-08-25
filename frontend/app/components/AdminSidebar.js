@@ -55,7 +55,7 @@ export function AdminSidebar() {
   return (
     <aside style={{ width: 208, minHeight: '100vh', background: T.bg, borderRight: `1px solid ${T.line}`, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '22px 18px 20px' }}>
-        <Logo size={19} />
+        <Logo size={19} variant="horizontal" />
       </div>
 
       <nav style={{ flex: 1, padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>

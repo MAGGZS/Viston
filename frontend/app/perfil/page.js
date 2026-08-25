@@ -168,7 +168,7 @@ function Credential({ user, onEditAvatar }) {
       <div style={{ alignSelf: 'stretch', height: 1, background: T.line, margin: '22px 0 14px' }} />
 
       <div style={{ alignSelf: 'stretch', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Logo size={13} style={{ color: T.mute, WebkitTextStroke: '0px' }} />
+        <Logo size={13} style={{ color: T.mute }} />
         <span style={{ fontSize: 12, color: T.faint, ...NUM, letterSpacing: '0.06em' }}>
           Nº {(user?.id ?? '').slice(0, 8).toUpperCase() || '—'}
         </span>
@@ -417,7 +417,7 @@ export default function PerfilPage() {
             onMouseLeave={e => e.currentTarget.style.color = T.mute}>
             <ArrowLeft size={18} /> Voltar
           </button>
-          <Logo size={16} />
+          <Logo size={16} variant="horizontal" />
           <button onClick={async () => { await logout(); router.replace('/login'); }}
             className="transition-colors duration-150"
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: T.mute, fontSize: 14 }}
@@ -536,7 +536,7 @@ export default function PerfilPage() {
           </button>
 
           <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 18 }}>
-            <Logo size={13} style={{ color: M.faint, WebkitTextStroke: '0px' }} />
+            <Logo size={13} style={{ color: M.faint }} />
           </div>
 
           {/* O gestor não tem home nem histórico próprios: a barra não é dele. */}

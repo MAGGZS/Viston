@@ -1,30 +1,100 @@
 'use client';
+import { useId } from 'react';
 
 /**
- * Logo do projeto: a palavra VISTON em Poppins Black, branca.
- * `size` é o tamanho da fonte em px.
- * Poppins para no peso 900, então o traço ganha corpo com um contorno
- * da mesma cor, proporcional ao tamanho (`weight` ajusta a espessura).
+ * A marca do Viston, vinda do arquivo do Figma (frames "logo base",
+ * "Logo login web page" e "Logo login app page").
+ *
+ * Os contornos são os do arquivo, não uma reconstrução: o "V" e o traço
+ * amarelo saíram como vetor, e o wordmark saiu vetorizado do Poppins Black —
+ * assim o desenho não depende da fonte ter carregado nem de arredondamento de
+ * métrica, e é o mesmo traçado em qualquer tamanho.
+ *
+ * `size` é o corpo do wordmark em px, como antes. Todas as variantes crescem a
+ * partir dele nas proporções do arquivo (lá o wordmark tem corpo 128), então
+ * trocar de variante não muda a escala percebida.
+ *
+ * A cor do wordmark é `currentColor`: quem chama ajusta com `color`. O "V" e o
+ * traço amarelo são fixos — são a identidade, não texto.
  */
-export function Logo({ size = 20, weight = 0.05, style = {} }) {
-  const stroke = size * weight;
+
+// Marca, com a origem no canto do desenho.
+const CHECK = 'M201.889 196.778L153.333 99.6667L191.667 117.556L280.746 0L201.889 196.778Z';
+const VEE = 'M204.444 230H124.764L28.1111 35.9211L0 0H94.8832L204.444 230Z';
+
+// VISTON vetorizado, do mesmo arquivo.
+const WORD = 'M97.664 1.536L67.2 92.16H30.464L0 1.536H30.208L48.896 63.872L67.456 1.536H97.664ZM132.441 1.536V92.16H104.025V1.536H132.441ZM180.731 93.056C169.894 93.056 160.934 90.539 153.851 85.504C146.854 80.384 143.056 72.917 142.459 63.104H172.667C173.094 68.309 175.398 70.912 179.579 70.912C181.115 70.912 182.395 70.571 183.419 69.888C184.528 69.12 185.083 67.968 185.083 66.432C185.083 64.299 183.931 62.592 181.627 61.312C179.323 59.947 175.739 58.411 170.875 56.704C165.072 54.656 160.251 52.651 156.411 50.688C152.656 48.725 149.414 45.867 146.683 42.112C143.952 38.357 142.63 33.536 142.715 27.648C142.715 21.76 144.208 16.768 147.195 12.672C150.267 8.491 154.406 5.333 159.611 3.2C164.902 1.067 170.832 0 177.403 0C188.496 0 197.286 2.56 203.771 7.68C210.342 12.8 213.798 20.011 214.139 29.312H183.547C183.462 26.752 182.822 24.917 181.627 23.808C180.432 22.699 178.982 22.144 177.275 22.144C176.08 22.144 175.099 22.571 174.331 23.424C173.563 24.192 173.179 25.301 173.179 26.752C173.179 28.8 174.288 30.507 176.507 31.872C178.811 33.152 182.438 34.731 187.387 36.608C193.104 38.741 197.798 40.789 201.467 42.752C205.222 44.715 208.464 47.445 211.195 50.944C213.926 54.443 215.291 58.837 215.291 64.128C215.291 69.675 213.926 74.667 211.195 79.104C208.464 83.456 204.496 86.869 199.291 89.344C194.086 91.819 187.899 93.056 180.731 93.056ZM296.443 1.536V24.064H272.379V92.16H243.963V24.064H220.155V1.536H296.443ZM348.31 93.056C339.777 93.056 331.926 91.051 324.758 87.04C317.675 83.029 312.043 77.483 307.862 70.4C303.681 63.317 301.59 55.339 301.59 46.464C301.59 37.589 303.681 29.611 307.862 22.528C312.043 15.445 317.675 9.941 324.758 6.016C331.926 2.005 339.777 0 348.31 0C356.843 0 364.651 2.005 371.734 6.016C378.817 9.941 384.406 15.445 388.502 22.528C392.683 29.611 394.774 37.589 394.774 46.464C394.774 55.339 392.683 63.317 388.502 70.4C384.406 77.483 378.774 83.029 371.606 87.04C364.523 91.051 356.758 93.056 348.31 93.056ZM348.31 66.56C353.942 66.56 358.294 64.768 361.366 61.184C364.438 57.515 365.974 52.608 365.974 46.464C365.974 40.235 364.438 35.328 361.366 31.744C358.294 28.075 353.942 26.24 348.31 26.24C342.593 26.24 338.198 28.075 335.126 31.744C332.054 35.328 330.518 40.235 330.518 46.464C330.518 52.608 332.054 57.515 335.126 61.184C338.198 64.768 342.593 66.56 348.31 66.56ZM491.937 92.16H463.521L433.441 46.592V92.16H405.025V1.536H433.441L463.521 47.872V1.536H491.937V92.16Z';
+
+// Proporções do arquivo, tomando o corpo 128 do wordmark como unidade.
+const RATIO = {
+  wordmark: { vb: '0 1.536 491.937 91.52', h: 91.52 / 128, w: 491.937 / 91.52 },
+  mark: { vb: '0 0 280.746 230', h: 230 / 128, w: 280.746 / 230 },
+  horizontal: { vb: '0 0 788.937 230', h: 230 / 128, w: 788.937 / 230 },
+  stacked: { vb: '0 0 503 405', h: 405 / 128, w: 503 / 405 },
+};
+
+/** O degradê do "V": branco no topo, esfriando para #BFBFBF na descida. */
+function VeeGradient({ id }) {
+  return (
+    <defs>
+      <linearGradient id={id} x1="102.222" y1="38.3333" x2="155.889" y2="388.444" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#FFFFFF" />
+        <stop offset="1" stopColor="#BFBFBF" />
+      </linearGradient>
+    </defs>
+  );
+}
+
+function Mark({ gradientId }) {
+  return (
+    <>
+      <path d={CHECK} fill="#F5C518" />
+      <path d={VEE} fill={`url(#${gradientId})`} />
+    </>
+  );
+}
+
+export function Logo({ size = 20, variant = 'wordmark', style = {} }) {
+  // Um id por instância: duas logos na mesma tela não podem disputar o degradê.
+  // `useId` devolve dois-pontos nas pontas, que quebram o `url(#...)` — fora.
+  const gradientId = `viston-vee-${useId().replace(/:/g, '')}`;
+  const { vb, h, w } = RATIO[variant] ?? RATIO.wordmark;
+  const height = size * h;
 
   return (
-    <span
-      style={{
-        fontFamily: 'var(--font-poppins), sans-serif',
-        fontWeight: 900,
-        fontSize: size,
-        letterSpacing: '0.04em',
-        color: '#FFFFFF',
-        WebkitTextStroke: `${stroke}px #FFFFFF`,
-        paintOrder: 'stroke fill',
-        lineHeight: 1,
-        userSelect: 'none',
-        ...style,
-      }}
+    <svg
+      viewBox={vb}
+      width={height * w}
+      height={height}
+      role="img"
+      aria-label="Viston"
+      style={{ display: 'block', flexShrink: 0, ...style }}
     >
-      VISTON
-    </span>
+      {variant !== 'wordmark' && <VeeGradient id={gradientId} />}
+
+      {variant === 'wordmark' && <path d={WORD} fill="currentColor" />}
+
+      {variant === 'mark' && <Mark gradientId={gradientId} />}
+
+      {variant === 'horizontal' && (
+        <>
+          <Mark gradientId={gradientId} />
+          <g transform="translate(297 75.84)">
+            <path d={WORD} fill="currentColor" />
+          </g>
+        </>
+      )}
+
+      {variant === 'stacked' && (
+        <>
+          <g transform="translate(99 0)">
+            <Mark gradientId={gradientId} />
+          </g>
+          <g transform="translate(0 278.84)">
+            <path d={WORD} fill="currentColor" />
+          </g>
+        </>
+      )}
+    </svg>
   );
 }

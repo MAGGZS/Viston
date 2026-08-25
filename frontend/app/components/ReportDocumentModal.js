@@ -265,7 +265,7 @@ function MobileSheet({ report, entries, totalRecords }) {
           {report.reports?.length ?? 1} vistoria{(report.reports?.length ?? 1) !== 1 ? 's' : ''}<br />
           neste dia
         </p>
-        <Logo size={12} style={{ color: T.faint, WebkitTextStroke: '0px' }} />
+        <Logo size={12} style={{ color: T.faint }} />
       </div>
     </div>
   );

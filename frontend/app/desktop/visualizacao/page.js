@@ -81,7 +81,7 @@ export default function VisualizacaoPage() {
       <div className="hidden lg:flex flex-col min-h-screen bg-page">
         {/* Header */}
         <header className="anim-fade-down" style={{ height: 60, background: '#0B0B0B', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', flexShrink: 0 }}>
-          <Logo size={18} />
+          <Logo size={18} variant="horizontal" />
           <Link href="/perfil" aria-label="Abrir perfil" className="transition-transform duration-150 hover:scale-105" style={{ display: 'flex', alignItems: 'center' }}>
             <Avatar user={user} size={32} />
           </Link>

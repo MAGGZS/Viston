@@ -22,8 +22,10 @@ export default function manifest() {
       { src: '/icon.svg', type: 'image/svg+xml', sizes: 'any', purpose: 'any' },
       { src: '/icon-192.png', type: 'image/png', sizes: '192x192', purpose: 'any' },
       { src: '/icon-512.png', type: 'image/png', sizes: '512x512', purpose: 'any' },
-      // Sem cantos arredondados: o Android recorta no formato do próprio sistema
-      { src: '/icon-512.png', type: 'image/png', sizes: '512x512', purpose: 'maskable' },
+      // O maskable é o único que não pode ser transparente: o Android recorta no
+      // formato do próprio sistema e preenche o resto, então vai com a placa
+      // escura do arquivo e a marca dentro da zona segura.
+      { src: '/icon-maskable-512.png', type: 'image/png', sizes: '512x512', purpose: 'maskable' },
     ],
   };
 }

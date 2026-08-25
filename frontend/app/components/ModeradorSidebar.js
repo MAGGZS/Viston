@@ -64,7 +64,7 @@ export function ModeradorSidebar({ buildingId, buildingName }) {
   return (
     <aside style={{ width: 224, minHeight: '100vh', background: T.bg, borderRight: `1px solid ${T.line}`, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
       <div style={{ padding: '22px 18px 18px' }}>
-        <Logo size={19} />
+        <Logo size={19} variant="horizontal" />
         {buildingName && (
           <p style={{ color: T.faint, fontSize: 12, marginTop: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {buildingName}

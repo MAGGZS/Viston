@@ -17,9 +17,11 @@ export function AuthShell({ title, subtitle, children, footer }) {
     }}>
       <div style={{ width: '100%', maxWidth: 380 }}>
         <div style={{ textAlign: 'center' }}>
-          {/* A marca é o único elemento que salta: é o que identifica a tela */}
-          <div className="anim-pop-in">
-            <Logo size={52} />
+          {/* A marca é o único elemento que salta: é o que identifica a tela.
+              A logo é um <svg> de bloco, então centraliza por flex — o
+              `text-align` da coluna não a alcança. */}
+          <div className="anim-pop-in" style={{ display: 'flex', justifyContent: 'center' }}>
+            <Logo size={40} variant="stacked" />
           </div>
 
           <h1 className="anim-fade-up anim-d1" style={{
