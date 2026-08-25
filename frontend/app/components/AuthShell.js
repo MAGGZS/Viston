@@ -17,10 +17,11 @@ export function AuthShell({ title, subtitle, children, footer }) {
     }}>
       <div style={{ width: '100%', maxWidth: 380 }}>
         <div style={{ textAlign: 'center' }}>
-          {/* A marca é o único elemento que salta: é o que identifica a tela.
+          {/* A marca abre o escalonamento: mesma subida do resto da coluna, no
+              tempo zero, e daí `d1` a `d4` seguem na ordem de leitura.
               A logo é um <svg> de bloco, então centraliza por flex — o
               `text-align` da coluna não a alcança. */}
-          <div className="anim-pop-in" style={{ display: 'flex', justifyContent: 'center' }}>
+          <div className="anim-fade-up" style={{ display: 'flex', justifyContent: 'center' }}>
             <Logo size={40} variant="stacked" />
           </div>
 
