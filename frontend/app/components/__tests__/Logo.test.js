@@ -21,7 +21,8 @@ describe('Logo', () => {
   it.each([
     ['wordmark', 91.52 / 128, 491.937 / 91.52],
     ['mark', 230 / 128, 280.746 / 230],
-    ['horizontal', 230 / 128, 788.937 / 230],
+    // Deitado, a marca vem reduzida a 234 de largura — o ajuste de cabeçalho.
+    ['horizontal', 191.704 / 128, 738.937 / 191.704],
     ['stacked', 405 / 128, 503 / 405],
   ])('mantém a proporção do arquivo na variante %s', (variant, hRatio, wRatio) => {
     const size = 32;
