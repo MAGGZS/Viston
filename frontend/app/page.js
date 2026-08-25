@@ -2,6 +2,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/app/store/auth';
+import { Logo } from '@/app/components/Logo';
 import { canInspect, isAdmin, isManagerAccount, isResponsible, memberships } from '@/app/lib/roles';
 
 export default function RootPage() {
@@ -51,9 +52,15 @@ export default function RootPage() {
   return (
     <div className="min-h-screen bg-page flex items-center justify-center">
       {/* A marca salta e depois pulsa: a tela existe por um instante, entre o
-          perfil carregar e o redirecionamento, e sem nada nela parece travada. */}
-      <div className="anim-pop-in w-9 h-9 bg-[#F5C518] rounded-xl flex items-center justify-center animate-pulse">
-        <span className="text-black font-black text-sm">V</span>
+          perfil carregar e o redirecionamento, e sem nada nela parece travada.
+
+          Os dois em elementos separados de propósito. Na mesma classe, `pop-in`
+          e `pulse` disputam a propriedade `animation` e só um sobrevive à
+          cascata — o salto some e fica só a pulsação. */}
+      <div className="anim-pop-in">
+        <div className="animate-pulse">
+          <Logo variant="mark" size={20} />
+        </div>
       </div>
     </div>
   );
