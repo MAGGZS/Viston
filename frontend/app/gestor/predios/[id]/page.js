@@ -220,8 +220,14 @@ export default function GestorBuildingPage() {
           ))}
         </div>
 
-        {/* Calendário + Histórico */}
-        <div className="anim-fade-up anim-d4 grid grid-cols-3 gap-6">
+        {/* Calendário + Histórico.
+
+            `items-start`: sem ele o grid estica as duas colunas até a altura da
+            mais alta, e o cartão do calendário — que tem altura própria, dada
+            pelas semanas do mês — ganhava um vão de fundo vazio embaixo da
+            legenda, do tamanho do que sobrava da tabela ao lado. É o mesmo
+            ajuste que o painel do moderador já faz. */}
+        <div className="anim-fade-up anim-d4 grid grid-cols-3 gap-6 items-start">
           <div className="col-span-1 bg-card rounded-card p-5">
             <div className="flex items-center justify-between mb-4">
               <button onClick={prev} className="p-1 text-mute hover:text-white"><ChevronLeft size={16} /></button>

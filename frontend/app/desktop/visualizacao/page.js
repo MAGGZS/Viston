@@ -104,7 +104,10 @@ export default function VisualizacaoPage() {
           ) : !hasBuilding ? (
             <NoPredioState />
           ) : (
-            <div className="grid grid-cols-3 gap-6">
+            /* `items-start`: o calendário tem altura própria, das semanas do
+               mês. Esticado até a altura da tabela ao lado, ele virava um
+               cartão com um vão vazio embaixo da legenda. */
+            <div className="grid grid-cols-3 gap-6 items-start">
               {/* Calendário heatmap */}
               <div className="anim-fade-up anim-d1 col-span-1 bg-card rounded-card p-5">
                 <div className="flex items-center justify-between mb-4">
