@@ -3,40 +3,22 @@ import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, UserCheck, UserMinus, AlertTriangle, Trash2, Check, X } from 'lucide-react';
-import { RouteGuard } from '@/app/components/RouteGuard';
+import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, Trash2, AlertTriangle } from 'lucide-react';
 import { Avatar } from '@/app/components/Avatar';
-import { GestorHeader } from '@/app/components/GestorHeader';
+import { GestorShell } from '@/app/components/GestorShell';
 import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
-import { Badge, Skeleton, Button, Modal, Select } from '@/app/components/ui';
+import { Badge, Skeleton, Button, Modal } from '@/app/components/ui';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { OcorrenciasTable } from '@/app/components/OcorrenciasTable';
 import { Paginator } from '@/app/components/Paginator';
-import { useBuildingDashboard, useBuildingHistory, useBuildingMembers, useRemoveMember, useUpdateMemberRole, useDeleteInspection, useAccessRequests, useReviewAccessRequest, useAddBuildingManager, useRemoveBuildingManager } from '@/app/hooks/useApi';
+import { useBuildingDashboard, useBuildingHistory, useDeleteInspection } from '@/app/hooks/useApi';
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { formatShareKey } from '@/app/lib/shareKey';
 import { parseReportDate } from '@/app/lib/date';
 import { useToastStore } from '@/app/store/toast';
-import { CONTENT_ID } from '@/app/components/mobile/kit';
-
-// Gestor não está aqui: é outro tipo de conta, e entra pelo e-mail (ver
-// AddManagerForm). Os quatro papéis de vínculo trocam livremente entre si.
-const ROLE_OPTIONS = [
-  { value: 'VIEWER', label: 'Visualizador' },
-  { value: 'INSPECTOR', label: 'Inspetor' },
-  { value: 'MODERADOR', label: 'Moderador' },
-  { value: 'RESPONSAVEL', label: 'Responsável' },
-];
-
-const ROLE_TOAST = {
-  INSPECTOR: 'Agora é inspetor',
-  VIEWER: 'Agora é visualizador',
-  MODERADOR: 'Agora é moderador — recebe e fecha os chamados',
-  RESPONSAVEL: 'Agora é responsável — atende os chamados encaminhados',
-};
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success', COMPLETED: 'success' };
@@ -81,192 +63,13 @@ function MonthGrid({ heatmap, year, month, onDayClick }) {
 }
 
 /**
- * Linha de colaborador — usuário vinculado ao prédio.
+ * O painel do prédio.
  *
- * O papel é decisão do gestor: quem se vincula entra como visualizador e sobe
- * daqui. Virar gestor não passa por esta linha, porque gestor é outro tipo de
- * conta.
+ * É a primeira aba da barra lateral, e ficou só com o que é leitura do prédio:
+ * os números, o calendário e o histórico. Quem está no prédio — e quem pediu
+ * para entrar — mudou-se para a aba de colaboradores, que é onde essas duas
+ * coisas são trabalho, e não informação de passagem.
  */
-function MemberRow({ member, buildingId, onRemove, className = '' }) {
-  const updateRole = useUpdateMemberRole();
-  const { show: toast } = useToastStore();
-
-  async function handleRoleChange(role) {
-    try {
-      await updateRole.mutateAsync({ buildingId, userId: member.user_id, role });
-      toast(ROLE_TOAST[role], 'success');
-    } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao alterar o papel', 'error', e);
-    }
-  }
-
-  return (
-    <div className={`flex items-center gap-3 bg-chip rounded-control px-4 py-3 ${className}`}>
-      <Avatar user={member.user} size={32} />
-      <div className="flex-1 min-w-0">
-        <p className="text-white text-sm font-medium truncate">{member.user?.name}</p>
-        <p className="text-mute text-xs truncate">{member.user?.email}</p>
-      </div>
-      {/* `raised` sobe o fundo um nível, porque a linha inteira já é chip */}
-      <Select
-        raised
-        wrapperClassName="flex-shrink-0"
-        wrapperStyle={{ width: 164, flexBasis: 164 }}
-        style={{ padding: '7px 30px 7px 12px', fontSize: 12 }}
-        aria-label={`Papel de ${member.user?.name} neste prédio`}
-        options={ROLE_OPTIONS}
-        value={member.role}
-        disabled={updateRole.isPending}
-        onChange={(e) => handleRoleChange(e.target.value)}
-      />
-      <button
-        onClick={onRemove}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.52)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0 }}
-        onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.52)'}
-        title="Remover vínculo">
-        <UserMinus size={15} />
-      </button>
-    </div>
-  );
-}
-
-/**
- * Linha de gestor. Conta própria, não um vínculo com papel — por isso não tem
- * seletor: ou a pessoa administra o prédio, ou não está aqui.
- *
- * `sole` marca o último gestor: tirá-lo deixaria o prédio sem ninguém que possa
- * administrá-lo, então o controle fica travado (a API também recusa, com 409).
- */
-function ManagerRow({ link, buildingId, sole, className = '' }) {
-  const removeManager = useRemoveBuildingManager();
-  const { show: toast } = useToastStore();
-
-  async function handleRemove() {
-    try {
-      await removeManager.mutateAsync({ buildingId, managerId: link.manager_id });
-      toast('Gestor removido do prédio', 'info');
-    } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao remover gestor', 'error', e);
-    }
-  }
-
-  return (
-    <div className={`flex items-center gap-3 rounded-control px-4 py-3 ${className}`}
-      style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)' }}>
-      <Avatar user={link.manager} size={32} />
-      <div className="flex-1 min-w-0">
-        <p className="text-white text-sm font-semibold truncate">{link.manager?.name}</p>
-        <p className="text-mute text-xs truncate">{link.manager?.email}</p>
-      </div>
-      <span className="text-xs font-semibold px-3 py-1.5 rounded-pill text-accent flex-shrink-0"
-        style={{ background: 'rgba(245,197,24,0.13)' }}>
-        Gestor
-      </span>
-      <button
-        onClick={handleRemove}
-        disabled={sole || removeManager.isPending}
-        style={{ background: 'none', border: 'none', cursor: sole ? 'not-allowed' : 'pointer', color: 'rgba(255,255,255,0.52)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0, opacity: sole ? 0.4 : 1 }}
-        onMouseEnter={e => { if (!sole) e.currentTarget.style.color = '#f87171'; }}
-        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.52)'}
-        title={sole ? 'Este é o único gestor do prédio. Adicione outro antes.' : 'Tirar da gestão'}>
-        <UserMinus size={15} />
-      </button>
-    </div>
-  );
-}
-
-/**
- * Adiciona outro gestor pelo e-mail da conta de gestor dele.
- *
- * É o caminho de dividir e de transferir a gestão: quem quer sair adiciona o
- * substituto antes, porque a saída do último é recusada. O e-mail precisa ser
- * de uma conta de gestor — conta de usuário comum não administra prédio.
- */
-function AddManagerForm({ buildingId }) {
-  const [email, setEmail] = useState('');
-  const addManager = useAddBuildingManager();
-  const { show: toast } = useToastStore();
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!email.trim()) return;
-    try {
-      await addManager.mutateAsync({ buildingId, email: email.trim() });
-      setEmail('');
-      toast('Gestor adicionado ao prédio', 'success');
-    } catch (err) {
-      toast(err?.response?.data?.error?.message || 'Erro ao adicionar gestor', 'error', err);
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="flex gap-2 mt-1">
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="E-mail da conta de gestor"
-        aria-label="E-mail do gestor a adicionar"
-        className="flex-1 bg-chip rounded-control px-4 py-2.5 text-sm text-white outline-none"
-        style={{ border: '1px solid transparent' }}
-      />
-      <Button type="submit" loading={addManager.isPending} style={{ flexShrink: 0 }}>
-        Adicionar
-      </Button>
-    </form>
-  );
-}
-
-/** Uma solicitação pendente: quem pediu, quando, e as duas saídas. */
-function RequestRow({ request, buildingId, className = '' }) {
-  const review = useReviewAccessRequest();
-  const { show: toast } = useToastStore();
-
-  async function handle(status) {
-    try {
-      await review.mutateAsync({ buildingId, requestId: request.id, status });
-      toast(
-        status === 'APPROVED' ? 'Acesso aprovado! Entrou como visualizador.' : 'Solicitação rejeitada',
-        status === 'APPROVED' ? 'success' : 'info'
-      );
-    } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao revisar solicitação', 'error', e);
-    }
-  }
-
-  return (
-    <div className={`flex items-center gap-3 bg-chip rounded-control px-4 py-3 ${className}`}>
-      <Avatar user={request.user} size={32} />
-      <div className="flex-1 min-w-0">
-        <p className="text-white text-sm font-medium truncate">{request.user?.name}</p>
-        <p className="text-mute text-xs truncate">{request.user?.email}</p>
-      </div>
-      <span className="text-faint text-xs whitespace-nowrap">
-        {format(new Date(request.requested_at), 'dd/MM/yyyy', { locale: ptBR })}
-      </span>
-      <button
-        onClick={() => handle('APPROVED')}
-        disabled={review.isPending}
-        title="Aprovar"
-        aria-label={`Aprovar ${request.user?.name}`}
-        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-pill bg-accent text-black transition-all duration-150 hover:scale-105 active:scale-95 disabled:opacity-50 flex-shrink-0"
-      >
-        <Check size={13} /> Aprovar
-      </button>
-      <button
-        onClick={() => handle('REJECTED')}
-        disabled={review.isPending}
-        title="Rejeitar"
-        aria-label={`Rejeitar ${request.user?.name}`}
-        className="flex items-center justify-center w-8 h-8 rounded-pill bg-card text-danger transition-all duration-150 hover:scale-110 active:scale-95 disabled:opacity-50 flex-shrink-0"
-      >
-        <X size={14} />
-      </button>
-    </div>
-  );
-}
-
 export default function GestorBuildingPage() {
   const { download, pendingId } = useExcelDownload();
   const { id } = useParams();
@@ -281,9 +84,6 @@ export default function GestorBuildingPage() {
   const [year, setYear] = useState(now.getFullYear());
   const [selected, setSelected] = useState(null);
   const [shareModal, setShareModal] = useState(false);
-  const [membersModal, setMembersModal] = useState(false);
-  const [requestsModal, setRequestsModal] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState(null); // membro a remover
   const [confirmDiscard, setConfirmDiscard] = useState(null); // vistoria a descartar
   const [previewId, setPreviewId] = useState(null); // vistoria em prévia
   const [reportId, setReportId] = useState(null); // relatório completo aberto
@@ -291,15 +91,8 @@ export default function GestorBuildingPage() {
   const { data, isLoading } = useBuildingDashboard(id);
   // Oito por página: quem anda pelo resto é o rodapé de setas do cartão.
   const vistorias = useBuildingHistory(id);
-  const { data: membersData, isLoading: membersLoading } = useBuildingMembers(membersModal ? id : null);
-  // Buscado sempre, e não só com o modal aberto: sem isso o gestor teria de
-  // abrir a caixa para descobrir que existe alguém esperando aprovação.
-  const { data: requests = [], isLoading: requestsLoading } = useAccessRequests(id);
-  const removeMember = useRemoveMember();
   const deleteInspection = useDeleteInspection();
   const { show: toast } = useToastStore();
-  const managers = membersData?.managers ?? [];
-  const members = membersData?.members ?? [];
   const rows = vistorias.rows;
   const histLoading = vistorias.isLoading;
 
@@ -396,102 +189,71 @@ export default function GestorBuildingPage() {
   );
 
   return (
-    <RouteGuard manages={id}>
-      <div className="hidden lg:flex flex-col min-h-screen bg-page">
-        <GestorHeader back="/gestor" />
-        <main id={CONTENT_ID} className="flex-1 p-8 overflow-auto">
-
-          {/* Header */}
-          <div className="anim-fade-down flex items-center justify-between mb-8">
-            <div>
-              {isLoading ? <div className="h-7 w-48 bg-chip rounded animate-pulse" /> : (
-                <h1 className="text-2xl font-semibold text-white">{data?.building?.name}</h1>
-              )}
-              {data?.building?.description && (
-                <p className="text-mute text-sm mt-0.5">{data.building.description}</p>
-              )}
-            </div>
-            <div className="flex items-center gap-3">
-              <button onClick={() => setRequestsModal(true)}
-                className="relative flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-white transition-colors">
-                <Users size={15} /> Solicitações
-                {requests.length > 0 && (
-                  <span className="anim-pop-in flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-accent text-black text-xs font-semibold">
-                    {requests.length}
-                  </span>
+    <GestorShell
+      buildingId={id}
+      actions={
+        <button onClick={() => setShareModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-white transition-colors flex-shrink-0">
+          <Share2 size={15} /> Compartilhar ID
+        </button>
+      }
+    >
+      <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8">
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          {[
+            { icon: ClipboardList, label: 'Total de inspeções', value: data?.totalInspections },
+            { icon: Users, label: 'Inspetores', value: data?.inspectorCount },
+            { icon: Eye, label: 'Visualizadores', value: data?.viewerCount },
+          ].map(({ icon: Icon, label, value }, idx) => (
+            <div key={label} className={`anim-fade-up anim-d${idx + 1} bg-card rounded-card p-5 flex items-center gap-4 transition-all duration-200`}>
+              <div className="w-10 h-10 bg-accent-soft rounded-control flex items-center justify-center">
+                <Icon size={18} className="text-accent" />
+              </div>
+              <div>
+                <p className="text-mute text-xs">{label}</p>
+                {isLoading ? <div className="h-6 w-12 bg-chip rounded animate-pulse mt-1" /> : (
+                  <p className="text-white text-xl font-semibold">{value ?? 0}</p>
                 )}
-              </button>
-              <button onClick={() => setMembersModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-white transition-colors">
-                <UserCheck size={15} /> Colaboradores
-              </button>
-              <button onClick={() => setShareModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-white transition-colors">
-                <Share2 size={15} /> Compartilhar ID
-              </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Calendário + Histórico */}
+        <div className="anim-fade-up anim-d4 grid grid-cols-3 gap-6">
+          <div className="col-span-1 bg-card rounded-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <button onClick={prev} className="p-1 text-mute hover:text-white"><ChevronLeft size={16} /></button>
+              <span key={monthLabel} className="anim-fade-in text-white text-sm font-semibold capitalize">{monthLabel}</span>
+              <button onClick={next} className="p-1 text-mute hover:text-white"><ChevronRight size={16} /></button>
+            </div>
+            <MonthGrid heatmap={heatmap} year={year} month={month} onDayClick={(day, info) => setSelected({ day, info })} />
+            <div className="flex items-center gap-1 mt-4 justify-end">
+              <span className="text-mute text-xs">Menos</span>
+              {['#232323','#2E2A12','#6B5A00','#A88A00','#F5C518'].map((c, i) => (
+                <div key={i} style={{ background: c }} className="w-3 h-3 rounded-sm" />
+              ))}
+              <span className="text-mute text-xs">Mais</span>
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            {[
-              { icon: ClipboardList, label: 'Total de inspeções', value: data?.totalInspections },
-              { icon: Users, label: 'Inspetores', value: data?.inspectorCount },
-              { icon: Eye, label: 'Visualizadores', value: data?.viewerCount },
-            ].map(({ icon: Icon, label, value }, idx) => (
-              <div key={label} className={`anim-fade-up anim-d${idx + 1} bg-card rounded-card p-5 flex items-center gap-4 transition-all duration-200`}>
-                <div className="w-10 h-10 bg-accent-soft rounded-control flex items-center justify-center">
-                  <Icon size={18} className="text-accent" />
-                </div>
-                <div>
-                  <p className="text-mute text-xs">{label}</p>
-                  {isLoading ? <div className="h-6 w-12 bg-chip rounded animate-pulse mt-1" /> : (
-                    <p className="text-white text-xl font-semibold">{value ?? 0}</p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Calendário + Histórico */}
-          <div className="anim-fade-up anim-d4 grid grid-cols-3 gap-6">
-            <div className="col-span-1 bg-card rounded-card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <button onClick={prev} className="p-1 text-mute hover:text-white"><ChevronLeft size={16} /></button>
-                <span key={monthLabel} className="anim-fade-in text-white text-sm font-semibold capitalize">{monthLabel}</span>
-                <button onClick={next} className="p-1 text-mute hover:text-white"><ChevronRight size={16} /></button>
-              </div>
-              <MonthGrid heatmap={heatmap} year={year} month={month} onDayClick={(day, info) => setSelected({ day, info })} />
-              <div className="flex items-center gap-1 mt-4 justify-end">
-                <span className="text-mute text-xs">Menos</span>
-                {['#232323','#2E2A12','#6B5A00','#A88A00','#F5C518'].map((c, i) => (
-                  <div key={i} style={{ background: c }} className="w-3 h-3 rounded-sm" />
-                ))}
-                <span className="text-mute text-xs">Mais</span>
-              </div>
+          <div className="col-span-2 bg-card rounded-card overflow-hidden">
+            <div className="px-6 py-4 border-b border-line">
+              <HistoricoSwitcher
+                title={historico.title}
+                onPrev={historico.prev}
+                onNext={historico.next}
+              />
             </div>
 
-            <div className="col-span-2 bg-card rounded-card overflow-hidden">
-              <div className="px-6 py-4 border-b border-line">
-                <HistoricoSwitcher
-                  title={historico.title}
-                  onPrev={historico.prev}
-                  onNext={historico.next}
-                />
-              </div>
-
-              {/* `key` na visão: só o miolo do cartão troca — o calendário ao
-                  lado e o resto da tela do prédio ficam onde estão. */}
-              <div key={historico.view} className="anim-fade-up">
-                {historico.isVistorias ? inspecoesPanel : <OcorrenciasTable buildingId={id} />}
-              </div>
+            {/* `key` na visão: só o miolo do cartão troca — o calendário ao
+                lado e o resto da tela do prédio ficam onde estão. */}
+            <div key={historico.view} className="anim-fade-up">
+              {historico.isVistorias ? inspecoesPanel : <OcorrenciasTable buildingId={id} />}
             </div>
           </div>
-        </main>
-      </div>
-
-      <div className="lg:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
-        <div><p className="text-4xl mb-4">🖥️</p><p className="text-white font-semibold">Acesse pelo computador</p></div>
+        </div>
       </div>
 
       <DayInspectionsModal
@@ -504,105 +266,6 @@ export default function GestorBuildingPage() {
       <InspectionPreviewModal open={!!previewId} onClose={() => setPreviewId(null)} reportId={previewId} />
 
       <ReportDocumentModal open={!!reportId} onClose={() => setReportId(null)} reportId={reportId} />
-
-      <Modal open={membersModal} onClose={() => setMembersModal(false)} title="Colaboradores" maxWidth={560}>
-        {membersLoading ? (
-          <div className="flex flex-col gap-2">
-            {[1,2,3].map(i => <div key={i} className="h-12 bg-chip rounded-control animate-pulse" />)}
-          </div>
-        ) : (
-          <>
-            {/* Gestores primeiro: são as contas que administram o prédio */}
-            <p className="text-mute text-xs mb-2">Gestão</p>
-            <div className="flex flex-col gap-2">
-              {managers.map((link, idx) => (
-                <ManagerRow
-                  key={link.id}
-                  link={link}
-                  buildingId={id}
-                  sole={managers.length === 1}
-                  className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
-                />
-              ))}
-            </div>
-            <AddManagerForm buildingId={id} />
-            <p className="text-faint text-xs mt-2 leading-relaxed">
-              Gestor é uma conta própria: informe o e-mail de quem já tem cadastro de gestor.
-              Um prédio pode ter mais de um — o que ele não pode é ficar sem nenhum.
-            </p>
-
-            <p className="text-mute text-xs mt-6 mb-2">Quem vistoria, acompanha, modera e atende</p>
-            <div className="flex flex-col gap-2">
-              {members.length === 0 ? (
-                <p className="text-mute text-sm text-center py-6">Nenhum usuário vinculado a este prédio</p>
-              ) : (
-                members.map((m, idx) => (
-                  <MemberRow
-                    key={m.id}
-                    member={m}
-                    buildingId={id}
-                    className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
-                    onRemove={() => setConfirmRemove(m)}
-                  />
-                ))
-              )}
-            </div>
-          </>
-        )}
-      </Modal>
-
-      <Modal open={requestsModal} onClose={() => setRequestsModal(false)} title="Solicitações de acesso" maxWidth={560}>
-        {requestsLoading ? (
-          <div className="flex flex-col gap-3">
-            {[1,2,3].map(i => <div key={i} className="h-12 bg-card rounded-control animate-pulse" />)}
-          </div>
-        ) : requests.length === 0 ? (
-          <p className="text-mute text-sm text-center py-6">Nenhuma solicitação pendente</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {requests.map((r, idx) => (
-              <RequestRow
-                key={r.id}
-                request={r}
-                buildingId={id}
-                className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
-              />
-            ))}
-          </div>
-        )}
-        <p className="text-faint text-xs mt-4 leading-relaxed">
-          Quem é aprovado entra como visualizador. O papel dele muda em
-          Colaboradores — inclusive para moderador, que recebe e fecha os
-          chamados, ou responsável, que os atende.
-        </p>
-      </Modal>
-
-      {/* Confirmação de desvinculo */}
-      <Modal open={!!confirmRemove} onClose={() => setConfirmRemove(null)} title="Remover colaborador">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <AlertTriangle size={18} color="#f87171" style={{ flexShrink: 0, marginTop: 2 }} />
-            <p style={{ color: 'rgba(255,255,255,0.96)', fontSize: 14, lineHeight: 1.6 }}>
-              Tem certeza que deseja remover o vínculo de <span style={{ color: '#fff', fontWeight: 600 }}>{confirmRemove?.user?.name}</span> com este prédio? O usuário perderá o acesso imediatamente.
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <Button variant="secondary" style={{ flex: 1 }} onClick={() => setConfirmRemove(null)}>Cancelar</Button>
-            <Button variant="danger" style={{ flex: 1 }} loading={removeMember.isPending}
-              onClick={async () => {
-                try {
-                  await removeMember.mutateAsync({ buildingId: id, userId: confirmRemove.user_id });
-                  toast(`${confirmRemove.user?.name} removido`, 'info');
-                  setConfirmRemove(null);
-                } catch (e) {
-                  toast(e?.response?.data?.error?.message || 'Erro ao remover', 'error', e);
-                }
-              }}>
-              Remover
-            </Button>
-          </div>
-        </div>
-      </Modal>
 
       {/* Confirmação de descarte da vistoria */}
       <Modal open={!!confirmDiscard} onClose={() => setConfirmDiscard(null)} title="Descartar vistoria">
@@ -647,6 +310,6 @@ export default function GestorBuildingPage() {
           </button>
         </div>
       </Modal>
-    </RouteGuard>
+    </GestorShell>
   );
 }
