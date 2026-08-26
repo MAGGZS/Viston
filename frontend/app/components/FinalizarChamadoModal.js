@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CheckCheck } from 'lucide-react';
 import { Button, Modal } from '@/app/components/ui';
 import { useCloseTicket } from '@/app/hooks/useApi';
@@ -27,6 +27,21 @@ export function FinalizarChamadoModal({ ticket, open, onClose, onFinalizado }) {
   const [temGasto, setTemGasto] = useState(false);
   const [cost, setCost] = useState('');
   const [erro, setErro] = useState(null);
+
+  /**
+   * O cursor vai para o valor assim que o campo aparece.
+   *
+   * Foco por efeito, e não por `autoFocus`: o atributo rouba o cursor sempre
+   * que o elemento monta, sem perguntar de onde a pessoa veio — é por isso que
+   * a regra de acessibilidade o proíbe. Aqui o campo só existe porque alguém
+   * acabou de marcar "houve gasto", e mandar o cursor para a resposta do que
+   * ela mesma acabou de pedir é o oposto de roubá-lo.
+   */
+  const costRef = useRef(null);
+
+  useEffect(() => {
+    if (temGasto) costRef.current?.focus();
+  }, [temGasto]);
 
   function reset() {
     setNote('');
@@ -102,10 +117,10 @@ export function FinalizarChamadoModal({ ticket, open, onClose, onFinalizado }) {
           <label className="anim-scale-in" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span style={{ color: T.mute, fontSize: 12 }}>Valor (R$)</span>
             <input
+              ref={costRef}
               type="number"
               min="0"
               step="0.01"
-              autoFocus
               value={cost}
               onChange={(e) => { setCost(e.target.value); setErro(null); }}
               placeholder="0,00"

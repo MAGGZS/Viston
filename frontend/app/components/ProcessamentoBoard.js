@@ -164,11 +164,16 @@ function AguardandoRow({ ticket, onAbrir, onFinalizar }) {
         </p>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+      {/* Cada botão segura o próprio clique. A barreira ficava aqui, numa `div`
+          com `onClick` só para isso — e uma `div` que escuta clique sem ser
+          alcançável pelo teclado é exatamente o que a regra de acessibilidade
+          barra. Nos botões, que já são botões, o efeito é o mesmo e não há
+          elemento novo no caminho de quem navega pelo Tab. */}
+      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
         <Button variant="secondary" onClick={handleReenviar} loading={forward.isPending}>
           <Send size={14} /> Reenviar
         </Button>
-        <Button onClick={() => onFinalizar(ticket)}>
+        <Button onClick={(e) => { e.stopPropagation(); onFinalizar(ticket); }}>
           <CheckCheck size={14} /> Finalizar
         </Button>
       </div>
