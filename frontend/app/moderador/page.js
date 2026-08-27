@@ -14,7 +14,12 @@ import { Paginator } from '@/app/components/Paginator';
 import { useCalendar, useBuildingHistory, useTicketStats } from '@/app/hooks/useApi';
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { parseReportDate } from '@/app/lib/date';
+import { placeholderCellHeight } from '@/app/lib/pagination';
 import { T, R, W, NUM } from '@/app/lib/theme';
+
+// A célula de espera tem a altura da de verdade — o `Badge` da coluna de status
+// entre os 11px de recuo —, para o cartão não encolher a cada seta.
+const PLACEHOLDER_CELL = { padding: '11px 22px', height: placeholderCellHeight({ padY: 11 }) };
 
 const STATUS_LABEL = { IN_PROGRESS: 'Em andamento', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { IN_PROGRESS: 'accent', COMPLETED: 'success' };
@@ -66,7 +71,10 @@ export default function ModeradorPage() {
   );
   // Oito por página: quem anda pelo resto é o rodapé de setas do cartão.
   const vistorias = useBuildingHistory(buildingId);
-  const rows = vistorias.rows;
+  // Enquanto a próxima página não chega, a que está saindo deixa a tela: o que
+  // se vê é esqueleto, e não uma lista velha passando por nova (ver
+  // `usePagedList`).
+  const rows = vistorias.isPaging ? [] : vistorias.rows;
   const histLoading = vistorias.isLoading;
   const monthLabel = format(new Date(year, month - 1), 'MMMM yyyy', { locale: ptBR });
 
@@ -90,10 +98,10 @@ export default function ModeradorPage() {
         </thead>
         {/* `key` na página: as linhas entram de novo a cada seta. */}
         <tbody key={vistorias.page}>
-          {histLoading && [1, 2, 3].map((i) => (
+          {vistorias.placeholders.map((i) => (
             <tr key={i} style={{ borderBottom: `1px solid ${T.line}` }}>
               {[1, 2, 3, 4].map((j) => (
-                <td key={j} style={{ padding: '10px 22px' }}><Skeleton style={{ height: 14 }} /></td>
+                <td key={j} style={PLACEHOLDER_CELL}><Skeleton style={{ height: 14 }} /></td>
               ))}
             </tr>
           ))}
@@ -132,7 +140,7 @@ export default function ModeradorPage() {
             </tr>
           ))}
 
-          {!histLoading && rows.length === 0 && (
+          {!histLoading && !vistorias.isPaging && rows.length === 0 && (
             <tr>
               <td colSpan={4} style={{ padding: '40px 22px', textAlign: 'center', color: T.mute, fontSize: 14 }}>
                 Nenhuma vistoria neste prédio ainda
@@ -146,7 +154,7 @@ export default function ModeradorPage() {
         page={vistorias.page}
         pages={vistorias.pages}
         total={vistorias.total}
-        count={rows.length}
+        count={vistorias.rows.length}
         pageSize={vistorias.pageSize}
         onPrev={vistorias.prev}
         onNext={vistorias.next}

@@ -18,8 +18,13 @@ import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
 import { Paginator } from '@/app/components/Paginator';
 import { parseReportDate } from '@/app/lib/date';
+import { placeholderCellHeight } from '@/app/lib/pagination';
 import { useAuthStore } from '@/app/store/auth';
 import { CONTENT_ID } from '@/app/components/mobile/kit';
+
+// A célula de espera tem a altura da de verdade — o `Badge` da coluna de status
+// entre os 12px do `py-3` —, para o cartão não encolher a cada seta.
+const PLACEHOLDER_CELL_H = placeholderCellHeight({ padY: 12 });
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success', COMPLETED: 'success' };
@@ -62,7 +67,10 @@ export default function VisualizacaoPage() {
   );
   // Oito por página: quem anda pelo resto é o rodapé de setas do cartão.
   const vistorias = useBuildingHistory(hasBuilding ? buildingId : null);
-  const rows = vistorias.rows;
+  // Enquanto a próxima página não chega, a que está saindo deixa a tela: o que
+  // se vê é esqueleto, e não uma lista velha passando por nova (ver
+  // `usePagedList`).
+  const rows = vistorias.isPaging ? [] : vistorias.rows;
   const inspLoading = vistorias.isLoading;
 
   function prev() {
@@ -151,9 +159,13 @@ export default function VisualizacaoPage() {
                   </thead>
                   {/* `key` na página: as linhas entram de novo a cada seta. */}
                   <tbody key={vistorias.page}>
-                    {inspLoading && [1, 2, 3].map((i) => (
+                    {vistorias.placeholders.map((i) => (
                       <tr key={i} className="border-b border-line">
-                        {[1, 2, 3, 4].map((j) => <td key={j} className="px-6 py-3"><Skeleton className="h-4 w-full" /></td>)}
+                        {[1, 2, 3, 4].map((j) => (
+                          <td key={j} className="px-6 py-3" style={{ height: PLACEHOLDER_CELL_H }}>
+                            <Skeleton className="h-4 w-full" />
+                          </td>
+                        ))}
                       </tr>
                     ))}
                     {rows.map((r, idx) => (
@@ -183,7 +195,7 @@ export default function VisualizacaoPage() {
                         </td>
                       </tr>
                     ))}
-                    {!inspLoading && rows.length === 0 && (
+                    {!inspLoading && !vistorias.isPaging && rows.length === 0 && (
                       <tr><td colSpan={4} className="px-6 py-10 text-center text-mute text-sm">Nenhuma inspeção encontrada</td></tr>
                     )}
                   </tbody>
@@ -192,7 +204,7 @@ export default function VisualizacaoPage() {
                   page={vistorias.page}
                   pages={vistorias.pages}
                   total={vistorias.total}
-                  count={rows.length}
+                  count={vistorias.rows.length}
                   pageSize={vistorias.pageSize}
                   onPrev={vistorias.prev}
                   onNext={vistorias.next}

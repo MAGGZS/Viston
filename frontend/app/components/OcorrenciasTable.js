@@ -4,6 +4,7 @@ import { Badge, Skeleton } from '@/app/components/ui';
 import { OcorrenciaModal, shortDay } from '@/app/components/OcorrenciaModal';
 import { Paginator } from '@/app/components/Paginator';
 import { useBuildingOccurrences } from '@/app/hooks/useApi';
+import { placeholderCellHeight } from '@/app/lib/pagination';
 import {
   MAINTENANCE_TYPES,
   OCCURRENCE_STATUS_LABEL,
@@ -14,6 +15,11 @@ import {
 import { T, W } from '@/app/lib/theme';
 
 const CELL = { padding: '11px 22px', fontSize: 14 };
+
+// A célula de espera tem a altura da de verdade — o `Badge` da coluna de status
+// entre os 11px de recuo. Conferido no navegador: a tabela mede os mesmos 431px
+// antes, durante e depois da troca de página.
+const PLACEHOLDER_CELL = { ...CELL, height: placeholderCellHeight({ padY: 11 }) };
 
 /**
  * As colunas de cada leitura.
@@ -56,6 +62,9 @@ const COLUMN_SETS = {
  */
 export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTORICO', empty }) {
   const { rows, isLoading: loading, ...pager } = useBuildingOccurrences(buildingId, group);
+  // A lista da página que está saindo não fica na tela esperando a próxima: até
+  // a resposta chegar, o que se vê é esqueleto (ver `usePagedList`).
+  const shown = pager.isPaging ? [] : rows;
   const [picked, setPicked] = useState(null);
 
   const cols = COLUMN_SETS[columns];
@@ -79,15 +88,17 @@ export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTO
         {/* `key` na página: as linhas entram de novo a cada seta — sem isso o
             texto troca no lugar e nada diz que a página andou. */}
         <tbody key={pager.page}>
-          {loading && [1, 2, 3].map((i) => (
+          {pager.placeholders.map((i) => (
             <tr key={i} style={{ borderBottom: `1px solid ${T.line}` }}>
               {cols.map((c) => (
-                <td key={c.label} style={{ padding: '10px 22px' }}><Skeleton style={{ height: 14 }} /></td>
+                <td key={c.label} style={PLACEHOLDER_CELL}>
+                  <Skeleton style={{ height: 14 }} />
+                </td>
               ))}
             </tr>
           ))}
 
-          {rows.map((o, idx) => (
+          {shown.map((o, idx) => (
             <tr
               key={o.id}
               onClick={() => setPicked(o)}
@@ -104,7 +115,7 @@ export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTO
             </tr>
           ))}
 
-          {!loading && rows.length === 0 && (
+          {!loading && !pager.isPaging && rows.length === 0 && (
             <tr>
               <td colSpan={cols.length} style={{ padding: '40px 22px', textAlign: 'center', color: T.mute, fontSize: 14 }}>
                 {emptyMessage}

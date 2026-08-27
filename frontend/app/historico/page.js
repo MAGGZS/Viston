@@ -290,8 +290,11 @@ export default function HistoricoPage() {
 
   const listaPanel = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {vistorias.isLoading && [1, 2, 3].map(i => <div key={i} style={{ height: 120, background: '#232323', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />)}
-      {!vistorias.isLoading && vistorias.rows.length === 0 && (
+      {/* A página que está saindo deixa a tela enquanto a próxima não chega: o
+          que se vê é a mesma pulsação da primeira carga, com um cartão para
+          cada linha que estava ali (ver `usePagedList`). */}
+      {vistorias.placeholders.map(i => <div key={i} style={{ height: 120, background: '#232323', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />)}
+      {!vistorias.isLoading && !vistorias.isPaging && vistorias.rows.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
           <p className="anim-pop-in" style={{ fontSize: 36, marginBottom: 12 }}>📋</p>
           <p className="anim-fade-up anim-d1" style={{ color: 'rgba(255,255,255,0.52)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
@@ -299,7 +302,7 @@ export default function HistoricoPage() {
       )}
       {/* `key` na página: os cartões entram de novo a cada seta. */}
       <div key={vistorias.page} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {vistorias.rows.map((i, idx) => (
+        {!vistorias.isPaging && vistorias.rows.map((i, idx) => (
           <InspectionCard
             key={i.id}
             inspection={i}

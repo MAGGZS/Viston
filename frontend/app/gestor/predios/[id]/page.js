@@ -18,7 +18,12 @@ import { useBuildingDashboard, useBuildingHistory, useDeleteInspection } from '@
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { formatShareKey } from '@/app/lib/shareKey';
 import { parseReportDate } from '@/app/lib/date';
+import { placeholderCellHeight } from '@/app/lib/pagination';
 import { useToastStore } from '@/app/store/toast';
+
+// A célula de espera tem a altura da de verdade. Aqui o mais alto não é o
+// `Badge`, e sim o `Avatar` de 28px da coluna de inspetor; o recuo é o `py-3`.
+const PLACEHOLDER_CELL_H = placeholderCellHeight({ content: 28, padY: 12 });
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success', COMPLETED: 'success' };
@@ -93,7 +98,10 @@ export default function GestorBuildingPage() {
   const vistorias = useBuildingHistory(id);
   const deleteInspection = useDeleteInspection();
   const { show: toast } = useToastStore();
-  const rows = vistorias.rows;
+  // Enquanto a próxima página não chega, a que está saindo deixa a tela: o que
+  // se vê é esqueleto, e não uma lista velha passando por nova (ver
+  // `usePagedList`).
+  const rows = vistorias.isPaging ? [] : vistorias.rows;
   const histLoading = vistorias.isLoading;
 
   const heatmap = data?.heatmap ?? {};
@@ -120,9 +128,13 @@ export default function GestorBuildingPage() {
         </thead>
         {/* `key` na página: as linhas entram de novo a cada seta. */}
         <tbody key={vistorias.page}>
-          {histLoading && [1,2,3].map(i => (
+          {vistorias.placeholders.map(i => (
             <tr key={i} className="border-b border-line">
-              {[1,2,3,4,5].map(j => <td key={j} className="px-6 py-3"><Skeleton className="h-4 w-full" /></td>)}
+              {[1,2,3,4,5].map(j => (
+                <td key={j} className="px-6 py-3" style={{ height: PLACEHOLDER_CELL_H }}>
+                  <Skeleton className="h-4 w-full" />
+                </td>
+              ))}
             </tr>
           ))}
           {rows.map((r, idx) => (
@@ -168,7 +180,7 @@ export default function GestorBuildingPage() {
               </td>
             </tr>
           ))}
-          {!histLoading && rows.length === 0 && (
+          {!histLoading && !vistorias.isPaging && rows.length === 0 && (
             <tr><td colSpan={5} className="px-6 py-10 text-center text-mute text-sm">Nenhuma inspeção encontrada</td></tr>
           )}
         </tbody>
@@ -177,7 +189,7 @@ export default function GestorBuildingPage() {
         page={vistorias.page}
         pages={vistorias.pages}
         total={vistorias.total}
-        count={rows.length}
+        count={vistorias.rows.length}
         pageSize={vistorias.pageSize}
         onPrev={vistorias.prev}
         onNext={vistorias.next}

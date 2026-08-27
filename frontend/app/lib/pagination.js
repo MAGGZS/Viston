@@ -22,3 +22,28 @@ export function pageRangeLabel({ page, pageSize, total, count }) {
 
   return `${first}–${Math.min(last, total)} de ${total}`;
 }
+
+/**
+ * Altura de um `Badge` — 12px de texto entre 4px de recuo de cada lado.
+ * É o mais alto que uma célula de tabela costuma carregar.
+ */
+export const BADGE_HEIGHT = 26;
+
+/**
+ * Altura da célula de espera, para o esqueleto ocupar o mesmo lugar da linha
+ * que ele substitui.
+ *
+ * `content` é o mais alto que a célula carrega — o `Badge` acima, ou o `Avatar`
+ * da coluna de inspetor —, `padY` é o recuo de cima (e o de baixo, igual), e o
+ * `+1` é o fio que divide as linhas. Os três entram na conta porque o
+ * `box-sizing: border-box` do Tailwind manda em tudo e o `border-collapse` põe
+ * a borda dentro da caixa da célula: aqui `height` é a caixa inteira, e não o
+ * miolo dela.
+ *
+ * Sem isto o esqueleto sai mais baixo que a lista que substitui — 12px por
+ * linha na tabela de ocorrências —, e o cartão encolhe e volta a cada seta, que
+ * é a sanfona que a paginação existe para evitar.
+ */
+export function placeholderCellHeight({ content = BADGE_HEIGHT, padY }) {
+  return content + padY * 2 + 1;
+}

@@ -44,16 +44,45 @@ function usePagedList({ queryKey, url, params, pick, enabled = true }) {
 
   const rows = query.data ? pick(query.data) : [];
 
+  /**
+   * A página pedida ainda não chegou.
+   *
+   * `isPlaceholderData` é verdadeiro exatamente enquanto o que `query.data`
+   * devolve é a página anterior, segurada pelo `keepPreviousData`. Ela ficava
+   * na tela durante a espera, e o clique na seta parecia não ter feito nada até
+   * o texto trocar no lugar — pior ainda entre duas páginas parecidas, onde não
+   * dá para saber se o que se está lendo é o novo ou o velho.
+   *
+   * Só a troca de página levanta esta bandeira. Uma recarga em segundo plano da
+   * mesma página mantém a chave da consulta, e o que está na tela continua
+   * sendo a resposta certa — piscar esqueleto ali seria ruído.
+   */
+  const isPaging = query.isPlaceholderData;
+  const isFirstLoad = enabled && query.isLoading;
+
+  /**
+   * As linhas de espera a desenhar enquanto a página não chega.
+   *
+   * Na troca de página são tantas quantas as da página que está saindo: é o que
+   * mantém o cartão na mesma altura, e o calendário ao lado parado. Na primeira
+   * carga não há de onde tirar esse número, e três bastam para dizer que vem
+   * coisa vindo.
+   */
+  const placeholders =
+    isFirstLoad || isPaging
+      ? Array.from({ length: isPaging ? Math.max(rows.length, 1) : 3 }, (_, i) => i)
+      : [];
+
   return {
     rows,
     total: query.data?.total ?? 0,
     pages: query.data?.pages ?? 0,
     page,
     pageSize: HISTORY_PAGE_SIZE,
-    // A primeira carga é esqueleto; a troca de página não — ali a lista
-    // anterior continua na tela (ver `placeholderData`).
-    isLoading: enabled && query.isLoading,
+    isLoading: isFirstLoad,
     isFetching: query.isFetching,
+    isPaging,
+    placeholders,
     prev: () => setPage((p) => Math.max(1, p - 1)),
     next: () => setPage((p) => (query.data?.pages ? Math.min(query.data.pages, p + 1) : p)),
   };

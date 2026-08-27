@@ -74,6 +74,58 @@ describe('useBuildingHistory', () => {
     expect(result.current.page).toBe(1);
   });
 
+  it('segura a página nova até ela chegar, e mostra espera no lugar', async () => {
+    // A janela que se cobre aqui é a da espera. Antes, a página anterior ficava
+    // na tela durante ela — o clique na seta não dizia nada, e o que estava
+    // sendo lido era a lista velha passando por nova.
+    const resposta = respostaCom(24);
+    api.get.mockImplementation(resposta);
+
+    const { result } = renderHook(() => useBuildingHistory('predio-1'), { wrapper });
+    await waitFor(() => expect(result.current.rows).toHaveLength(8));
+    expect(result.current.isPaging).toBe(false);
+    expect(result.current.placeholders).toEqual([]);
+
+    // A próxima página fica pendurada, para a espera poder ser observada.
+    let entregar;
+    api.get.mockImplementation(
+      (url, config) => new Promise((resolve) => { entregar = () => resolve(resposta(url, config)); })
+    );
+
+    act(() => result.current.next());
+    await waitFor(() => expect(result.current.isPaging).toBe(true));
+
+    // Uma linha de espera para cada linha que estava ali: é o que mantém o
+    // cartão na mesma altura enquanto a resposta não chega.
+    expect(result.current.placeholders).toHaveLength(8);
+
+    await act(async () => { entregar(); });
+
+    await waitFor(() => expect(result.current.isPaging).toBe(false));
+    expect(result.current.placeholders).toEqual([]);
+    expect(result.current.rows[0].id).toBe('r8');
+  });
+
+  it('desenha três linhas de espera na primeira carga, quando não há de onde tirar o número', async () => {
+    let entregar;
+    const resposta = respostaCom(24);
+    api.get.mockImplementation(
+      (url, config) => new Promise((resolve) => { entregar = () => resolve(resposta(url, config)); })
+    );
+
+    const { result } = renderHook(() => useBuildingHistory('predio-1'), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(true));
+    expect(result.current.placeholders).toHaveLength(3);
+    // Primeira carga não é troca de página: não há página anterior segurando o
+    // lugar, e quem manda no esqueleto é o `isLoading`.
+    expect(result.current.isPaging).toBe(false);
+
+    await act(async () => { entregar(); });
+    await waitFor(() => expect(result.current.rows).toHaveLength(8));
+    expect(result.current.placeholders).toEqual([]);
+  });
+
   it('não passa da última página nem volta antes da primeira', async () => {
     // O rodapé já desabilita as setas nas pontas; isto é a rede embaixo — um
     // clique a mais não pode pedir a página 4 de três.
