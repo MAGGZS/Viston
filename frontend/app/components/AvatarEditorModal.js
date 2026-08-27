@@ -249,7 +249,7 @@ function AvatarEditor({ onClose }) {
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.background = T.accentSoft; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.line; e.currentTarget.style.background = 'transparent'; }}
             >
-              <ImagePlus size={26} color={T.accent} />
+              <ImagePlus size={26} color={T.accentInk} />
               <span style={{ fontFamily: T.display, fontWeight: W.title, fontSize: 14, color: T.text }}>
                 Escolher foto
               </span>

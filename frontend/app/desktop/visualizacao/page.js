@@ -21,6 +21,7 @@ import { parseReportDate } from '@/app/lib/date';
 import { placeholderCellHeight } from '@/app/lib/pagination';
 import { useAuthStore } from '@/app/store/auth';
 import { CONTENT_ID } from '@/app/components/mobile/kit';
+import { HEAT, T } from '@/app/lib/theme';
 
 // A célula de espera tem a altura da de verdade — o `Badge` da coluna de status
 // entre os 12px do `py-3` —, para o cartão não encolher a cada seta.
@@ -33,7 +34,7 @@ function NoPredioState() {
   return (
     <div className="flex flex-col items-center justify-center flex-1 py-24 text-center">
       <Building2 size={48} className="anim-pop-in text-chip mb-4" />
-      <p className="anim-fade-up anim-d1 text-white font-semibold text-lg">Você não tem ligação a nenhum prédio</p>
+      <p className="anim-fade-up anim-d1 text-ink font-semibold text-lg">Você não tem ligação a nenhum prédio</p>
       <p className="anim-fade-up anim-d2 text-mute text-sm mt-2 mb-6">Peça a chave ao gestor do prédio e digite abaixo para se conectar.</p>
       <div className="anim-fade-up anim-d3" style={{ width: '100%', maxWidth: 380 }}>
         <JoinBuildingForm />
@@ -88,7 +89,7 @@ export default function VisualizacaoPage() {
     <RouteGuard roles={['INSPECTOR', 'VIEWER', 'NONE']}>
       <div className="hidden lg:flex flex-col min-h-screen bg-page">
         {/* Header */}
-        <header className="anim-fade-down" style={{ height: 60, background: '#0B0B0B', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', flexShrink: 0 }}>
+        <header className="anim-fade-down" style={{ height: 60, background: T.bg, borderBottom: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', flexShrink: 0 }}>
           <Logo size={18} variant="horizontal" />
           <Link href="/perfil" aria-label="Abrir perfil" className="transition-transform duration-150 hover:scale-105" style={{ display: 'flex', alignItems: 'center' }}>
             <Avatar user={user} size={32} />
@@ -98,8 +99,8 @@ export default function VisualizacaoPage() {
         {/* Main */}
         <main id={CONTENT_ID} className="flex-1 p-8 overflow-auto flex flex-col">
           <div className="anim-fade-up mb-8">
-            <h1 className="text-2xl font-semibold text-white">
-              Olá, <span style={{ color: '#F5C518' }}>{user?.name ?? ''}</span>
+            <h1 className="text-2xl font-semibold text-ink">
+              Olá, <span style={{ color: T.accentInk }}>{user?.name ?? ''}</span>
             </h1>
             <p className="text-mute text-sm mt-1">Fique por dentro de como anda a estrutura do prédio</p>
           </div>
@@ -119,10 +120,10 @@ export default function VisualizacaoPage() {
               {/* Calendário heatmap */}
               <div className="anim-fade-up anim-d1 col-span-1 bg-card rounded-card p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <button onClick={prev} aria-label="Mês anterior" className="p-1 text-mute hover:text-white transition-transform duration-150 hover:-translate-x-0.5"><ChevronLeft size={18} /></button>
+                  <button onClick={prev} aria-label="Mês anterior" className="p-1 text-mute hover:text-ink transition-transform duration-150 hover:-translate-x-0.5"><ChevronLeft size={18} /></button>
                   {/* `key` no mês: a troca reanima o rótulo, então o clique tem resposta visível */}
-                  <span key={monthLabel} className="anim-fade-in text-white text-sm font-semibold capitalize">{monthLabel}</span>
-                  <button onClick={next} aria-label="Próximo mês" className="p-1 text-mute hover:text-white transition-transform duration-150 hover:translate-x-0.5"><ChevronRight size={18} /></button>
+                  <span key={monthLabel} className="anim-fade-in text-ink text-sm font-semibold capitalize">{monthLabel}</span>
+                  <button onClick={next} aria-label="Próximo mês" className="p-1 text-mute hover:text-ink transition-transform duration-150 hover:translate-x-0.5"><ChevronRight size={18} /></button>
                 </div>
                 {calLoading ? <Skeleton className="h-48 w-full" /> : (
                   <CalendarHeatmap heatmap={calData?.heatmap ?? {}} month={month} year={year}
@@ -130,8 +131,8 @@ export default function VisualizacaoPage() {
                 )}
                 <div className="flex items-center gap-1 mt-3 justify-end">
                   <span className="text-mute text-xs">Menos</span>
-                  {['bg-chip', 'bg-[#2E2A12]', 'bg-[#6B5A00]', 'bg-[#A88A00]', 'bg-accent'].map((c, i) => (
-                    <div key={i} className={`w-3 h-3 rounded-sm ${c}`} />
+                  {HEAT.map((c, i) => (
+                    <div key={i} className="w-3 h-3 rounded-sm" style={{ background: c }} />
                   ))}
                   <span className="text-mute text-xs">Mais</span>
                 </div>
@@ -140,7 +141,7 @@ export default function VisualizacaoPage() {
               {/* Tabela de inspeções */}
               <div className="anim-fade-up anim-d2 col-span-2 bg-card rounded-card overflow-hidden">
                 <div className="px-6 py-4 border-b border-line flex items-center justify-between gap-4">
-                  <h2 className="text-white font-semibold">
+                  <h2 className="text-ink font-semibold">
                     Inspeções Recentes{myBuildings.length > 1 ? '' : ` — ${activeBuilding?.name ?? ''}`}
                   </h2>
                   <BuildingSwitcher
@@ -170,7 +171,7 @@ export default function VisualizacaoPage() {
                     ))}
                     {rows.map((r, idx) => (
                       <tr key={r.id} className={`anim-fade-in anim-d${Math.min(idx + 1, 6)} border-b border-line hover:bg-chip transition-colors`}>
-                        <td className="px-6 py-3 text-white text-sm">{r.inspector?.name ?? '—'}</td>
+                        <td className="px-6 py-3 text-ink text-sm">{r.inspector?.name ?? '—'}</td>
                         <td className="px-6 py-3">
                           <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
                         </td>
@@ -183,12 +184,12 @@ export default function VisualizacaoPage() {
                           <div className="flex items-center gap-4">
                             {r.has_excel ? (
                               <button type="button" onClick={() => download(r.id)} disabled={pendingId === r.id}
-                                className="flex items-center gap-1 text-accent text-sm hover:underline disabled:opacity-50">
+                                className="flex items-center gap-1 text-accent-ink text-sm hover:underline disabled:opacity-50">
                                 <Download size={13} /> Baixar
                               </button>
                             ) : <span className="text-mute text-sm">—</span>}
                             <button onClick={() => setPreviewId(r.id)}
-                              className="flex items-center gap-1 text-mute text-sm hover:text-white transition-all duration-150 active:scale-95">
+                              className="flex items-center gap-1 text-mute text-sm hover:text-ink transition-all duration-150 active:scale-95">
                               <Eye size={13} /> Prévia
                             </button>
                           </div>
@@ -222,7 +223,7 @@ export default function VisualizacaoPage() {
       <div className="lg:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
         <div>
           <p className="text-4xl mb-4">📱</p>
-          <p className="text-white font-semibold text-lg">Use o app mobile</p>
+          <p className="text-ink font-semibold text-lg">Use o app mobile</p>
           <p className="text-mute text-sm mt-2">Esta visualização é otimizada para desktop</p>
         </div>
       </div>

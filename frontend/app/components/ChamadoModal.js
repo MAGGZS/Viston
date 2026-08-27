@@ -212,7 +212,7 @@ export function ChamadoModal({ ticket, buildingId, open, onClose, onFinalizar })
 
         {encaminhado && (
           <div className="anim-scale-in" style={{ background: T.accentSoft, borderRadius: R.control, padding: '12px 14px', display: 'flex', gap: 10 }}>
-            <Hourglass size={16} color={T.accent} style={{ flexShrink: 0, marginTop: 1 }} />
+            <Hourglass size={16} color={T.accentInk} style={{ flexShrink: 0, marginTop: 1 }} />
             <p style={{ color: T.text, fontSize: 12, lineHeight: 1.6 }}>
               Aguardando {ticket.responsible ?? 'o responsável'} confirmar o recebimento,
               desde {stampLabel(ticket.forwarded_at)}.
@@ -224,7 +224,7 @@ export function ChamadoModal({ ticket, buildingId, open, onClose, onFinalizar })
             sem ele, fechar seria confiar numa data. */}
         {aguardandoFechamento && (
           <div className="anim-scale-in" style={{ background: T.accentSoft, borderRadius: R.control, padding: '12px 14px', display: 'flex', gap: 10 }}>
-            <CheckCheck size={16} color={T.accent} style={{ flexShrink: 0, marginTop: 1 }} />
+            <CheckCheck size={16} color={T.accentInk} style={{ flexShrink: 0, marginTop: 1 }} />
             <div>
               <p style={{ color: T.text, fontSize: 12, lineHeight: 1.6 }}>
                 {ticket.responsible ?? 'O responsável'} concluiu em {stampLabel(ticket.done_at)}.

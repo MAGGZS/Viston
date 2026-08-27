@@ -11,6 +11,7 @@ import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
 import { Paginator } from '@/app/components/Paginator';
+import { HEAT, heatColor } from '@/app/lib/theme';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { M, MPage, MTopBar, MRound, MCard, CONTENT_ID } from '@/app/components/mobile/kit';
@@ -24,17 +25,17 @@ import { parseReportDate } from '@/app/lib/date';
 import { useAuthStore } from '@/app/store/auth';
 
 const S = {
-  page: { minHeight: '100vh', background: '#0B0B0B' },
-  label: { fontSize: 12, fontWeight: 400, color: 'rgba(255,255,255,0.68)' },
-  input: { background: '#232323', border: 'none', borderRadius: 16, padding: '11px 14px', color: 'rgba(255,255,255,0.96)', fontSize: 16, outline: 'none', width: '100%' },
+  page: { minHeight: '100vh', background: M.bg },
+  label: { fontSize: 12, fontWeight: 400, color: M.mute },
+  input: { background: M.chip, border: 'none', borderRadius: 16, padding: '11px 14px', color: M.text, fontSize: 16, outline: 'none', width: '100%' },
 };
 
 function NoPredioState({ isMobile }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '80px 0' : '120px 0', textAlign: 'center' }}>
       <p style={{ fontSize: 40, marginBottom: 16 }}>🏢</p>
-      <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>Você não tem ligação a nenhum prédio</p>
-      <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>Peça a chave ao gestor do prédio e digite abaixo para se conectar.</p>
+      <p style={{ color: M.text, fontWeight: 600, fontSize: 16, marginBottom: 8 }}>Você não tem ligação a nenhum prédio</p>
+      <p style={{ color: M.faint, fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>Peça a chave ao gestor do prédio e digite abaixo para se conectar.</p>
       <div style={{ width: '100%', maxWidth: 380 }}>
         <JoinBuildingForm />
       </div>
@@ -44,14 +45,6 @@ function NoPredioState({ isMobile }) {
 
 const DAYS_LABEL = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
-function heatColor(count) {
-  if (!count) return '#232323';
-  if (count === 1) return '#2E2A12';
-  if (count === 2) return '#6B5A00';
-  if (count === 3) return '#A88A00';
-  return '#F5C518';
-}
-
 function MonthGrid({ heatmap, year, month, onDayClick, compact = false }) {
   const days = eachDayOfInterval({ start: startOfMonth(new Date(year, month - 1)), end: endOfMonth(new Date(year, month - 1)) });
   const blanks = Array(days[0].getDay()).fill(null);
@@ -60,12 +53,12 @@ function MonthGrid({ heatmap, year, month, onDayClick, compact = false }) {
   return (
     <div>
       {!compact && (
-        <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 12, fontWeight: 600, marginBottom: 8, textTransform: 'capitalize' }}>
+        <p style={{ color: M.mute, fontSize: 12, fontWeight: 600, marginBottom: 8, textTransform: 'capitalize' }}>
           {format(new Date(year, month - 1), 'MMMM', { locale: ptBR })}
         </p>
       )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap, marginBottom: gap }}>
-        {DAYS_LABEL.map((d, i) => <span key={i} style={{ textAlign: 'center', fontSize: 9, color: 'rgba(255,255,255,0.52)' }}>{d}</span>)}
+        {DAYS_LABEL.map((d, i) => <span key={i} style={{ textAlign: 'center', fontSize: 9, color: M.faint }}>{d}</span>)}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap }}>
         {blanks.map((_, i) => <div key={`b${i}`} />)}
@@ -111,14 +104,14 @@ function InspectionCard({ inspection, onPreview, onOpenReport, className = '' })
           onClick={() => onOpenReport(inspection.id)}
           style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', font: 'inherit', flex: 1, minWidth: 0 }}
         >
-          <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14 }}>
+          <p style={{ color: M.text, fontWeight: 600, fontSize: 14 }}>
             {format(parseReportDate(inspection.date), "d 'de' MMMM yyyy", { locale: ptBR })}
           </p>
-          <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 12, marginTop: 2 }}>
+          <p style={{ color: M.mute, fontSize: 12, marginTop: 2 }}>
             {inspection.inspector?.name} · {totalRecords} ocorrência{totalRecords !== 1 ? 's' : ''}
           </p>
         </button>
-        <ChevronRight size={18} color="rgba(255,255,255,0.52)" style={{ flexShrink: 0 }} />
+        <ChevronRight size={18} color={M.faint} style={{ flexShrink: 0 }} />
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {inspection.floor_form_entries?.map(e => (
@@ -190,7 +183,7 @@ function MobileInspectionCard({ inspection, onOpenReport, className = '' }) {
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: 36, height: 36, borderRadius: 12, border: 'none', cursor: 'pointer',
-                background: M.chip, color: M.accent, flexShrink: 0,
+                background: M.chip, color: M.accentInk, flexShrink: 0,
               }}
             >
               <Download size={16} />
@@ -293,11 +286,11 @@ export default function HistoricoPage() {
       {/* A página que está saindo deixa a tela enquanto a próxima não chega: o
           que se vê é a mesma pulsação da primeira carga, com um cartão para
           cada linha que estava ali (ver `usePagedList`). */}
-      {vistorias.placeholders.map(i => <div key={i} style={{ height: 120, background: '#232323', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />)}
+      {vistorias.placeholders.map(i => <div key={i} style={{ height: 120, background: M.chip, borderRadius: 20, animation: 'pulse 1.5s infinite' }} />)}
       {!vistorias.isLoading && !vistorias.isPaging && vistorias.rows.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
           <p className="anim-pop-in" style={{ fontSize: 36, marginBottom: 12 }}>📋</p>
-          <p className="anim-fade-up anim-d1" style={{ color: 'rgba(255,255,255,0.52)', fontSize: 14 }}>Nenhuma inspeção encontrada</p>
+          <p className="anim-fade-up anim-d1" style={{ color: M.faint, fontSize: 14 }}>Nenhuma inspeção encontrada</p>
         </div>
       )}
       {/* `key` na página: os cartões entram de novo a cada seta. */}
@@ -331,33 +324,33 @@ export default function HistoricoPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={prevCal} style={{ background: '#232323', borderRadius: 10, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.68)', display: 'flex' }}><ChevronLeft size={16} /></button>
-          <span key={navLabel} className="anim-fade-in" style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14, textTransform: 'capitalize', minWidth: 160, textAlign: 'center' }}>{navLabel}</span>
-          <button onClick={nextCal} style={{ background: '#232323', borderRadius: 10, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.68)', display: 'flex' }}><ChevronRight size={16} /></button>
+          <button onClick={prevCal} style={{ background: M.chip, borderRadius: 10, padding: 6, cursor: 'pointer', color: M.mute, display: 'flex' }}><ChevronLeft size={16} /></button>
+          <span key={navLabel} className="anim-fade-in" style={{ color: M.text, fontWeight: 600, fontSize: 14, textTransform: 'capitalize', minWidth: 160, textAlign: 'center' }}>{navLabel}</span>
+          <button onClick={nextCal} style={{ background: M.chip, borderRadius: 10, padding: 6, cursor: 'pointer', color: M.mute, display: 'flex' }}><ChevronRight size={16} /></button>
         </div>
-        <div style={{ display: 'flex', background: '#232323', borderRadius: 12, padding: 3, gap: 2 }}>
+        <div style={{ display: 'flex', background: M.chip, borderRadius: 12, padding: 3, gap: 2 }}>
           {MODES.map(m => (
-            <button key={m} onClick={() => setCalMode(m)} style={{ padding: '5px 12px', borderRadius: 9, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: calMode === m ? '#F5C518' : 'transparent', color: calMode === m ? '#000' : 'rgba(255,255,255,0.68)', transition: 'all 0.2s' }}>{m}</button>
+            <button key={m} onClick={() => setCalMode(m)} style={{ padding: '5px 12px', borderRadius: 9, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: calMode === m ? M.accent : 'transparent', color: calMode === m ? M.onAccent : M.mute, transition: 'all 0.2s' }}>{m}</button>
           ))}
         </div>
       </div>
       {calLoading ? (
-        <div style={{ height: 200, background: '#232323', borderRadius: 20, animation: 'pulse 1.5s infinite' }} />
+        <div style={{ height: 200, background: M.chip, borderRadius: 20, animation: 'pulse 1.5s infinite' }} />
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: calMode === 'Mensal' ? '1fr' : calMode === 'Semestral' ? 'repeat(auto-fill, minmax(200px, 1fr))' : 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16 }}>
           {calMonths.map(m => (
-            <div key={m} style={{ background: '#232323', borderRadius: 26, padding: 16 }}>
+            <div key={m} style={{ background: M.chip, borderRadius: 26, padding: 16 }}>
               <MonthGrid heatmap={heatmap} year={year} month={m} onDayClick={(day, info) => setSelected({ day, info })} compact={calMode !== 'Mensal'} />
             </div>
           ))}
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ color: 'rgba(255,255,255,0.52)', fontSize: 12 }}>Menos</span>
-        {['#232323', '#2E2A12', '#6B5A00', '#A88A00', '#F5C518'].map((c, i) => (
+        <span style={{ color: M.faint, fontSize: 12 }}>Menos</span>
+        {HEAT.map((c, i) => (
           <div key={i} style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
         ))}
-        <span style={{ color: 'rgba(255,255,255,0.52)', fontSize: 12 }}>Mais</span>
+        <span style={{ color: M.faint, fontSize: 12 }}>Mais</span>
       </div>
     </div>
   );
@@ -365,14 +358,14 @@ export default function HistoricoPage() {
   const desktopContent = (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div className="anim-fade-down" style={{ padding: '32px 32px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h1 style={{ color: 'rgba(255,255,255,0.96)', fontSize: 22, fontWeight: 600 }}>Histórico</h1>
+        <h1 style={{ color: M.text, fontSize: 22, fontWeight: 600 }}>Histórico</h1>
         {!isAdmin && hasBuilding && (
-          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: '#232323', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.68)', cursor: 'pointer' }}>
+          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: M.chip, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: M.mute, cursor: 'pointer' }}>
             <SlidersHorizontal size={15} />
           </button>
         )}
         {isAdmin && (
-          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: '#232323', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.68)', cursor: 'pointer' }}>
+          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: M.chip, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: M.mute, cursor: 'pointer' }}>
             <SlidersHorizontal size={15} />
           </button>
         )}

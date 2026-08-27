@@ -70,7 +70,7 @@ function MemberRow({ member, buildingId, onRemove, className = '' }) {
     <div className={`flex items-center gap-3 bg-chip rounded-control px-4 py-3 ${className}`}>
       <Avatar user={member.user} size={32} />
       <div className="flex-1 min-w-0">
-        <p className="text-white text-sm font-medium truncate">{member.user?.name}</p>
+        <p className="text-ink text-sm font-medium truncate">{member.user?.name}</p>
         <p className="text-mute text-xs truncate">{member.user?.email}</p>
       </div>
       {/* `raised` sobe o fundo um nível, porque a linha inteira já é chip */}
@@ -87,9 +87,9 @@ function MemberRow({ member, buildingId, onRemove, className = '' }) {
       />
       <button
         onClick={onRemove}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.52)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0 }}
-        onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.52)'}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.faint, display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0 }}
+        onMouseEnter={e => e.currentTarget.style.color = T.danger}
+        onMouseLeave={e => e.currentTarget.style.color = T.faint}
         title="Remover vínculo">
         <UserMinus size={15} />
       </button>
@@ -122,19 +122,19 @@ function ManagerRow({ link, buildingId, sole, className = '' }) {
       style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)' }}>
       <Avatar user={link.manager} size={32} />
       <div className="flex-1 min-w-0">
-        <p className="text-white text-sm font-semibold truncate">{link.manager?.name}</p>
+        <p className="text-ink text-sm font-semibold truncate">{link.manager?.name}</p>
         <p className="text-mute text-xs truncate">{link.manager?.email}</p>
       </div>
-      <span className="text-xs font-semibold px-3 py-1.5 rounded-pill text-accent flex-shrink-0"
+      <span className="text-xs font-semibold px-3 py-1.5 rounded-pill text-accent-ink flex-shrink-0"
         style={{ background: 'rgba(245,197,24,0.13)' }}>
         Gestor
       </span>
       <button
         onClick={handleRemove}
         disabled={sole || removeManager.isPending}
-        style={{ background: 'none', border: 'none', cursor: sole ? 'not-allowed' : 'pointer', color: 'rgba(255,255,255,0.52)', display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0, opacity: sole ? 0.4 : 1 }}
-        onMouseEnter={e => { if (!sole) e.currentTarget.style.color = '#f87171'; }}
-        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.52)'}
+        style={{ background: 'none', border: 'none', cursor: sole ? 'not-allowed' : 'pointer', color: T.faint, display: 'flex', padding: 4, borderRadius: 8, flexShrink: 0, opacity: sole ? 0.4 : 1 }}
+        onMouseEnter={e => { if (!sole) e.currentTarget.style.color = T.danger; }}
+        onMouseLeave={e => e.currentTarget.style.color = T.faint}
         title={sole ? 'Este é o único gestor do prédio. Adicione outro antes.' : 'Tirar da gestão'}>
         <UserMinus size={15} />
       </button>
@@ -174,7 +174,7 @@ function AddManagerForm({ buildingId }) {
         onChange={(e) => setEmail(e.target.value)}
         placeholder="E-mail da conta de gestor"
         aria-label="E-mail do gestor a adicionar"
-        className="flex-1 bg-chip rounded-control px-4 py-2.5 text-sm text-white outline-none"
+        className="flex-1 bg-chip rounded-control px-4 py-2.5 text-sm text-ink outline-none"
         style={{ border: '1px solid transparent' }}
       />
       <Button type="submit" loading={addManager.isPending} style={{ flexShrink: 0 }}>
@@ -205,7 +205,7 @@ function RequestRow({ request, buildingId, className = '' }) {
     <div className={`flex items-center gap-3 bg-chip rounded-control px-4 py-3 ${className}`}>
       <Avatar user={request.user} size={32} />
       <div className="flex-1 min-w-0">
-        <p className="text-white text-sm font-medium truncate">{request.user?.name}</p>
+        <p className="text-ink text-sm font-medium truncate">{request.user?.name}</p>
         <p className="text-mute text-xs truncate">{request.user?.email}</p>
       </div>
       <span className="text-faint text-xs whitespace-nowrap">
@@ -216,7 +216,7 @@ function RequestRow({ request, buildingId, className = '' }) {
         disabled={review.isPending}
         title="Aprovar"
         aria-label={`Aprovar ${request.user?.name}`}
-        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-pill bg-accent text-black transition-all duration-150 hover:scale-105 active:scale-95 disabled:opacity-50 flex-shrink-0"
+        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-pill bg-accent text-onaccent transition-all duration-150 hover:scale-105 active:scale-95 disabled:opacity-50 flex-shrink-0"
       >
         <Check size={13} /> Aprovar
       </button>
@@ -267,10 +267,10 @@ export default function GestorColaboradoresPage() {
       subtitle="Quem está neste prédio, e o que cada um pode fazer nele"
       actions={
         <button onClick={() => setRequestsModal(true)}
-          className="relative flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-white transition-colors flex-shrink-0">
+          className="relative flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-ink transition-colors flex-shrink-0">
           <Users size={15} /> Solicitações
           {requests.length > 0 && (
-            <span className="anim-pop-in flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-accent text-black text-xs font-semibold">
+            <span className="anim-pop-in flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-accent text-onaccent text-xs font-semibold">
               {requests.length}
             </span>
           )}
@@ -362,9 +362,9 @@ export default function GestorColaboradoresPage() {
       <Modal open={!!confirmRemove} onClose={() => setConfirmRemove(null)} title="Remover colaborador">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <AlertTriangle size={18} color="#f87171" style={{ flexShrink: 0, marginTop: 2 }} />
-            <p style={{ color: 'rgba(255,255,255,0.96)', fontSize: 14, lineHeight: 1.6 }}>
-              Tem certeza que deseja remover o vínculo de <span style={{ color: '#fff', fontWeight: 600 }}>{confirmRemove?.user?.name}</span> com este prédio? O usuário perderá o acesso imediatamente.
+            <AlertTriangle size={18} color={T.danger} style={{ flexShrink: 0, marginTop: 2 }} />
+            <p style={{ color: T.text, fontSize: 14, lineHeight: 1.6 }}>
+              Tem certeza que deseja remover o vínculo de <span style={{ fontWeight: 600 }}>{confirmRemove?.user?.name}</span> com este prédio? O usuário perderá o acesso imediatamente.
             </p>
           </div>
           <div className="flex gap-3">

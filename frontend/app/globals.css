@@ -11,21 +11,124 @@
   --color-accent: #F5C518;
   --color-accent-hover: #FFD230;
   --color-accent-soft: rgba(245, 197, 24, 0.13);
+  /* Ver T.accentInk em app/lib/theme.js: dourado como letra, e não como fundo. */
+  --color-accent-ink: #F5C518;
   --color-ink: rgba(255, 255, 255, 0.96);
   /* Ver app/lib/theme.js: 0,44 e 0,26 não passavam em 4,5:1 sobre o cartão. */
   --color-mute: rgba(255, 255, 255, 0.68);
   --color-faint: rgba(255, 255, 255, 0.52);
   --color-danger: #F87171;
   --color-danger-soft: rgba(248, 113, 113, 0.13);
+  /* Texto sobre dourado. O dourado é o mesmo nos dois temas, e o preto também. */
+  --color-onaccent: #000;
+  /* Confirmação e contagem de apoio: verde e lilás, fora da escala do dourado. */
+  --color-success: #4ADE80;
+  --color-info: #A5B4FC;
 
   --radius-card: 26px;
   --radius-control: 16px;
   --radius-pill: 12px;
 }
 
+/**
+ * Os dois temas.
+ *
+ * O escuro é o padrão e mora no `@theme` acima; aqui embaixo ficam só as peças
+ * que o Tailwind não nomeia (degradê da credencial, fundo do diálogo, vinheta)
+ * e, no bloco do claro, a sobrescrita de tudo.
+ *
+ * Quem troca é o atributo `data-theme` no `<html>`, escrito antes da primeira
+ * pintura pelo script de app/layout.js. Como as classes do Tailwind e o `T` de
+ * app/lib/theme.js apontam para estas mesmas variáveis, a troca alcança o
+ * produto inteiro sem nenhum componente saber que existe mais de um tema.
+ */
+:root {
+  --hero-surface: linear-gradient(158deg, #1A1A1A 0%, #151515 100%);
+  /* Ver T.cardRing: no escuro a separação já vem da luminância, e a borda some. */
+  --card-ring: 0 0 0 0 transparent;
+  --color-hover: #2A2A2A;
+  --color-hover-raised: #1F1F1F;
+  --color-hover-strong: #2E2E2E;
+  --backdrop: rgba(0, 0, 0, 0.6);
+  --vignette: radial-gradient(ellipse 70% 55% at 18% 0%, rgba(245, 197, 24, 0.035) 0%, transparent 62%);
+  --scroll-thumb: rgba(255, 255, 255, 0.1);
+  --autofill: #232323;
+  --input-line: transparent;
+  --surface-blur: rgba(11, 11, 11, 0.82);
+  --selection: rgba(245, 197, 24, 0.25);
+  --selection-ink: #fff;
+  --logo-v-from: #FFFFFF;
+  --logo-v-to: #BFBFBF;
+  /* Rampa do calendário de atividade: 0, 1, 2, 3 e 4 ou mais vistorias no dia. */
+  --heat-0: var(--color-chip);
+  --heat-1: #2E2A12;
+  --heat-2: #6B5A00;
+  --heat-3: #A88A00;
+  --heat-4: #F5C518;
+  color-scheme: dark;
+}
+
+/**
+ * Modo claro.
+ *
+ * A página não é branca: o branco é do cartão, e é assim que ele se destaca.
+ * Onde isso não basta — cartão sobre cartão, caixa sobre a página — entra o
+ * `--card-ring`, um fio de 1px feito com sombra e não com borda, para não
+ * empurrar o layout em um pixel só neste tema.
+ *
+ * `mute` e `faint` estão em 6,7:1 e 4,8:1 sobre o branco. É a mesma régua que o
+ * escuro segue (ver app/lib/theme.js): eles carregam e-mail, data e nome de
+ * inspetor, informação que alguém precisa ler.
+ *
+ * O dourado continua sendo o mesmo, mas só como fundo. Como texto ele dá 1,7:1
+ * sobre o branco, então quem escreve em dourado usa `--color-accent-ink`.
+ */
+html[data-theme='light'] {
+  --color-page: #F5F6F8;
+  --color-card: #FFFFFF;
+  --color-chip: #ECEEF2;
+  --color-line: rgba(16, 19, 23, 0.10);
+  --color-accent: #F5C518;
+  --color-accent-hover: #E8B800;
+  --color-accent-soft: rgba(245, 197, 24, 0.22);
+  --color-accent-ink: #8A6B00;
+  --color-ink: rgba(16, 19, 23, 0.92);
+  --color-mute: rgba(16, 19, 23, 0.64);
+  --color-faint: rgba(16, 19, 23, 0.55);
+  --color-danger: #D02F2F;
+  --color-danger-soft: rgba(208, 47, 47, 0.10);
+  /* Os mesmos dois, escurecidos: sobre branco o verde claro dá 1,8:1. */
+  --color-success: #12854A;
+  --color-info: #4A55B8;
+
+  --hero-surface: linear-gradient(158deg, #FFFFFF 0%, #F2F4F7 100%);
+  --card-ring: 0 0 0 1px rgba(16, 19, 23, 0.08);
+  --color-hover: #E4E7EC;
+  --color-hover-raised: #F2F4F7;
+  --color-hover-strong: #DDE1E7;
+  --backdrop: rgba(16, 19, 23, 0.35);
+  --vignette: radial-gradient(ellipse 70% 55% at 18% 0%, rgba(245, 197, 24, 0.10) 0%, transparent 62%);
+  --scroll-thumb: rgba(16, 19, 23, 0.18);
+  --autofill: #ECEEF2;
+  /* O campo sobre o cartão branco precisa de contorno; no escuro o chip basta. */
+  --input-line: rgba(16, 19, 23, 0.10);
+  --surface-blur: rgba(245, 246, 248, 0.82);
+  --selection: rgba(245, 197, 24, 0.35);
+  --selection-ink: #101317;
+  --logo-v-from: #3A4048;
+  --logo-v-to: #14181D;
+  /* A mesma rampa subindo para o branco: no claro ela clareia em vez de escurecer. */
+  --heat-0: var(--color-chip);
+  --heat-1: #FBEEC0;
+  --heat-2: #F7DE84;
+  --heat-3: #F0C93C;
+  --heat-4: #D9A400;
+  color-scheme: light;
+}
+
 html, body {
-  background-color: #0B0B0B;
-  color: rgba(255, 255, 255, 0.96);
+  background-color: var(--color-page);
+  color: var(--color-ink);
   font-family: var(--font-poppins), sans-serif;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
@@ -37,26 +140,26 @@ body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background: radial-gradient(ellipse 70% 55% at 18% 0%, rgba(245, 197, 24, 0.035) 0%, transparent 62%);
+  background: var(--vignette);
   pointer-events: none;
   z-index: 0;
 }
 
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 4px; }
 
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0px 1000px #232323 inset;
-  -webkit-text-fill-color: rgba(255,255,255,0.96);
+  -webkit-box-shadow: 0 0 0px 1000px var(--autofill) inset;
+  -webkit-text-fill-color: var(--color-ink);
   transition: background-color 5000s ease-in-out 0s;
 }
 
 ::selection {
-  background: rgba(245, 197, 24, 0.25);
-  color: #fff;
+  background: var(--selection);
+  color: var(--selection-ink);
 }
 
 /* ── Animações globais ── */
@@ -244,7 +347,7 @@ input:-webkit-autofill:focus {
 
 /* O fundo entra e sai junto com a caixa — sem isso ele aparece de estalo */
 .dialog::backdrop {
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--backdrop);
   animation: fade-in 0.25s ease both;
 }
 
@@ -280,7 +383,7 @@ input:-webkit-autofill:focus {
   transition: border-color 0.2s, background-color 0.2s;
 }
 
-.select-trigger:hover:not(:disabled) { background-color: #2A2A2A; }
+.select-trigger:hover:not(:disabled) { background-color: var(--color-hover); }
 
 /* Dourado no foco, como nos demais campos — teclado enxerga onde está */
 .select-trigger:focus-visible { border-color: rgba(245, 197, 24, 0.5); }
@@ -294,7 +397,7 @@ input:-webkit-autofill:focus {
 
 /* Sobre superfície que já é chip (linha de colaborador): sobe um nível de cor */
 .select-trigger--raised { background-color: var(--color-card); }
-.select-trigger--raised:hover:not(:disabled) { background-color: #1F1F1F; }
+.select-trigger--raised:hover:not(:disabled) { background-color: var(--color-hover-raised); }
 
 /**
  * A lista abre pronta, sem percurso: ela nasce a seis pixels do gatilho que o
@@ -304,6 +407,7 @@ input:-webkit-autofill:focus {
   background: var(--color-card);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-control);
+  box-shadow: var(--card-ring);
   padding: 6px;
   overflow-y: auto;
   z-index: 60;
@@ -327,7 +431,7 @@ input:-webkit-autofill:focus {
 /* Um realce só: o item sob o cursor ou sob as setas do teclado */
 .select-option.is-active { background: var(--color-chip); }
 
-.select-option.is-selected { color: var(--color-accent); }
+.select-option.is-selected { color: var(--color-accent-ink); }
 
 /**
  * Seta de paginação (ver components/Paginator.js).
@@ -336,7 +440,7 @@ input:-webkit-autofill:focus {
  * realce nenhum, e o toque no telefone deixaria o estado grudado.
  */
 @media (hover: hover) {
-  .pager-btn:not(:disabled):hover { background-color: #2E2E2E; }
+  .pager-btn:not(:disabled):hover { background-color: var(--color-hover-strong); }
 }
 
 .pager-btn { transition: background-color 0.15s ease, opacity 0.15s ease; }

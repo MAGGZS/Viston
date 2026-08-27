@@ -125,7 +125,7 @@ function ForwardBox({ ticket, buildingId, label }) {
   if (responsibles.length === 0) {
     return (
       <div style={{ background: T.chip, borderRadius: R.control, padding: 14, display: 'flex', gap: 10 }}>
-        <AlertTriangle size={16} color={T.accent} style={{ flexShrink: 0, marginTop: 2 }} />
+        <AlertTriangle size={16} color={T.accentInk} style={{ flexShrink: 0, marginTop: 2 }} />
         <p style={{ color: T.mute, fontSize: 12, lineHeight: 1.6 }}>
           Este prédio ainda não tem responsáveis. Peça ao gestor para vincular
           alguém como responsável em Colaboradores.
@@ -222,7 +222,7 @@ function AwaitingNotice({ ticket }) {
 
   return (
     <div className="anim-scale-in" style={{ background: T.accentSoft, borderRadius: R.control, padding: '12px 14px', display: 'flex', gap: 10 }}>
-      <Hourglass size={16} color={T.accent} style={{ flexShrink: 0, marginTop: 1 }} />
+      <Hourglass size={16} color={T.accentInk} style={{ flexShrink: 0, marginTop: 1 }} />
       <p style={{ color: T.text, fontSize: 12, lineHeight: 1.6 }}>
         Encaminhado a {ticket.responsible ?? 'um responsável'} em{' '}
         {stampLabel(ticket.forwarded_at)} — aguardando essa pessoa confirmar o
@@ -238,7 +238,7 @@ function DoneNotice({ ticket }) {
 
   return (
     <div className="anim-scale-in" style={{ background: T.accentSoft, borderRadius: R.control, padding: '12px 14px', display: 'flex', gap: 10 }}>
-      <CheckCheck size={16} color={T.accent} style={{ flexShrink: 0, marginTop: 1 }} />
+      <CheckCheck size={16} color={T.accentInk} style={{ flexShrink: 0, marginTop: 1 }} />
       <div>
         <p style={{ color: T.text, fontSize: 12, lineHeight: 1.6 }}>
           Concluído por {ticket.responsible ?? 'responsável'} em {stampLabel(ticket.done_at)} —

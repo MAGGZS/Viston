@@ -4,6 +4,7 @@ import { Plus, X, AlertTriangle } from 'lucide-react';
 import { Button, Input, Modal } from '@/app/components/ui';
 import { useToastStore } from '@/app/store/toast';
 import { useCreateBuilding, useUpdateBuilding, useCreateFloor, useDeleteFloor, useFloors } from '@/app/hooks/useApi';
+import { T } from '@/app/lib/theme';
 
 /** Confirmação curta, reaproveitada pelos dois modais de prédio. */
 export function ConfirmModal({ open, title, message, confirmLabel = 'Confirmar', confirmVariant = 'danger', onConfirm, onCancel }) {
@@ -11,8 +12,8 @@ export function ConfirmModal({ open, title, message, confirmLabel = 'Confirmar',
     <Modal open={open} onClose={onCancel} title={title}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-          <AlertTriangle size={18} color="#f87171" style={{ flexShrink: 0, marginTop: 2 }} />
-          <p style={{ color: 'rgba(255,255,255,0.96)', fontSize: 14, lineHeight: 1.6 }}>{message}</p>
+          <AlertTriangle size={18} color={T.danger} style={{ flexShrink: 0, marginTop: 2 }} />
+          <p style={{ color: T.text, fontSize: 14, lineHeight: 1.6 }}>{message}</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <Button variant="secondary" style={{ flex: 1 }} onClick={onCancel}>Voltar</Button>
@@ -28,21 +29,21 @@ function FloorTags({ labels, onRemove, input, onInputChange, onAdd }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        <p style={{ color: T.mute, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           Andares ({labels.length})
         </p>
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, minHeight: 36 }}>
         {labels.length === 0 && (
-          <span style={{ color: 'rgba(255,255,255,0.52)', fontSize: 14 }}>Nenhum andar adicionado</span>
+          <span style={{ color: T.faint, fontSize: 14 }}>Nenhum andar adicionado</span>
         )}
         {labels.map(label => (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px 6px 12px', borderRadius: 20, border: '1px solid rgba(245,197,24,0.3)', background: 'rgba(245,197,24,0.08)' }}>
-            <span style={{ color: '#F5C518', fontSize: 14, fontWeight: 600 }}>{label}</span>
-            <button onClick={() => onRemove(label)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.52)', display: 'flex', alignItems: 'center', padding: 0, lineHeight: 1 }}
-              onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.52)'}>
+            <span style={{ color: T.accentInk, fontSize: 14, fontWeight: 600 }}>{label}</span>
+            <button onClick={() => onRemove(label)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.faint, display: 'flex', alignItems: 'center', padding: 0, lineHeight: 1 }}
+              onMouseEnter={e => e.currentTarget.style.color = T.danger}
+              onMouseLeave={e => e.currentTarget.style.color = T.faint}>
               <X size={12} />
             </button>
           </div>
@@ -51,7 +52,7 @@ function FloorTags({ labels, onRemove, input, onInputChange, onAdd }) {
 
       <div style={{ display: 'flex', gap: 8 }}>
         <input
-          style={{ flex: 1, background: '#232323', borderRadius: 12, padding: '9px 14px', color: 'rgba(255,255,255,0.96)', fontSize: 14, outline: 'none' }}
+          style={{ flex: 1, background: T.chip, borderRadius: 12, padding: '9px 14px', color: T.text, fontSize: 14, outline: 'none' }}
           placeholder="Ex: 1, 2, Cobertura, Subsolo... (Enter para adicionar)"
           value={input}
           onChange={e => onInputChange(e.target.value)}
@@ -221,7 +222,7 @@ export function EditBuildingModal({ building, open = true, onClose }) {
           <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           <Input label="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
           {floorsLoading
-            ? <div style={{ height: 80, background: '#232323', borderRadius: 12 }} />
+            ? <div style={{ height: 80, background: T.chip, borderRadius: 12 }} />
             : <FloorTags labels={labels} onRemove={removeFloor} input={input} onInputChange={setInput} onAdd={addFloor} />
           }
           <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>

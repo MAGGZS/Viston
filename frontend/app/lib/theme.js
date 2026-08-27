@@ -1,21 +1,53 @@
 /**
  * Tokens visuais do produto inteiro — desktop e mobile bebem daqui.
  *
+ * O valor não mora mais neste arquivo: cada chave aponta para uma variável CSS
+ * declarada em app/globals.css, que tem dois conjuntos, um por tema. Este
+ * arquivo continua sendo o vocabulário — quem escreve interface pede `T.card` e
+ * não precisa saber que existe modo claro.
+ *
  * Superfície é sempre cor sólida: três níveis (página, cartão, chip) já separam
- * o conteúdo, então borda só entra onde algo precisa ser dividido de fato.
+ * o conteúdo, então borda só entra onde algo precisa ser dividido de fato. No
+ * claro, onde a diferença de luminância entre cartão branco e página quase
+ * some, esse papel é do `cardRing`.
  * Dourado é reservado à ação primária e ao estado ativo; usá-lo em mais lugares
  * tira dele justamente o que faz ele funcionar.
  */
+
+/**
+ * Os dois temas, o nome da chave e a cor da barra do sistema.
+ *
+ * Moram neste arquivo, e não em app/lib/tema.js, porque app/layout.js é
+ * componente de servidor e precisa do `THEME_KEY` para montar o script que roda
+ * antes da primeira pintura. tema.js exporta hooks, então é `'use client'`, e
+ * o Next recusa um módulo assim no grafo do servidor — mesmo para ler uma
+ * string. Aqui não há hook nenhum, e os dois lados leem o mesmo valor.
+ */
+export const THEME_KEY = 'viston:tema';
+
+export const THEMES = ['dark', 'light'];
+
+/** Cor da barra do sistema no telefone. Acompanha --color-page de cada tema. */
+export const THEME_COLOR = { dark: '#0B0B0B', light: '#F5F6F8' };
+
 export const T = {
-  bg: '#0B0B0B',
-  card: '#171717',
-  chip: '#232323',
-  line: 'rgba(255,255,255,0.07)',
-  accent: '#F5C518',
-  accentSoft: 'rgba(245,197,24,0.13)',
+  bg: 'var(--color-page)',
+  card: 'var(--color-card)',
+  chip: 'var(--color-chip)',
+  line: 'var(--color-line)',
+  accent: 'var(--color-accent)',
+  accentSoft: 'var(--color-accent-soft)',
+  /**
+   * Dourado quando ele é letra ou ícone, e não fundo.
+   *
+   * No escuro é o mesmo `accent`. No claro ele escurece para #8A6B00, porque
+   * #F5C518 sobre branco dá 1,7:1 e some. Regra: `background` usa `accent`,
+   * `color` usa `accentInk`.
+   */
+  accentInk: 'var(--color-accent-ink)',
   /** Texto sobre dourado. Preto puro dá 12,6:1 — nenhum tom rebaixado chega perto. */
   onAccent: '#000',
-  text: 'rgba(255,255,255,0.96)',
+  text: 'var(--color-ink)',
   /**
    * Texto secundário — e secundário não quer dizer opcional.
    *
@@ -23,20 +55,48 @@ export const T = {
    * inspetor e a data no formulário de vistoria: informação que alguém precisa
    * ler. A 0,44 ele dava ~3,6:1 sobre o cartão, abaixo dos 4,5:1 que a WCAG
    * pede para texto. A 0,68 dá ~8,4:1, e continua sendo claramente o segundo
-   * nível de leitura.
+   * nível de leitura. No claro, 0,64 sobre branco dá ~6,7:1.
    */
-  mute: 'rgba(255,255,255,0.68)',
+  mute: 'var(--color-mute)',
   /**
    * O nível mais apagado, e o único com regra de uso: separador, marca d'água,
    * rótulo de apoio. Nunca texto que alguém precise ler de fato — para isso
-   * existe `mute`. A 0,52 ele passa em 4,5:1 mesmo assim, porque "de apoio"
+   * existe `mute`. Passa em 4,5:1 nos dois temas mesmo assim, porque "de apoio"
    * costuma virar "importante" com o tempo.
    */
-  faint: 'rgba(255,255,255,0.52)',
-  danger: '#F87171',
-  dangerSoft: 'rgba(248,113,113,0.13)',
+  faint: 'var(--color-faint)',
+  /** Confirmação ("recebido", "solicitação enviada"), fora da escala do dourado. */
+  success: 'var(--color-success)',
+  /** Terceira cor, só para separar contagens em gráfico de apoio. */
+  info: 'var(--color-info)',
+  danger: 'var(--color-danger)',
+  dangerSoft: 'var(--color-danger-soft)',
+  /**
+   * O fio que separa cartão de fundo no modo claro, e nada no escuro.
+   *
+   * Vai em `boxShadow`, não em `border`: metade dos cartões é `<button>` com
+   * `border: none`, e uma borda de verdade empurraria o layout em 1px só num
+   * dos temas.
+   */
+  cardRing: 'var(--card-ring)',
+  /** Superfície sob o cursor, um passo acima da cor de base. */
+  hover: 'var(--color-hover)',
   display: 'var(--font-poppins), sans-serif',
 };
+
+/**
+ * Rampa do calendário de atividade, do dia vazio ao dia cheio.
+ *
+ * Existia copiada em quatro telas, cada uma com a sua função `heatColor`. Uma
+ * cópia só bastava para as duas escalas (a legenda e a célula) discordarem, e
+ * no modo claro a rampa muda de direção: ela clareia em vez de escurecer.
+ */
+export const HEAT = ['var(--heat-0)', 'var(--heat-1)', 'var(--heat-2)', 'var(--heat-3)', 'var(--heat-4)'];
+
+/** Cor do dia conforme a contagem. Quatro vistorias ou mais saturam a rampa. */
+export function heatColor(count) {
+  return HEAT[Math.min(count || 0, 4)];
+}
 
 /** Escala de raio: quanto maior a superfície, mais generoso o canto. */
 export const R = {
@@ -70,4 +130,4 @@ export const NUM = {
  * Único cartão com gradiente no produto: a credencial do perfil.
  * Cinco pontos de luminância dão volume sem virar ornamento.
  */
-export const HERO_SURFACE = 'linear-gradient(158deg, #1A1A1A 0%, #151515 100%)';
+export const HERO_SURFACE = 'var(--hero-surface)';

@@ -7,7 +7,7 @@ import { T, R, W } from '@/app/lib/theme';
 
 // O ícone colorido já diz o tipo; a superfície é a mesma nos três casos.
 const STYLES = {
-  success: { icon: CheckCircle, color: T.accent },
+  success: { icon: CheckCircle, color: T.accentInk },
   error:   { icon: AlertCircle, color: T.danger },
   info:    { icon: Info,        color: T.mute },
 };

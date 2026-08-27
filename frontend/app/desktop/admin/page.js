@@ -78,7 +78,7 @@ function RenameUserModal({ user, open, onClose }) {
     <Modal open={open} onClose={onClose} title="Editar nome">
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <p className="text-mute text-sm">
-          O nome assina as vistorias já registradas por <span className="text-white">{user.email}</span>.
+          O nome assina as vistorias já registradas por <span className="text-ink">{user.email}</span>.
         </p>
         <Input label="Nome" error={errors.name?.message} {...register('name')} />
         <div className="flex gap-3 mt-2">
@@ -149,7 +149,7 @@ export default function AdminUsersPage() {
         <main id={CONTENT_ID} className="flex-1 p-8">
           <div className="flex items-center justify-between mb-8">
             <div className="anim-fade-down">
-              <h1 className="text-2xl font-semibold text-white">Usuários</h1>
+              <h1 className="text-2xl font-semibold text-ink">Usuários</h1>
               <p className="text-mute text-sm mt-0.5">
                 A função de cada conta vem dos prédios a que ela se vincula, e quem a define
                 é o gestor de cada prédio.
@@ -184,7 +184,7 @@ export default function AdminUsersPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <Avatar user={u} size={32} />
-                        <span className="text-white text-sm">{u.name}</span>
+                        <span className="text-ink text-sm">{u.name}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-mute text-sm">{u.email}</td>
@@ -201,7 +201,7 @@ export default function AdminUsersPage() {
                         <button
                           onClick={() => setRenameTarget(u)}
                           title="Editar nome"
-                          className="text-xs px-3 py-1 rounded-pill bg-chip text-mute hover:text-white transition-colors flex items-center"
+                          className="text-xs px-3 py-1 rounded-pill bg-chip text-mute hover:text-ink transition-colors flex items-center"
                         >
                           <Pencil size={14} />
                         </button>
@@ -247,7 +247,7 @@ export default function AdminUsersPage() {
       <div className="lg:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
         <div>
           <p className="text-4xl mb-4">🖥️</p>
-          <p className="text-white font-semibold text-lg">Painel Admin</p>
+          <p className="text-ink font-semibold text-lg">Painel Admin</p>
           <p className="text-mute text-sm mt-2">Acesse pelo computador para gerenciar usuários</p>
         </div>
       </div>
@@ -256,7 +256,7 @@ export default function AdminUsersPage() {
       <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Excluir usuário">
         <div className="flex flex-col gap-4">
           <p className="text-mute text-sm">
-            <span className="text-white font-medium">{deleteTarget?.name}</span> será apagado
+            <span className="text-ink font-medium">{deleteTarget?.name}</span> será apagado
             definitivamente do banco de dados. As inspeções feitas por ele continuam no histórico,
             mas sem inspetor vinculado. Esta ação não pode ser desfeita.
           </p>

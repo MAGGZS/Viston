@@ -12,14 +12,14 @@ function StatCard({ icon: Icon, label, value, hint, loading }) {
   return (
     <div className="bg-card rounded-card p-5 flex items-center gap-4">
       <div className="w-10 h-10 bg-accent-soft rounded-control flex items-center justify-center flex-shrink-0">
-        <Icon size={18} className="text-accent" />
+        <Icon size={18} className="text-accent-ink" />
       </div>
       <div className="min-w-0">
         <p className="text-mute text-xs">{label}</p>
         {loading ? (
           <div className="h-6 w-14 bg-chip rounded animate-pulse mt-1" />
         ) : (
-          <p className="text-white text-xl font-semibold" style={NUM}>{value}</p>
+          <p className="text-ink text-xl font-semibold" style={NUM}>{value}</p>
         )}
         {hint && <p className="text-faint text-xs mt-0.5">{hint}</p>}
       </div>
@@ -35,15 +35,15 @@ function StatCard({ icon: Icon, label, value, hint, loading }) {
  */
 function RoleBreakdown({ stats, loading }) {
   const rows = [
-    { label: 'Gestores', value: stats?.managers ?? 0, color: T.accent },
-    { label: 'Inspetores', value: stats?.inspectors ?? 0, color: '#4ade80' },
-    { label: 'Visualizadores', value: stats?.viewers ?? 0, color: '#a5b4fc' },
+    { label: 'Gestores', value: stats?.managers ?? 0, color: T.accentInk },
+    { label: 'Inspetores', value: stats?.inspectors ?? 0, color: T.success },
+    { label: 'Visualizadores', value: stats?.viewers ?? 0, color: T.info },
   ];
   const total = rows.reduce((sum, r) => sum + r.value, 0);
 
   return (
     <div className="bg-card rounded-card p-6">
-      <h2 className="text-white font-semibold mb-1">Contas ativas por papel</h2>
+      <h2 className="text-ink font-semibold mb-1">Contas ativas por papel</h2>
       <p className="text-mute text-sm mb-5">
         Administradores não entram na conta — o papel deles não vem de vínculo com prédio.
       </p>
@@ -66,7 +66,7 @@ function RoleBreakdown({ stats, loading }) {
               <div key={r.label} className="flex items-center gap-3">
                 <span style={{ width: 10, height: 10, borderRadius: 3, background: r.color, flexShrink: 0 }} />
                 <span className="text-mute text-sm flex-1">{r.label}</span>
-                <span className="text-white text-sm font-semibold" style={NUM}>{r.value}</span>
+                <span className="text-ink text-sm font-semibold" style={NUM}>{r.value}</span>
               </div>
             ))}
           </div>
@@ -82,7 +82,7 @@ function TopBuildings({ stats, loading }) {
 
   return (
     <div className="bg-card rounded-card p-6">
-      <h2 className="text-white font-semibold mb-1">Maiores prédios</h2>
+      <h2 className="text-ink font-semibold mb-1">Maiores prédios</h2>
       <p className="text-mute text-sm mb-5">Por quantidade de andares cadastrados.</p>
 
       {loading ? (
@@ -96,8 +96,8 @@ function TopBuildings({ stats, loading }) {
           {rows.map((b, idx) => (
             <div key={b.id} className={`anim-fade-in anim-d${Math.min(idx + 1, 6)} flex items-center gap-3 bg-chip rounded-control px-4 py-2.5`}>
               <span className="text-faint text-xs" style={{ ...NUM, width: 16 }}>{idx + 1}</span>
-              <span className="text-white text-sm flex-1 truncate">{b.name}</span>
-              <span className="text-accent text-sm font-semibold" style={NUM}>{b.floors}</span>
+              <span className="text-ink text-sm flex-1 truncate">{b.name}</span>
+              <span className="text-accent-ink text-sm font-semibold" style={NUM}>{b.floors}</span>
               <span className="text-faint text-xs">andares</span>
             </div>
           ))}
@@ -128,7 +128,7 @@ export default function AdminDashboardPage() {
         <main id={CONTENT_ID} className="flex-1 p-8 overflow-auto">
           <div className="anim-fade-down flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-semibold text-white">Visão geral</h1>
+              <h1 className="text-2xl font-semibold text-ink">Visão geral</h1>
               <p className="text-mute text-sm mt-0.5">Os números do sistema inteiro.</p>
             </div>
             <Button variant="secondary" onClick={() => refetch()} loading={isFetching}>
@@ -154,7 +154,7 @@ export default function AdminDashboardPage() {
       <div className="lg:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
         <div>
           <p className="text-4xl mb-4">🖥️</p>
-          <p className="text-white font-semibold text-lg">Painel Admin</p>
+          <p className="text-ink font-semibold text-lg">Painel Admin</p>
           <p className="text-mute text-sm mt-2">Acesse pelo computador</p>
         </div>
       </div>

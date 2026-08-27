@@ -36,14 +36,14 @@ const D = {
 };
 
 const FLOOR_STATUS_LABEL = { OK: 'OK', ATENCAO: 'Atenção', PROBLEMA: 'Problema' };
-const FLOOR_STATUS_COLOR = { OK: INK_SOFT, ATENCAO: T.accent, PROBLEMA: T.danger };
+const FLOOR_STATUS_COLOR = { OK: INK_SOFT, ATENCAO: T.accentInk, PROBLEMA: T.danger };
 /** Fundo do selo de andar no telefone — o mesmo tom da cor, rebaixado. */
 const FLOOR_STATUS_TINT = {
-  OK: 'rgba(255,255,255,0.06)',
+  OK: T.chip,
   ATENCAO: 'rgba(245,197,24,0.12)',
   PROBLEMA: 'rgba(248,113,113,0.12)',
 };
-const PRIORITY_COLOR = { ALTA: T.danger, MEDIA: T.accent, BAIXA: INK_SOFT };
+const PRIORITY_COLOR = { ALTA: T.danger, MEDIA: T.accentInk, BAIXA: INK_SOFT };
 
 /** Selo de situação do andar, igual nas duas versões da folha. */
 function FloorStatus({ value, pill = false }) {
@@ -346,7 +346,7 @@ export function ReportDocumentModal({ open, onClose, reportId }) {
                   disabled={pendingId === shownId}
                   aria-label="Baixar planilha"
                   title="Baixar planilha"
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: R.control, border: 'none', cursor: 'pointer', background: T.chip, color: T.accent }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: R.control, border: 'none', cursor: 'pointer', background: T.chip, color: T.accentInk }}
                 >
                   <Download size={18} />
                 </button>

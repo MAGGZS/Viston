@@ -11,6 +11,7 @@ import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Skeleton, Button, Modal } from '@/app/components/ui';
+import { HEAT, heatColor, T } from '@/app/lib/theme';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { OcorrenciasTable } from '@/app/components/OcorrenciasTable';
 import { Paginator } from '@/app/components/Paginator';
@@ -28,14 +29,6 @@ const PLACEHOLDER_CELL_H = placeholderCellHeight({ content: 28, padY: 12 });
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success', COMPLETED: 'success' };
 
-function intensity(count) {
-  if (!count) return '#232323';
-  if (count === 1) return '#2E2A12';
-  if (count === 2) return '#6B5A00';
-  if (count === 3) return '#A88A00';
-  return '#F5C518';
-}
-
 function MonthGrid({ heatmap, year, month, onDayClick }) {
   const days = eachDayOfInterval({ start: startOfMonth(new Date(year, month - 1)), end: endOfMonth(new Date(year, month - 1)) });
   const blanks = Array(days[0].getDay()).fill(null);
@@ -43,7 +36,7 @@ function MonthGrid({ heatmap, year, month, onDayClick }) {
     <div style={{ width: '100%' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 6 }}>
         {['D','S','T','Q','Q','S','S'].map((d, i) => (
-          <div key={i} style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.52)', fontWeight: 600, padding: '2px 0' }}>{d}</div>
+          <div key={i} style={{ textAlign: 'center', fontSize: 10, color: T.faint, fontWeight: 600, padding: '2px 0' }}>{d}</div>
         ))}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
@@ -57,7 +50,7 @@ function MonthGrid({ heatmap, year, month, onDayClick }) {
               dayNumber={format(d, 'd')}
               dayKey={key}
               info={info}
-              background={intensity(info?.count)}
+              background={heatColor(info?.count)}
               onClick={onDayClick}
             />
           );
@@ -143,7 +136,7 @@ export default function GestorBuildingPage() {
               <td className="px-6 py-3">
                 <div className="flex items-center gap-2">
                   <Avatar user={r.inspector} size={28} />
-                  <span className="text-white text-sm">{r.inspector?.name}</span>
+                  <span className="text-ink text-sm">{r.inspector?.name}</span>
                 </div>
               </td>
               <td className="px-6 py-3">
@@ -157,12 +150,12 @@ export default function GestorBuildingPage() {
                 <div className="flex items-center gap-4">
                   {r.has_excel ? (
                     <button type="button" onClick={e => { e.stopPropagation(); download(r.id); }} disabled={pendingId === r.id}
-                      className="flex items-center gap-1 text-accent text-sm hover:underline disabled:opacity-50">
+                      className="flex items-center gap-1 text-accent-ink text-sm hover:underline disabled:opacity-50">
                       <Download size={13} /> Baixar
                     </button>
                   ) : <span className="text-mute text-sm">—</span>}
                   <button onClick={e => { e.stopPropagation(); setPreviewId(r.id); }}
-                    className="flex items-center gap-1 text-mute text-sm hover:text-white transition-colors">
+                    className="flex items-center gap-1 text-mute text-sm hover:text-ink transition-colors">
                     <Eye size={13} /> Prévia
                   </button>
                 </div>
@@ -172,9 +165,9 @@ export default function GestorBuildingPage() {
                   onClick={e => { e.stopPropagation(); setConfirmDiscard(r); }}
                   disabled={deleteInspection.isPending}
                   title="Descartar vistoria"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.52)', padding: 4, borderRadius: 8 }}
-                  onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.52)'}>
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.faint, padding: 4, borderRadius: 8 }}
+                  onMouseEnter={e => e.currentTarget.style.color = T.danger}
+                  onMouseLeave={e => e.currentTarget.style.color = T.faint}>
                   <Trash2 size={15} />
                 </button>
               </td>
@@ -205,7 +198,7 @@ export default function GestorBuildingPage() {
       buildingId={id}
       actions={
         <button onClick={() => setShareModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-white transition-colors flex-shrink-0">
+          className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-ink transition-colors flex-shrink-0">
           <Share2 size={15} /> Compartilhar ID
         </button>
       }
@@ -220,12 +213,12 @@ export default function GestorBuildingPage() {
           ].map(({ icon: Icon, label, value }, idx) => (
             <div key={label} className={`anim-fade-up anim-d${idx + 1} bg-card rounded-card p-5 flex items-center gap-4 transition-all duration-200`}>
               <div className="w-10 h-10 bg-accent-soft rounded-control flex items-center justify-center">
-                <Icon size={18} className="text-accent" />
+                <Icon size={18} className="text-accent-ink" />
               </div>
               <div>
                 <p className="text-mute text-xs">{label}</p>
                 {isLoading ? <div className="h-6 w-12 bg-chip rounded animate-pulse mt-1" /> : (
-                  <p className="text-white text-xl font-semibold">{value ?? 0}</p>
+                  <p className="text-ink text-xl font-semibold">{value ?? 0}</p>
                 )}
               </div>
             </div>
@@ -242,14 +235,14 @@ export default function GestorBuildingPage() {
         <div className="anim-fade-up anim-d4 grid grid-cols-3 gap-6 items-start">
           <div className="col-span-1 bg-card rounded-card p-5">
             <div className="flex items-center justify-between mb-4">
-              <button onClick={prev} className="p-1 text-mute hover:text-white"><ChevronLeft size={16} /></button>
-              <span key={monthLabel} className="anim-fade-in text-white text-sm font-semibold capitalize">{monthLabel}</span>
-              <button onClick={next} className="p-1 text-mute hover:text-white"><ChevronRight size={16} /></button>
+              <button onClick={prev} className="p-1 text-mute hover:text-ink"><ChevronLeft size={16} /></button>
+              <span key={monthLabel} className="anim-fade-in text-ink text-sm font-semibold capitalize">{monthLabel}</span>
+              <button onClick={next} className="p-1 text-mute hover:text-ink"><ChevronRight size={16} /></button>
             </div>
             <MonthGrid heatmap={heatmap} year={year} month={month} onDayClick={(day, info) => setSelected({ day, info })} />
             <div className="flex items-center gap-1 mt-4 justify-end">
               <span className="text-mute text-xs">Menos</span>
-              {['#232323','#2E2A12','#6B5A00','#A88A00','#F5C518'].map((c, i) => (
+              {HEAT.map((c, i) => (
                 <div key={i} style={{ background: c }} className="w-3 h-3 rounded-sm" />
               ))}
               <span className="text-mute text-xs">Mais</span>
@@ -289,14 +282,14 @@ export default function GestorBuildingPage() {
       <Modal open={!!confirmDiscard} onClose={() => setConfirmDiscard(null)} title="Descartar vistoria">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <AlertTriangle size={18} color="#f87171" style={{ flexShrink: 0, marginTop: 2 }} />
-            <div style={{ color: 'rgba(255,255,255,0.96)', fontSize: 14, lineHeight: 1.6 }}>
+            <AlertTriangle size={18} color={T.danger} style={{ flexShrink: 0, marginTop: 2 }} />
+            <div style={{ color: T.text, fontSize: 14, lineHeight: 1.6 }}>
               <p>
-                Descartar a vistoria de <span style={{ color: '#fff', fontWeight: 600 }}>{confirmDiscard?.inspector?.name}</span>
+                Descartar a vistoria de <span style={{ fontWeight: 600 }}>{confirmDiscard?.inspector?.name}</span>
                 {confirmDiscard && ` de ${format(parseReportDate(confirmDiscard.date), 'dd/MM/yyyy', { locale: ptBR })}`}?
               </p>
-              <p style={{ marginTop: 10, color: 'rgba(255,255,255,0.68)' }}>
-                Some o relatório e todas as ocorrências registradas — inclusive os chamados abertos por elas. Sai do histórico e do calendário, e a planilha do dia é refeita com o que sobrar. <span style={{ color: '#f87171' }}>Não tem como desfazer.</span>
+              <p style={{ marginTop: 10, color: T.mute }}>
+                Some o relatório e todas as ocorrências registradas — inclusive os chamados abertos por elas. Sai do histórico e do calendário, e a planilha do dia é refeita com o que sobrar. <span style={{ color: T.danger }}>Não tem como desfazer.</span>
               </p>
             </div>
           </div>
@@ -321,9 +314,9 @@ export default function GestorBuildingPage() {
       <Modal open={shareModal} onClose={() => setShareModal(false)} title="Compartilhar chave do prédio">
         <p className="text-mute text-sm mb-4">Compartilhe esta chave com inspetores e visualizadores para que possam solicitar acesso.</p>
         <div className="bg-chip rounded-control p-4 flex items-center justify-between gap-3">
-          <span className="text-accent font-semibold text-sm break-all" style={{ letterSpacing: "0.18em" }}>{shareKey}</span>
+          <span className="text-accent-ink font-semibold text-sm break-all" style={{ letterSpacing: "0.18em" }}>{shareKey}</span>
           <button onClick={() => { navigator.clipboard.writeText(shareKey); toast('Chave copiada!', 'info'); }}
-            className="text-xs text-mute hover:text-white whitespace-nowrap rounded-pill px-3 py-1.5 transition-colors">
+            className="text-xs text-mute hover:text-ink whitespace-nowrap rounded-pill px-3 py-1.5 transition-colors">
             Copiar
           </button>
         </div>

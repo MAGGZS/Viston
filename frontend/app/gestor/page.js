@@ -232,7 +232,7 @@ export default function GestorHomePage() {
           <span style={{ color: T.text, fontWeight: W.title }}>{shareModal?.name}</span>.
         </p>
         <div style={{ background: T.chip, borderRadius: R.control, padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <span style={{ color: T.accent, fontWeight: W.title, fontSize: 14, letterSpacing: '0.18em', wordBreak: 'break-all' }}>
+          <span style={{ color: T.accentInk, fontWeight: W.title, fontSize: 14, letterSpacing: '0.18em', wordBreak: 'break-all' }}>
             {formatShareKey(shareModal?.share_key)}
           </span>
           <button

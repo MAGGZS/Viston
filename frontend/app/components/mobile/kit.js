@@ -44,7 +44,7 @@ export function MTopBar({ eyebrow, title, accent, actions, avatar, className = '
       <div style={{ flex: 1, minWidth: 0 }}>
         {eyebrow && <p style={{ color: M.faint, fontSize: 12, marginBottom: 2 }}>{eyebrow}</p>}
         <h1 style={{ fontFamily: M.display, fontWeight: 600, fontSize: 22, color: M.text, letterSpacing: '-0.01em', lineHeight: 1.15 }}>
-          {title}{accent && <span style={{ color: M.accent }}> {accent}</span>}
+          {title}{accent && <span style={{ color: M.accentInk }}> {accent}</span>}
         </h1>
       </div>
       {actions && <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>{actions}</div>}
@@ -76,7 +76,7 @@ export function MRound({ children, onClick, active = false, label }) {
  * anuncia quando o miolo é feito de números e ícones soltos.
  */
 export function MCard({ children, style = {}, onClick, className = '', label }) {
-  const base = { background: M.card, borderRadius: 26, padding: 18 };
+  const base = { background: M.card, borderRadius: 26, boxShadow: M.cardRing, padding: 18 };
 
   if (!onClick) {
     return <div className={className} style={{ ...base, ...style }}>{children}</div>;
@@ -136,7 +136,7 @@ export function MButton({ children, onClick, type = 'button', disabled, loading,
 export function MButtonSoft({ children, onClick, type = 'button', disabled, loading, style = {} }) {
   return (
     <button type={type} onClick={onClick} disabled={disabled || loading}
-      style={{ ...BUTTON_BASE, background: M.accentSoft, color: M.accent, opacity: disabled || loading ? 0.5 : 1, ...style }}>
+      style={{ ...BUTTON_BASE, background: M.accentSoft, color: M.accentInk, opacity: disabled || loading ? 0.5 : 1, ...style }}>
       {loading ? 'Aguarde...' : children}
     </button>
   );
@@ -197,7 +197,7 @@ export function MField({ label, error, style = {}, ...props }) {
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
         style={{
-          background: M.chip, border: `1px solid ${error ? 'rgba(248,113,113,0.5)' : 'transparent'}`,
+          background: M.chip, border: `1px solid ${error ? 'rgba(248,113,113,0.5)' : 'var(--input-line)'}`,
           // 16px é o piso: abaixo disso o iOS dá zoom ao focar e a tela salta.
           borderRadius: 16, padding: '14px 16px', color: M.text, fontSize: 16, outline: 'none', width: '100%',
           ...style,

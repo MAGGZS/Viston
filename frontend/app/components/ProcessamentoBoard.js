@@ -78,7 +78,7 @@ function Coluna({ icon: Icon, titulo, descricao, tickets, isLoading, vazio, cari
   return (
     <section style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 12 }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-        <Icon size={16} color={T.accent} strokeWidth={2} />
+        <Icon size={16} color={T.accentInk} strokeWidth={2} />
         <h2 style={{ color: T.text, fontSize: 14, fontWeight: W.title, fontFamily: T.display }}>
           {titulo}
         </h2>
@@ -223,7 +223,7 @@ export function ProcessamentoBoard({ buildingId }) {
 
       <section className="anim-fade-up anim-d1" style={{ display: 'flex', flexDirection: 'column', gap: 12, borderTop: `1px solid ${T.line}`, paddingTop: 22 }}>
         <header style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <CheckCheck size={16} color={T.accent} strokeWidth={2} />
+          <CheckCheck size={16} color={T.accentInk} strokeWidth={2} />
           <h2 style={{ color: T.text, fontSize: 14, fontWeight: W.title, fontFamily: T.display }}>
             Concluídas pelo responsável
           </h2>

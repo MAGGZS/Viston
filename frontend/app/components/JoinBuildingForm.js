@@ -45,7 +45,7 @@ export function JoinBuildingForm({ align = 'left' }) {
   if (requested) {
     return (
       <div className="anim-scale-in" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 14, padding: 14, textAlign: 'center' }}>
-        <p style={{ color: '#4ade80', fontWeight: W.title, fontSize: 14 }}>Solicitação enviada!</p>
+        <p style={{ color: T.success, fontWeight: W.title, fontSize: 14 }}>Solicitação enviada!</p>
         <p style={{ color: T.mute, fontSize: 12, marginTop: 4 }}>Aguarde a aprovação do gestor do prédio.</p>
       </div>
     );

@@ -11,7 +11,7 @@ import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTrans
  * nenhum destes elementos carrega borda, blur ou sombra decorativa.
  */
 const G = {
-  card: { background: T.card, borderRadius: R.card },
+  card: { background: T.card, borderRadius: R.card, boxShadow: T.cardRing },
   input: {
     background: T.chip,
     // Separadas, e não o atalho `border`: o estado de erro sobrepõe apenas
@@ -19,7 +19,7 @@ const G = {
     // à cor original quando o erro some.
     borderWidth: 1,
     borderStyle: 'solid',
-    borderColor: 'transparent',
+    borderColor: 'var(--input-line)',
     borderRadius: R.control,
     padding: '13px 15px',
     color: T.text,
@@ -45,8 +45,8 @@ const G = {
  */
 export function Button({ children, variant = 'primary', className = '', loading = false, style = {}, type = 'button', ...props }) {
   const styles = {
-    primary: { background: T.accent, color: T.onAccent, hover: '#FFD230' },
-    secondary: { background: T.chip, color: T.text, hover: '#2E2E2E' },
+    primary: { background: T.accent, color: T.onAccent, hover: 'var(--color-accent-hover)' },
+    secondary: { background: T.chip, color: T.text, hover: 'var(--color-hover-strong)' },
     ghost: { background: 'transparent', color: T.mute, hover: T.chip },
     danger: { background: T.dangerSoft, color: T.danger, hover: 'rgba(248,113,113,0.2)' },
   };
@@ -165,9 +165,9 @@ export function Badge({ children, variant = 'default', className = '' }) {
   const colors = {
     default: { background: T.chip, color: T.text },
     success: { background: T.chip, color: T.text },
-    warning: { background: T.accentSoft, color: T.accent },
+    warning: { background: T.accentSoft, color: T.accentInk },
     danger: { background: T.chip, color: T.danger },
-    accent: { background: T.accentSoft, color: T.accent },
+    accent: { background: T.accentSoft, color: T.accentInk },
   };
   return (
     <span className={className} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: R.badge, fontSize: 12, fontWeight: W.body, ...colors[variant] }}>
@@ -208,7 +208,7 @@ export function Toggle({ checked, onChange, label }) {
 }
 
 export function Skeleton({ className = '', style = {} }) {
-  return <div style={{ background: `linear-gradient(90deg, ${T.chip} 25%, #2E2E2E 50%, ${T.chip} 75%)`, backgroundSize: '200% 100%', borderRadius: R.control, animation: 'shimmer 1.4s ease-in-out infinite', ...style }} className={className} />;
+  return <div style={{ background: `linear-gradient(90deg, ${T.chip} 25%, var(--color-hover-strong) 50%, ${T.chip} 75%)`, backgroundSize: '200% 100%', borderRadius: R.control, animation: 'shimmer 1.4s ease-in-out infinite', ...style }} className={className} />;
 }
 
 /**
@@ -323,7 +323,7 @@ export function Modal({ open, onClose, title, children, maxWidth = 400 }) {
     >
       <div
         className={closing ? 'anim-scale-out' : 'anim-scale-in'}
-        style={{ background: T.card, borderRadius: R.card, padding: 22 }}
+        style={{ background: T.card, borderRadius: R.card, boxShadow: T.cardRing, padding: 22 }}
       >
         {shownTitle && (
           <h2 id={titleId} style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text, marginBottom: 16 }}>

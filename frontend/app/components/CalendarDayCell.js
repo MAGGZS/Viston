@@ -49,7 +49,7 @@ export function CalendarDayCell({ dayNumber, dayKey, info, background, size, onC
           transform: hover ? 'scale(1.12)' : 'scale(1)',
         }}
       >
-        <span aria-hidden="true" style={{ fontSize: 12, color: count >= 4 ? T.onAccent : 'rgba(255,255,255,0.68)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{dayNumber}</span>
+        <span aria-hidden="true" style={{ fontSize: 12, color: count >= 4 ? T.onAccent : T.mute, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{dayNumber}</span>
       </button>
 
       {hover && hasData && (
@@ -68,7 +68,7 @@ export function CalendarDayCell({ dayNumber, dayKey, info, background, size, onC
             pointerEvents: 'none',
           }}
         >
-          <p style={{ color: T.accent, fontSize: 12, fontWeight: W.strong, marginBottom: 6 }}>
+          <p style={{ color: T.accentInk, fontSize: 12, fontWeight: W.strong, marginBottom: 6 }}>
             {count} vistoria{count !== 1 ? 's' : ''}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

@@ -136,13 +136,13 @@ export function FloorForm({ floor, inspectorName, initialRecords, responsibles =
       {/* Quem está vistoriando e quando */}
       <MCard style={{ display: 'flex', gap: 8 }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <UserRound size={15} color={M.accent} style={{ flexShrink: 0 }} />
+          <UserRound size={15} color={M.accentInk} style={{ flexShrink: 0 }} />
           <span style={{ color: M.mute, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {inspectorName || '—'}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <CalendarDays size={15} color={M.accent} />
+          <CalendarDays size={15} color={M.accentInk} />
           <span style={{ color: M.mute, fontSize: 14 }}>{today}</span>
         </div>
       </MCard>

@@ -157,7 +157,7 @@ function TicketCard({ ticket, className = '' }) {
 
       {pending && (
         <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: 16, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'center' }}>
-          <Hourglass size={15} color={M.accent} style={{ flexShrink: 0 }} />
+          <Hourglass size={15} color={M.accentInk} style={{ flexShrink: 0 }} />
           <p style={{ color: M.text, fontSize: 12, lineHeight: 1.5 }}>
             Encaminhado a você
             {ticket.forwarded_at
@@ -170,7 +170,7 @@ function TicketCard({ ticket, className = '' }) {
 
       {waiting && (
         <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: 16, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-          <CheckCheck size={15} color={M.accent} style={{ flexShrink: 0, marginTop: 1 }} />
+          <CheckCheck size={15} color={M.accentInk} style={{ flexShrink: 0, marginTop: 1 }} />
           <div>
             <p style={{ color: M.text, fontSize: 12, lineHeight: 1.5 }}>
               Conclusão informada — aguardando o moderador fechar.
@@ -186,7 +186,7 @@ function TicketCard({ ticket, className = '' }) {
 
       {closed && (
         <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: 16, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-          <CheckCheck size={15} color={M.accent} style={{ flexShrink: 0, marginTop: 1 }} />
+          <CheckCheck size={15} color={M.accentInk} style={{ flexShrink: 0, marginTop: 1 }} />
           <div>
             <p style={{ color: M.text, fontSize: 12, lineHeight: 1.5 }}>
               Aprovado e finalizado pelo moderador

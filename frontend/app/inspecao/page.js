@@ -64,16 +64,16 @@ function StepSemVinculo() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 20, padding: 16 }}>
-        <p style={{ color: 'rgba(255,255,255,0.96)', fontSize: 14, lineHeight: 1.6 }}>
+        <p style={{ color: M.text, fontSize: 14, lineHeight: 1.6 }}>
           Você não tem vínculo com nenhum prédio. Digite a chave fornecida pelo administrador e solicite acesso.
         </p>
       </div>
 
       <Card>
-        <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Chave do Prédio</p>
+        <p style={{ color: M.mute, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Chave do Prédio</p>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
-            style={{ flex: 1, background: '#232323', borderRadius: 16, padding: '11px 14px', color: 'rgba(255,255,255,0.96)', fontSize: 14, outline: 'none', fontWeight: 600, letterSpacing: '0.18em' }}
+            style={{ flex: 1, background: M.chip, borderRadius: 16, padding: '11px 14px', color: M.text, fontSize: 14, outline: 'none', fontWeight: 600, letterSpacing: '0.18em' }}
             placeholder="ABCD-EFGH-JKMN"
             maxLength={14}
             value={inputKey}
@@ -87,17 +87,17 @@ function StepSemVinculo() {
       </Card>
 
       {isLoading && <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}><Spinner /></div>}
-      {error && <p style={{ color: '#f87171', fontSize: 14, textAlign: 'center' }}>Chave inválida ou prédio não encontrado</p>}
+      {error && <p style={{ color: M.danger, fontSize: 14, textAlign: 'center' }}>Chave inválida ou prédio não encontrado</p>}
 
       {data && !requested && (
-        <div className="anim-fade-up" style={{ background: '#232323', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="anim-fade-up" style={{ background: M.chip, borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 40, height: 40, background: 'rgba(245,197,24,0.1)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Building2 size={18} color="#F5C518" />
+              <Building2 size={18} color={M.accentInk} />
             </div>
             <div>
-              <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 15 }}>{data.name}</p>
-              {data.description && <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 12 }}>{data.description}</p>}
+              <p style={{ color: M.text, fontWeight: 600, fontSize: 15 }}>{data.name}</p>
+              {data.description && <p style={{ color: M.faint, fontSize: 12 }}>{data.description}</p>}
             </div>
           </div>
           <Button onClick={handleRequest} loading={requestAccess.isPending} className="w-full">
@@ -109,8 +109,8 @@ function StepSemVinculo() {
       {requested && (
         <div className="anim-scale-in" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 20, padding: 20, textAlign: 'center' }}>
           <p style={{ fontSize: 28, marginBottom: 8 }}>✓</p>
-          <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 15 }}>Solicitação enviada!</p>
-          <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 14, marginTop: 4 }}>Aguarde o administrador aprovar seu acesso.</p>
+          <p style={{ color: M.text, fontWeight: 600, fontSize: 15 }}>Solicitação enviada!</p>
+          <p style={{ color: M.mute, fontSize: 14, marginTop: 4 }}>Aguarde o administrador aprovar seu acesso.</p>
         </div>
       )}
     </div>
@@ -140,7 +140,7 @@ function StepSelectFloors({ building, floors, onStart }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <MCard style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{ width: 42, height: 42, background: M.accentSoft, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Building2 size={19} color={M.accent} />
+          <Building2 size={19} color={M.accentInk} />
         </div>
         <div style={{ minWidth: 0 }}>
           <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 15, color: M.text }}>{building.name}</p>

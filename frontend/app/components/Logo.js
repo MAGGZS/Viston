@@ -41,13 +41,17 @@ const RATIO = {
   stacked: { vb: '0 0 503 405', h: 405 / 128, w: 503 / 405 },
 };
 
-/** O degradê do "V": branco no topo, esfriando para #BFBFBF na descida. */
+/**
+ * O degradê do "V". No escuro ele desce do branco para o cinza; no claro, do
+ * grafite para o quase preto, senão a marca desaparece no cartão branco. Os dois
+ * pares moram em globals.css.
+ */
 function VeeGradient({ id }) {
   return (
     <defs>
       <linearGradient id={id} x1="102.222" y1="38.3333" x2="155.889" y2="388.444" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#FFFFFF" />
-        <stop offset="1" stopColor="#BFBFBF" />
+        <stop stopColor="var(--logo-v-from)" />
+        <stop offset="1" stopColor="var(--logo-v-to)" />
       </linearGradient>
     </defs>
   );

@@ -60,7 +60,7 @@ function Author({ author }) {
     <div className="flex items-center gap-3 min-w-0">
       <Avatar user={author} size={32} />
       <div className="min-w-0">
-        <p className="text-white text-sm truncate">{author.name}</p>
+        <p className="text-ink text-sm truncate">{author.name}</p>
         <p className="text-faint text-xs truncate">{author.email}</p>
       </div>
     </div>
@@ -304,7 +304,7 @@ export default function AdminFeedbacksPage() {
         <main id={CONTENT_ID} className="flex-1 p-8 overflow-auto">
           <div className="anim-fade-down flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-semibold text-white">Feedbacks</h1>
+              <h1 className="text-2xl font-semibold text-ink">Feedbacks</h1>
               <p className="text-mute text-sm mt-0.5">
                 O que o público manda dizer. Você recebe (vira item da sua lista), guarda como mensagem ou descarta.
               </p>
@@ -339,7 +339,7 @@ export default function AdminFeedbacksPage() {
                     <span style={{
                       minWidth: 18, padding: '0 5px', borderRadius: R.badge, fontSize: 12,
                       background: active ? 'rgba(0,0,0,0.18)' : T.accentSoft,
-                      color: active ? T.onAccent : T.accent,
+                      color: active ? T.onAccent : T.accentInk,
                     }}>
                       {data.pending}
                     </span>
@@ -396,7 +396,7 @@ export default function AdminFeedbacksPage() {
       <div className="lg:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
         <div>
           <p className="text-4xl mb-4">🖥️</p>
-          <p className="text-white font-semibold text-lg">Feedbacks</p>
+          <p className="text-ink font-semibold text-lg">Feedbacks</p>
           <p className="text-mute text-sm mt-2">Acesse pelo computador para ler o que chegou</p>
         </div>
       </div>

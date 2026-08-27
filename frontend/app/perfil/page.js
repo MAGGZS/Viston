@@ -5,10 +5,11 @@ import { format } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { LogOut, ArrowLeft, Building2, Check, ChevronRight, KeyRound, MessageSquarePlus, Pencil, Trash2, UserRound } from 'lucide-react';
+import { LogOut, ArrowLeft, Building2, Check, ChevronRight, KeyRound, MessageSquarePlus, Palette, Pencil, Trash2, UserRound } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { Avatar } from '@/app/components/Avatar';
 import { AvatarEditorModal } from '@/app/components/AvatarEditorModal';
+import { AparenciaModal } from '@/app/components/AparenciaModal';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { Logo } from '@/app/components/Logo';
 import { M, MPage, MRound, MField, MButton } from '@/app/components/mobile/kit';
@@ -26,6 +27,7 @@ import {
   useMyFeedbacks,
 } from '@/app/hooks/useApi';
 import { isManager, isManagerAccount, roleLabel } from '@/app/lib/roles';
+import { useTheme } from '@/app/lib/tema';
 import { T, R, W, NUM, HERO_SURFACE } from '@/app/lib/theme';
 
 const profileSchema = yup.object({
@@ -93,7 +95,7 @@ function EditableAvatar({ user, size, onEdit }) {
 /** Dado da conta que não se edita aqui — função e prédio. */
 function Tile({ label, value, className = '' }) {
   return (
-    <div className={className} style={{ background: T.card, borderRadius: 20, padding: '14px 16px', minWidth: 0 }}>
+    <div className={className} style={{ background: T.card, borderRadius: 20, boxShadow: T.cardRing, padding: '14px 16px', minWidth: 0 }}>
       <p style={{
         fontFamily: T.display, fontWeight: W.title, fontSize: 15, color: T.text,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -120,7 +122,7 @@ function Row({ icon: Icon, label, hint, tone, onClick, className = '' }) {
       onClick={onClick}
       className={`profile-row ${className}`}
       style={{
-        width: '100%', minHeight: 56, background: T.card, border: 'none', borderRadius: 20,
+        width: '100%', minHeight: 56, background: T.card, border: 'none', borderRadius: 20, boxShadow: T.cardRing,
         padding: '0 16px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer',
         textAlign: 'left', marginBottom: 8,
       }}
@@ -150,7 +152,7 @@ function Credential({ user, onEditAvatar }) {
     <section
       className="anim-fade-up"
       style={{
-        background: HERO_SURFACE, borderRadius: R.card, padding: 28,
+        background: HERO_SURFACE, borderRadius: R.card, boxShadow: T.cardRing, padding: 28,
         display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
       }}
     >
@@ -301,7 +303,7 @@ function FeedbackBox() {
               <div key={item.id} style={{ background: T.chip, borderRadius: 14, padding: '11px 13px' }}>
                 <p style={{ color: T.text, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{item.message}</p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#4ade80', fontSize: 12 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: T.success, fontSize: 12 }}>
                     <Check size={12} strokeWidth={2.4} /> Recebido
                   </span>
                   <span style={{ color: T.faint, fontSize: 12 }}>
@@ -320,9 +322,10 @@ function FeedbackBox() {
 export default function PerfilPage() {
   const { user, logout, clearSession } = useAuthStore();
   const { show: toast } = useToastStore();
+  const theme = useTheme();
   const router = useRouter();
   const [deleteModal, setDeleteModal] = useState(false);
-  // Qual caixa está aberta: 'identity' | 'password' | 'building'
+  // Qual caixa está aberta: 'identity' | 'password' | 'building' | 'feedback' | 'appearance'
   const [sheet, setSheet] = useState(null);
   const [avatarModal, setAvatarModal] = useState(false);
 
@@ -373,7 +376,7 @@ export default function PerfilPage() {
     return (
       <>
         {buildingsLoading ? (
-          <div style={{ height: 48, background: '#232323', borderRadius: 12 }} />
+          <div style={{ height: 48, background: T.chip, borderRadius: 12 }} />
         ) : hasBuilding ? (
           // Todos os vínculos, e não só o primeiro. Quem trabalha em dois
           // prédios via um só aqui — e a saída aplicava sempre àquele.
@@ -381,14 +384,14 @@ export default function PerfilPage() {
             {myBuildings.map((building) => (
               <div key={building.building_id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <Building2 size={18} color="#F5C518" style={{ flexShrink: 0 }} />
+                  <Building2 size={18} color={T.accentInk} style={{ flexShrink: 0 }} />
                   <div style={{ minWidth: 0 }}>
-                    <p style={{ color: 'rgba(255,255,255,0.96)', fontWeight: 600, fontSize: 14 }}>{building.name}</p>
-                    {building.description && <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 12, marginTop: 2 }}>{building.description}</p>}
+                    <p style={{ color: T.text, fontWeight: 600, fontSize: 14 }}>{building.name}</p>
+                    {building.description && <p style={{ color: T.mute, fontSize: 12, marginTop: 2 }}>{building.description}</p>}
                   </div>
                 </div>
                 <button type="button" onClick={() => handleLeave(building)} disabled={leaveBuilding.isPending}
-                  className="w-full text-sm text-red-400 border border-red-900/40 bg-red-900/10 rounded-2xl py-2.5 hover:bg-red-900/20 transition-colors disabled:opacity-50">
+                  className="w-full text-sm text-danger border border-danger/25 bg-danger-soft rounded-2xl py-2.5 hover:bg-danger/15 transition-colors disabled:opacity-50">
                   {leaveBuilding.isPending ? 'Saindo...' : `Sair de ${building.name}`}
                 </button>
               </div>
@@ -396,7 +399,7 @@ export default function PerfilPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 14 }}>Você não está vinculado a nenhum prédio.</p>
+            <p style={{ color: T.faint, fontSize: 14 }}>Você não está vinculado a nenhum prédio.</p>
             <JoinBuildingForm />
           </div>
         )}
@@ -410,7 +413,7 @@ export default function PerfilPage() {
       <div className="hidden lg:block min-h-screen" style={{ background: T.bg }}>
         <header
           className="anim-fade-down"
-          style={{ position: 'sticky', top: 0, height: 60, background: 'rgba(11,11,11,0.82)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', zIndex: 10 }}
+          style={{ position: 'sticky', top: 0, height: 60, background: 'var(--surface-blur)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', zIndex: 10 }}
         >
           <button onClick={() => router.back()} className="transition-colors duration-150" style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', color: T.mute, fontSize: 14 }}
             onMouseEnter={e => e.currentTarget.style.color = T.text}
@@ -454,6 +457,15 @@ export default function PerfilPage() {
 
           <Group title="Segurança" className="anim-fade-up anim-d5" />
           <Row className="anim-fade-up anim-d5" icon={KeyRound} label="Alterar senha" onClick={() => setSheet('password')} />
+
+          <Group title="Aparência" className="anim-fade-up anim-d5" />
+          <Row
+            className="anim-fade-up anim-d5"
+            icon={Palette}
+            label="Tema"
+            hint={theme === 'light' ? 'Claro' : 'Escuro'}
+            onClick={() => setSheet('appearance')}
+          />
 
           <Group title="Feedback" className="anim-fade-up anim-d5" />
           <Row
@@ -513,6 +525,14 @@ export default function PerfilPage() {
           <Group title="Segurança" />
           <Row icon={KeyRound} label="Alterar senha" onClick={() => setSheet('password')} />
 
+          <Group title="Aparência" />
+          <Row
+            icon={Palette}
+            label="Tema"
+            hint={theme === 'light' ? 'Claro' : 'Escuro'}
+            onClick={() => setSheet('appearance')}
+          />
+
           <Group title="Feedback" />
           <Row
             icon={MessageSquarePlus}
@@ -559,6 +579,8 @@ export default function PerfilPage() {
         <FeedbackBox />
       </Modal>
 
+      <AparenciaModal open={sheet === 'appearance'} onClose={() => setSheet(null)} />
+
       {/* Chamada como função, não como <BuildingSection />: declarada dentro da
           página, ela seria um tipo novo a cada render e o campo da chave perderia
           o foco a cada tecla. */}
@@ -567,8 +589,8 @@ export default function PerfilPage() {
       </Modal>
 
       <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Excluir conta">
-        <p className="text-white/40 text-sm mb-6">
-          Tem certeza? Esta ação é <strong className="text-white/80">irreversível</strong>. Seu nome e e-mail serão anonimizados.
+        <p className="text-mute text-sm mb-6">
+          Tem certeza? Esta ação é <strong className="text-ink">irreversível</strong>. Seu nome e e-mail serão anonimizados.
         </p>
         <div className="flex gap-3">
           <Button variant="secondary" className="flex-1" onClick={() => setDeleteModal(false)}>Cancelar</Button>

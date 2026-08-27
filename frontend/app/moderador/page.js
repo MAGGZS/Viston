@@ -15,7 +15,7 @@ import { useCalendar, useBuildingHistory, useTicketStats } from '@/app/hooks/use
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { parseReportDate } from '@/app/lib/date';
 import { placeholderCellHeight } from '@/app/lib/pagination';
-import { T, R, W, NUM } from '@/app/lib/theme';
+import { T, R, W, NUM, HEAT } from '@/app/lib/theme';
 
 // A célula de espera tem a altura da de verdade — o `Badge` da coluna de status
 // entre os 11px de recuo —, para o cartão não encolher a cada seta.
@@ -29,7 +29,7 @@ function StatCard({ icon: Icon, label, value, isLoading, className = '' }) {
   return (
     <div className={className} style={{ background: T.card, borderRadius: 26, padding: 20, display: 'flex', alignItems: 'center', gap: 14 }}>
       <div style={{ width: 42, height: 42, background: T.accentSoft, borderRadius: R.control, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon size={19} color={T.accent} />
+        <Icon size={19} color={T.accentInk} />
       </div>
       <div>
         <p style={{ color: T.mute, fontSize: 12 }}>{label}</p>
@@ -129,7 +129,7 @@ export default function ModeradorPage() {
                     type="button"
                     onClick={(e) => { e.stopPropagation(); download(r.id); }}
                     disabled={pendingId === r.id}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: T.accent, fontSize: 14, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: T.accentInk, fontSize: 14, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                   >
                     <Download size={13} /> Baixar
                   </button>
@@ -211,7 +211,7 @@ export default function ModeradorPage() {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 14, justifyContent: 'flex-end' }}>
               <span style={{ color: T.mute, fontSize: 12 }}>Menos</span>
-              {['#232323', '#2E2A12', '#6B5A00', '#A88A00', '#F5C518'].map((c) => (
+              {HEAT.map((c) => (
                 <div key={c} style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
               ))}
               <span style={{ color: T.mute, fontSize: 12 }}>Mais</span>

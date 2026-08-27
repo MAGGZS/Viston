@@ -1,18 +1,9 @@
 'use client';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
 import { CalendarDayCell } from '@/app/components/CalendarDayCell';
-import { T } from '@/app/lib/theme';
+import { T, heatColor } from '@/app/lib/theme';
 
 const DAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
-
-/** Rampa de intensidade: quantas vistorias aconteceram no dia. */
-function getIntensity(count) {
-  if (!count) return T.chip;
-  if (count === 1) return '#2E2A12';
-  if (count === 2) return '#6B5A00';
-  if (count === 3) return '#A88A00';
-  return T.accent;
-}
 
 export function CalendarHeatmap({ heatmap = {}, month, year, onDayClick }) {
   const date = new Date(year, month - 1, 1);
@@ -52,7 +43,7 @@ export function CalendarHeatmap({ heatmap = {}, month, year, onDayClick }) {
                   dayNumber={format(day, 'd')}
                   dayKey={key}
                   info={data}
-                  background={getIntensity(data?.count || 0)}
+                  background={heatColor(data?.count)}
                   onClick={onDayClick}
                 />
               );

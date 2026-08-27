@@ -72,11 +72,11 @@ export default function RegisterGestorPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <p style={{ color: T.faint, fontSize: 14 }}>
             Já tem conta?{' '}
-            <a href="/login" style={{ color: 'rgba(245,197,24,0.85)', fontWeight: W.title, textDecoration: 'none' }}>Entrar</a>
+            <a href="/login" style={{ color: T.accentInk, fontWeight: W.title, textDecoration: 'none' }}>Entrar</a>
           </p>
           <p style={{ color: T.faint, fontSize: 14 }}>
             Vai vistoriar um prédio de outra pessoa?{' '}
-            <a href="/register" style={{ color: 'rgba(245,197,24,0.85)', fontWeight: W.title, textDecoration: 'none' }}>Criar conta comum</a>
+            <a href="/register" style={{ color: T.accentInk, fontWeight: W.title, textDecoration: 'none' }}>Criar conta comum</a>
           </p>
         </div>
       }
