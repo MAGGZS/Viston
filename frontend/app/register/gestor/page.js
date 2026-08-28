@@ -6,6 +6,7 @@ import * as yup from 'yup';
 import { Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { AuthShell } from '@/app/components/AuthShell';
+import { useUnsavedFlag } from '@/app/hooks/useUnsavedGuard';
 import { useAuthStore } from '@/app/store/auth';
 import { useCreateManager, useLogin } from '@/app/hooks/useApi';
 import { T, W } from '@/app/lib/theme';
@@ -41,7 +42,11 @@ export default function RegisterGestorPage() {
   const { login } = useAuthStore();
   const createManager = useCreateManager();
   const loginMutation = useLogin();
-  const { register, handleSubmit, formState: { errors } } = useForm({ resolver: yupResolver(schema) });
+  const { register, handleSubmit, formState: { errors, isDirty } } = useForm({ resolver: yupResolver(schema) });
+
+  // Sair da tela com o cadastro pela metade — pelo link de entrar, por um
+  // recarregar — passa a perguntar antes (ver components/UnsavedGuard.js).
+  useUnsavedFlag(isDirty);
   const [showPassword, setShowPassword] = useState(false);
 
   // A confirmação não vai para a API: o cadastro recusa campo desconhecido.

@@ -7,6 +7,7 @@ import { Users, UserMinus, AlertTriangle, Check, X } from 'lucide-react';
 import { Avatar } from '@/app/components/Avatar';
 import { GestorShell } from '@/app/components/GestorShell';
 import { Button, Modal, Select } from '@/app/components/ui';
+import { useUnsavedFlag } from '@/app/hooks/useUnsavedGuard';
 import {
   useBuildingMembers,
   useRemoveMember,
@@ -153,6 +154,10 @@ function AddManagerForm({ buildingId }) {
   const [email, setEmail] = useState('');
   const addManager = useAddBuildingManager();
   const { show: toast } = useToastStore();
+
+  // O campo fica solto na tela, sem caixa que feche: quem tira a pessoa daqui é
+  // o menu ao lado. O aviso é para ele (ver components/UnsavedGuard.js).
+  useUnsavedFlag(email.trim() !== '');
 
   async function handleSubmit(e) {
     e.preventDefault();

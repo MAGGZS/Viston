@@ -1,7 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { MRound } from '@/app/components/mobile/kit';
+import { ChevronRight } from 'lucide-react';
 import { Badge, Skeleton } from '@/app/components/ui';
 import { OcorrenciaModal, dayLabel } from '@/app/components/OcorrenciaModal';
 import { Paginator } from '@/app/components/Paginator';
@@ -28,10 +27,13 @@ const PRIORITY_VARIANT = { ALTA: 'danger', MEDIA: 'warning', BAIXA: 'default' };
  *
  * Vistorias é a primeira porque é o que existia: quem abre o histórico
  * continua caindo onde sempre caiu.
+ *
+ * `tab` é o nome curto, o que vai no botão. O `title` continua sendo a frase
+ * inteira, que titula o cartão — o botão tem a largura do dedo, não a da frase.
  */
 export const HISTORICO_VIEWS = [
-  { key: 'VISTORIAS', title: 'Histórico de vistorias', eyebrow: 'Vistorias concluídas' },
-  { key: 'OCORRENCIAS', title: 'Histórico de ocorrências', eyebrow: 'Ocorrências do prédio' },
+  { key: 'VISTORIAS', tab: 'Vistorias', title: 'Histórico de vistorias', eyebrow: 'Vistorias concluídas' },
+  { key: 'OCORRENCIAS', tab: 'Ocorrências', title: 'Histórico de ocorrências', eyebrow: 'Ocorrências do prédio' },
 ];
 
 /**
@@ -42,43 +44,82 @@ export const HISTORICO_VIEWS = [
  * modais de relatório abrem e fecham sem levar a escolha junto.
  */
 export function useHistoricoView() {
-  const [index, setIndex] = useState(0);
+  // A visão é escolhida pelo nome, e não por um índice que anda: com botão
+  // para cada uma, "a próxima" deixou de existir — cada toque diz qual quer.
+  const [view, setView] = useState(HISTORICO_VIEWS[0].key);
 
-  // Circular de propósito: com duas visões, "a próxima" e "a anterior" são a
-  // mesma, e desabilitar uma seta faria a pessoa procurar qual das duas ainda
-  // funciona.
-  function move(step) {
-    setIndex((i) => (i + step + HISTORICO_VIEWS.length) % HISTORICO_VIEWS.length);
-  }
-
-  const current = HISTORICO_VIEWS[index];
+  const current = HISTORICO_VIEWS.find((v) => v.key === view) ?? HISTORICO_VIEWS[0];
   return {
     view: current.key,
     title: current.title,
     eyebrow: current.eyebrow,
     isVistorias: current.key === 'VISTORIAS',
-    prev: () => move(-1),
-    next: () => move(1),
+    select: setView,
   };
 }
 
 /**
- * O cabeçalho do cartão: o título entre as duas setas.
+ * A altura do cabeçalho do alternador.
  *
- * Não é um `MSectionHead` porque ele põe tudo o que não é título à direita, e
- * aqui há uma seta de cada lado. Os botões continuam sendo os do kit — o mesmo
- * redondo das ações da barra do topo, com a mesma área de toque.
+ * O histórico no computador põe o calendário na coluna ao lado, e ele precisa
+ * começar na mesma linha que a lista. Como o cabeçalho é feito de duas peças
+ * empilhadas (os botões e o título), a conta sai daqui em vez de ficar como um
+ * número solto na tela que o usa.
  */
-export function HistoricoSwitcher({ title, subtitle, onPrev, onNext, className = '' }) {
-  return (
-    <div className={className} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <MRound label="Ver o histórico anterior" onClick={onPrev}>
-        <ChevronLeft size={18} />
-      </MRound>
+export const HISTORICO_SWITCHER_HEIGHT = 80;
 
-      <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
+/**
+ * O cabeçalho do cartão: os dois botões no canto, o título embaixo.
+ *
+ * Eram duas setas, uma de cada lado do título, e elas não diziam para onde
+ * levavam — com só duas visões, ir para a direita e ir para a esquerda davam no
+ * mesmo lugar, e descobrir isso custava um toque. Os botões dizem o nome do que
+ * abrem e qual dos dois está aberto agora.
+ *
+ * São os mesmos das filas de chamados do responsável (ver `SeletorFila`, em
+ * responsavel/page.js): pílula sobre trilho, o ativo em dourado. A diferença é
+ * que aqui eles não esticam — ficam do tamanho do texto, no canto superior
+ * esquerdo, porque o cabeçalho ainda tem o título embaixo.
+ */
+export function HistoricoSwitcher({ view, onSelect, title, subtitle, className = '' }) {
+  return (
+    <div className={className} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 10 }}>
+      <div
+        role="tablist"
+        aria-label="Históricos do prédio"
+        style={{
+          display: 'inline-flex', gap: 6, maxWidth: '100%',
+          background: T.chip, borderRadius: 999, padding: 4,
+        }}
+      >
+        {HISTORICO_VIEWS.map((item) => {
+          const active = item.key === view;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onSelect(item.key)}
+              style={{
+                border: 'none', cursor: 'pointer', borderRadius: 999,
+                padding: '9px 14px', fontFamily: T.display, fontSize: 13,
+                fontWeight: active ? W.title : W.body,
+                background: active ? T.accent : 'transparent',
+                color: active ? T.onAccent : T.mute,
+                transition: 'background-color 0.15s, color 0.15s',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {item.tab}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ minWidth: 0 }}>
         {/* `key` no título: é o que faz a animação tocar de novo a cada troca —
-            sem ele o texto mudaria seco, no meio de duas setas paradas. */}
+            sem ele o texto mudaria seco, embaixo de dois botões parados. */}
         <h2
           key={title}
           className="anim-fade-down"
@@ -92,10 +133,6 @@ export function HistoricoSwitcher({ title, subtitle, onPrev, onNext, className =
           </p>
         )}
       </div>
-
-      <MRound label="Ver o próximo histórico" onClick={onNext}>
-        <ChevronRight size={18} />
-      </MRound>
     </div>
   );
 }

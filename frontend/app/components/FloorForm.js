@@ -5,6 +5,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Plus, Trash2, CalendarDays, UserRound } from 'lucide-react';
 import { Toggle } from '@/app/components/ui';
+import { useUnsavedField } from '@/app/hooks/useUnsavedGuard';
 import { M, MCard, MSelect, MButton, MButtonSoft } from '@/app/components/mobile/kit';
 import {
   MAINTENANCE_TYPES,
@@ -110,7 +111,7 @@ export function FloorForm({ floor, inspectorName, initialRecords, responsibles =
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm({
     resolver: yupResolver(schema),
     defaultValues: {
@@ -122,6 +123,11 @@ export function FloorForm({ floor, inspectorName, initialRecords, responsibles =
 
   const { fields, append, remove } = useFieldArray({ control, name: 'records' });
   const nothingToReport = watch('nothing_to_report');
+
+  // O andar só entra no rascunho quando o formulário é enviado (ver `saveDraft`
+  // em inspecao/page.js): até lá, voltar ou sair da tela leva o que foi
+  // preenchido aqui. Quem avisa a tela é isto.
+  useUnsavedField(isDirty);
 
   const responsibleOptions = responsibles.map((r) => ({ value: r.id, label: r.name }));
 

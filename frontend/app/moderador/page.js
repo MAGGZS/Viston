@@ -219,18 +219,18 @@ export default function ModeradorPage() {
           </div>
 
           {/* Histórico — a mesma leitura das outras telas, e as mesmas duas
-              visões: vistorias e ocorrências, alternadas pelas setas. */}
+              visões: vistorias e ocorrências, alternadas pelos botões. */}
           <div className="anim-fade-up anim-d6" style={{ background: T.card, borderRadius: 26, overflow: 'hidden' }}>
             <div style={{ padding: '16px 22px', borderBottom: `1px solid ${T.line}` }}>
               <HistoricoSwitcher
+                view={historico.view}
+                onSelect={historico.select}
                 title={historico.title}
                 subtitle={
                   historico.isVistorias
                     ? 'Clique numa linha para abrir o relatório completo do dia'
                     : 'O que as vistorias encontraram, da mais recente para a mais antiga'
                 }
-                onPrev={historico.prev}
-                onNext={historico.next}
               />
             </div>
 

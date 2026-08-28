@@ -8,6 +8,8 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { Avatar } from '@/app/components/Avatar';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Button, Input, Modal, Badge, Skeleton } from '@/app/components/ui';
+import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
+import { useUnsavedGuard } from '@/app/hooks/useUnsavedGuard';
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { rolesLabel } from '@/app/lib/roles';
@@ -59,10 +61,12 @@ function RoleCell({ user }) {
 function RenameUserModal({ user, open, onClose }) {
   const updateUser = useUpdateUser();
   const { show: toast } = useToastStore();
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, formState: { errors, isDirty } } = useForm({
     resolver: yupResolver(renameSchema),
     defaultValues: { name: user.name },
   });
+
+  const saida = useUnsavedGuard(isDirty);
 
   async function onSubmit({ name }) {
     try {
@@ -75,18 +79,22 @@ function RenameUserModal({ user, open, onClose }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Editar nome">
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-        <p className="text-mute text-sm">
-          O nome assina as vistorias já registradas por <span className="text-ink">{user.email}</span>.
-        </p>
-        <Input label="Nome" error={errors.name?.message} {...register('name')} />
-        <div className="flex gap-3 mt-2">
-          <Button variant="secondary" className="flex-1" type="button" onClick={onClose}>Cancelar</Button>
-          <Button className="flex-1" type="submit" loading={updateUser.isPending}>Salvar</Button>
-        </div>
-      </form>
-    </Modal>
+    <>
+      <Modal open={open} onClose={() => saida.guard(onClose)} title="Editar nome">
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+          <p className="text-mute text-sm">
+            O nome assina as vistorias já registradas por <span className="text-ink">{user.email}</span>.
+          </p>
+          <Input label="Nome" error={errors.name?.message} {...register('name')} />
+          <div className="flex gap-3 mt-2">
+            <Button variant="secondary" className="flex-1" type="button" onClick={() => saida.guard(onClose)}>Cancelar</Button>
+            <Button className="flex-1" type="submit" loading={updateUser.isPending}>Salvar</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <UnsavedChangesModal open={saida.asking} onConfirm={saida.confirm} onCancel={saida.cancel} />
+    </>
   );
 }
 
@@ -104,9 +112,14 @@ export default function AdminUsersPage() {
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm({
+  const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm({
     resolver: yupResolver(schema),
   });
+
+  // A conta nova só existe depois de "Criar": fechar a caixa com os campos
+  // preenchidos joga fora nome, e-mail e senha de uma vez.
+  const saidaCriar = useUnsavedGuard(isDirty);
+  const fecharCriar = () => saidaCriar.guard(() => { reset(); setCreateModal(false); });
 
   const { show: toast } = useToastStore();
 
@@ -268,7 +281,7 @@ export default function AdminUsersPage() {
       </Modal>
 
       {/* Modal criar usuário */}
-      <Modal open={createModal} onClose={() => setCreateModal(false)} title="Novo usuário">
+      <Modal open={createModal} onClose={fecharCriar} title="Novo usuário">
         <form onSubmit={handleSubmit(onCreateSubmit)} className="flex flex-col gap-4">
           <Input label="Nome" error={errors.name?.message} {...register('name')} />
           <Input label="E-mail" type="email" error={errors.email?.message} {...register('email')} />
@@ -279,11 +292,13 @@ export default function AdminUsersPage() {
             e quem define o que ela faz lá dentro é o gestor daquele prédio.
           </p>
           <div className="flex gap-3 mt-2">
-            <Button variant="secondary" className="flex-1" type="button" onClick={() => setCreateModal(false)}>Cancelar</Button>
+            <Button variant="secondary" className="flex-1" type="button" onClick={fecharCriar}>Cancelar</Button>
             <Button className="flex-1" type="submit" loading={createUser.isPending}>Criar</Button>
           </div>
         </form>
       </Modal>
+
+      <UnsavedChangesModal open={saidaCriar.asking} onConfirm={saidaCriar.confirm} onCancel={saidaCriar.cancel} />
 
       {/* Segurado montado durante a saída, senão a caixa some num quadro */}
       {renameMounted && renameUser && (

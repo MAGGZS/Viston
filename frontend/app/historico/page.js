@@ -15,7 +15,7 @@ import { HEAT, heatColor } from '@/app/lib/theme';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { M, MPage, MTopBar, MRound, MCard, CONTENT_ID } from '@/app/components/mobile/kit';
-import { HistoricoSwitcher, OcorrenciasList, useHistoricoView } from '@/app/components/HistoricoSwitcher';
+import { HISTORICO_SWITCHER_HEIGHT, HistoricoSwitcher, OcorrenciasList, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { Badge, Button, Modal } from '@/app/components/ui';
 import { useInspections, useCalendar, useBuildingHistory } from '@/app/hooks/useApi';
 import { useIsDesktop } from '@/app/hooks/useMediaQuery';
@@ -376,9 +376,9 @@ export default function HistoricoPage() {
         <div style={{ padding: '0 32px 32px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, overflowY: 'auto' }}>
           <div className="anim-fade-up anim-d1" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <HistoricoSwitcher
+              view={historico.view}
+              onSelect={historico.select}
               title={historico.title}
-              onPrev={historico.prev}
-              onNext={historico.next}
             />
             {/* `key` na visão: só o conteúdo do cartão troca, e trocar tem de
                 ser visível — o calendário e os filtros ao lado ficam onde
@@ -389,9 +389,10 @@ export default function HistoricoPage() {
           </div>
           <div className="anim-fade-up anim-d2" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* A altura do alternador da coluna ao lado: sem isso o calendário
-                começaria uns trinta pixels acima da lista, e as duas colunas
-                deixariam de casar. */}
-            <p style={{ ...S.label, minHeight: 42, display: 'flex', alignItems: 'center' }}>Calendário</p>
+                começaria acima da lista, e as duas colunas deixariam de casar.
+                A medida vem de lá (ver `HISTORICO_SWITCHER_HEIGHT`) para as
+                duas não se desencontrarem quando o cabeçalho mudar. */}
+            <p style={{ ...S.label, minHeight: HISTORICO_SWITCHER_HEIGHT, display: 'flex', alignItems: 'center' }}>Calendário</p>
             {calendarioPanel}
           </div>
         </div>
@@ -435,9 +436,9 @@ export default function HistoricoPage() {
 
           <HistoricoSwitcher
             className="anim-fade-down"
+            view={historico.view}
+            onSelect={historico.select}
             title={historico.title}
-            onPrev={historico.prev}
-            onNext={historico.next}
           />
 
           {/* `key` na visão: é o que faz a lista entrar de novo a cada troca,

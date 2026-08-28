@@ -5,6 +5,8 @@ import { ArrowLeft, Building2, Check, Search } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { FloorForm } from '@/app/components/FloorForm';
 import { Button, Card, Modal, Spinner } from '@/app/components/ui';
+import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
+import { UnsavedScope, useUnsavedGuard, useUnsavedScope } from '@/app/hooks/useUnsavedGuard';
 import { M, MRound, MCard, MButton, MButtonSoft, MButtonGhost, MSectionHead, MPill } from '@/app/components/mobile/kit';
 import { useFloors, useBuildingByKey, useSubmitInspection, useRequestAccess, useBuildingResponsibles } from '@/app/hooks/useApi';
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
@@ -203,6 +205,16 @@ export default function InspecaoPage() {
    */
   const submissionKey = useRef(null);
 
+  /**
+   * O que o andar aberto tem de preenchido e ainda não enviado.
+   *
+   * O formulário de andar avisa daqui de dentro (ver `FloorForm`), e é o que
+   * faz o botão de voltar — e a barra de baixo, e o F5 — perguntarem antes de
+   * levar embora a ocorrência que estava sendo descrita.
+   */
+  const { dirty, report } = useUnsavedScope();
+  const saida = useUnsavedGuard(dirty);
+
   // Só os prédios em que esta pessoa vistoria — e não a lista inteira: com papel
   // por prédio, dá para ser inspetor num e só acompanhar outro, e abrir a
   // vistoria no prédio errado só daria 403 no fim. Com mais de um, quem escolhe
@@ -287,10 +299,17 @@ export default function InspecaoPage() {
     setFinishedReport(null);
   }
 
+  /**
+   * Voltar, com a pergunta quando há o que perder.
+   *
+   * Do primeiro andar, voltar é desistir da vistoria: o rascunho guardado no
+   * aparelho sai junto, e é por isso que a pergunta ali é a outra — "descartar
+   * a vistoria", não "descartar o andar".
+   */
   function handleBack() {
     if (step !== 'form') return router.back();
-    if (currentIndex > 0) return setCurrentIndex(i => i - 1);
-    resetToSelect();
+    if (currentIndex > 0) return saida.guard(() => setCurrentIndex(i => i - 1));
+    saida.guard(resetToSelect);
   }
 
   async function handleFloorSubmit(records) {
@@ -397,6 +416,7 @@ export default function InspecaoPage() {
 
           {step === 'form' && currentFloor && (
             <div className="anim-fade-up">
+            <UnsavedScope report={report}>
             <FloorForm
               key={currentFloor.id}
               floor={currentFloor}
@@ -407,6 +427,7 @@ export default function InspecaoPage() {
               isLoading={isSubmitting}
               isLast={isLast}
             />
+            </UnsavedScope>
             </div>
           )}
 
@@ -466,6 +487,17 @@ export default function InspecaoPage() {
             </MButtonGhost>
           </div>
         </Modal>
+
+        <UnsavedChangesModal
+          open={saida.asking}
+          message={
+            currentIndex > 0
+              ? 'Este andar tem ocorrências preenchidas e ainda não enviadas. Voltar agora as perde.'
+              : 'Este andar tem ocorrências preenchidas e ainda não enviadas. Voltar agora encerra a vistoria e apaga o que foi guardado.'
+          }
+          onConfirm={saida.confirm}
+          onCancel={saida.cancel}
+        />
       </div>
     </RouteGuard>
   );

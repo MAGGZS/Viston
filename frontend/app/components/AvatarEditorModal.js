@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import { Button, Modal } from '@/app/components/ui';
+import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
+import { UnsavedScope, useUnsavedField, useUnsavedGuard, useUnsavedScope } from '@/app/hooks/useUnsavedGuard';
 import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
 import { useUpdateAvatar, useRemoveAvatar } from '@/app/hooks/useApi';
@@ -23,13 +25,29 @@ const MAX_FILE_BYTES = 12 * 1024 * 1024;
  * 512px em JPEG — algumas dezenas de KB.
  */
 export function AvatarEditorModal({ open, onClose }) {
+  // A foto escolhida e o enquadramento moram no corpo, um nível abaixo; o
+  // escopo é o que os traz até aqui, que é onde a caixa fecha.
+  const { dirty, report } = useUnsavedScope();
+  const saida = useUnsavedGuard(dirty);
+
   return (
-    <Modal open={open} onClose={onClose} title="Foto de perfil" maxWidth={340}>
-      {/* O corpo mora aqui dentro de propósito: quando a caixa fecha de vez, o
-          Modal desmonta os filhos e o recorte volta do zero sozinho — sem
-          efeito nenhum para limpar estado. */}
-      <AvatarEditor onClose={onClose} />
-    </Modal>
+    <>
+      <Modal open={open} onClose={() => saida.guard(onClose)} title="Foto de perfil" maxWidth={340}>
+        {/* O corpo mora aqui dentro de propósito: quando a caixa fecha de vez, o
+            Modal desmonta os filhos e o recorte volta do zero sozinho — sem
+            efeito nenhum para limpar estado. */}
+        <UnsavedScope report={report}>
+          <AvatarEditor onClose={onClose} />
+        </UnsavedScope>
+      </Modal>
+
+      <UnsavedChangesModal
+        open={saida.asking}
+        message="Você escolheu uma foto e ainda não salvou. Sair agora descarta o recorte."
+        onConfirm={saida.confirm}
+        onCancel={saida.cancel}
+      />
+    </>
   );
 }
 
@@ -47,6 +65,10 @@ function AvatarEditor({ onClose }) {
   const [source, setSource] = useState(null); // { url, width, height }
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+
+  // Escolher a foto é meio caminho: o que vale é o recorte, e ele só existe
+  // aqui até alguém salvar.
+  useUnsavedField(!!source);
 
   // A URL do arquivo escolhido é do navegador, não da rede: sem revogar, cada
   // troca de foto deixa o blob anterior preso na memória da aba.

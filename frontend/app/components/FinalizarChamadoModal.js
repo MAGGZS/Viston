@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { CheckCheck } from 'lucide-react';
 import { Button, Modal } from '@/app/components/ui';
+import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
+import { useUnsavedGuard } from '@/app/hooks/useUnsavedGuard';
 import { useCloseTicket } from '@/app/hooks/useApi';
 import { useToastStore } from '@/app/store/toast';
 import { T, R, W } from '@/app/lib/theme';
@@ -43,6 +45,11 @@ export function FinalizarChamadoModal({ ticket, open, onClose, onFinalizado }) {
     if (temGasto) costRef.current?.focus();
   }, [temGasto]);
 
+  // O relatório da manutenção é o que o documento do período publica depois:
+  // fechar a caixa com ele escrito e não enviado apaga justamente a parte que
+  // ninguém mais tem como reconstituir.
+  const saida = useUnsavedGuard(note !== '' || temGasto || cost !== '');
+
   function reset() {
     setNote('');
     setTemGasto(false);
@@ -80,73 +87,77 @@ export function FinalizarChamadoModal({ ticket, open, onClose, onFinalizado }) {
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title="Finalizar chamado" maxWidth={440}>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <p style={{ color: T.mute, fontSize: 12, lineHeight: 1.6 }}>
-          {ticket?.floor?.label} — {ticket?.description}
-        </p>
+    <>
+      <Modal open={open} onClose={() => saida.guard(handleClose)} title="Finalizar chamado" maxWidth={440}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <p style={{ color: T.mute, fontSize: 12, lineHeight: 1.6 }}>
+            {ticket?.floor?.label} — {ticket?.description}
+          </p>
 
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ color: T.mute, fontSize: 12 }}>Relatório da manutenção</span>
-          <textarea
-            rows={4}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="O que foi feito, o que ficou resolvido…"
-            style={{
-              background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent',
-              borderRadius: R.control, padding: '12px 14px', color: T.text, fontSize: 14,
-              outline: 'none', width: '100%', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6,
-            }}
-          />
-        </label>
-
-        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={temGasto}
-            onChange={(e) => { setTemGasto(e.target.checked); setErro(null); }}
-            style={{ width: 16, height: 16, accentColor: T.accent, cursor: 'pointer' }}
-          />
-          <span style={{ color: T.text, fontSize: 14 }}>Houve gasto nesta manutenção</span>
-        </label>
-
-        {/* O campo só existe quando há o que preencher: mostrá-lo desabilitado
-            deixaria a pergunta na tela depois de já respondida. */}
-        {temGasto && (
-          <label className="anim-scale-in" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ color: T.mute, fontSize: 12 }}>Valor (R$)</span>
-            <input
-              ref={costRef}
-              type="number"
-              min="0"
-              step="0.01"
-              value={cost}
-              onChange={(e) => { setCost(e.target.value); setErro(null); }}
-              placeholder="0,00"
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ color: T.mute, fontSize: 12 }}>Relatório da manutenção</span>
+            <textarea
+              rows={4}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="O que foi feito, o que ficou resolvido…"
               style={{
                 background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent',
-                borderRadius: R.control, padding: '11px 14px', color: T.text, fontSize: 14,
-                outline: 'none', width: '100%',
+                borderRadius: R.control, padding: '12px 14px', color: T.text, fontSize: 14,
+                outline: 'none', width: '100%', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6,
               }}
             />
           </label>
-        )}
 
-        {erro && (
-          <p role="alert" style={{ color: T.danger, fontSize: 12 }}>{erro}</p>
-        )}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={temGasto}
+              onChange={(e) => { setTemGasto(e.target.checked); setErro(null); }}
+              style={{ width: 16, height: 16, accentColor: T.accent, cursor: 'pointer' }}
+            />
+            <span style={{ color: T.text, fontSize: 14 }}>Houve gasto nesta manutenção</span>
+          </label>
 
-        <div style={{ display: 'flex', gap: 10 }}>
-          <Button variant="secondary" onClick={handleClose} style={{ flex: 1 }}>
-            Cancelar
-          </Button>
-          <Button type="submit" loading={close.isPending} style={{ flex: 1 }}>
-            <CheckCheck size={15} /> Finalizar
-          </Button>
-        </div>
-      </form>
-    </Modal>
+          {/* O campo só existe quando há o que preencher: mostrá-lo desabilitado
+              deixaria a pergunta na tela depois de já respondida. */}
+          {temGasto && (
+            <label className="anim-scale-in" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ color: T.mute, fontSize: 12 }}>Valor (R$)</span>
+              <input
+                ref={costRef}
+                type="number"
+                min="0"
+                step="0.01"
+                value={cost}
+                onChange={(e) => { setCost(e.target.value); setErro(null); }}
+                placeholder="0,00"
+                style={{
+                  background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent',
+                  borderRadius: R.control, padding: '11px 14px', color: T.text, fontSize: 14,
+                  outline: 'none', width: '100%',
+                }}
+              />
+            </label>
+          )}
+
+          {erro && (
+            <p role="alert" style={{ color: T.danger, fontSize: 12 }}>{erro}</p>
+          )}
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Button variant="secondary" onClick={() => saida.guard(handleClose)} style={{ flex: 1 }}>
+              Cancelar
+            </Button>
+            <Button type="submit" loading={close.isPending} style={{ flex: 1 }}>
+              <CheckCheck size={15} /> Finalizar
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <UnsavedChangesModal open={saida.asking} onConfirm={saida.confirm} onCancel={saida.cancel} />
+    </>
   );
 }
 

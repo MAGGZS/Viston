@@ -7,6 +7,8 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { Badge } from '@/app/components/ui';
 import { M, MPage, MTopBar, MCard, MButton, MButtonGhost } from '@/app/components/mobile/kit';
+import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
+import { UnsavedScope, useUnsavedField, useUnsavedGuard, useUnsavedScope } from '@/app/hooks/useUnsavedGuard';
 import { OcorrenciaModal } from '@/app/components/OcorrenciaModal';
 import { useMyTickets, useReceiveTicket, useReportTicketDone } from '@/app/hooks/useApi';
 import {
@@ -34,6 +36,10 @@ function ConclusaoBox({ ticket }) {
   const reportDone = useReportTicketDone();
   const { show: toast } = useToastStore();
   const [report, setReport] = useState(ticket.done_report ?? '');
+
+  // O relato é a única chance de contar o que foi feito, e ele só sai daqui em
+  // "Concluir serviço": trocar de fila remonta o cartão e o levaria junto.
+  useUnsavedField(report !== (ticket.done_report ?? ''));
 
   async function handleDone() {
     try {
@@ -321,6 +327,11 @@ export default function ResponsavelPage() {
 
   const [aba, setAba] = useState('RECEBER');
 
+  // Cada fila monta os seus cartões do zero (ver a `key` da lista): trocar com
+  // um relatório escrito e não enviado o apagaria.
+  const { dirty, report } = useUnsavedScope();
+  const saida = useUnsavedGuard(dirty);
+
   const contagem = ABAS.reduce((acc, a) => {
     acc[a.id] = tickets.filter((t) => a.status.includes(t.status)).length;
     return acc;
@@ -352,7 +363,13 @@ export default function ResponsavelPage() {
           accent="chamados"
         />
 
-        <SeletorFila abas={ABAS} atual={aba} onPick={setAba} contagem={contagem} />
+        <SeletorFila
+          abas={ABAS}
+          atual={aba}
+          // Tocar na fila que já está aberta não muda nada, e por isso não pergunta.
+          onPick={(id) => id !== aba && saida.guard(() => setAba(id))}
+          contagem={contagem}
+        />
 
         {isLoading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -384,18 +401,22 @@ export default function ResponsavelPage() {
           </MCard>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {visiveis.map((ticket, idx) => (
-            <TicketCard
-              // A fila entra na chave: sem isso o React reaproveita o cartão da
-              // fila anterior, e o texto do relatório digitado num chamado
-              // aparece em outro.
-              key={`${abaAtual.id}-${ticket.id}`}
-              ticket={ticket}
-              className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
-            />
-          ))}
-        </div>
+        <UnsavedScope report={report}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {visiveis.map((ticket, idx) => (
+              <TicketCard
+                // A fila entra na chave: sem isso o React reaproveita o cartão da
+                // fila anterior, e o texto do relatório digitado num chamado
+                // aparece em outro.
+                key={`${abaAtual.id}-${ticket.id}`}
+                ticket={ticket}
+                className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
+              />
+            ))}
+          </div>
+        </UnsavedScope>
+
+        <UnsavedChangesModal open={saida.asking} onConfirm={saida.confirm} onCancel={saida.cancel} />
 
         <BottomNav />
       </MPage>

@@ -4,6 +4,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AlertTriangle, ArrowRight, Building2, CheckCheck, Hourglass, Send } from 'lucide-react';
 import { Badge, Button, Select, Spinner } from '@/app/components/ui';
+import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
+import { UnsavedScope, useUnsavedField, useUnsavedGuard, useUnsavedScope } from '@/app/hooks/useUnsavedGuard';
 import {
   MAINTENANCE_TYPES,
   CATEGORIES,
@@ -110,6 +112,9 @@ function ForwardBox({ ticket, buildingId, label }) {
   const { show: toast } = useToastStore();
   const [picked, setPicked] = useState(ticket.responsible_id ?? '');
 
+  // Escolher a pessoa e trocar de ocorrência sem enviar perde a escolha.
+  useUnsavedField(picked !== (ticket.responsible_id ?? ''));
+
   const options = responsibles.map((r) => ({ value: r.id, label: r.name }));
 
   async function handleForward() {
@@ -158,11 +163,15 @@ function MaintenanceBox({ ticket }) {
   const update = useUpdateTicket();
   const { show: toast } = useToastStore();
   const [note, setNote] = useState(ticket.maintenance_note ?? '');
-  const [cost, setCost] = useState(
+  const savedCost =
     ticket.maintenance_cost === null || ticket.maintenance_cost === undefined
       ? ''
-      : String(ticket.maintenance_cost)
-  );
+      : String(ticket.maintenance_cost);
+  const [cost, setCost] = useState(savedCost);
+
+  // Nada aqui vai ao servidor antes de "Salvar informações", e a folha inteira
+  // é remontada quando outra ocorrência é escolhida à esquerda.
+  useUnsavedField(note !== (ticket.maintenance_note ?? '') || cost !== savedCost);
 
   async function handleSave() {
     try {
@@ -380,6 +389,12 @@ export function ChamadosBoard({ buildingId, group }) {
   const [picked, setPicked] = useState(null);
   const selected = tickets.find((t) => t.id === picked) ?? tickets[0] ?? null;
 
+  // Trocar de ocorrência remonta a folha da direita, e com ela some o que
+  // estiver escrito lá — por isso a troca passa pela mesma pergunta que fechar
+  // uma caixa.
+  const { dirty, report } = useUnsavedScope();
+  const saida = useUnsavedGuard(dirty);
+
   if (isLoading) {
     return (
       <div className="anim-fade-in" style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
@@ -406,7 +421,8 @@ export function ChamadosBoard({ buildingId, group }) {
             key={ticket.id}
             ticket={ticket}
             active={ticket.id === selected?.id}
-            onClick={() => setPicked(ticket.id)}
+            // Clicar na ocorrência já aberta não remonta nada — nada a perguntar.
+            onClick={() => ticket.id !== selected?.id && saida.guard(() => setPicked(ticket.id))}
             group={group}
             className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
           />
@@ -419,13 +435,17 @@ export function ChamadosBoard({ buildingId, group }) {
             manutenção, valor) nascem do chamado aberto, e trocar de ocorrência
             tem de recarregá-los — não manter o que estava digitado no anterior. */}
         {selected ? (
-          <TicketDetail key={selected.id} ticket={selected} buildingId={buildingId} group={group} />
+          <UnsavedScope report={report}>
+            <TicketDetail key={selected.id} ticket={selected} buildingId={buildingId} group={group} />
+          </UnsavedScope>
         ) : (
           <div className="anim-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.mute, fontSize: 14, gap: 8 }}>
             <ArrowRight size={15} /> Escolha uma ocorrência à esquerda
           </div>
         )}
       </div>
+
+      <UnsavedChangesModal open={saida.asking} onConfirm={saida.confirm} onCancel={saida.cancel} />
     </div>
   );
 }

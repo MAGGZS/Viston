@@ -1,28 +1,12 @@
 'use client';
 import { useState, useMemo } from 'react';
-import { Plus, X, AlertTriangle } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { Button, Input, Modal } from '@/app/components/ui';
+import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
+import { useUnsavedGuard } from '@/app/hooks/useUnsavedGuard';
 import { useToastStore } from '@/app/store/toast';
 import { useCreateBuilding, useUpdateBuilding, useCreateFloor, useDeleteFloor, useFloors } from '@/app/hooks/useApi';
 import { T } from '@/app/lib/theme';
-
-/** Confirmação curta, reaproveitada pelos dois modais de prédio. */
-export function ConfirmModal({ open, title, message, confirmLabel = 'Confirmar', confirmVariant = 'danger', onConfirm, onCancel }) {
-  return (
-    <Modal open={open} onClose={onCancel} title={title}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-          <AlertTriangle size={18} color={T.danger} style={{ flexShrink: 0, marginTop: 2 }} />
-          <p style={{ color: T.text, fontSize: 14, lineHeight: 1.6 }}>{message}</p>
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <Button variant="secondary" style={{ flex: 1 }} onClick={onCancel}>Voltar</Button>
-          <Button variant={confirmVariant} style={{ flex: 1 }} onClick={onConfirm}>{confirmLabel}</Button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
 
 /** Lista de andares como tags, com campo de adição embaixo. */
 function FloorTags({ labels, onRemove, input, onInputChange, onAdd }) {
@@ -68,12 +52,12 @@ export function CreateBuildingModal({ open, onClose }) {
   const [form, setForm] = useState({ name: '', description: '' });
   const [labels, setLabels] = useState([]);
   const [input, setInput] = useState('');
-  const [confirmCancel, setConfirmCancel] = useState(false);
   const createBuilding = useCreateBuilding();
   const createFloor = useCreateFloor();
   const { show: toast } = useToastStore();
 
   const isDirty = form.name.trim() !== '' || form.description.trim() !== '' || labels.length > 0;
+  const saida = useUnsavedGuard(isDirty);
 
   function addFloor() {
     const label = input.trim();
@@ -106,37 +90,29 @@ export function CreateBuildingModal({ open, onClose }) {
     setForm({ name: '', description: '' });
     setLabels([]);
     setInput('');
-    setConfirmCancel(false);
     onClose();
-  }
-
-  function handleClose() {
-    if (isDirty) { setConfirmCancel(true); return; }
-    doClose();
   }
 
   return (
     <>
-      <Modal open={open && !confirmCancel} onClose={handleClose} title="Novo prédio">
+      <Modal open={open} onClose={() => saida.guard(doClose)} title="Novo prédio">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
           <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           <Input label="Descrição (opcional)" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
           <FloorTags labels={labels} onRemove={removeFloor} input={input} onInputChange={setInput} onAdd={addFloor} />
           <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
-            <Button variant="secondary" style={{ flex: 1 }} onClick={handleClose}>Cancelar</Button>
+            <Button variant="secondary" style={{ flex: 1 }} onClick={() => saida.guard(doClose)}>Cancelar</Button>
             <Button style={{ flex: 1 }} onClick={handleCreate} loading={createBuilding.isPending || createFloor.isPending} disabled={!form.name.trim() || labels.length === 0}>
               Criar prédio
             </Button>
           </div>
         </div>
       </Modal>
-      <ConfirmModal
-        open={confirmCancel}
-        title="Descartar alterações?"
+      <UnsavedChangesModal
+        open={saida.asking}
         message="Você tem informações não salvas. Deseja sair sem criar o prédio?"
-        confirmLabel="Descartar"
-        onConfirm={doClose}
-        onCancel={() => setConfirmCancel(false)}
+        onConfirm={saida.confirm}
+        onCancel={saida.cancel}
       />
     </>
   );
@@ -165,7 +141,6 @@ export function EditBuildingModal({ building, open = true, onClose }) {
   // `null` = ninguém mexeu na lista ainda; o que aparece é o que veio do banco.
   const [draftLabels, setDraftLabels] = useState(null);
   const [input, setInput] = useState('');
-  const [confirmCancel, setConfirmCancel] = useState(false);
 
   const dbFloors = useMemo(() => floorsData?.floors ?? [], [floorsData]);
   const dbLabels = useMemo(() => dbFloors.map(f => f.label), [dbFloors]);
@@ -176,10 +151,7 @@ export function EditBuildingModal({ building, open = true, onClose }) {
     form.description !== (building.description || '') ||
     JSON.stringify([...labels].sort()) !== JSON.stringify([...dbLabels].sort());
 
-  function handleClose() {
-    if (isDirty) { setConfirmCancel(true); return; }
-    onClose();
-  }
+  const saida = useUnsavedGuard(isDirty);
 
   function addFloor() {
     const label = input.trim();
@@ -217,7 +189,7 @@ export function EditBuildingModal({ building, open = true, onClose }) {
 
   return (
     <>
-      <Modal open={open && !confirmCancel} onClose={handleClose} title={`Editar — ${building.name}`}>
+      <Modal open={open} onClose={() => saida.guard(onClose)} title={`Editar — ${building.name}`}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
           <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           <Input label="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
@@ -226,18 +198,16 @@ export function EditBuildingModal({ building, open = true, onClose }) {
             : <FloorTags labels={labels} onRemove={removeFloor} input={input} onInputChange={setInput} onAdd={addFloor} />
           }
           <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
-            <Button variant="secondary" style={{ flex: 1 }} onClick={handleClose}>Cancelar</Button>
+            <Button variant="secondary" style={{ flex: 1 }} onClick={() => saida.guard(onClose)}>Cancelar</Button>
             <Button style={{ flex: 1 }} onClick={handleSave} loading={isSaving} disabled={!form.name.trim() || labels.length === 0}>Salvar</Button>
           </div>
         </div>
       </Modal>
-      <ConfirmModal
-        open={confirmCancel}
-        title="Descartar alterações?"
-        message="Você tem alterações não salvas. Deseja sair sem salvar?"
-        confirmLabel="Descartar"
-        onConfirm={onClose}
-        onCancel={() => setConfirmCancel(false)}
+      <UnsavedChangesModal
+        open={saida.asking}
+        message="Você tem alterações não salvas neste prédio. Deseja sair sem salvar?"
+        onConfirm={saida.confirm}
+        onCancel={saida.cancel}
       />
     </>
   );

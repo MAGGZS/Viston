@@ -252,9 +252,9 @@ export default function GestorBuildingPage() {
           <div className="col-span-2 bg-card rounded-card overflow-hidden">
             <div className="px-6 py-4 border-b border-line">
               <HistoricoSwitcher
+                view={historico.view}
+                onSelect={historico.select}
                 title={historico.title}
-                onPrev={historico.prev}
-                onNext={historico.next}
               />
             </div>
 

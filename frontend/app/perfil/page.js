@@ -15,6 +15,8 @@ import { Logo } from '@/app/components/Logo';
 import { M, MPage, MRound, MField, MButton } from '@/app/components/mobile/kit';
 import { BottomNav } from '@/app/components/BottomNav';
 import { Button, Modal, Textarea } from '@/app/components/ui';
+import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
+import { UnsavedScope, useUnsavedField, useUnsavedGuard, useUnsavedScope } from '@/app/hooks/useUnsavedGuard';
 import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
 import {
@@ -201,6 +203,8 @@ function IdentityForm({ user }) {
     values: { name: user?.name ?? '', email: user?.email ?? '' },
   });
 
+  useUnsavedField(form.formState.isDirty);
+
   async function onSubmit(data) {
     try {
       const updated = await updateMe.mutateAsync(data);
@@ -226,6 +230,8 @@ function PasswordForm() {
   const changePassword = useChangePassword();
 
   const form = useForm({ resolver: yupResolver(passwordSchema) });
+
+  useUnsavedField(form.formState.isDirty);
 
   // A confirmação existe só para o dedo errar menos; a API recebe as duas senhas.
   async function onSubmit({ new_password_confirmation, ...data }) {
@@ -267,6 +273,8 @@ function FeedbackBox() {
   const { data: sent = [], isLoading } = useMyFeedbacks();
 
   const form = useForm({ resolver: yupResolver(feedbackSchema), defaultValues: { message: '' } });
+
+  useUnsavedField(form.formState.isDirty);
 
   async function onSubmit({ message }) {
     try {
@@ -328,6 +336,17 @@ export default function PerfilPage() {
   // Qual caixa está aberta: 'identity' | 'password' | 'building' | 'feedback' | 'appearance'
   const [sheet, setSheet] = useState(null);
   const [avatarModal, setAvatarModal] = useState(false);
+
+  /**
+   * A saída das caixas de formulário.
+   *
+   * Uma caixa por vez: identificação, senha e feedback dividem o mesmo `sheet`,
+   * então um escopo só dá conta das três — e é ele que sabe se há o que perder
+   * quando alguém fecha no X, no Escape ou no fundo.
+   */
+  const { dirty, report } = useUnsavedScope();
+  const saida = useUnsavedGuard(dirty);
+  const fecharSheet = () => saida.guard(() => setSheet(null));
 
   const deleteMe = useDeleteMe();
   const leaveBuilding = useLeaveBuilding();
@@ -567,17 +586,21 @@ export default function PerfilPage() {
       <AvatarEditorModal open={avatarModal} onClose={() => setAvatarModal(false)} />
 
       {/* As caixas: cada linha da lista abre a sua, no telefone e no computador */}
-      <Modal open={sheet === 'identity'} onClose={() => setSheet(null)} title="Identificação" maxWidth={440}>
-        <IdentityForm user={user} />
-      </Modal>
+      <UnsavedScope report={report}>
+        <Modal open={sheet === 'identity'} onClose={fecharSheet} title="Identificação" maxWidth={440}>
+          <IdentityForm user={user} />
+        </Modal>
 
-      <Modal open={sheet === 'password'} onClose={() => setSheet(null)} title="Alterar senha" maxWidth={440}>
-        <PasswordForm />
-      </Modal>
+        <Modal open={sheet === 'password'} onClose={fecharSheet} title="Alterar senha" maxWidth={440}>
+          <PasswordForm />
+        </Modal>
 
-      <Modal open={sheet === 'feedback'} onClose={() => setSheet(null)} title="Enviar feedback" maxWidth={440}>
-        <FeedbackBox />
-      </Modal>
+        <Modal open={sheet === 'feedback'} onClose={fecharSheet} title="Enviar feedback" maxWidth={440}>
+          <FeedbackBox />
+        </Modal>
+      </UnsavedScope>
+
+      <UnsavedChangesModal open={saida.asking} onConfirm={saida.confirm} onCancel={saida.cancel} />
 
       <AparenciaModal open={sheet === 'appearance'} onClose={() => setSheet(null)} />
 
