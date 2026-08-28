@@ -18,9 +18,12 @@ import { parseReportDate } from '@/app/lib/date';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
 import {
   CATEGORIES,
+  FLOOR_STATUS_LABEL,
+  FLOOR_STATUS_VARIANT,
   MAINTENANCE_TYPES,
   PRIORITIES,
   RECORD_STATUS,
+  worstFloorStatus,
 } from '@/app/lib/maintenanceOptions';
 import { T, R, W } from '@/app/lib/theme';
 
@@ -255,14 +258,15 @@ function BuscaEFiltros({ view, busca, onBusca, ativos, onAbrirFiltros, style = {
 /**
  * As vistorias filtradas, em tabela.
  *
- * A tabela é a do painel do moderador, com duas colunas a mais: quantos andares
- * e quantas ocorrências saíram do dia. Num cartão de oito linhas elas não
- * cabiam; aqui são o que faz a lista responder sem abrir o relatório.
+ * A tabela é a do painel do moderador, com uma coluna a mais: quantas
+ * ocorrências saíram do dia. Num cartão de oito linhas ela não cabia, e é o que
+ * faz a lista responder sem abrir o relatório — ao lado do status, que diz se
+ * essas ocorrências eram graves.
  */
 function VistoriasTable({ lista, onAbrir }) {
   const { download, pendingId } = useExcelDownload();
   const shown = lista.isPaging ? [] : lista.rows;
-  const colunas = ['Inspetor', 'Dia', 'Andares', 'Ocorrências', 'Planilha'];
+  const colunas = ['Inspetor', 'Status', 'Dia', 'Ocorrências', 'Planilha'];
 
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -294,11 +298,9 @@ function VistoriasTable({ lista, onAbrir }) {
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           >
             <td style={{ padding: '11px 22px', color: T.text, fontSize: 14 }}>{r.inspector?.name ?? '—'}</td>
+            <td style={{ padding: '11px 22px' }}><StatusDaVistoria report={r} /></td>
             <td style={{ padding: '11px 22px', color: T.mute, fontSize: 14 }}>
               {format(parseReportDate(r.date), 'dd/MM/yyyy', { locale: ptBR })}
-            </td>
-            <td style={{ padding: '11px 22px', color: T.mute, fontSize: 14 }}>
-              {r.floor_form_entries?.length ?? 0}
             </td>
             <td style={{ padding: '11px 22px', color: T.mute, fontSize: 14 }}>{contarOcorrencias(r)}</td>
             <td style={{ padding: '11px 22px' }}>
@@ -359,15 +361,11 @@ function VistoriasCards({ lista, onAbrir }) {
               {format(parseReportDate(r.date), 'dd/MM/yyyy', { locale: ptBR })}
             </span>
           </div>
-          <span style={{ color: T.mute, fontSize: 12 }}>
-            {r.floor_form_entries?.length ?? 0} andar(es) · {contarOcorrencias(r)} ocorrência(s)
-          </span>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {r.floor_form_entries?.map((e) => (
-              <Badge key={e.floor_id} variant={e.status_geral === 'OK' ? 'success' : e.status_geral === 'ATENCAO' ? 'warning' : 'danger'}>
-                {e.floor?.label || e.floor_id.slice(0, 6)}
-              </Badge>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <StatusDaVistoria report={r} />
+            <span style={{ color: T.mute, fontSize: 12 }}>
+              {contarOcorrencias(r)} {contarOcorrencias(r) === 1 ? 'ocorrência' : 'ocorrências'}
+            </span>
           </div>
         </button>
       ))}
@@ -377,6 +375,20 @@ function VistoriasCards({ lista, onAbrir }) {
       )}
     </div>
   );
+}
+
+/**
+ * Como a vistoria saiu: o pior dos andares dela.
+ *
+ * Aqui não cabe o `status` do relatório — o que o painel do moderador mostra
+ * naquela coluna. Esta lista só traz vistoria concluída, então aquela etiqueta
+ * diria "Finalizada" em todas as linhas, e uma coluna que repete a mesma
+ * palavra não ajuda a achar nada. O que varia, e é o que se procura, é o que a
+ * vistoria encontrou.
+ */
+function StatusDaVistoria({ report }) {
+  const status = worstFloorStatus(report.floor_form_entries);
+  return <Badge variant={FLOOR_STATUS_VARIANT[status]}>{FLOOR_STATUS_LABEL[status]}</Badge>;
 }
 
 /** Quantas ocorrências saíram do dia — a soma dos andares daquela vistoria. */

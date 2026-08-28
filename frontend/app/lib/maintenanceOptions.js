@@ -75,6 +75,37 @@ export const OCCURRENCE_STATUS_LABEL = {
   CONCLUIDO: 'Concluída',
 };
 
+/**
+ * Como o andar saiu da vistoria.
+ *
+ * Não vem do formulário: o backend o deriva da maior prioridade entre as
+ * ocorrências daquele andar (ver `deriveFloorStatus`) — alta vira problema,
+ * média vira atenção, e andar sem nada relatado fica OK.
+ */
+export const FLOOR_STATUS_LABEL = { OK: 'OK', ATENCAO: 'Atenção', PROBLEMA: 'Problema' };
+
+export const FLOOR_STATUS_VARIANT = { OK: 'success', ATENCAO: 'warning', PROBLEMA: 'danger' };
+
+/** Do mais brando ao mais grave — a ordem que decide qual andar fala pela vistoria. */
+const FLOOR_STATUS_SEVERITY = { OK: 0, ATENCAO: 1, PROBLEMA: 2 };
+
+/**
+ * Como a vistoria inteira saiu: o pior dos andares dela.
+ *
+ * Uma vistoria de dez andares em que um tem infiltração grave não é uma vistoria
+ * OK — e é justamente esse andar que alguém precisa achar na lista. A regra é a
+ * mesma que o relatório do dia já usa para juntar vistorias do mesmo prédio.
+ */
+export function worstFloorStatus(entries = []) {
+  return entries.reduce(
+    (pior, entry) =>
+      (FLOOR_STATUS_SEVERITY[entry?.status_geral] ?? 0) > (FLOOR_STATUS_SEVERITY[pior] ?? 0)
+        ? entry.status_geral
+        : pior,
+    'OK'
+  );
+}
+
 /** Rótulo legível de um valor de enum; devolve o próprio valor se não conhecer. */
 export function labelOf(options, value) {
   return options.find((o) => o.value === value)?.label ?? value ?? '—';

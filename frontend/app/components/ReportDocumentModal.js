@@ -11,7 +11,7 @@ import { useIsDesktop } from '@/app/hooks/useMediaQuery';
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
 import { parseReportDate } from '@/app/lib/date';
-import { MAINTENANCE_TYPES, CATEGORIES, PRIORITIES, RECORD_STATUS, labelOf } from '@/app/lib/maintenanceOptions';
+import { MAINTENANCE_TYPES, CATEGORIES, PRIORITIES, RECORD_STATUS, FLOOR_STATUS_LABEL, labelOf } from '@/app/lib/maintenanceOptions';
 import { useToastStore } from '@/app/store/toast';
 import { T, R, W } from '@/app/lib/theme';
 
@@ -35,7 +35,6 @@ const D = {
   empty: { fontSize: 14, color: INK_SOFT, marginTop: 8 },
 };
 
-const FLOOR_STATUS_LABEL = { OK: 'OK', ATENCAO: 'Atenção', PROBLEMA: 'Problema' };
 const FLOOR_STATUS_COLOR = { OK: INK_SOFT, ATENCAO: T.accentInk, PROBLEMA: T.danger };
 /** Fundo do selo de andar no telefone — o mesmo tom da cor, rebaixado. */
 const FLOOR_STATUS_TINT = {

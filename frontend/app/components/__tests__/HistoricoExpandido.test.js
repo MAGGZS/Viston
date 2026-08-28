@@ -311,14 +311,57 @@ describe('o ícone de filtros', () => {
 });
 
 describe('na tela larga', () => {
-  it('lista as vistorias em tabela, com as contagens que o cartão não cabia', async () => {
+  it('lista as vistorias em tabela, com o status e a contagem que o cartão não cabia', async () => {
     comoDesktop(true);
     render(<Miolo isDesktop />);
 
     const linha = (await screen.findByText('Carlos Andrade')).closest('tr');
     expect(within(linha).getByText('20/08/2026')).toBeInTheDocument();
-    // Um andar, duas ocorrências: as duas colunas que a tela ampliada ganhou.
-    expect(within(linha).getAllByText('1')).not.toHaveLength(0);
+    // Duas ocorrências, e nenhuma delas grave: o andar saiu OK.
     expect(within(linha).getByText('2')).toBeInTheDocument();
+    expect(within(linha).getByText('OK')).toBeInTheDocument();
+  });
+
+  it('a vistoria fala pelo pior dos andares dela', async () => {
+    // Dez andares em ordem e um com problema não é uma vistoria OK — é
+    // justamente esse andar que alguém veio achar na lista.
+    api.get.mockImplementation((url) => {
+      if (url.includes('/history')) {
+        return Promise.resolve({
+          data: {
+            inspections: [{
+              ...VISTORIA,
+              floor_form_entries: [
+                { floor_id: 'f1', status_geral: 'OK', floor: { label: '6º' }, _count: { maintenance_records: 0 } },
+                { floor_id: 'f2', status_geral: 'PROBLEMA', floor: { label: '5º' }, _count: { maintenance_records: 3 } },
+                { floor_id: 'f3', status_geral: 'ATENCAO', floor: { label: '4º' }, _count: { maintenance_records: 1 } },
+              ],
+            }],
+            total: 1, page: 1, limit: 20, pages: 1,
+          },
+        });
+      }
+      return responder(url);
+    });
+
+    comoDesktop(true);
+    render(<Miolo isDesktop />);
+
+    const linha = (await screen.findByText('Carlos Andrade')).closest('tr');
+    expect(within(linha).getByText('Problema')).toBeInTheDocument();
+    // E a contagem é a soma dos andares, não a do pior deles.
+    expect(within(linha).getByText('4')).toBeInTheDocument();
+  });
+
+});
+
+describe('no telefone', () => {
+  it('o cartão da vistoria troca os andares pelo status', async () => {
+    render(<Miolo />);
+
+    await screen.findByText('Carlos Andrade');
+    expect(screen.getByText('OK')).toBeInTheDocument();
+    expect(screen.getByText('2 ocorrências')).toBeInTheDocument();
+    expect(screen.queryByText(/andar\(es\)/)).not.toBeInTheDocument();
   });
 });
