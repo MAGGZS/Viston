@@ -13,6 +13,7 @@ import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Skeleton, Button, Modal } from '@/app/components/ui';
 import { HEAT, heatColor, T } from '@/app/lib/theme';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
+import { AmpliarHistorico } from '@/app/components/HistoricoExpandido';
 import { OcorrenciasTable } from '@/app/components/OcorrenciasTable';
 import { Paginator } from '@/app/components/Paginator';
 import { useBuildingDashboard, useBuildingHistory, useDeleteInspection } from '@/app/hooks/useApi';
@@ -255,6 +256,13 @@ export default function GestorBuildingPage() {
                 view={historico.view}
                 onSelect={historico.select}
                 title={historico.title}
+                action={
+                  <AmpliarHistorico
+                    view={historico.view}
+                    onSelectView={historico.select}
+                    buildingId={id}
+                  />
+                }
               />
             </div>
 

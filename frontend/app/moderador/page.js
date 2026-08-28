@@ -9,6 +9,7 @@ import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Skeleton } from '@/app/components/ui';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
+import { AmpliarHistorico } from '@/app/components/HistoricoExpandido';
 import { OcorrenciasTable } from '@/app/components/OcorrenciasTable';
 import { Paginator } from '@/app/components/Paginator';
 import { useCalendar, useBuildingHistory, useTicketStats } from '@/app/hooks/useApi';
@@ -226,6 +227,13 @@ export default function ModeradorPage() {
                 view={historico.view}
                 onSelect={historico.select}
                 title={historico.title}
+                action={
+                  <AmpliarHistorico
+                    view={historico.view}
+                    onSelectView={historico.select}
+                    buildingId={buildingId}
+                  />
+                }
                 subtitle={
                   historico.isVistorias
                     ? 'Clique numa linha para abrir o relatório completo do dia'

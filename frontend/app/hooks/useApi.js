@@ -22,7 +22,7 @@ import { useAuthStore } from '@/app/store/auth';
  * entender por quê. O ajuste é feito no próprio render, como no
  * `useExitTransition`: num efeito, o cartão vazio chegaria a aparecer.
  */
-function usePagedList({ queryKey, url, params, pick, enabled = true }) {
+function usePagedList({ queryKey, url, params, pick, enabled = true, pageSize = HISTORY_PAGE_SIZE }) {
   const [page, setPage] = useState(1);
 
   const scope = JSON.stringify(queryKey);
@@ -33,10 +33,13 @@ function usePagedList({ queryKey, url, params, pick, enabled = true }) {
   }
 
   const query = useQuery({
-    queryKey: [...queryKey, 'page', page],
+    // O tamanho entra na chave: a mesma lista aberta no cartão e na tela
+    // ampliada pede oito e vinte linhas da mesma URL, e sem isto a segunda
+    // leria do cache da primeira.
+    queryKey: [...queryKey, 'tamanho', pageSize, 'page', page],
     queryFn: () =>
       api
-        .get(url, { params: { ...params, page, limit: HISTORY_PAGE_SIZE } })
+        .get(url, { params: { ...params, page, limit: pageSize } })
         .then((r) => r.data),
     placeholderData: keepPreviousData,
     enabled,
@@ -78,7 +81,7 @@ function usePagedList({ queryKey, url, params, pick, enabled = true }) {
     total: query.data?.total ?? 0,
     pages: query.data?.pages ?? 0,
     page,
-    pageSize: HISTORY_PAGE_SIZE,
+    pageSize,
     isLoading: isFirstLoad,
     isFetching: query.isFetching,
     isPaging,
@@ -307,13 +310,15 @@ export function useBuildingDashboard(id) {
 }
 
 /** O histórico de vistorias de um prédio, oito por página. */
-export function useBuildingHistory(id, params = {}) {
+export function useBuildingHistory(id, params = {}, options = {}) {
+  const { pageSize, enabled = true } = options;
   return usePagedList({
     queryKey: ['building-history', id, params],
     url: `/buildings/${id}/history`,
     params,
     pick: (d) => d.inspections ?? [],
-    enabled: !!id,
+    enabled: enabled && !!id,
+    pageSize,
   });
 }
 
@@ -498,13 +503,14 @@ export function useFloors(buildingId) {
  * a do prédio — e usa só uma: sem ele, quem não é ADMIN pagava uma requisição
  * por carregamento para um resultado que nenhuma parte da tela lê.
  */
-export function useInspections(filters = {}, enabled = true) {
+export function useInspections(filters = {}, enabled = true, pageSize) {
   return usePagedList({
     queryKey: ['inspections', filters],
     url: '/inspections',
     params: filters,
     pick: (d) => d.inspections ?? [],
     enabled,
+    pageSize,
   });
 }
 
@@ -619,13 +625,16 @@ export function useTickets(buildingId, group = 'NOVOS') {
  * com o prédio, e é isso que o inspetor e o visualizador veem no histórico.
  * Ler não move nada: nenhuma ação sai daqui.
  */
-export function useBuildingOccurrences(buildingId, group = 'TODOS') {
+export function useBuildingOccurrences(buildingId, group = 'TODOS', filters = {}, pageSize) {
   return usePagedList({
-    queryKey: ['tickets', buildingId, group],
+    // Os filtros entram na chave: cada recorte é uma lista própria, e é o que
+    // devolve a paginação à primeira página quando eles mudam.
+    queryKey: ['tickets', buildingId, group, filters],
     url: `/buildings/${buildingId}/tickets`,
-    params: { group },
+    params: { group, ...filters },
     pick: (d) => d.tickets ?? [],
     enabled: !!buildingId,
+    pageSize,
   });
 }
 

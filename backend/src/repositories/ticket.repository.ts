@@ -1,4 +1,10 @@
-import { Prisma, RecordStatus } from '@prisma/client';
+import {
+  MaintenanceCategory,
+  MaintenanceType,
+  Prisma,
+  Priority,
+  RecordStatus,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 /**
@@ -51,10 +57,53 @@ export const ticketRepository = {
     statuses: RecordStatus[];
     page: number;
     limit: number;
+    floor_id?: string;
+    maintenance_type?: MaintenanceType;
+    category?: MaintenanceCategory;
+    priority?: Priority;
+    responsible_id?: string;
+    date_from?: Date;
+    date_to?: Date;
+    /** Texto solto na descrição. */
+    q?: string;
   }) {
+    const { floor_id, maintenance_type, category, priority, responsible_id, date_from, date_to, q } =
+      filters;
+
+    /**
+     * O que desce até a vistoria: o andar e o dia.
+     *
+     * Os dois moram lá, e não na ocorrência — a ocorrência pertence a um andar,
+     * o andar a uma vistoria, e é ela que tem a data. Por isso um objeto só,
+     * montado de uma vez: dois `floor_form_entry` no mesmo `where` fariam o
+     * segundo apagar o primeiro.
+     */
+    const daVistoria: Prisma.FloorFormEntryWhereInput = {
+      ...(floor_id && { floor_id }),
+      ...(date_from || date_to
+        ? {
+            report: {
+              date: {
+                ...(date_from && { gte: date_from }),
+                ...(date_to && { lte: date_to }),
+              },
+            },
+          }
+        : {}),
+    };
+
     const where: Prisma.MaintenanceRecordWhereInput = {
       ...inBuilding(filters.building_id),
       status: { in: filters.statuses },
+      ...(maintenance_type && { maintenance_type }),
+      ...(category && { category }),
+      ...(priority && { priority }),
+      ...(responsible_id && { responsible_id }),
+      ...(q && { description: { contains: q, mode: 'insensitive' as const } }),
+      // `AND` e não outro `floor_form_entry`: a chave do prédio já ocupa esse
+      // nome (ver `inBuilding`), e repeti-la aqui descartaria o recorte do
+      // prédio — o filtro de andar passaria a ler o sistema inteiro.
+      ...(Object.keys(daVistoria).length ? { AND: [{ floor_form_entry: daVistoria }] } : {}),
     };
 
     return Promise.all([

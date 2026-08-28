@@ -4,8 +4,11 @@ import { buildingRepository, auditRepository, actorAudit } from '../repositories
 import { Actor } from '../middlewares/authenticate';
 import { canModerateBuilding } from '../middlewares/buildingAccess';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
-import { TICKET_GROUPS, TicketGroup } from '../validators/ticket.validator';
+import { TICKET_GROUPS, TicketFilters, TicketGroup } from '../validators/ticket.validator';
 import { zonedTimeToUtc } from '../utils/timezone';
+
+/** O afunilamento da listagem — tudo o que não é grupo, página nem tamanho. */
+type TicketQuery = Omit<TicketFilters, 'group' | 'page' | 'limit'>;
 
 /**
  * O chamado como as telas o leem.
@@ -90,17 +93,37 @@ async function logTicket(user: Actor, buildingId: string, ticketId: string, meta
 }
 
 export const ticketService = {
-  /** A fila do prédio, num dos grupos da barra lateral do moderador. */
+  /**
+   * A fila do prédio, num dos grupos da barra lateral do moderador — e, com os
+   * filtros, a lista ampliada do histórico de ocorrências.
+   *
+   * O `status` pedido é cruzado com o grupo, nunca somado: o grupo é o recorte
+   * da tela, e um filtro que o furasse mostraria, na fila de novos, chamado que
+   * já fechou. Pedir um status fora do grupo devolve lista vazia — que é a
+   * resposta certa para "concluídos entre os novos".
+   */
   async listByBuilding(
     buildingId: string,
-    filters: { group: TicketGroup; page: number; limit: number }
+    filters: { group: TicketGroup; page: number; limit: number } & TicketQuery
   ) {
-    const statuses = [...TICKET_GROUPS[filters.group]] as RecordStatus[];
+    const doGrupo = [...TICKET_GROUPS[filters.group]] as RecordStatus[];
+    const statuses = filters.status
+      ? doGrupo.filter((s) => s === filters.status)
+      : doGrupo;
+
     const [rows, total] = await ticketRepository.findByBuilding({
       building_id: buildingId,
       statuses,
       page: filters.page,
       limit: filters.limit,
+      floor_id: filters.floor_id,
+      maintenance_type: filters.maintenance_type,
+      category: filters.category,
+      priority: filters.priority,
+      responsible_id: filters.responsible_id,
+      date_from: filters.date_from,
+      date_to: filters.date_to,
+      q: filters.q,
     });
 
     return {

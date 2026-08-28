@@ -16,6 +16,7 @@ import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { M, MPage, MTopBar, MRound, MCard, CONTENT_ID } from '@/app/components/mobile/kit';
 import { HISTORICO_SWITCHER_HEIGHT, HistoricoSwitcher, OcorrenciasList, useHistoricoView } from '@/app/components/HistoricoSwitcher';
+import { AmpliarHistorico } from '@/app/components/HistoricoExpandido';
 import { Badge, Button, Modal } from '@/app/components/ui';
 import { useInspections, useCalendar, useBuildingHistory } from '@/app/hooks/useApi';
 import { useIsDesktop } from '@/app/hooks/useMediaQuery';
@@ -379,6 +380,13 @@ export default function HistoricoPage() {
               view={historico.view}
               onSelect={historico.select}
               title={historico.title}
+              action={
+                <AmpliarHistorico
+                  view={historico.view}
+                  onSelectView={historico.select}
+                  buildingId={isAdmin ? null : myBuildingId}
+                />
+              }
             />
             {/* `key` na visão: só o conteúdo do cartão troca, e trocar tem de
                 ser visível — o calendário e os filtros ao lado ficam onde
@@ -439,6 +447,13 @@ export default function HistoricoPage() {
             view={historico.view}
             onSelect={historico.select}
             title={historico.title}
+            action={
+              <AmpliarHistorico
+                view={historico.view}
+                onSelectView={historico.select}
+                buildingId={myBuildingId}
+              />
+            }
           />
 
           {/* `key` na visão: é o que faz a lista entrar de novo a cada troca,

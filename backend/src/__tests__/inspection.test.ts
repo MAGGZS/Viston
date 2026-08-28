@@ -5,6 +5,7 @@ import { generateDayExcel } from '../services/excel.service';
 import { storageService } from '../services/storage.service';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { FloorStatus, InspectionStatus } from '@prisma/client';
+import { inspectionFiltersSchema } from '../validators/inspection.validator';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 jest.mock('../repositories/inspection.repository');
@@ -474,6 +475,42 @@ describe('inspectionService.findAll', () => {
     expect(mockInspectionRepo.findAll).toHaveBeenCalledWith(
       expect.objectContaining({ building_ids: [BUILDING_ID] })
     );
+  });
+
+  it('leva a procura por nome de inspetor ao repositório', async () => {
+    mockInspectionRepo.findAll.mockResolvedValue([[], 0]);
+    await inspectionService.findAll({ page: 1, limit: 20, q: 'carlos' }, null);
+    expect(mockInspectionRepo.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({ q: 'carlos' })
+    );
+  });
+});
+
+/**
+ * Os filtros do histórico como chegam da querystring.
+ *
+ * A barra de procura manda o campo a cada tecla, inclusive quando ele é
+ * apagado: o schema é quem transforma "sem nada digitado" em "sem filtro", e
+ * não a tela. Sem isso, apagar a busca viraria uma consulta por string vazia.
+ */
+describe('inspectionFiltersSchema', () => {
+  it('trata campo de busca vazio como ausência de busca', () => {
+    expect(inspectionFiltersSchema.parse({ q: '' }).q).toBeUndefined();
+    expect(inspectionFiltersSchema.parse({ q: '   ' }).q).toBeUndefined();
+  });
+
+  it('apara o que foi digitado antes de procurar', () => {
+    expect(inspectionFiltersSchema.parse({ q: '  Carlos  ' }).q).toBe('Carlos');
+  });
+
+  it('recusa data inválida em vez de deixá-la chegar ao banco', () => {
+    // Sem isto, `new Date('abc')` descia até o Prisma e a resposta a um filtro
+    // digitado errado era 500 — erro do servidor para engano do usuário.
+    expect(() => inspectionFiltersSchema.parse({ date_from: 'abc' })).toThrow();
+  });
+
+  it('recusa página não numérica, que virava NaN no skip da consulta', () => {
+    expect(() => inspectionFiltersSchema.parse({ page: 'abc' })).toThrow();
   });
 });
 

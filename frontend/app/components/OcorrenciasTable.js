@@ -60,8 +60,8 @@ const COLUMN_SETS = {
  * numa caixa que abre. Nada de descrição aqui: um parágrafo por linha faz a
  * lista deixar de ser lista.
  */
-export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTORICO', empty }) {
-  const { rows, isLoading: loading, ...pager } = useBuildingOccurrences(buildingId, group);
+export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTORICO', empty, filters, pageSize }) {
+  const { rows, isLoading: loading, ...pager } = useBuildingOccurrences(buildingId, group, filters, pageSize);
   // A lista da página que está saindo não fica na tela esperando a próxima: até
   // a resposta chegar, o que se vê é esqueleto (ver `usePagedList`).
   const shown = pager.isPaging ? [] : rows;
@@ -69,9 +69,16 @@ export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTO
 
   const cols = COLUMN_SETS[columns];
 
-  const emptyMessage = buildingId
-    ? empty ?? 'Nenhuma ocorrência neste prédio ainda'
-    : 'As ocorrências são de um prédio — esta conta não está vinculada a nenhum';
+  // Lista vazia por filtro e prédio sem ocorrência nenhuma são coisas
+  // diferentes: a primeira tem conserto — mexer no filtro —, e dizer "nenhuma
+  // ocorrência ainda" mandaria a pessoa procurar o problema no lugar errado.
+  const filtrando = Object.values(filters ?? {}).some((v) => v !== '' && v !== undefined && v !== null);
+
+  const emptyMessage = !buildingId
+    ? 'As ocorrências são de um prédio — esta conta não está vinculada a nenhum'
+    : filtrando
+      ? 'Nenhuma ocorrência com esses filtros'
+      : empty ?? 'Nenhuma ocorrência neste prédio ainda';
 
   return (
     <>

@@ -5,6 +5,7 @@ import { actorAudit, buildingRepository, auditRepository } from '../repositories
 import { managerRepository } from '../repositories/manager.repository';
 import { inspectionRepository } from '../repositories/inspection.repository';
 import { buildHeatmap } from '../services/inspection.service';
+import { inspectionFiltersSchema } from '../validators/inspection.validator';
 import { ok, created, noContent } from '../utils/response';
 import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
 import { normalizeShareKey, isValidShareKeyFormat } from '../utils/shareKey';
@@ -190,14 +191,33 @@ export const buildingController = {
   },
 
   // ── Histórico do prédio ───────────────────────────────────────────────────
+  /**
+   * O histórico de vistorias do prédio.
+   *
+   * Os filtros são os mesmos de `/inspections` — a listagem é a mesma consulta,
+   * presa a um prédio. Antes só `page` e `limit` chegavam aqui, lidos com
+   * `parseInt` à mão: `?page=abc` virava `NaN` e descia inteiro para o
+   * `skip` do Prisma. O schema é o que já recusa isso com 400, e é ele que
+   * deixa a tela ampliada procurar por inspetor, andar e data.
+   *
+   * `building_id` vem da rota, e não da querystring: é a rota que já teve o
+   * vínculo conferido (ver `requireBuildingMember`), e aceitá-lo do cliente
+   * abriria o histórico de qualquer prédio a quem trocasse o parâmetro.
+   */
   async getHistory(req: AuthenticatedRequest, res: Response) {
-    const page = parseInt(String(req.query.page ?? '1'), 10);
-    const limit = parseInt(String(req.query.limit ?? '20'), 10);
+    const filters = inspectionFiltersSchema.parse(req.query);
     const [inspections, total] = await inspectionRepository.findAll({
-      page, limit, building_id: req.params.id,
+      ...filters,
+      building_id: req.params.id,
     });
 
-    ok(res, { inspections, total, page, limit, pages: Math.ceil(total / limit) });
+    ok(res, {
+      inspections,
+      total,
+      page: filters.page,
+      limit: filters.limit,
+      pages: Math.ceil(total / filters.limit),
+    });
   },
 
   // ── Membros ───────────────────────────────────────────────────────────────

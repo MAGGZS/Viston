@@ -77,6 +77,21 @@ export type SubmitInspectionPayload = z.infer<typeof submitInspectionSchema>;
 const dateFilter = (label: string) =>
   z.coerce.date({ errorMap: () => ({ message: `${label} inválida` }) }).optional();
 
+/**
+ * Texto de busca vindo da querystring.
+ *
+ * Vazio é ausência, não uma busca por "": a barra de procura manda o campo a
+ * cada tecla, e o campo apagado tem de devolver a lista inteira em vez de uma
+ * consulta por string vazia. O teto existe porque isto vira `contains` no
+ * banco — não há pergunta legítima de 300 caracteres.
+ */
+const buscaLivre = z
+  .string()
+  .trim()
+  .max(120)
+  .optional()
+  .transform((v) => (v ? v : undefined));
+
 // ── Filtros de histórico ──────────────────────────────────────────────────────
 export const inspectionFiltersSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -84,6 +99,14 @@ export const inspectionFiltersSchema = z.object({
   status: z.enum(['IN_PROGRESS', 'COMPLETED']).optional(),
   inspector_id: z.string().uuid().optional(),
   floor_id: z.string().uuid().optional(),
+  /**
+   * Procura pelo nome de quem vistoriou.
+   *
+   * É a pergunta que o histórico não respondia: "o que o Carlos vistoriou?".
+   * Por nome, e não por id, porque quem procura lembra do nome — e um droplist
+   * com todos os inspetores do prédio seria uma lista para achar uma lista.
+   */
+  q: buscaLivre,
   // `coerce.date` e não `string`: com string, `?date_from=abc` virava
   // `new Date('abc')` lá no repositório, o Prisma recusava a data inválida e a
   // resposta era 500 — erro do servidor para um filtro que o usuário digitou.

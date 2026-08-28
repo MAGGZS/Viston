@@ -143,8 +143,10 @@ export const inspectionRepository = {
     building_ids?: string[] | null;
     date_from?: Date;
     date_to?: Date;
+    /** Procura pelo nome de quem vistoriou. */
+    q?: string;
   }) {
-    const { page, limit, status, inspector_id, floor_id, building_id, building_ids, date_from, date_to } =
+    const { page, limit, status, inspector_id, floor_id, building_id, building_ids, date_from, date_to, q } =
       filters;
     const skip = (page - 1) * limit;
 
@@ -157,6 +159,10 @@ export const inspectionRepository = {
     const where: Prisma.InspectionReportWhereInput = {
       status: status ?? InspectionStatus.COMPLETED,
       ...(inspector_id && { inspector_id }),
+      // Pelo nome, sem diferenciar maiúscula: quem procura "carlos" está
+      // procurando o Carlos. Vistoria de inspetor apagado (`inspector` nulo)
+      // fica de fora da busca — não há nome ali para casar.
+      ...(q && { inspector: { name: { contains: q, mode: 'insensitive' as const } } }),
       ...(buildingScope.length ? { AND: buildingScope } : {}),
       ...(floor_id && { floors_inspected: { has: floor_id } }),
       ...(date_from || date_to

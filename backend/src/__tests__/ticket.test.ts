@@ -555,3 +555,85 @@ describe('ticketService.reportPeriod', () => {
     ).rejects.toThrow(ForbiddenError);
   });
 });
+
+/**
+ * O afunilamento da listagem.
+ *
+ * Os filtros nasceram com a tela ampliada do histórico de ocorrências, e o que
+ * eles não podem é furar o recorte da tela que os usa: o `group` continua
+ * mandando em quais estados a lista alcança, e o `status` pedido só escolhe
+ * dentro dele.
+ */
+describe('ticketService.listByBuilding', () => {
+  beforeEach(() => {
+    mockTicketRepo.findByBuilding.mockResolvedValue([[], 0] as any);
+  });
+
+  /** Os filtros como o schema os entrega, com os defaults já aplicados. */
+  function filtros(extra: any = {}) {
+    return { group: 'TODOS', page: 1, limit: 30, ...extra } as any;
+  }
+
+  it('leva andar, data, tipo, categoria, prioridade, responsável e busca ao repositório', async () => {
+    const date_from = new Date('2026-08-01');
+    const date_to = new Date('2026-08-31');
+
+    await ticketService.listByBuilding(
+      BUILDING_ID,
+      filtros({
+        floor_id: 'floor-1',
+        maintenance_type: 'ELETRICA',
+        category: 'CORRETIVA',
+        priority: 'ALTA',
+        responsible_id: RESPONSIBLE_ID,
+        date_from,
+        date_to,
+        q: 'lâmpada',
+      })
+    );
+
+    expect(mockTicketRepo.findByBuilding).toHaveBeenCalledWith(
+      expect.objectContaining({
+        building_id: BUILDING_ID,
+        floor_id: 'floor-1',
+        maintenance_type: 'ELETRICA',
+        category: 'CORRETIVA',
+        priority: 'ALTA',
+        responsible_id: RESPONSIBLE_ID,
+        date_from,
+        date_to,
+        q: 'lâmpada',
+      })
+    );
+  });
+
+  it('sem status pedido, a lista é a do grupo inteiro', async () => {
+    await ticketService.listByBuilding(BUILDING_ID, filtros({ group: 'ANDAMENTO' }));
+
+    const { statuses } = mockTicketRepo.findByBuilding.mock.calls[0][0];
+    expect(statuses).toEqual(['EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO', 'AGUARDANDO_FECHAMENTO']);
+  });
+
+  it('o status pedido afunila o grupo em vez de somar-se a ele', async () => {
+    await ticketService.listByBuilding(
+      BUILDING_ID,
+      filtros({ group: 'ANDAMENTO', status: 'AGUARDANDO_TERCEIRO' })
+    );
+
+    const { statuses } = mockTicketRepo.findByBuilding.mock.calls[0][0];
+    expect(statuses).toEqual(['AGUARDANDO_TERCEIRO']);
+  });
+
+  it('status fora do grupo devolve lista vazia, e não fura o recorte da tela', async () => {
+    // "Concluídos entre os novos" não existe: pedir isso na fila de novos tem
+    // de devolver nada, nunca o chamado fechado aparecendo onde não é dele.
+    const resultado = await ticketService.listByBuilding(
+      BUILDING_ID,
+      filtros({ group: 'NOVOS', status: 'CONCLUIDO' })
+    );
+
+    const { statuses } = mockTicketRepo.findByBuilding.mock.calls[0][0];
+    expect(statuses).toEqual([]);
+    expect(resultado.tickets).toEqual([]);
+  });
+});

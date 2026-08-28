@@ -429,6 +429,8 @@ export const inspectionService = {
       floor_id?: string;
       date_from?: Date;
       date_to?: Date;
+      /** Procura pelo nome de quem vistoriou. */
+      q?: string;
     },
     buildingIds: string[] | null
   ) {

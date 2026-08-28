@@ -16,12 +16,12 @@ import { buildTicketReport, reportFileName } from '../services/ticketReport';
 export const ticketController = {
   /** A fila do moderador: um dos três estados, do mais novo para o mais velho. */
   async findByBuilding(req: AuthenticatedRequest, res: Response) {
-    const parsed = ticketFiltersSchema.parse(req.query);
-    const result = await ticketService.listByBuilding(req.params.id, {
-      group: parsed.group ?? 'NOVOS',
-      page: parsed.page ?? 1,
-      limit: parsed.limit ?? 30,
-    });
+    // Espalhado, e não campo a campo: os filtros da tela ampliada entram pelo
+    // schema e chegam inteiros ao serviço. Listar campo a campo aqui era o tipo
+    // de lista que se esquece de atualizar — o filtro passava a existir na URL
+    // e a lista voltava sem ele, sem erro nenhum.
+    const filters = ticketFiltersSchema.parse(req.query);
+    const result = await ticketService.listByBuilding(req.params.id, filters);
     ok(res, result);
   },
 

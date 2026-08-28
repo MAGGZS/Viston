@@ -110,66 +110,73 @@ const SLIDE = 'transform 260ms cubic-bezier(0.32, 0.72, 0, 1)';
  * Quem tem "reduzir movimento" ligado não vê viagem nenhuma: o globals.css zera
  * a duração de toda transição, e a pílula troca de lugar num quadro.
  */
-export function HistoricoSwitcher({ view, onSelect, title, subtitle, className = '' }) {
+export function HistoricoSwitcher({ view, onSelect, title, subtitle, action, className = '' }) {
   const index = Math.max(0, HISTORICO_VIEWS.findIndex((item) => item.key === view));
 
   return (
-    <div className={className} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 10 }}>
-      <div
-        role="tablist"
-        aria-label="Históricos do prédio"
-        style={{
-          position: 'relative', maxWidth: '100%',
-          display: 'inline-grid', gridAutoFlow: 'column', gridAutoColumns: '1fr',
-          background: T.chip, borderRadius: 999, padding: TRACK_PAD,
-        }}
-      >
-        {/*
-          A pílula que corre.
-
-          Fica atrás dos rótulos, e não dentro do botão ativo: dentro dele, ela
-          nasceria e morreria a cada troca, e o que se veria seria um piscar. As
-          medidas saem de porcentagem do próprio trilho — `100%` aqui é a caixa
-          com o recuo, daí o desconto dos dois lados.
-        */}
-        <span
-          aria-hidden="true"
+    <div className={className} style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+      {/* Os botões à esquerda e a ação à direita, na mesma linha: o alternador
+          é o que se usa toda hora, e ampliar é o que se usa quando o cartão já
+          não basta — pôr os dois lado a lado faria disputar o mesmo canto. */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div
+          role="tablist"
+          aria-label="Históricos do prédio"
           style={{
-            position: 'absolute',
-            top: TRACK_PAD, bottom: TRACK_PAD, left: TRACK_PAD,
-            width: `calc((100% - ${TRACK_PAD * 2}px) / ${HISTORICO_VIEWS.length})`,
-            transform: `translateX(${index * 100}%)`,
-            background: T.accent, borderRadius: 999,
-            transition: SLIDE,
+            position: 'relative', maxWidth: '100%',
+            display: 'inline-grid', gridAutoFlow: 'column', gridAutoColumns: '1fr',
+            background: T.chip, borderRadius: 999, padding: TRACK_PAD,
           }}
-        />
+        >
+          {/*
+            A pílula que corre.
 
-        {HISTORICO_VIEWS.map((item) => {
-          const active = item.key === view;
-          return (
-            <button
-              key={item.key}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => onSelect(item.key)}
-              style={{
-                // `relative` põe o rótulo acima da pílula sem tirá-lo do grid:
-                // é o empilhamento que faz o dourado passar por baixo do texto.
-                position: 'relative',
-                border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 999,
-                padding: '9px 14px', fontFamily: T.display, fontSize: 13, fontWeight: W.title,
-                color: active ? T.onAccent : T.mute,
-                // A cor troca em metade da viagem: a palavra escurece quando o
-                // dourado já está debaixo dela, não antes de ele chegar.
-                transition: 'color 130ms ease 90ms',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {item.tab}
-            </button>
-          );
-        })}
+            Fica atrás dos rótulos, e não dentro do botão ativo: dentro dele, ela
+            nasceria e morreria a cada troca, e o que se veria seria um piscar. As
+            medidas saem de porcentagem do próprio trilho — `100%` aqui é a caixa
+            com o recuo, daí o desconto dos dois lados.
+          */}
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: TRACK_PAD, bottom: TRACK_PAD, left: TRACK_PAD,
+              width: `calc((100% - ${TRACK_PAD * 2}px) / ${HISTORICO_VIEWS.length})`,
+              transform: `translateX(${index * 100}%)`,
+              background: T.accent, borderRadius: 999,
+              transition: SLIDE,
+            }}
+          />
+
+          {HISTORICO_VIEWS.map((item) => {
+            const active = item.key === view;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => onSelect(item.key)}
+                style={{
+                  // `relative` põe o rótulo acima da pílula sem tirá-lo do grid:
+                  // é o empilhamento que faz o dourado passar por baixo do texto.
+                  position: 'relative',
+                  border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 999,
+                  padding: '9px 14px', fontFamily: T.display, fontSize: 13, fontWeight: W.title,
+                  color: active ? T.onAccent : T.mute,
+                  // A cor troca em metade da viagem: a palavra escurece quando o
+                  // dourado já está debaixo dela, não antes de ele chegar.
+                  transition: 'color 130ms ease 90ms',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {item.tab}
+              </button>
+            );
+          })}
+        </div>
+
+        {action}
       </div>
 
       <div style={{ minWidth: 0 }}>
@@ -203,8 +210,8 @@ export function HistoricoSwitcher({ view, onSelect, title, subtitle, className =
  * trata chamado tem a mesa dele — esta lista é para saber o que já foi
  * encontrado no prédio, e é isso que a torna livre para qualquer vínculo.
  */
-function useOcorrencias(buildingId) {
-  const paged = useBuildingOccurrences(buildingId);
+function useOcorrencias(buildingId, filters, pageSize) {
+  const paged = useBuildingOccurrences(buildingId, 'TODOS', filters, pageSize);
   const [picked, setPicked] = useState(null);
 
   return {
@@ -217,6 +224,7 @@ function useOcorrencias(buildingId) {
 }
 
 const EMPTY_MESSAGE = 'Nenhuma ocorrência neste prédio ainda';
+const FILTERED_EMPTY_MESSAGE = 'Nenhuma ocorrência com esses filtros';
 const NO_BUILDING_MESSAGE = 'As ocorrências são de um prédio — esta conta não está vinculada a nenhum';
 
 /**
@@ -261,8 +269,8 @@ function OcorrenciaCard({ occurrence, onOpen, className = '' }) {
 }
 
 /** As ocorrências em cartões — a forma da lista de vistorias do histórico. */
-export function OcorrenciasList({ buildingId }) {
-  const { occurrences, isLoading, picked, open, close, ...pager } = useOcorrencias(buildingId);
+export function OcorrenciasList({ buildingId, filters, pageSize }) {
+  const { occurrences, isLoading, picked, open, close, ...pager } = useOcorrencias(buildingId, filters, pageSize);
 
   if (!buildingId) {
     return <p style={{ color: T.faint, fontSize: 14, textAlign: 'center', padding: '60px 0' }}>{NO_BUILDING_MESSAGE}</p>;
@@ -279,10 +287,16 @@ export function OcorrenciasList({ buildingId }) {
   }
 
   if (occurrences.length === 0) {
+    // Como na tabela: quem filtrou precisa saber que foi o filtro, senão
+    // procura o problema no prédio.
+    const filtrando = Object.values(filters ?? {}).some((v) => v !== '' && v !== undefined && v !== null);
+
     return (
       <div style={{ textAlign: 'center', padding: '60px 0' }}>
         <p className="anim-pop-in" style={{ fontSize: 36, marginBottom: 12 }}>🧾</p>
-        <p className="anim-fade-up anim-d1" style={{ color: T.faint, fontSize: 14 }}>{EMPTY_MESSAGE}</p>
+        <p className="anim-fade-up anim-d1" style={{ color: T.faint, fontSize: 14 }}>
+          {filtrando ? FILTERED_EMPTY_MESSAGE : EMPTY_MESSAGE}
+        </p>
       </div>
     );
   }

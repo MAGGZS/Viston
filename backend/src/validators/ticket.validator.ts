@@ -44,6 +44,35 @@ export const TICKET_GROUPS = {
 
 export type TicketGroup = keyof typeof TICKET_GROUPS;
 
+/**
+ * Data de filtro vinda da querystring.
+ *
+ * Mesma razão do histórico de vistorias: com `string`, `?date_from=abc` só
+ * falharia lá no Prisma, e um filtro digitado errado viraria 500.
+ */
+const dateFilter = (label: string) =>
+  z.coerce.date({ errorMap: () => ({ message: `${label} inválida` }) }).optional();
+
+/** Vazio é ausência de busca, não busca por "". */
+const buscaLivre = z
+  .string()
+  .trim()
+  .max(120)
+  .optional()
+  .transform((v) => (v ? v : undefined));
+
+/**
+ * O que a listagem do prédio aceita perguntar.
+ *
+ * O `group` continua sendo o recorte grosso das telas do moderador. O resto
+ * chegou com a tela ampliada do histórico, que precisa afunilar dentro do
+ * grupo: o andar, o dia, o tipo de manutenção, a categoria, a prioridade, o
+ * estado exato, quem atende e um texto solto na descrição.
+ *
+ * `status` não amplia `group`, afunila: a listagem cruza os dois (ver o
+ * serviço), então pedir CONCLUIDO dentro do grupo NOVOS devolve nada em vez de
+ * furar o recorte da tela.
+ */
 export const ticketFiltersSchema = z.object({
   group: z
     .enum([
@@ -58,7 +87,46 @@ export const ticketFiltersSchema = z.object({
     .default('NOVOS'),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(30),
+  floor_id: z.string().uuid().optional(),
+  status: z
+    .enum([
+      'ABERTO',
+      'ENCAMINHADO',
+      'EM_ANDAMENTO',
+      'AGUARDANDO_TERCEIRO',
+      'AGUARDANDO_FECHAMENTO',
+      'CONCLUIDO',
+    ])
+    .optional(),
+  maintenance_type: z
+    .enum([
+      'AR_CONDICIONADO',
+      'CIVIL',
+      'ELETRICA',
+      'EQUIPAMENTO',
+      'EVENTOS',
+      'HIDRELETRICA',
+      'HIGIENIZACAO_LIMPEZA',
+      'INFILTRACAO',
+      'MARCENARIA',
+      'MOVEIS_CADEIRAS',
+      'PINTURA',
+      'PROJETOR',
+      'VAZAMENTO',
+    ])
+    .optional(),
+  category: z.enum(['PREVENTIVA', 'CORRETIVA', 'EMERGENCIAL', 'EVENTOS', 'PROJETOS']).optional(),
+  priority: z.enum(['ALTA', 'MEDIA', 'BAIXA']).optional(),
+  responsible_id: z.string().uuid().optional(),
+  // A data é a do dia vistoriado, não a da criação da linha: é ela que a tela
+  // mostra em "Dia", e seria estranho filtrar por uma e ler a outra.
+  date_from: dateFilter('Data inicial'),
+  date_to: dateFilter('Data final'),
+  /** Texto solto na descrição da ocorrência. */
+  q: buscaLivre,
 });
+
+export type TicketFilters = z.infer<typeof ticketFiltersSchema>;
 
 /** Encaminhar: o chamado ganha dono e passa a esperar o aceite dele. */
 export const forwardTicketSchema = z
