@@ -63,6 +63,23 @@ describe('HistoricoSwitcher', () => {
     expect(nomes).toEqual(HISTORICO_VIEWS.map((v) => v.tab));
   });
 
+  it('leva o dourado de um botão ao outro, em vez de acender e apagar', async () => {
+    const user = userEvent.setup();
+    render(<Tela />);
+
+    // A pílula dourada é uma peça só, escondida do leitor de tela — quem diz
+    // qual visão está aberta é o `aria-selected` do botão.
+    const pilula = () => screen.getByRole('tablist').querySelector('[aria-hidden="true"]');
+
+    expect(pilula()).toHaveStyle({ transform: 'translateX(0%)' });
+
+    await user.click(aba('Ocorrências'));
+    expect(pilula()).toHaveStyle({ transform: 'translateX(100%)' });
+
+    await user.click(aba('Vistorias'));
+    expect(pilula()).toHaveStyle({ transform: 'translateX(0%)' });
+  });
+
   it('não tem falha de acessibilidade', async () => {
     const { container } = render(<Tela />);
     expect(await axe(container)).toHaveNoViolations();
