@@ -4,13 +4,15 @@ Backend do sistema de gestão de vistorias prediais **Viston**.
 
 ## Stack
 
-- **Node.js + Express + TypeScript**
-- **PostgreSQL** via **Supabase** (ORM: Prisma)
-- **Supabase Storage** (fotos + Excel)
-- **ExcelJS** (geração de planilhas)
+- **Node.js 22+ + Express + TypeScript**
+- **PostgreSQL** via **Supabase** (ORM: Prisma, com adapter `pg`)
+- **Supabase Storage** (fotos de perfil + planilhas)
+- **ExcelJS** (planilha do relatório do dia) e **docx** (relatório de chamados
+  do período, em Word)
 - **JWT** (access + refresh token) + **bcrypt**
 - **Zod** (validação de payloads)
-- Deploy: **Render**
+- **helmet**, **express-rate-limit** e **pino** (cabeçalhos, limites e log)
+- Deploy: **Render** (ver [`render.yaml`](render.yaml))
 
 ---
 
@@ -18,7 +20,8 @@ Backend do sistema de gestão de vistorias prediais **Viston**.
 
 ### Pré-requisitos
 
-- Node.js 18+
+- Node.js 22+ — é o piso do `engines`, e o cliente do Supabase usa o WebSocket
+  nativo do Node, que só existe a partir dessa versão
 - [Supabase CLI](https://supabase.com/docs/guides/cli) (para banco local) **ou** Docker com Postgres
 - npm
 
@@ -35,10 +38,15 @@ npm install
 cp .env.example .env.local
 ```
 
-Edite `.env.local` com seus valores. Para rodar localmente com Supabase CLI:
+`.env.local` é lido em desenvolvimento e `.env` em produção — ver `src/config.ts`
+e `prisma.config.ts`. Não há fallback para o `.env.example`: faltando
+`DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET` ou
+`JWT_REFRESH_SECRET` (e `FRONTEND_URL` em produção), o processo não sobe.
+
+Para rodar localmente com o Supabase CLI:
 
 ```bash
-# Iniciar Supabase local (banco + storage emulado)
+# Banco + storage emulado
 supabase start
 
 # O comando acima exibe as URLs e chaves locais — copie para .env.local
@@ -57,44 +65,36 @@ docker run -d \
 # DIRECT_URL="postgresql://postgres:postgres@localhost:5432/postgres?schema=public"
 ```
 
-### 3. Rodar migrations e seed
+`DATABASE_URL` é a conexão da API (pooling em produção) e `DIRECT_URL` é a que o
+Prisma usa para migrations e introspecção — o PgBouncer não aceita os comandos
+DDL do `migrate`.
 
-**Se o banco já tem o schema aplicado (via SQL direto)** — faça o baseline antes:
+### 3. Preparar o banco
+
+**Banco vazio** (instalação nova):
 
 ```bash
-# Gerar cliente Prisma
 npm run prisma:generate
+npm run prisma:migrate   # aplica as migrations e cria todas as tabelas
+```
 
-# Marcar a migration inicial como já aplicada (sem recriar nada no banco)
+**Banco que já tem o schema aplicado** (via SQL direto) — faça o baseline antes:
+
+```bash
+npm run prisma:generate
 npx prisma migrate resolve --applied 20260803000000_init
-
-# Popular banco com dados de teste
-npm run seed
 ```
 
-**Se o banco está vazio** (fresh install):
-
-```bash
-npm run prisma:generate
-npm run prisma:migrate   # aplica a migration e cria todas as tabelas
-npm run seed
-```
-
-Credenciais criadas pelo seed:
-
-| Papel no prédio | E-mail                | Senha           |
-|-----------------|-----------------------|-----------------|
-| — (ADMIN)       | admin@viston.com      | Admin@123       |
-| INSPECTOR       | carlos@viston.com     | Inspector@123   |
-| INSPECTOR       | ana@viston.com        | Inspector@123   |
-| VIEWER          | viewer@viston.com     | Viewer@123      |
+Não existe seed: as contas são criadas pelos cadastros públicos
+(`POST /users` e `POST /managers`), e o gestor vira gestor do prédio que
+cadastrar.
 
 ### 4. Iniciar servidor
 
 ```bash
 npm run dev
-# API disponível em http://localhost:3000
-# Health check: GET http://localhost:3000/health
+# API disponível em http://localhost:4000  (PORT no .env.local)
+# Health check: GET http://localhost:4000/health
 ```
 
 ---
@@ -112,60 +112,75 @@ npm run test:coverage
 npm run test:watch
 ```
 
-Cobertura mínima implementada:
-- Envio da vistoria completa em uma única chamada (POST /inspections)
-- Autorização por vínculo com o prédio (papel em `building_members`)
-- Isolamento por prédio, exercitando o app Express de verdade via supertest
-  (`__tests__/authorization.test.ts`)
-- Soft delete e anonimização de usuários
-- Validação das ocorrências de manutenção por andar (Zod schema)
-- Geração de Excel (ExcelJS)
+As suítes trocam os repositórios por mock e não abrem conexão com o banco. O que
+está coberto:
+
+- Envio da vistoria completa em uma única chamada, descarte, relatório do dia,
+  listagem e isolamento por prédio (`inspection.test.ts`)
+- Autorização ponta a ponta, exercitando o app Express de verdade via supertest:
+  autenticação, cadastro público, criação e gestão do prédio, papel dentro do
+  prédio, gestores, "gestor não vistoria" e a edição de usuários pelo admin
+  (`authorization.test.ts`)
+- Ciclo do chamado: encaminhar, cancelar o envio, receber, informar conclusão,
+  fechar, atualizar, contadores, gráficos e relatório do período
+  (`ticket.test.ts`)
+- Cadastro, soft delete e anonimização de usuários, troca de senha
+  (`user.test.ts`)
+- Ciclo de vida da sessão: refresh, saída, eventos que derrubam a sessão e login
+  (`session.test.ts`)
 - Caixa de feedback: autoria na coluna certa (usuário ou gestor), destino do
-  feedback e restrição das rotas de leitura ao ADMIN
-  (`__tests__/feedback.test.ts`)
-- Ciclo de vida da sessão: geração de token, saída, troca de senha e exclusão
-  de conta (`__tests__/session.test.ts`)
+  feedback e restrição das rotas de leitura ao ADMIN (`feedback.test.ts`)
+- Geração da planilha do dia (`excel-sync.test.ts`)
 - Validação de data no filtro e conferência dos bytes da foto de perfil
-  (`__tests__/hardening.test.ts`)
+  (`hardening.test.ts`)
+- Ordenação de andares (`floorOrder.test.ts`) e o dia no fuso do prédio, com o
+  mapa de calor (`timezone.test.ts`)
 
 Tudo isso roda em cada push e em cada PR — ver `.github/workflows/ci.yml`, que
-faz `tsc --noEmit` + `npm test` no backend e `eslint` + `next build` no frontend.
+faz `tsc --noEmit` + `npm test` no backend e `eslint` + `npm test` + `next build`
+no frontend.
 
 ---
 
 ## Segurança
 
-**Papéis e vínculo.** São dois eixos, e só um deles autoriza prédio.
+**Papéis e vínculo.** São dois eixos, e nenhum deles é uma coluna só.
 
 `users.role` diz o que a conta é no sistema, e tem dois valores: `ADMIN` (conta
 de suporte, enxerga tudo, administra contas) e `NONE` (todas as outras). É só
-isso que o JWT carrega.
+isso que o JWT carrega de papel global.
 
-`building_members.role` diz o que a pessoa é **dentro de um prédio** —
-`GESTOR`, `INSPECTOR` ou `VIEWER` — e é a única fonte de autorização do produto.
-A mesma conta pode ser gestora de um prédio e visualizadora de outro, então o
-papel é resolvido por requisição, em `middlewares/buildingAccess.ts`.
+**Gestor é outro tipo de conta**, não um usuário marcado: mora em `managers`,
+com cadastro próprio (`POST /managers`), e o vínculo dele com o prédio está em
+`building_managers`. Por isso ele não vistoria — `inspection_reports.inspector_id`
+aponta para `users`, e ele não está lá.
 
-Fora o ADMIN, todo acesso a dados de um prédio passa por
-`requireBuildingMember`: sem vínculo, rota de prédio devolve `403` e relatório
-devolve `404` — o relatório de outro prédio se comporta como inexistente. As
-listagens (`GET /inspections`, `GET /calendar`) são filtradas pelos prédios do
-usuário.
+`building_members.role` diz o que um **usuário** é dentro de um prédio —
+`INSPECTOR`, `VIEWER`, `MODERADOR` ou `RESPONSAVEL`. A mesma conta pode ser
+inspetora de um prédio e visualizadora de outro, então o papel é resolvido por
+requisição, em `middlewares/buildingAccess.ts` (que consulta as duas tabelas e
+guarda a resposta numa `WeakMap` com o tempo de vida da requisição).
 
-`buildings.created_by` continua existindo, mas só como histórico de quem
+Fora o ADMIN, todo acesso a dados de um prédio passa por `requireBuildingMember`
+ou `requireBuildingManager`: sem vínculo, rota de prédio devolve `403` e
+relatório devolve `404` — o relatório de outro prédio se comporta como
+inexistente. As listagens (`GET /inspections`, `GET /calendar`) são filtradas
+pelos prédios do usuário.
+
+`buildings.created_by` continua existindo, mas só como histórico de qual gestor
 cadastrou: não autoriza nada, e some (`SET NULL`) quando a conta some.
 
 **Nunca sem gestor.** Um prédio pode ter vários gestores; o que ele não pode é
-ficar sem nenhum. Rebaixar, remover ou deixar sair o último gestor devolve
-`409`, e apagar a conta que é a única gestora de algum prédio também. Para
-transferir a gestão, promova o outro primeiro.
+ficar sem nenhum. Remover o gestor — inclusive a si mesmo — quando ele é o único
+devolve `409`, e apagar a conta que é a única gestora de algum prédio também.
+Para transferir a gestão, adicione o outro primeiro: dois é um estado válido.
 
-**Cadastro.** `POST /users` é aberto, mas o schema é `strict` e não tem campo
-`role`: a conta nasce sem vínculo nenhum. O papel dela aparece dentro de um
-prédio — criando um (vira gestora dele) ou sendo aprovada num pela chave de
-compartilhamento (entra como visualizadora). O middleware `validate` reescreve
-`req.body` com o resultado do parse, então nenhum campo fora do contrato chega
-ao service.
+**Cadastro.** `POST /users` e `POST /managers` são abertos, e o schema é
+`strict` e não tem campo `role`. A conta de usuário nasce sem vínculo nenhum: o
+papel dela aparece dentro de um prédio, quando o pedido feito pela chave de
+compartilhamento é aprovado — e a aprovação sempre entra como `VIEWER`, com o
+gestor promovendo depois. O middleware `validate` reescreve `req.body` com o
+resultado do parse, então nenhum campo fora do contrato chega ao service.
 
 **Feedback.** Mandar (`POST /feedbacks`) é de qualquer conta autenticada, das
 duas naturezas; ler a caixa, decidir o destino e descartar é só do ADMIN. O
@@ -188,8 +203,9 @@ disparou o gatilho, e uma tabela homônima em outro schema faria a regra ser
 conferida no lugar errado.
 
 **Chave de compartilhamento.** 12 caracteres de um alfabeto de 31 símbolos
-(~59 bits). Só aparece em respostas para ADMIN; as demais rotas devolvem o
-prédio pelos campos públicos (`id`, `name`, `description`).
+(~59 bits), sem os ambíguos (`0/O/1/I/L`). A busca por chave é `POST`
+(`/buildings/lookup`) para a chave não ir na querystring, que é registrada em
+log de acesso e no histórico do navegador.
 
 **Sessão.** O access token dura 15 minutos e não consulta o banco. O refresh
 token dura 7 dias e carrega `tv`, a geração das sessões da conta
@@ -225,14 +241,15 @@ telas, e URL assinada expiraria com a imagem já na página.
 **Limites.** 300 req/min por IP no geral; 20 tentativas por 15 min em `/auth/*`
 (sucesso não conta), chaveadas por **IP + e-mail** — só por IP, um escritório
 inteiro atrás de um NAT dividia a mesma cota e um ataque distribuído tinha uma
-cota por máquina; 60/h no cadastro, no `lookup` de chave e no pedido de acesso.
+cota por máquina; 60/h nos cadastros, no `lookup` de chave, no pedido de acesso
+e no envio de feedback.
 
 **Log.** `pino` com id por requisição (`pino-http`). `console.error` solto no
 painel do Render não dizia de qual chamada cada linha era — e quando aparece um
 500, o que interessa é o que veio antes dele na mesma requisição. `redact`
-esconde `Authorization`, senha, hash e os tokens: log é o lugar clássico onde
-essas coisas vazam, porque ninguém espera que vazem ali. `LOG_LEVEL` sobrescreve
-o nível (padrão: `info` em produção, `debug` fora).
+esconde `Authorization`, senha, hash, os tokens e a foto em data URL: log é o
+lugar clássico onde essas coisas vazam, porque ninguém espera que vazem ali.
+`LOG_LEVEL` sobrescreve o nível (padrão: `info` em produção, `debug` fora).
 
 Falta o passo seguinte, que depende de uma conta externa: um coletor de erros
 (Sentry ou equivalente) pendurado no ramo 500 do `errorHandler`. Hoje um 500 em
@@ -252,12 +269,16 @@ O frontend tem CSP própria em `next.config.mjs` — é lá que o token vive.
 
 ## Documentação da API
 
-O arquivo `docs/openapi.yaml` contém a especificação OpenAPI 3.0 completa.
+O arquivo `docs/openapi.yaml` traz a especificação OpenAPI 3.0 de auth, contas
+de usuário, feedbacks, vistorias, chamados e calendário. As rotas de conta de
+gestor (`/managers`) e de administração do prédio (CRUD, membros, gestores e
+solicitações de acesso) ainda não estão nele — para essas, a referência são os
+arquivos em `src/routes/`.
 
 Para visualizar interativamente:
 
 ```bash
-# Opção 1: Swagger UI via npx
+# Opção 1: preview via npx
 npx @redocly/cli preview-docs docs/openapi.yaml
 
 # Opção 2: Importar no Insomnia/Postman
@@ -274,67 +295,65 @@ src/
 ├── server.ts                 # Entry point
 ├── config.ts                 # Variáveis de ambiente
 ├── lib/
-│   ├── prisma.ts             # Cliente Prisma singleton
-│   └── supabase.ts           # Cliente Supabase singleton
+│   ├── prisma.ts             # Cliente Prisma singleton (adapter pg)
+│   ├── supabase.ts           # Cliente Supabase singleton
+│   └── logger.ts             # pino (com redact)
 ├── controllers/              # Recebem req/res, delegam para services
-│   ├── auth.controller.ts
-│   ├── user.controller.ts
+│   ├── auth.controller.ts        manager.controller.ts
+│   ├── user.controller.ts        feedback.controller.ts
+│   ├── building.controller.ts    ticket.controller.ts
 │   └── inspection.controller.ts
 ├── services/                 # Lógica de negócio
-│   ├── auth.service.ts
-│   ├── user.service.ts
-│   ├── inspection.service.ts
-│   ├── excel.service.ts
+│   ├── auth.service.ts           manager.service.ts
+│   ├── user.service.ts           feedback.service.ts
+│   ├── inspection.service.ts     ticket.service.ts
+│   ├── excel.service.ts          ticketReport.ts   # relatório .docx
 │   └── storage.service.ts
 ├── repositories/             # Acesso ao banco (Prisma)
-│   ├── user.repository.ts
-│   ├── inspection.repository.ts
-│   └── building.repository.ts
-├── routes/                   # Definição de rotas + RBAC
-│   ├── auth.routes.ts
-│   ├── user.routes.ts
+│   ├── user.repository.ts        manager.repository.ts
+│   ├── building.repository.ts    feedback.repository.ts
+│   └── inspection.repository.ts  ticket.repository.ts
+├── routes/                   # Definição de rotas + guardas
+│   ├── auth.routes.ts            manager.routes.ts
+│   ├── user.routes.ts            feedback.routes.ts
+│   ├── building.routes.ts        ticket.routes.ts
 │   └── inspection.routes.ts
 ├── middlewares/
-│   ├── authenticate.ts       # JWT verification
+│   ├── authenticate.ts       # JWT (usuário ou gestor)
 │   ├── authorize.ts          # guarda de rota do ADMIN
 │   ├── buildingAccess.ts     # Vínculo com o prédio (isolamento entre prédios)
 │   ├── rateLimit.ts          # Limites por IP (geral, auth, rotas sensíveis)
 │   ├── validate.ts           # Zod schema validation
 │   └── errorHandler.ts       # Global error handler
-├── validators/
-│   ├── auth.validator.ts     # Schemas de auth/users
-│   └── inspection.validator.ts # Schema da vistoria (ocorrências) + filtros
-├── utils/
-│   ├── errors.ts             # Classes de erro padronizadas
-│   ├── jwt.ts                # Sign/verify tokens
-│   └── response.ts           # Helpers de resposta HTTP
-├── prisma/
-│   └── seed.ts               # Seed de dados de teste
-└── __tests__/
-    ├── inspection.test.ts
-    ├── user.test.ts
-    └── excel-sync.test.ts
+├── validators/               # auth, inspection, ticket, feedback
+├── utils/                    # errors, jwt, response, password, shareKey,
+│                             # floorOrder, timezone, image, inspectors,
+│                             # maintenanceOptions, reportShape
+└── __tests__/                # jest + supertest
 prisma/
-└── schema.prisma             # Schema do banco
+├── schema.prisma             # Schema do banco
+└── migrations/               # Migrations versionadas
 docs/
-└── openapi.yaml              # Documentação OpenAPI 3.0
+└── openapi.yaml              # Documentação OpenAPI 3.0 (parcial — ver acima)
+render.yaml                   # Serviço, região e variáveis do Render
 ```
 
 ---
 
 ## Deploy no Render
 
-### 1. Criar Web Service no Render
+O [`render.yaml`](render.yaml) já descreve o serviço. Se for configurar à mão:
 
-- **Build Command:** `npm install && npm run prisma:generate && npm run build && npm run prisma:migrate:deploy`
+- **Build Command:** `npm ci --include=dev && npm run build && npm run prisma:migrate:deploy`
+  (`--include=dev` é obrigatório: com `NODE_ENV=production` o npm pula as
+  devDependencies, e é lá que moram `typescript` e os `@types/*`. `npm run build`
+  já roda `prisma generate`.)
 - **Start Command:** `npm start`
-- **Node Version:** 18
+- **Node Version:** 22
 
-### 2. Variáveis de ambiente no Render
+### Variáveis de ambiente no Render
 
-Configure todas as variáveis do `.env.example` com os valores de produção. Ver checklist abaixo.
-
-### 3. Checklist de troca para produção
+Configure todas as variáveis do `.env.example` com os valores de produção:
 
 | Variável | Local | Produção |
 |---|---|---|
@@ -342,9 +361,12 @@ Configure todas as variáveis do `.env.example` com os valores de produção. Ve
 | `DIRECT_URL` | mesma que DATABASE_URL local | URL direta Supabase (porta 5432, sem pooling — para migrations) |
 | `SUPABASE_URL` | `http://localhost:54321` | `https://[PROJECT_REF].supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | chave local do `supabase start` | service_role key do painel Supabase |
+| `SUPABASE_BUCKET_EXCEL` | `viston-excel` | `viston-excel` (bucket **privado**) |
+| `SUPABASE_BUCKET_PHOTOS` | `viston-photos` | `viston-photos` |
 | `JWT_SECRET` | qualquer string | string aleatória 64+ chars |
 | `JWT_REFRESH_SECRET` | qualquer string | string aleatória 64+ chars (diferente do JWT_SECRET) |
-| `FRONTEND_URL` | `http://localhost:5173` | URL da Vercel (ex: `https://viston.vercel.app`) — **obrigatória em produção**: sem ela o boot falha, em vez de o CORS barrar tudo em silêncio |
+| `PORT` | `4000` | definida pelo Render |
+| `FRONTEND_URL` | `http://localhost:3001` | URL da Vercel — **obrigatória em produção**: sem ela o boot falha, em vez de o CORS barrar tudo em silêncio. Aceita várias origens separadas por vírgula |
 | `NODE_ENV` | `development` | `production` |
 | `LOG_LEVEL` | opcional (`debug`) | opcional (`info`) |
 
@@ -369,33 +391,83 @@ inteiro, não linhas soltas. O que **não** está coberto: os buckets do Storage
 
 > **Região do Render:** o `render.yaml` usa `frankfurt` por ser a região mais próxima do Supabase em `sa-east-1` (São Paulo). Se `frankfurt` não estiver disponível no seu plano, troque para `oregon` — funciona, mas adiciona ~150ms de latência por query.
 
+> **Keep-alive.** No plano gratuito a instância dorme depois de ~15 minutos sem
+> tráfego. `.github/workflows/keepalive.yml` chama `/health` a cada dez minutos
+> para o primeiro login da manhã não esperar o cold start; num plano pago o
+> workflow pode sair.
+
 ---
 
-## Endpoints Resumidos
+## Endpoints
+
+Todas as rotas exigem `Authorization: Bearer`, exceto os dois cadastros
+públicos, o login, o refresh e os health checks.
 
 ```
+GET    /health                                   (liveness)
+GET    /health/ready                             (readiness — SELECT 1)
+
 POST   /auth/login
 POST   /auth/refresh
-POST   /auth/logout                        (autenticado — encerra as sessões da conta)
-GET    /auth/me                            (autenticado)
+POST   /auth/logout                              (encerra as sessões da conta)
+GET    /auth/me
 
-POST   /users                              (ADMIN)
-GET    /users                              (ADMIN)
-PATCH  /users/:id                          (ADMIN)
-GET    /users/me
-PATCH  /users/me
+POST   /users                                    (cadastro público — nasce sem vínculo)
+GET    /users/me      PATCH /users/me
 PATCH  /users/me/password
+PATCH  /users/me/avatar    DELETE /users/me/avatar
 DELETE /users/me
+GET    /users         PATCH /users/:id     DELETE /users/:id      (ADMIN)
 
-GET    /buildings/:id/floors
+POST   /managers                                 (cadastro público de gestor)
+GET    /managers/me   PATCH /managers/me
+PATCH  /managers/me/password
+PATCH  /managers/me/avatar DELETE /managers/me/avatar
+DELETE /managers/me
+GET    /managers      DELETE /managers/:id                        (ADMIN)
 
-POST   /inspections                        (vistoria completa, já concluída)
-GET    /inspections
+GET    /buildings                                (ADMIN)
+GET    /buildings/stats                          (ADMIN)
+GET    /buildings/managed                        (os prédios que a conta administra)
+GET    /buildings/me                             (os prédios em que tem vínculo)
+POST   /buildings/lookup                         (busca pela chave de compartilhamento)
+POST   /buildings                                (quem cria vira gestor dele)
+PATCH  /buildings/:id     DELETE /buildings/:id                   (gestor)
+GET    /buildings/:id/floors                                      (membro)
+POST   /buildings/:id/floors   DELETE /buildings/:id/floors/:floorId   (gestor)
+GET    /buildings/:id/dashboard   GET /buildings/:id/history      (membro)
+POST   /buildings/:id/managers    DELETE /buildings/:id/managers/:managerId  (gestor)
+GET    /buildings/:id/members                                     (gestor)
+PATCH  /buildings/:id/members/:userId   DELETE /buildings/:id/members/:userId (gestor)
+DELETE /buildings/:id/members/me                 (sair do prédio)
+POST   /buildings/access-requests                (pedido pela chave)
+GET    /buildings/:id/access-requests                             (gestor)
+PATCH  /buildings/:id/access-requests/:requestId                  (gestor)
+
+POST   /inspections                              (vistoria completa; Idempotency-Key)
+GET    /inspections                              (filtros: page, limit, status,
+                                                  inspector_id, floor_id, q,
+                                                  date_from, date_to)
 GET    /inspections/:id
-GET    /inspections/:id/excel
+GET    /inspections/:id/day                      (relatório do dia)
+DELETE /inspections/:id                          (gestor do prédio)
+GET    /inspections/:id/excel                    (URL assinada, 5 min)
+POST   /inspections/:id/excel                    (refaz a planilha)
 
 GET    /calendar?month=&year=
 GET    /calendar?range=semestral|anual
-```
 
-Ver `docs/openapi.yaml` para contrato completo com schemas de request/response.
+GET    /buildings/:id/tickets                                     (membro)
+GET    /buildings/:id/responsibles                                (membro)
+GET    /buildings/:id/tickets/stats                               (moderador)
+GET    /buildings/:id/tickets/summary                             (moderador)
+GET    /buildings/:id/tickets/report                              (moderador — .docx)
+GET    /tickets/me                               (os chamados do responsável)
+POST   /tickets/:id/forward      POST /tickets/:id/unforward
+POST   /tickets/:id/receive      POST /tickets/:id/done
+POST   /tickets/:id/close                        (só o moderador fecha)
+PATCH  /tickets/:id
+
+POST   /feedbacks                GET  /feedbacks/me
+GET    /feedbacks   PATCH /feedbacks/:id   DELETE /feedbacks/:id   (ADMIN)
+```
