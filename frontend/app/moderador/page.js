@@ -7,7 +7,7 @@ import { ModeradorShell, useModeratorBuilding } from '@/app/components/Moderador
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
-import { Badge, Skeleton } from '@/app/components/ui';
+import { Badge, Skeleton, StatCard } from '@/app/components/ui';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { AmpliarHistorico } from '@/app/components/HistoricoExpandido';
 import { OcorrenciasTable } from '@/app/components/OcorrenciasTable';
@@ -16,7 +16,7 @@ import { useCalendar, useBuildingHistory, useTicketStats } from '@/app/hooks/use
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { parseReportDate } from '@/app/lib/date';
 import { placeholderCellHeight } from '@/app/lib/pagination';
-import { T, R, W, NUM, HEAT } from '@/app/lib/theme';
+import { T, R, W, HEAT } from '@/app/lib/theme';
 
 // A célula de espera tem a altura da de verdade — o `Badge` da coluna de status
 // entre os 11px de recuo —, para o cartão não encolher a cada seta.
@@ -24,25 +24,6 @@ const PLACEHOLDER_CELL = { padding: '11px 22px', height: placeholderCellHeight({
 
 const STATUS_LABEL = { IN_PROGRESS: 'Em andamento', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { IN_PROGRESS: 'accent', COMPLETED: 'success' };
-
-/** Um contador do painel: quantos chamados estão em cada ponto do caminho. */
-function StatCard({ icon: Icon, label, value, isLoading, className = '' }) {
-  return (
-    <div className={className} style={{ background: T.card, borderRadius: 26, padding: 20, display: 'flex', alignItems: 'center', gap: 14 }}>
-      <div style={{ width: 42, height: 42, background: T.accentSoft, borderRadius: R.control, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon size={19} color={T.accentInk} />
-      </div>
-      <div>
-        <p style={{ color: T.mute, fontSize: 12 }}>{label}</p>
-        {isLoading ? (
-          <Skeleton style={{ height: 24, width: 40, marginTop: 4 }} />
-        ) : (
-          <p style={{ color: T.text, fontSize: 22, fontWeight: W.title, ...NUM }}>{value ?? 0}</p>
-        )}
-      </div>
-    </div>
-  );
-}
 
 /**
  * O painel do moderador.
@@ -178,15 +159,15 @@ export default function ModeradorPage() {
             ninguém aceitou esses ainda, e somá-los ao que está sendo feito
             esconderia a fila que o moderador tem de cobrar. */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-          <StatCard className="anim-fade-up anim-d1" icon={Inbox} label="Em aberto" value={stats?.abertos} isLoading={statsLoading} />
-          <StatCard className="anim-fade-up anim-d2" icon={Send} label="Encaminhados" value={stats?.encaminhados} isLoading={statsLoading} />
-          <StatCard className="anim-fade-up anim-d3" icon={Loader} label="Em andamento" value={stats?.em_andamento} isLoading={statsLoading} />
-          <StatCard className="anim-fade-up anim-d4" icon={CheckCheck} label="Concluídos" value={stats?.concluidos} isLoading={statsLoading} />
+          <StatCard className="anim-fade-up anim-d1" icon={Inbox} label="Em aberto" value={stats?.abertos} loading={statsLoading} />
+          <StatCard className="anim-fade-up anim-d2" icon={Send} label="Encaminhados" value={stats?.encaminhados} loading={statsLoading} />
+          <StatCard className="anim-fade-up anim-d3" icon={Loader} label="Em andamento" value={stats?.em_andamento} loading={statsLoading} />
+          <StatCard className="anim-fade-up anim-d4" icon={CheckCheck} label="Concluídos" value={stats?.concluidos} loading={statsLoading} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, alignItems: 'start' }}>
           {/* Calendário: quantas vistorias em cada dia */}
-          <div className="anim-fade-up anim-d5" style={{ background: T.card, borderRadius: 26, padding: 20 }}>
+          <div className="anim-fade-up anim-d5" style={{ background: T.card, borderRadius: R.card, padding: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <button onClick={prev} aria-label="Mês anterior" style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 4, display: 'flex' }}>
                 <ChevronLeft size={17} />
@@ -221,7 +202,7 @@ export default function ModeradorPage() {
 
           {/* Histórico — a mesma leitura das outras telas, e as mesmas duas
               visões: vistorias e ocorrências, alternadas pelos botões. */}
-          <div className="anim-fade-up anim-d6" style={{ background: T.card, borderRadius: 26, overflow: 'hidden' }}>
+          <div className="anim-fade-up anim-d6" style={{ background: T.card, borderRadius: R.card, overflow: 'hidden' }}>
             <div style={{ padding: '16px 22px', borderBottom: `1px solid ${T.line}` }}>
               <HistoricoSwitcher
                 view={historico.view}

@@ -26,7 +26,7 @@ function Preview({ tone }) {
     <span
       aria-hidden="true"
       style={{
-        display: 'block', height: 76, borderRadius: 12, padding: 9,
+        display: 'block', height: 76, borderRadius: R.pill, padding: 9,
         background: c.page, boxShadow: `inset 0 0 0 1px ${c.ring}`,
       }}
     >

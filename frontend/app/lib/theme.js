@@ -98,9 +98,25 @@ export function heatColor(count) {
   return HEAT[Math.min(count || 0, 4)];
 }
 
-/** Escala de raio: quanto maior a superfície, mais generoso o canto. */
+/**
+ * Escala de raio.
+ *
+ * A superfície tem canto curto e o controle tem canto generoso — o contrário do
+ * "quanto maior a área, maior o raio" de antes, e é de propósito. Com 26px o
+ * cartão puxava o olho para a moldura antes do número que ele carrega, e a
+ * fileira de contadores parecia um carrossel de pílulas; em 12px a borda vira o
+ * que ela é, o limite da superfície. Botão, campo e lista suspensa ficaram como
+ * sempre foram: são as peças que a mão procura, e o canto redondo é parte de
+ * como elas se anunciam.
+ *
+ * O efeito colateral aceito é o botão de 16px dentro de um cartão de 12: o canto
+ * de dentro fica mais redondo que o de fora. Foi olhado e mantido.
+ *
+ * Estes três valores existem em dois lugares — aqui e no bloco gêmeo do
+ * @theme em app/globals.css, que é de onde saem as classes do Tailwind.
+ */
 export const R = {
-  card: 26,
+  card: 12,
   control: 16,
   pill: 12,
   badge: 999,

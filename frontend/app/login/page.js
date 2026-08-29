@@ -7,7 +7,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { AuthShell } from '@/app/components/AuthShell';
 import { useAuthStore } from '@/app/store/auth';
-import { T } from '@/app/lib/theme';
+import { T, R } from '@/app/lib/theme';
 import { useLogin } from '@/app/hooks/useApi';
 
 const schema = yup.object({
@@ -18,11 +18,11 @@ const schema = yup.object({
 const S = {
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
   label: { fontSize: 12, fontWeight: 400, color: T.mute },
-  input: { background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent', borderRadius: 16, padding: '13px 16px', color: T.text, fontSize: 16, outline: 'none', width: '100%' },
+  input: { background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent', borderRadius: R.control, padding: '13px 16px', color: T.text, fontSize: 16, outline: 'none', width: '100%' },
   inputWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
   eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: T.mute, display: 'flex', alignItems: 'center' },
-  btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: 500, fontSize: 15, padding: '14px', borderRadius: 16, border: 'none', cursor: 'pointer', marginTop: 4 },
-  errBox: { background: 'rgba(248,113,113,0.13)', borderRadius: 16, padding: '11px 14px', textAlign: 'center' },
+  btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: 500, fontSize: 15, padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4 },
+  errBox: { background: 'rgba(248,113,113,0.13)', borderRadius: R.control, padding: '11px 14px', textAlign: 'center' },
   footer: { color: T.faint, fontSize: 14 },
   link: { color: T.accentInk, fontWeight: 500, textDecoration: 'none' },
 };

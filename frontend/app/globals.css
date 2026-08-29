@@ -25,7 +25,8 @@
   --color-success: #4ADE80;
   --color-info: #A5B4FC;
 
-  --radius-card: 26px;
+  /* Mesma escala de app/lib/theme.js — o porquê dos valores está lá. */
+  --radius-card: 12px;
   --radius-control: 16px;
   --radius-pill: 12px;
 }

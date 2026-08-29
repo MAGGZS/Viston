@@ -13,7 +13,7 @@ import {
   RECORD_STATUS_VARIANT,
   labelOf,
 } from '@/app/lib/maintenanceOptions';
-import { T, W } from '@/app/lib/theme';
+import { T, R, W } from '@/app/lib/theme';
 
 const PRIORITY_VARIANT = { ALTA: 'danger', MEDIA: 'warning', BAIXA: 'default' };
 
@@ -239,7 +239,7 @@ function OcorrenciaCard({ occurrence, onOpen, className = '' }) {
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && onOpen(occurrence)}
       className={className}
-      style={{ background: T.card, borderRadius: 26, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer', transition: 'background 0.15s' }}
+      style={{ background: T.card, borderRadius: R.card, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer', transition: 'background 0.15s' }}
       onMouseEnter={(e) => { e.currentTarget.style.background = T.chip; }}
       onMouseLeave={(e) => { e.currentTarget.style.background = T.card; }}
     >
@@ -280,7 +280,7 @@ export function OcorrenciasList({ buildingId, filters, pageSize }) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="anim-fade-in" style={{ height: 116, borderRadius: 26 }} />
+          <Skeleton key={i} className="anim-fade-in" style={{ height: 116, borderRadius: R.card }} />
         ))}
       </div>
     );

@@ -2,7 +2,7 @@
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { ModeradorSidebar } from '@/app/components/ModeradorSidebar';
 import { useMyBuildings } from '@/app/hooks/useApi';
-import { T, W } from '@/app/lib/theme';
+import { T, R, W } from '@/app/lib/theme';
 import { CONTENT_ID } from '@/app/components/mobile/kit';
 
 /**
@@ -83,7 +83,7 @@ export function ModeradorShell({ building, isLoading, title, subtitle, actions, 
 
           {isLoading ? (
             <div style={{ padding: '0 32px 32px' }}>
-              <div style={{ height: 320, background: T.card, borderRadius: 26 }} className="anim-fade-in animate-pulse" />
+              <div style={{ height: 320, background: T.card, borderRadius: R.card }} className="anim-fade-in animate-pulse" />
             </div>
           ) : !building ? (
             <NoBuilding />

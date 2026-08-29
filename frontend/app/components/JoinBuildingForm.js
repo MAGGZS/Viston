@@ -4,7 +4,7 @@ import { Button } from '@/app/components/ui';
 import { useToastStore } from '@/app/store/toast';
 import { useBuildingByKey, useRequestAccess } from '@/app/hooks/useApi';
 import { formatShareKey, normalizeShareKey, isCompleteShareKey } from '@/app/lib/shareKey';
-import { T, W } from '@/app/lib/theme';
+import { T, R, W } from '@/app/lib/theme';
 
 /**
  * Entrada da chave do prédio: busca pelo código e pede acesso.
@@ -56,7 +56,7 @@ export function JoinBuildingForm({ align = 'left' }) {
       <div style={{ display: 'flex', gap: 8 }}>
         <input
           style={{
-            flex: 1, background: T.chip, borderRadius: 16, padding: '11px 14px',
+            flex: 1, background: T.chip, borderRadius: R.control, padding: '11px 14px',
             color: T.text, fontSize: 14, outline: 'none', fontWeight: W.title,
             letterSpacing: '0.18em', border: 'none', minWidth: 0,
           }}

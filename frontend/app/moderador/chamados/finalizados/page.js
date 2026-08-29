@@ -5,7 +5,7 @@ import { ModeradorShell, useModeratorBuilding } from '@/app/components/Moderador
 import { OcorrenciasTable } from '@/app/components/OcorrenciasTable';
 import { RelatorioModal } from '@/app/components/RelatorioModal';
 import { Button } from '@/app/components/ui';
-import { T } from '@/app/lib/theme';
+import { T, R } from '@/app/lib/theme';
 
 /**
  * O que o moderador já finalizou.
@@ -37,7 +37,7 @@ export default function ChamadosFinalizadosPage() {
       }
     >
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 32px 28px' }}>
-        <div className="anim-fade-up anim-d1" style={{ background: T.card, borderRadius: 26, overflow: 'hidden' }}>
+        <div className="anim-fade-up anim-d1" style={{ background: T.card, borderRadius: R.card, overflow: 'hidden' }}>
           <OcorrenciasTable
             buildingId={building?.building_id}
             group="CONCLUIDOS"

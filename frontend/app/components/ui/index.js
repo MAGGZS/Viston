@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
-import { T, R, W } from '@/app/lib/theme';
+import { T, R, W, NUM } from '@/app/lib/theme';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 
 /**
@@ -150,6 +150,67 @@ export function Card({ children, style = {}, className = '' }) {
   return (
     <div style={{ ...G.card, padding: 20, ...style }} className={`anim-fade-up ${className}`}>
       {children}
+    </div>
+  );
+}
+
+/**
+ * Um número do painel e o que ele significa.
+ *
+ * O mesmo cartão existia escrito três vezes — no painel do admin, no do
+ * moderador e no do prédio —, e as três cópias já discordavam no tamanho do
+ * número e no do ícone. Aqui é um só, e as três telas passam a ler igual.
+ *
+ * A leitura vai de cima para baixo, e não da esquerda para a direita: rótulo,
+ * depois número. Com o ícone no meio da linha, como estava, ele entrava antes
+ * do número no caminho do olho — e ícone não é dado. Encostado no canto, ele
+ * volta a ser o que é: a marca que distingue um cartão do outro na fileira.
+ *
+ * `aria-hidden` no ícone porque ele não acrescenta nada ao que o rótulo já diz.
+ */
+export function StatCard({ icon: Icon, label, value, hint, loading = false, className = '', style = {} }) {
+  return (
+    <div
+      className={className}
+      // Recuo e vão apertados de propósito: o cartão tem de caber no número, e
+      // não o contrário. Com 20 de recuo e 16 de vão sobrava fundo vazio em
+      // volta do 34px, e a fileira ocupava mais altura do que tinha o que
+      // dizer — 148px para carregar um número de dois dígitos. Assim são 102,
+      // e 120 nos dois cartões que trazem dica.
+      style={{ ...G.card, padding: 14, display: 'flex', flexDirection: 'column', gap: 8, ...style }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <p style={{
+          color: T.mute, fontSize: 11, fontWeight: W.strong,
+          // Caixa alta pede respiro entre as letras; sem ele o rótulo fecha num
+          // bloco só. O leitor de tela continua ouvindo o texto como foi escrito.
+          letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1.45,
+        }}>
+          {label}
+        </p>
+        {Icon && (
+          <span
+            aria-hidden="true"
+            style={{
+              width: 30, height: 30, borderRadius: R.badge, background: T.accentSoft, color: T.accentInk,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}
+          >
+            <Icon size={15} />
+          </span>
+        )}
+      </div>
+
+      <div style={{ marginTop: 'auto' }}>
+        {loading ? (
+          <Skeleton style={{ height: 32, width: 76 }} />
+        ) : (
+          <p style={{ fontFamily: T.display, fontWeight: W.title, fontSize: 34, lineHeight: 1.05, color: T.text, ...NUM }}>
+            {value ?? 0}
+          </p>
+        )}
+        {hint && <p style={{ color: T.faint, fontSize: 11, marginTop: 2 }}>{hint}</p>}
+      </div>
     </div>
   );
 }

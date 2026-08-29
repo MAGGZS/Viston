@@ -6,7 +6,7 @@ import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
 import { useUnsavedGuard } from '@/app/hooks/useUnsavedGuard';
 import { useToastStore } from '@/app/store/toast';
 import { useCreateBuilding, useUpdateBuilding, useCreateFloor, useDeleteFloor, useFloors } from '@/app/hooks/useApi';
-import { T } from '@/app/lib/theme';
+import { T, R } from '@/app/lib/theme';
 
 /** Lista de andares como tags, com campo de adição embaixo. */
 function FloorTags({ labels, onRemove, input, onInputChange, onAdd }) {
@@ -36,7 +36,7 @@ function FloorTags({ labels, onRemove, input, onInputChange, onAdd }) {
 
       <div style={{ display: 'flex', gap: 8 }}>
         <input
-          style={{ flex: 1, background: T.chip, borderRadius: 12, padding: '9px 14px', color: T.text, fontSize: 14, outline: 'none' }}
+          style={{ flex: 1, background: T.chip, borderRadius: R.pill, padding: '9px 14px', color: T.text, fontSize: 14, outline: 'none' }}
           placeholder="Ex: 1, 2, Cobertura, Subsolo... (Enter para adicionar)"
           value={input}
           onChange={e => onInputChange(e.target.value)}
@@ -194,7 +194,7 @@ export function EditBuildingModal({ building, open = true, onClose }) {
           <Input label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           <Input label="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
           {floorsLoading
-            ? <div style={{ height: 80, background: T.chip, borderRadius: 12 }} />
+            ? <div style={{ height: 80, background: T.chip, borderRadius: R.pill }} />
             : <FloorTags labels={labels} onRemove={removeFloor} input={input} onInputChange={setInput} onAdd={addFloor} />
           }
           <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>

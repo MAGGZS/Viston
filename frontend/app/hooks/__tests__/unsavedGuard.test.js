@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useForm } from 'react-hook-form';
 import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
 import { UnsavedGuard } from '@/app/components/UnsavedGuard';
 import {
@@ -65,6 +66,29 @@ function CampoFilho() {
   );
 }
 
+/**
+ * Um formulário de react-hook-form ligado ao registro, como os do cadastro e o
+ * de novo usuário do admin.
+ *
+ * `defaultValues` declarado é o que faz `isDirty` voltar a falso quando a
+ * pessoa apaga o que escreveu. Sem ele, `_defaultValues` é `{}` e `_formValues`
+ * ganha as chaves dos campos assim que eles montam — os dois nunca mais se
+ * igualam, e o formulário fica "mexido" para sempre.
+ */
+function FormularioRHF() {
+  const { register, formState: { isDirty } } = useForm({ defaultValues: { nome: '' } });
+  const saida = useUnsavedGuard(isDirty);
+
+  return (
+    <div>
+      <label htmlFor="rhf">Nome</label>
+      <input id="rhf" {...register('nome')} />
+      <button type="button" onClick={() => saida.guard(() => {})}>Fechar</button>
+      <UnsavedChangesModal open={saida.asking} onConfirm={saida.confirm} onCancel={saida.cancel} />
+    </div>
+  );
+}
+
 const perguntou = () => screen.queryByText('Descartar alterações?');
 
 beforeEach(() => {
@@ -123,6 +147,23 @@ describe('useUnsavedGuard', () => {
     await user.click(screen.getByRole('button', { name: 'Descartar' }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('sai do registro quando a pessoa apaga o que tinha escrito', async () => {
+    const user = userEvent.setup();
+    render(<FormularioRHF />);
+
+    await user.type(screen.getByLabelText('Nome'), 'ana');
+    expect(useUnsavedStore.getState().dirty).toHaveLength(1);
+
+    // O formulário volta ao que era: não há mais nada a perder, e o menu tem de
+    // voltar a deixar passar. Enquanto isto ficava preso, todo link da tela
+    // perguntava "descartar alterações?" pelo resto da sessão.
+    await user.clear(screen.getByLabelText('Nome'));
+    expect(useUnsavedStore.getState().dirty).toHaveLength(0);
+
+    await user.click(screen.getByRole('button', { name: 'Fechar' }));
+    expect(perguntou()).not.toBeInTheDocument();
   });
 
   it('enxerga o campo que mora dentro de um filho', async () => {

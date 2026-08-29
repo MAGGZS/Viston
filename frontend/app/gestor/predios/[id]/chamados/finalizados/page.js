@@ -6,7 +6,7 @@ import { GestorShell } from '@/app/components/GestorShell';
 import { OcorrenciasTable } from '@/app/components/OcorrenciasTable';
 import { RelatorioModal } from '@/app/components/RelatorioModal';
 import { Button } from '@/app/components/ui';
-import { T } from '@/app/lib/theme';
+import { T, R } from '@/app/lib/theme';
 
 /**
  * Os chamados já encerrados do prédio.
@@ -30,7 +30,7 @@ export default function GestorChamadosFinalizadosPage() {
       }
     >
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 32px 28px' }}>
-        <div className="anim-fade-up anim-d1" style={{ background: T.card, borderRadius: 26, overflow: 'hidden' }}>
+        <div className="anim-fade-up anim-d1" style={{ background: T.card, borderRadius: R.card, overflow: 'hidden' }}>
           <OcorrenciasTable
             buildingId={id}
             group="CONCLUIDOS"

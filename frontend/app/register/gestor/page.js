@@ -9,7 +9,7 @@ import { AuthShell } from '@/app/components/AuthShell';
 import { useUnsavedFlag } from '@/app/hooks/useUnsavedGuard';
 import { useAuthStore } from '@/app/store/auth';
 import { useCreateManager, useLogin } from '@/app/hooks/useApi';
-import { T, W } from '@/app/lib/theme';
+import { T, R, W } from '@/app/lib/theme';
 
 const schema = yup.object({
   name: yup.string().min(2, 'Mínimo 2 caracteres').required('Obrigatório'),
@@ -24,10 +24,10 @@ const schema = yup.object({
 const S = {
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
   label: { fontSize: 12, fontWeight: 400, color: T.mute },
-  input: { background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent', borderRadius: 16, padding: '13px 16px', color: T.text, fontSize: 16, outline: 'none', width: '100%' },
+  input: { background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent', borderRadius: R.control, padding: '13px 16px', color: T.text, fontSize: 16, outline: 'none', width: '100%' },
   inputWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
   eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: T.mute, display: 'flex', alignItems: 'center' },
-  btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: W.strong, fontSize: 15, padding: '14px', borderRadius: 16, border: 'none', cursor: 'pointer', marginTop: 4 },
+  btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: W.strong, fontSize: 15, padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4 },
 };
 
 /**
@@ -42,7 +42,13 @@ export default function RegisterGestorPage() {
   const { login } = useAuthStore();
   const createManager = useCreateManager();
   const loginMutation = useLogin();
-  const { register, handleSubmit, formState: { errors, isDirty } } = useForm({ resolver: yupResolver(schema) });
+  // Campos vazios declarados: sem eles `isDirty` nunca volta a falso, e o
+  // cadastro passa a perguntar "descartar alterações?" ao sair mesmo com tudo
+  // apagado (ver desktop/admin/page.js).
+  const { register, handleSubmit, formState: { errors, isDirty } } = useForm({
+    resolver: yupResolver(schema),
+    defaultValues: { name: '', email: '', password: '', password_confirmation: '' },
+  });
 
   // Sair da tela com o cadastro pela metade — pelo link de entrar, por um
   // recarregar — passa a perguntar antes (ver components/UnsavedGuard.js).
@@ -112,7 +118,7 @@ export default function RegisterGestorPage() {
           );
         })}
         {apiError && (
-          <div style={{ background: T.dangerSoft, borderRadius: 16, padding: '11px 14px' }}>
+          <div style={{ background: T.dangerSoft, borderRadius: R.control, padding: '11px 14px' }}>
             <p style={{ color: T.danger, fontSize: 14, textAlign: 'center' }}>{apiError}</p>
           </div>
         )}

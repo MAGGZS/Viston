@@ -162,25 +162,50 @@ function ForwardBox({ ticket, buildingId, label }) {
 function MaintenanceBox({ ticket }) {
   const update = useUpdateTicket();
   const { show: toast } = useToastStore();
-  const [note, setNote] = useState(ticket.maintenance_note ?? '');
-  const savedCost =
-    ticket.maintenance_cost === null || ticket.maintenance_cost === undefined
-      ? ''
-      : String(ticket.maintenance_cost);
-  const [cost, setCost] = useState(savedCost);
+  /**
+   * O que está gravado, na conta deste bloco.
+   *
+   * Sai do chamado uma vez, na montagem — a folha é remontada quando outra
+   * ocorrência é escolhida à esquerda, então é sempre o chamado aberto —, e
+   * depois é este bloco quem o atualiza, ao salvar. Comparar direto com o
+   * chamado custava dois enganos: o que sai daqui é *normalizado*, então
+   * "trocar a lâmpada " vira "trocar a lâmpada" e "12.50" vira 12.5, e o campo
+   * nunca mais se igualava ao gravado; e a igualdade só chegaria quando a lista
+   * recarregasse, que é depois e pode nem acontecer. Nos dois casos o
+   * formulário ficava por salvar para sempre, e daí em diante trocar de
+   * ocorrência ou sair da tela perguntava "descartar alterações?" sem haver
+   * nenhuma. Mesma armadilha, e mesmo conserto, em ChamadoModal.
+   */
+  const [gravado, setGravado] = useState({
+    note: ticket.maintenance_note ?? '',
+    cost:
+      ticket.maintenance_cost === null || ticket.maintenance_cost === undefined
+        ? ''
+        : String(ticket.maintenance_cost),
+  });
+  const [note, setNote] = useState(gravado.note);
+  const [cost, setCost] = useState(gravado.cost);
 
-  // Nada aqui vai ao servidor antes de "Salvar informações", e a folha inteira
-  // é remontada quando outra ocorrência é escolhida à esquerda.
-  useUnsavedField(note !== (ticket.maintenance_note ?? '') || cost !== savedCost);
+  // Nada aqui vai ao servidor antes de "Salvar informações".
+  useUnsavedField(note !== gravado.note || cost !== gravado.cost);
 
   async function handleSave() {
+    const nota = note.trim() === '' ? null : note.trim();
+    // Campo em branco apaga o valor lançado antes; não é zero.
+    const valor = cost.trim() === '' ? null : Number(cost);
+
     try {
       await update.mutateAsync({
         id: ticket.id,
-        maintenance_note: note.trim() === '' ? null : note.trim(),
-        // Campo em branco apaga o valor lançado antes; não é zero.
-        maintenance_cost: cost === '' ? null : Number(cost),
+        maintenance_note: nota,
+        maintenance_cost: valor,
       });
+      // Os campos recebem de volta o que ficou gravado, e não o que estava
+      // digitado: é a forma normalizada que passa a ser a referência.
+      const salvo = { note: nota ?? '', cost: valor === null ? '' : String(valor) };
+      setNote(salvo.note);
+      setCost(salvo.cost);
+      setGravado(salvo);
       toast('Chamado atualizado', 'success');
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao salvar', 'error');
@@ -430,7 +455,7 @@ export function ChamadosBoard({ buildingId, group }) {
       </div>
 
       {/* Direita: a ocorrência aberta */}
-      <div className="anim-fade-up anim-d2" style={{ overflowY: 'auto', background: T.card, borderRadius: 26, padding: 26 }}>
+      <div className="anim-fade-up anim-d2" style={{ overflowY: 'auto', background: T.card, borderRadius: R.card, padding: 26 }}>
         {/* `key` no chamado: os campos do detalhe (responsável escolhido,
             manutenção, valor) nascem do chamado aberto, e trocar de ocorrência
             tem de recarregá-los — não manter o que estava digitado no anterior. */}

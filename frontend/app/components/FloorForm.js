@@ -70,7 +70,7 @@ function DescriptionField({ index, register, error }) {
         placeholder="O que foi encontrado?"
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        style={{ background: M.chip, border: 'none', borderRadius: 16, padding: '14px 16px', color: M.text, fontSize: 16, outline: 'none', width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
+        style={{ background: M.chip, border: 'none', borderRadius: R.control, padding: '14px 16px', color: M.text, fontSize: 16, outline: 'none', width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
         {...register(`records.${index}.description`)}
       />
       {error && (
@@ -169,7 +169,7 @@ export function FloorForm({ floor, inspectorName, initialRecords, responsibles =
             <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 14, color: M.text }}>Ocorrência {index + 1}</p>
             {fields.length > 1 && (
               <button type="button" onClick={() => remove(index)} aria-label="Remover ocorrência"
-                style={{ background: M.chip, border: 'none', cursor: 'pointer', color: M.mute, padding: 8, borderRadius: 12, display: 'flex' }}>
+                style={{ background: M.chip, border: 'none', cursor: 'pointer', color: M.mute, padding: 8, borderRadius: R.pill, display: 'flex' }}>
                 <Trash2 size={15} />
               </button>
             )}

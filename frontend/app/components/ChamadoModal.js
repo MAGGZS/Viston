@@ -92,18 +92,32 @@ function ReenviarBox({ ticket, buildingId, onDone }) {
 function NotasBox({ ticket }) {
   const update = useUpdateTicket();
   const { show: toast } = useToastStore();
-  const [note, setNote] = useState(ticket.maintenance_note ?? '');
+  /**
+   * O que está gravado, na conta deste bloco.
+   *
+   * Sai do chamado uma vez, na montagem — a caixa é remontada a cada abertura,
+   * então é sempre o chamado que está na tela —, e depois é este bloco quem o
+   * atualiza, ao salvar. Comparar direto com `ticket.maintenance_note` custava
+   * dois enganos: o texto vai *aparado* para o servidor, então "trocar a
+   * lâmpada " nunca mais se igualava ao que ficou gravado; e a igualdade só
+   * chegava quando a lista recarregasse, que é depois e pode nem acontecer. Nos
+   * dois casos a caixa se despedia com "descartar alterações?" de nota já
+   * salva. Mesma armadilha, e mesmo conserto, em ChamadosBoard.
+   */
+  const [gravado, setGravado] = useState(ticket.maintenance_note ?? '');
+  const [note, setNote] = useState(gravado);
 
   // A nota só existe no servidor depois de "Salvar nota": até lá, fechar a
   // caixa a apagaria sem aviso.
-  useUnsavedField(note !== (ticket.maintenance_note ?? ''));
+  useUnsavedField(note !== gravado);
 
   async function handleSave() {
+    const nota = note.trim() === '' ? null : note.trim();
+
     try {
-      await update.mutateAsync({
-        id: ticket.id,
-        maintenance_note: note.trim() === '' ? null : note.trim(),
-      });
+      await update.mutateAsync({ id: ticket.id, maintenance_note: nota });
+      setNote(nota ?? '');
+      setGravado(nota ?? '');
       toast('Nota salva', 'success');
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao salvar a nota', 'error');

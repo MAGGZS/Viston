@@ -19,6 +19,7 @@ import {
   formatCost,
 } from '@/app/lib/maintenanceOptions';
 import { parseReportDate } from '@/app/lib/date';
+import { R } from '@/app/lib/theme';
 import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
 
@@ -62,7 +63,7 @@ function ConclusaoBox({ ticket }) {
           onChange={(e) => setReport(e.target.value)}
           placeholder="O que foi feito, o que precisou trocar, o que ficou pendente…"
           style={{
-            background: M.chip, border: '1px solid transparent', borderRadius: 16,
+            background: M.chip, border: '1px solid transparent', borderRadius: R.control,
             padding: '13px 15px', color: M.text, fontSize: 14, outline: 'none',
             width: '100%', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6,
           }}
@@ -143,7 +144,7 @@ function TicketCard({ ticket, className = '' }) {
       </p>
 
       {ticket.maintenance_note && (
-        <div style={{ background: M.chip, borderRadius: 16, padding: '11px 13px' }}>
+        <div style={{ background: M.chip, borderRadius: R.control, padding: '11px 13px' }}>
           <p style={{ color: M.mute, fontSize: 12, marginBottom: 4 }}>Do moderador</p>
           <p style={{ color: M.text, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
             {ticket.maintenance_note}
@@ -162,7 +163,7 @@ function TicketCard({ ticket, className = '' }) {
       </p>
 
       {pending && (
-        <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: 16, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'center' }}>
+        <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: R.control, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'center' }}>
           <Hourglass size={15} color={M.accentInk} style={{ flexShrink: 0 }} />
           <p style={{ color: M.text, fontSize: 12, lineHeight: 1.5 }}>
             Encaminhado a você
@@ -175,7 +176,7 @@ function TicketCard({ ticket, className = '' }) {
       )}
 
       {waiting && (
-        <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: 16, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+        <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: R.control, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'flex-start' }}>
           <CheckCheck size={15} color={M.accentInk} style={{ flexShrink: 0, marginTop: 1 }} />
           <div>
             <p style={{ color: M.text, fontSize: 12, lineHeight: 1.5 }}>
@@ -191,7 +192,7 @@ function TicketCard({ ticket, className = '' }) {
       )}
 
       {closed && (
-        <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: 16, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+        <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: R.control, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'flex-start' }}>
           <CheckCheck size={15} color={M.accentInk} style={{ flexShrink: 0, marginTop: 1 }} />
           <div>
             <p style={{ color: M.text, fontSize: 12, lineHeight: 1.5 }}>
@@ -374,7 +375,7 @@ export default function ResponsavelPage() {
         {isLoading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[1, 2, 3].map((i) => (
-              <div key={i} className="anim-fade-in animate-pulse" style={{ height: 150, background: M.card, borderRadius: 26 }} />
+              <div key={i} className="anim-fade-in animate-pulse" style={{ height: 150, background: M.card, borderRadius: R.card }} />
             ))}
           </div>
         )}

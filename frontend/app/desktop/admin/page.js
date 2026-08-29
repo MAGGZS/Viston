@@ -112,8 +112,20 @@ export default function AdminUsersPage() {
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
 
+  /**
+   * `defaultValues` com os quatro campos vazios, e não o formulário sem eles.
+   *
+   * `isDirty` é `_formValues` comparado com `_defaultValues`. Sem esta lista, o
+   * segundo é `{}` enquanto o primeiro ganha as quatro chaves assim que os
+   * campos montam — e os dois nunca mais se igualam. Bastava digitar uma letra
+   * e apagá-la para o formulário ficar "mexido" até recarregar a página: o
+   * registro global (ver `useUnsavedFlag`) segurava o id, e daí em diante todo
+   * link do menu perguntava "descartar alterações?" sem haver alteração
+   * nenhuma. Com a lista, apagar o que se escreveu devolve `isDirty` a falso.
+   */
   const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm({
     resolver: yupResolver(schema),
+    defaultValues: { name: '', email: '', password: '', password_confirmation: '' },
   });
 
   // A conta nova só existe depois de "Criar": fechar a caixa com os campos
@@ -283,10 +295,15 @@ export default function AdminUsersPage() {
       {/* Modal criar usuário */}
       <Modal open={createModal} onClose={fecharCriar} title="Novo usuário">
         <form onSubmit={handleSubmit(onCreateSubmit)} className="flex flex-col gap-4">
-          <Input label="Nome" error={errors.name?.message} {...register('name')} />
-          <Input label="E-mail" type="email" error={errors.email?.message} {...register('email')} />
-          <Input label="Senha" type="password" error={errors.password?.message} {...register('password')} />
-          <Input label="Confirmar senha" type="password" error={errors.password_confirmation?.message} {...register('password_confirmation')} />
+          {/* `autoComplete` fechado: esta conta é de outra pessoa, e o
+              navegador oferecia aqui o e-mail e a senha guardados do próprio
+              admin. Além de errado, o preenchimento entra como digitação — o
+              formulário nascia "mexido" sem ninguém ter tocado nele, e a saída
+              da tela passava a perguntar. */}
+          <Input label="Nome" autoComplete="off" error={errors.name?.message} {...register('name')} />
+          <Input label="E-mail" type="email" autoComplete="off" error={errors.email?.message} {...register('email')} />
+          <Input label="Senha" type="password" autoComplete="new-password" error={errors.password?.message} {...register('password')} />
+          <Input label="Confirmar senha" type="password" autoComplete="new-password" error={errors.password_confirmation?.message} {...register('password_confirmation')} />
           <p className="text-mute text-xs leading-relaxed">
             A conta nasce sem vínculo. Ela entra num prédio pela chave de compartilhamento,
             e quem define o que ela faz lá dentro é o gestor daquele prédio.

@@ -11,7 +11,7 @@ import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
 import { Paginator } from '@/app/components/Paginator';
-import { HEAT, heatColor } from '@/app/lib/theme';
+import { HEAT, R, heatColor } from '@/app/lib/theme';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { M, MPage, MTopBar, MRound, MCard, CONTENT_ID } from '@/app/components/mobile/kit';
@@ -28,7 +28,7 @@ import { useAuthStore } from '@/app/store/auth';
 const S = {
   page: { minHeight: '100vh', background: M.bg },
   label: { fontSize: 12, fontWeight: 400, color: M.mute },
-  input: { background: M.chip, border: 'none', borderRadius: 16, padding: '11px 14px', color: M.text, fontSize: 16, outline: 'none', width: '100%' },
+  input: { background: M.chip, border: 'none', borderRadius: R.control, padding: '11px 14px', color: M.text, fontSize: 16, outline: 'none', width: '100%' },
 };
 
 function NoPredioState({ isMobile }) {
@@ -97,7 +97,7 @@ function InspectionCard({ inspection, onPreview, onOpenReport, className = '' })
     // o nome do que se abre é o rótulo dele, sem precisar de `aria-label`.
     <div
       className={`profile-row ${className}`}
-      style={{ background: M.card, borderRadius: 26, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}
+      style={{ background: M.card, borderRadius: R.card, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <button
@@ -183,7 +183,7 @@ function MobileInspectionCard({ inspection, onOpenReport, className = '' }) {
               title="Baixar planilha"
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 36, height: 36, borderRadius: 12, border: 'none', cursor: 'pointer',
+                width: 36, height: 36, borderRadius: R.pill, border: 'none', cursor: 'pointer',
                 background: M.chip, color: M.accentInk, flexShrink: 0,
               }}
             >
@@ -194,7 +194,7 @@ function MobileInspectionCard({ inspection, onOpenReport, className = '' }) {
             type="button"
             onClick={() => onOpenReport(inspection.id)}
             aria-label="Abrir relatório do dia"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: M.faint, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 12 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: M.faint, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: R.pill }}
           >
             <ChevronRight size={18} />
           </button>
@@ -329,7 +329,7 @@ export default function HistoricoPage() {
           <span key={navLabel} className="anim-fade-in" style={{ color: M.text, fontWeight: 600, fontSize: 14, textTransform: 'capitalize', minWidth: 160, textAlign: 'center' }}>{navLabel}</span>
           <button onClick={nextCal} style={{ background: M.chip, borderRadius: 10, padding: 6, cursor: 'pointer', color: M.mute, display: 'flex' }}><ChevronRight size={16} /></button>
         </div>
-        <div style={{ display: 'flex', background: M.chip, borderRadius: 12, padding: 3, gap: 2 }}>
+        <div style={{ display: 'flex', background: M.chip, borderRadius: R.pill, padding: 3, gap: 2 }}>
           {MODES.map(m => (
             <button key={m} onClick={() => setCalMode(m)} style={{ padding: '5px 12px', borderRadius: 9, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: calMode === m ? M.accent : 'transparent', color: calMode === m ? M.onAccent : M.mute, transition: 'all 0.2s' }}>{m}</button>
           ))}
@@ -340,7 +340,7 @@ export default function HistoricoPage() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: calMode === 'Mensal' ? '1fr' : calMode === 'Semestral' ? 'repeat(auto-fill, minmax(200px, 1fr))' : 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16 }}>
           {calMonths.map(m => (
-            <div key={m} style={{ background: M.chip, borderRadius: 26, padding: 16 }}>
+            <div key={m} style={{ background: M.chip, borderRadius: R.card, padding: 16 }}>
               <MonthGrid heatmap={heatmap} year={year} month={m} onDayClick={(day, info) => setSelected({ day, info })} compact={calMode !== 'Mensal'} />
             </div>
           ))}
@@ -361,12 +361,12 @@ export default function HistoricoPage() {
       <div className="anim-fade-down" style={{ padding: '32px 32px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h1 style={{ color: M.text, fontSize: 22, fontWeight: 600 }}>Histórico</h1>
         {!isAdmin && hasBuilding && (
-          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: M.chip, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: M.mute, cursor: 'pointer' }}>
+          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: M.chip, borderRadius: R.pill, display: 'flex', alignItems: 'center', justifyContent: 'center', color: M.mute, cursor: 'pointer' }}>
             <SlidersHorizontal size={15} />
           </button>
         )}
         {isAdmin && (
-          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: M.chip, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: M.mute, cursor: 'pointer' }}>
+          <button onClick={() => setShowFilters(true)} style={{ width: 36, height: 36, background: M.chip, borderRadius: R.pill, display: 'flex', alignItems: 'center', justifyContent: 'center', color: M.mute, cursor: 'pointer' }}>
             <SlidersHorizontal size={15} />
           </button>
         )}
@@ -423,7 +423,7 @@ export default function HistoricoPage() {
 
       {buildingsLoading ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[1, 2, 3].map(i => <div key={i} style={{ height: 128, background: M.card, borderRadius: 26 }} />)}
+          {[1, 2, 3].map(i => <div key={i} style={{ height: 128, background: M.card, borderRadius: R.card }} />)}
         </div>
       ) : !hasBuilding ? (
         <MCard className="anim-fade-up anim-d1" style={{ textAlign: 'center', padding: '40px 20px' }}>
@@ -461,7 +461,7 @@ export default function HistoricoPage() {
           <div key={historico.view} className="anim-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {historico.isVistorias ? (
               <>
-                {predio.isLoading && [1, 2, 3].map(i => <div key={i} style={{ height: 128, background: M.card, borderRadius: 26 }} />)}
+                {predio.isLoading && [1, 2, 3].map(i => <div key={i} style={{ height: 128, background: M.card, borderRadius: R.card }} />)}
 
                 {!predio.isLoading && predio.rows.length === 0 && (
                   <MCard className="anim-fade-up anim-d1" style={{ textAlign: 'center', padding: '40px 20px' }}>

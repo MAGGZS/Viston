@@ -18,6 +18,7 @@ import { clearDraft, loadDraft, saveDraft } from '@/app/lib/draft';
 import { newSubmissionKey } from '@/app/lib/idempotency';
 import { useAuthStore } from '@/app/store/auth';
 import { canInspect } from '@/app/lib/roles';
+import { R } from '@/app/lib/theme';
 import { useToastStore } from '@/app/store/toast';
 
 /**
@@ -75,7 +76,7 @@ function StepSemVinculo() {
         <p style={{ color: M.mute, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Chave do Prédio</p>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
-            style={{ flex: 1, background: M.chip, borderRadius: 16, padding: '11px 14px', color: M.text, fontSize: 14, outline: 'none', fontWeight: 600, letterSpacing: '0.18em' }}
+            style={{ flex: 1, background: M.chip, borderRadius: R.control, padding: '11px 14px', color: M.text, fontSize: 14, outline: 'none', fontWeight: 600, letterSpacing: '0.18em' }}
             placeholder="ABCD-EFGH-JKMN"
             maxLength={14}
             value={inputKey}
@@ -94,7 +95,7 @@ function StepSemVinculo() {
       {data && !requested && (
         <div className="anim-fade-up" style={{ background: M.chip, borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, background: 'rgba(245,197,24,0.1)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 40, height: 40, background: 'rgba(245,197,24,0.1)', borderRadius: R.pill, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Building2 size={18} color={M.accentInk} />
             </div>
             <div>

@@ -18,6 +18,7 @@ import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
 import { useAuthStore } from '@/app/store/auth';
 import { useCalendar } from '@/app/hooks/useApi';
 import { canInspect } from '@/app/lib/roles';
+import { R } from '@/app/lib/theme';
 
 export default function HomePage() {
   const { user } = useAuthStore();
@@ -93,7 +94,7 @@ export default function HomePage() {
           <MCard className="anim-fade-up anim-d1"
             style={{ background: M.accent, padding: 20, display: 'flex', alignItems: 'center', gap: 14 }}
             onClick={() => router.push('/inspecao')}>
-            <div style={{ width: 46, height: 46, borderRadius: 16, background: 'rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ width: 46, height: 46, borderRadius: R.control, background: 'rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <ClipboardCheck size={22} color="#000" />
             </div>
             <div>

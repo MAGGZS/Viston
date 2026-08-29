@@ -10,7 +10,7 @@ import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
-import { Badge, Skeleton, Button, Modal } from '@/app/components/ui';
+import { Badge, Skeleton, Button, Modal, StatCard } from '@/app/components/ui';
 import { HEAT, heatColor, T } from '@/app/lib/theme';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { AmpliarHistorico } from '@/app/components/HistoricoExpandido';
@@ -211,18 +211,13 @@ export default function GestorBuildingPage() {
             { icon: ClipboardList, label: 'Total de inspeções', value: data?.totalInspections },
             { icon: Users, label: 'Inspetores', value: data?.inspectorCount },
             { icon: Eye, label: 'Visualizadores', value: data?.viewerCount },
-          ].map(({ icon: Icon, label, value }, idx) => (
-            <div key={label} className={`anim-fade-up anim-d${idx + 1} bg-card rounded-card p-5 flex items-center gap-4 transition-all duration-200`}>
-              <div className="w-10 h-10 bg-accent-soft rounded-control flex items-center justify-center">
-                <Icon size={18} className="text-accent-ink" />
-              </div>
-              <div>
-                <p className="text-mute text-xs">{label}</p>
-                {isLoading ? <div className="h-6 w-12 bg-chip rounded animate-pulse mt-1" /> : (
-                  <p className="text-ink text-xl font-semibold">{value ?? 0}</p>
-                )}
-              </div>
-            </div>
+          ].map((card, idx) => (
+            <StatCard
+              key={card.label}
+              {...card}
+              loading={isLoading}
+              className={`anim-fade-up anim-d${idx + 1}`}
+            />
           ))}
         </div>
 

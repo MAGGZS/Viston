@@ -1,6 +1,6 @@
 'use client';
 import { useId } from 'react';
-import { T } from '@/app/lib/theme';
+import { T, R } from '@/app/lib/theme';
 import { Select } from '@/app/components/ui';
 
 /**
@@ -76,7 +76,7 @@ export function MRound({ children, onClick, active = false, label }) {
  * anuncia quando o miolo é feito de números e ícones soltos.
  */
 export function MCard({ children, style = {}, onClick, className = '', label }) {
-  const base = { background: M.card, borderRadius: 26, boxShadow: M.cardRing, padding: 18 };
+  const base = { background: M.card, borderRadius: R.card, boxShadow: M.cardRing, padding: 18 };
 
   if (!onClick) {
     return <div className={className} style={{ ...base, ...style }}>{children}</div>;
@@ -107,7 +107,7 @@ export function MStats({ items }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, 1fr)`, gap: 8 }}>
       {items.map(({ value, label }) => (
-        <div key={label} style={{ background: M.chip, borderRadius: 16, padding: '12px 8px', textAlign: 'center' }}>
+        <div key={label} style={{ background: M.chip, borderRadius: R.control, padding: '12px 8px', textAlign: 'center' }}>
           <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 17, color: M.text, lineHeight: 1.1 }}>{value}</p>
           <p style={{ color: M.mute, fontSize: 12, marginTop: 3 }}>{label}</p>
         </div>
@@ -117,7 +117,7 @@ export function MStats({ items }) {
 }
 
 const BUTTON_BASE = {
-  border: 'none', cursor: 'pointer', borderRadius: 16, padding: '14px 18px',
+  border: 'none', cursor: 'pointer', borderRadius: R.control, padding: '14px 18px',
   fontFamily: M.display, fontWeight: 600, fontSize: 14,
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
 };
@@ -167,7 +167,7 @@ export function MPill({ children, onClick }) {
   return (
     <button onClick={onClick} style={{
       background: M.accent, color: '#000', border: 'none', cursor: 'pointer',
-      borderRadius: 12, padding: '7px 14px', fontFamily: M.display, fontWeight: 600, fontSize: 14,
+      borderRadius: R.pill, padding: '7px 14px', fontFamily: M.display, fontWeight: 600, fontSize: 14,
       display: 'inline-flex', alignItems: 'center', gap: 6,
     }}>
       {children}
@@ -199,7 +199,7 @@ export function MField({ label, error, style = {}, ...props }) {
         style={{
           background: M.chip, border: `1px solid ${error ? 'rgba(248,113,113,0.5)' : 'var(--input-line)'}`,
           // 16px é o piso: abaixo disso o iOS dá zoom ao focar e a tela salta.
-          borderRadius: 16, padding: '14px 16px', color: M.text, fontSize: 16, outline: 'none', width: '100%',
+          borderRadius: R.control, padding: '14px 16px', color: M.text, fontSize: 16, outline: 'none', width: '100%',
           ...style,
         }}
         {...props}

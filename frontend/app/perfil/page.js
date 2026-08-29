@@ -229,7 +229,13 @@ function PasswordForm() {
   const { show: toast } = useToastStore();
   const changePassword = useChangePassword();
 
-  const form = useForm({ resolver: yupResolver(passwordSchema) });
+  // Os três campos vazios, e não o formulário sem lista: ver a nota do
+  // formulário de novo usuário em desktop/admin/page.js. Sem eles, `isDirty`
+  // trava em verdadeiro depois da primeira tecla e nunca mais volta.
+  const form = useForm({
+    resolver: yupResolver(passwordSchema),
+    defaultValues: { current_password: '', new_password: '', new_password_confirmation: '' },
+  });
 
   useUnsavedField(form.formState.isDirty);
 

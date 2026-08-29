@@ -2,30 +2,10 @@
 import { Building2, Layers, BarChart3, ClipboardList, Users, ShieldCheck, Eye, Hourglass, RefreshCw } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
-import { Button } from '@/app/components/ui';
+import { Button, StatCard } from '@/app/components/ui';
 import { useSystemStats } from '@/app/hooks/useApi';
-import { T, R, W, NUM } from '@/app/lib/theme';
+import { T, NUM } from '@/app/lib/theme';
 import { CONTENT_ID } from '@/app/components/mobile/kit';
-
-/** Um número e o que ele significa. Nada além disso. */
-function StatCard({ icon: Icon, label, value, hint, loading }) {
-  return (
-    <div className="bg-card rounded-card p-5 flex items-center gap-4">
-      <div className="w-10 h-10 bg-accent-soft rounded-control flex items-center justify-center flex-shrink-0">
-        <Icon size={18} className="text-accent-ink" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-mute text-xs">{label}</p>
-        {loading ? (
-          <div className="h-6 w-14 bg-chip rounded animate-pulse mt-1" />
-        ) : (
-          <p className="text-ink text-xl font-semibold" style={NUM}>{value}</p>
-        )}
-        {hint && <p className="text-faint text-xs mt-0.5">{hint}</p>}
-      </div>
-    </div>
-  );
-}
 
 /**
  * Composição das contas ativas.
@@ -136,11 +116,18 @@ export default function AdminDashboardPage() {
             </Button>
           </div>
 
+          {/* Sem invólucro entre a grade e o cartão: como filho direto, cada
+              cartão estica até a altura da linha, e os números da fileira —
+              empurrados para baixo pelo `marginTop: auto` do StatCard — ficam
+              todos na mesma altura, mesmo nos dois cartões que têm dica. */}
           <div className="grid grid-cols-4 gap-4 mb-6">
             {cards.map((card, idx) => (
-              <div key={card.label} className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}>
-                <StatCard {...card} loading={isLoading} />
-              </div>
+              <StatCard
+                key={card.label}
+                {...card}
+                loading={isLoading}
+                className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
+              />
             ))}
           </div>
 
