@@ -465,3 +465,70 @@ input:-webkit-autofill:focus {
 
 /* Números que alinham em coluna ou se comparam de relance */
 .num { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+
+/**
+ * O nome da aba ao lado do ícone, com a barra recolhida.
+ *
+ * No trilho o rótulo sai da tela e sobram oito ícones parecidos; o `title` do
+ * navegador cobria isso, mas ele demora cerca de um segundo, aparece grudado no
+ * cursor e não tem nada a ver com o resto do sistema. Aqui o nome chega junto
+ * com o realce do item — é a mesma resposta ao mesmo gesto.
+ *
+ * Em CSS, e não em estado do React, pelo mesmo motivo do `.btn`: passar o mouse
+ * por uma coluna de oito abas redesenharia a barra oito vezes, e o teclado
+ * ficaria de fora. Com `:focus-within` quem navega por Tab lê o mesmo nome.
+ *
+ * O invólucro existe porque o item recorta o que transborda (é o que impede o
+ * rótulo de ser visto cortado ao meio enquanto a barra fecha) — o balão preso
+ * dentro dele seria aparado na borda do ícone.
+ */
+.rail-item { position: relative; }
+
+.rail-tip {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  top: 50%;
+  left: 100%;
+  /* Passa da borda do trilho: 12px de recuo da navegação + 8px de respiro. */
+  margin-left: 20px;
+  /* Acima do botão de recolher, que mora na mesma borda. */
+  z-index: 30;
+  padding: 6px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  box-shadow: var(--card-ring);
+  color: var(--color-ink);
+  font-size: 13px;
+  white-space: nowrap;
+  /* O balão nunca é alvo: sob o cursor ele piscaria entre entrar e sair. */
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-50%) translateX(-4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.rail-item:hover .rail-tip,
+.rail-item:focus-within .rail-tip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* A mesma pílula da barra aberta, na mesma medida — ver COUNT_SIZE no Sidebar. */
+.rail-tip__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-onaccent);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}

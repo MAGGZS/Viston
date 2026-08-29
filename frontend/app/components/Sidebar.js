@@ -36,10 +36,27 @@ const INSET = 16;
 
 const itemBase = {
   display: 'flex', alignItems: 'center', gap: 12,
-  padding: `10px ${INSET}px`, borderRadius: 14,
+  // `R.pill`, e não os 14 soltos que estavam aqui: a seleção é a única forma
+  // sólida da barra, e ficava com um canto que não existia em mais lugar nenhum
+  // do produto.
+  padding: `10px ${INSET}px`, borderRadius: R.pill,
   fontFamily: T.display, fontSize: 14, textDecoration: 'none',
   whiteSpace: 'nowrap', overflow: 'hidden',
   transition: 'background-color 0.15s, color 0.15s',
+};
+
+/**
+ * A medida do aviso, seja ele pílula na barra aberta ou dentro do balão.
+ *
+ * 18 num item de 41: o contador é aviso, não título. A 20 ele disputava altura
+ * com a própria seleção que o carrega — e é ela que diz onde a pessoa está.
+ * Altura fixa e `inline-flex` centrado, para o número não pender de um lado
+ * conforme a fonte resolva a entrelinha.
+ */
+const COUNT_SIZE = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  minWidth: 18, height: 18, padding: '0 5px', borderRadius: R.badge,
+  fontSize: 11, fontWeight: W.strong, ...NUM,
 };
 
 /**
@@ -64,14 +81,19 @@ function labelStyle(collapsed, animated) {
  *
  * Sobre o item ativo — que já é dourado — a pílula inverte: dourado sobre
  * dourado não se lê, e o número é justamente o que precisa ser visto.
+ *
+ * A inversão é sólida, e não um preto a 18% como já foi. Translúcida, ela não
+ * era nem pílula nem fundo: uma mancha de contorno indeciso no meio da única
+ * forma cheia da barra. Preto inteiro com o número em dourado devolve a ela a
+ * mesma nitidez que a versão não selecionada tem sobre o escuro.
  */
 function CountBadge({ count, active }) {
   return (
     <span style={{
-      marginLeft: 'auto', minWidth: 20, padding: '1px 6px', borderRadius: R.badge,
-      background: active ? 'rgba(0,0,0,0.18)' : T.accent,
-      color: T.onAccent,
-      fontSize: 12, fontWeight: W.strong, textAlign: 'center', ...NUM,
+      ...COUNT_SIZE,
+      marginLeft: 'auto',
+      background: active ? T.onAccent : T.accent,
+      color: active ? T.accent : T.onAccent,
     }}>
       {count}
     </span>
@@ -108,8 +130,9 @@ function CountDot({ active }) {
  *
  * Com `href` é navegação; com `onClick`, ação (sair, por exemplo). O rótulo
  * continua no DOM quando a barra está recolhida — só invisível —, então quem
- * usa leitor de tela ouve a mesma coisa nos dois estados. Para o mouse, o
- * `title` faz as vezes do rótulo no trilho.
+ * usa leitor de tela ouve a mesma coisa nos dois estados. Para quem enxerga, o
+ * balão ao lado (`.rail-tip`, em globals.css) devolve o nome no trilho, e ele
+ * é `aria-hidden` justamente porque o rótulo verdadeiro já está ali.
  */
 export function SidebarItem({
   href, onClick, icon: Icon, label, active = false, collapsed, animated, count,
@@ -137,24 +160,36 @@ export function SidebarItem({
     onMouseLeave: (e) => { if (!active) e.currentTarget.style.background = 'transparent'; },
   };
 
-  if (href) {
-    return (
-      <Link href={href} title={collapsed ? label : undefined} style={style} {...hover}>
-        {inner}
-      </Link>
-    );
-  }
-
-  return (
+  const item = href ? (
+    <Link href={href} style={style} {...hover}>
+      {inner}
+    </Link>
+  ) : (
     <button
       type="button"
       onClick={onClick}
-      title={collapsed ? label : undefined}
       style={{ ...style, border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }}
       {...hover}
     >
       {inner}
     </button>
+  );
+
+  // Aberta, o rótulo está escrito no próprio item e o balão seria eco.
+  if (!collapsed) return item;
+
+  return (
+    <div className="rail-item">
+      {item}
+      {/* O número vem junto: no trilho o aviso é um ponto, que diz que há algo
+          esperando mas não quanto. Aqui há a largura que a barra estreita não
+          tem, e é o mesmo gesto — quem parou o cursor para ler o nome é quem
+          quer saber o tamanho da fila. */}
+      <span className="rail-tip" aria-hidden="true">
+        {label}
+        {!!count && <span className="rail-tip__count">{count}</span>}
+      </span>
+    </div>
   );
 }
 
