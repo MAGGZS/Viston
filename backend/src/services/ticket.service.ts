@@ -156,6 +156,31 @@ export const ticketService = {
     };
   },
 
+  /**
+   * O resumo do período — o que os dois gráficos do painel desenham.
+   *
+   * Devolve as contagens cruas, um número por estado e um por categoria, e não
+   * os agrupamentos que a tela mostra. A pizza junta EM_ANDAMENTO com
+   * AGUARDANDO_TERCEIRO numa fatia só, e os contadores do topo juntam ainda o
+   * AGUARDANDO_FECHAMENTO; se o servidor já entregasse somado, cada leitura
+   * dessas viraria um campo próprio aqui, e mudar a fatia da tela viraria
+   * mudança de API. O total vem junto porque é a conta que a pizza precisa para
+   * virar porcentagem, e somá-la no cliente daria dois totais diferentes se um
+   * dia alguma fatia ficasse de fora.
+   */
+  async summary(buildingId: string, period: { date_from?: Date; date_to?: Date }) {
+    const { status, category } = await ticketRepository.countByStatusAndCategory(
+      buildingId,
+      period
+    );
+
+    return {
+      by_status: status,
+      by_category: category,
+      total: Object.values(status).reduce((soma, n) => soma + n, 0),
+    };
+  },
+
   /** O que foi encaminhado a esta pessoa, em todos os prédios dela. */
   async listMine(user: Actor, includeClosed = false) {
     if (user.kind !== 'USER') return { tickets: [] };

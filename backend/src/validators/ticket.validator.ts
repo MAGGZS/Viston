@@ -221,3 +221,19 @@ export const ticketReportSchema = z
     message: 'A data inicial não pode ser depois da final',
     path: ['from'],
   });
+
+/**
+ * O período do resumo do painel — a pizza por status e as barras por categoria.
+ *
+ * Os mesmos dois campos da listagem, e de propósito: o recorte da tela é o dia
+ * da vistoria, como em todo lugar que filtra ocorrência por data. Um nome novo
+ * aqui ("from"/"to", como no relatório) faria a mesma pergunta ter duas formas.
+ *
+ * Os dois são opcionais: sem nenhum, o resumo é o prédio inteiro desde sempre.
+ */
+export const ticketSummarySchema = z.object({
+  date_from: dateFilter('Data inicial'),
+  date_to: dateFilter('Data final'),
+});
+
+export type TicketSummaryFilters = z.infer<typeof ticketSummarySchema>;

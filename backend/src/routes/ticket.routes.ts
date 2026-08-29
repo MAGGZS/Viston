@@ -17,6 +17,9 @@ const member = requireBuildingMember();
 router.get('/buildings/:id/tickets', auth, member, ticketController.findByBuilding);
 // Os contadores continuam do moderador: são o painel de trabalho dele.
 router.get('/buildings/:id/tickets/stats', auth, moderator, ticketController.stats);
+// Os gráficos do painel — mesma leitura dos contadores, partida por estado e
+// por categoria dentro de um período. De moderador pelo mesmo motivo que eles.
+router.get('/buildings/:id/tickets/summary', auth, moderator, ticketController.summary);
 // O relatório do período, em .docx. De moderador: é o consolidado do trabalho
 // dele, com gasto de manutenção dentro, e não leitura de quem só acompanha.
 router.get('/buildings/:id/tickets/report', auth, moderator, ticketController.report);

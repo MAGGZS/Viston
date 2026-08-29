@@ -66,6 +66,28 @@
   --heat-2: #6B5A00;
   --heat-3: #A88A00;
   --heat-4: #F5C518;
+
+  /**
+   * Rampa dos gráficos do painel — ver app/lib/theme.js (CHART).
+   *
+   * Cinco degraus de um dourado só, do começo do caminho do chamado ao fim. No
+   * escuro ela acende: quem está em aberto é o degrau apagado, quem finalizou é
+   * o mais claro. No claro ela faz o contrário, e é essa a inversão de sempre —
+   * contraste se mede contra a superfície, não em absoluto.
+   *
+   * Os valores não foram escolhidos no olho: passaram no validador de rampa
+   * ordinal (luminosidade monótona, degrau de 0,06 entre vizinhos, ponta clara
+   * acima de 2:1 sobre o cartão, matiz única) nos dois temas.
+   */
+  --chart-0: #5C4A00;
+  --chart-1: #86690A;
+  --chart-2: #B08D0F;
+  --chart-3: #D5B01A;
+  --chart-4: #F7CE45;
+  /* A cor das barras de categoria: uma só, porque o comprimento já diz o
+     tamanho e pintar cada barra de um jeito gastaria cor com o que a barra
+     mostra sozinha. */
+  --chart-mark: #D5B01A;
   color-scheme: dark;
 }
 
@@ -124,6 +146,15 @@ html[data-theme='light'] {
   --heat-2: #F7DE84;
   --heat-3: #F0C93C;
   --heat-4: #D9A400;
+
+  /* A rampa dos gráficos, invertida: sobre o cartão branco quem finalizou é o
+     degrau escuro. Mesma matiz, mesmos quatro testes — ver o bloco escuro. */
+  --chart-0: #E5AE00;
+  --chart-1: #C08F00;
+  --chart-2: #9B7100;
+  --chart-3: #775400;
+  --chart-4: #543A00;
+  --chart-mark: #9B7100;
   color-scheme: light;
 }
 

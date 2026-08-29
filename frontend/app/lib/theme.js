@@ -99,6 +99,28 @@ export function heatColor(count) {
 }
 
 /**
+ * A rampa dos gráficos do painel do moderador.
+ *
+ * Uma matiz só, cinco degraus, do começo do caminho do chamado ao fim: estado
+ * de chamado é etapa de funil, e etapa se lê melhor numa escala do que em cinco
+ * cores diferentes — a ordem fica visível na própria cor. Cinco cores
+ * categóricas diriam "estas coisas são diferentes"; a rampa diz "esta vem
+ * depois daquela", que é o que a pizza mostra.
+ *
+ * Dourado porque era o que o calendário de atividade já gastava neste lugar da
+ * tela — a pizza tomou o lugar dele, e com ele a licença de usar a rampa. Fora
+ * daqui a regra continua valendo: dourado é ação primária e estado ativo.
+ *
+ * Os degraus vivem em app/globals.css, um conjunto por tema, e passaram no
+ * validador de rampa ordinal nos dois. `MARK` é a cor única das barras de
+ * categoria — lá o comprimento já diz o tamanho, e pintar cada barra de uma cor
+ * gastaria o canal da identidade com o que a barra mostra sozinha.
+ */
+export const CHART = ['var(--chart-0)', 'var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)'];
+
+export const CHART_MARK = 'var(--chart-mark)';
+
+/**
  * Escala de raio.
  *
  * A superfície tem canto curto e o controle tem canto generoso — o contrário do

@@ -43,6 +43,41 @@ function inBuilding(buildingId: string): Prisma.MaintenanceRecordWhereInput {
   return { floor_form_entry: { report: { building_id: buildingId } } };
 }
 
+/**
+ * Todo estado e toda categoria começam em zero.
+ *
+ * O `groupBy` só devolve linha para o que existe, e uma contagem que omite o
+ * que deu zero obriga cada tela a saber a lista inteira para desenhar as
+ * fatias que faltam — e a errar quando o enum crescer. Aqui o zero é dado.
+ */
+const ZERO_STATUS = {
+  ABERTO: 0,
+  ENCAMINHADO: 0,
+  EM_ANDAMENTO: 0,
+  AGUARDANDO_TERCEIRO: 0,
+  AGUARDANDO_FECHAMENTO: 0,
+  CONCLUIDO: 0,
+} as Record<RecordStatus, number>;
+
+const ZERO_CATEGORY = {
+  PREVENTIVA: 0,
+  CORRETIVA: 0,
+  EMERGENCIAL: 0,
+  EVENTOS: 0,
+  PROJETOS: 0,
+} as Record<MaintenanceCategory, number>;
+
+/** As linhas de um `groupBy` sobre o mapa zerado daquela coluna. */
+function fill<K extends string>(
+  zero: Record<K, number>,
+  rows: Array<{ _count: { _all: number } } & Record<string, unknown>>,
+  key: string
+): Record<K, number> {
+  const counted = { ...zero };
+  for (const row of rows) counted[row[key] as K] = row._count._all;
+  return counted;
+}
+
 export const ticketRepository = {
   findById(id: string) {
     return prisma.maintenanceRecord.findUnique({ where: { id }, include: ticketInclude });
@@ -157,17 +192,62 @@ export const ticketRepository = {
       _count: { _all: true },
     });
 
-    const zeroed = {
-      ABERTO: 0,
-      ENCAMINHADO: 0,
-      EM_ANDAMENTO: 0,
-      AGUARDANDO_TERCEIRO: 0,
-      AGUARDANDO_FECHAMENTO: 0,
-      CONCLUIDO: 0,
-    } as Record<RecordStatus, number>;
+    return fill(ZERO_STATUS, rows, 'status');
+  },
 
-    for (const row of rows) zeroed[row.status] = row._count._all;
-    return zeroed;
+  /**
+   * O mesmo prédio partido de duas maneiras dentro de um período: por estado e
+   * por categoria. É o que os dois gráficos do painel desenham.
+   *
+   * Uma chamada só para as duas leituras porque a pergunta é uma só — "o que
+   * aconteceu neste período" —, e são os mesmos registros contados por colunas
+   * diferentes. Duas rotas fariam a tela pedir duas vezes o mesmo recorte.
+   *
+   * Contado no banco, e não sobre uma página trazida à tela: o painel resume o
+   * prédio inteiro, e uma soma feita sobre as trinta linhas da primeira página
+   * mentiria em qualquer prédio com mais do que isso.
+   *
+   * O corte de data é o do dia vistoriado, como no resto do produto — a data
+   * mora na vistoria, não na ocorrência (ver `findByBuilding`).
+   */
+  async countByStatusAndCategory(
+    buildingId: string,
+    period: { date_from?: Date; date_to?: Date } = {}
+  ): Promise<{
+    status: Record<RecordStatus, number>;
+    category: Record<MaintenanceCategory, number>;
+  }> {
+    const { date_from, date_to } = period;
+
+    const where: Prisma.MaintenanceRecordWhereInput = {
+      ...inBuilding(buildingId),
+      ...(date_from || date_to
+        ? {
+            AND: [
+              {
+                floor_form_entry: {
+                  report: {
+                    date: {
+                      ...(date_from && { gte: date_from }),
+                      ...(date_to && { lte: date_to }),
+                    },
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const [porStatus, porCategoria] = await Promise.all([
+      prisma.maintenanceRecord.groupBy({ by: ['status'], where, _count: { _all: true } }),
+      prisma.maintenanceRecord.groupBy({ by: ['category'], where, _count: { _all: true } }),
+    ]);
+
+    return {
+      status: fill(ZERO_STATUS, porStatus, 'status'),
+      category: fill(ZERO_CATEGORY, porCategoria, 'category'),
+    };
   },
 
   /**

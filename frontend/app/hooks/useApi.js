@@ -638,6 +638,29 @@ export function useBuildingOccurrences(buildingId, group = 'TODOS', filters = {}
   });
 }
 
+/**
+ * O resumo do período — o que os dois gráficos do painel desenham.
+ *
+ * Uma consulta só para os dois cartões: são os mesmos registros contados por
+ * colunas diferentes, e o servidor devolve as duas leituras juntas. Quando os
+ * dois estão no mesmo período — o caso de quem abre a tela e não mexe em nada —
+ * eles compartilham a mesma entrada no cache e a rede é chamada uma vez.
+ *
+ * O período entra na chave porque cada recorte é um resultado próprio; é o que
+ * faz a troca de mês parecer instantânea na volta a um já visto.
+ */
+export function useTicketSummary(buildingId, params) {
+  return useQuery({
+    queryKey: ['ticket-summary', buildingId, params],
+    queryFn: () =>
+      api.get(`/buildings/${buildingId}/tickets/summary`, { params }).then((r) => r.data),
+    enabled: !!buildingId,
+    // A troca de período mantém o gráfico anterior no lugar até o novo chegar,
+    // em vez de piscar um cartão vazio a cada clique no chip.
+    placeholderData: keepPreviousData,
+  });
+}
+
 /** Contadores do painel do moderador: aberto, encaminhado, em andamento, concluído. */
 export function useTicketStats(buildingId) {
   return useQuery({

@@ -2,21 +2,21 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Download, Inbox, Send, Loader, CheckCheck } from 'lucide-react';
+import { Download, Inbox, Send, Loader, CheckCheck } from 'lucide-react';
 import { ModeradorShell, useModeratorBuilding } from '@/app/components/ModeradorShell';
-import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
-import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
+import { OcorrenciasPorStatus } from '@/app/components/OcorrenciasPorStatus';
+import { OcorrenciasPorCategoria } from '@/app/components/OcorrenciasPorCategoria';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Skeleton, StatCard } from '@/app/components/ui';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
 import { AmpliarHistorico } from '@/app/components/HistoricoExpandido';
 import { OcorrenciasTable } from '@/app/components/OcorrenciasTable';
 import { Paginator } from '@/app/components/Paginator';
-import { useCalendar, useBuildingHistory, useTicketStats } from '@/app/hooks/useApi';
+import { useBuildingHistory, useTicketStats } from '@/app/hooks/useApi';
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { parseReportDate } from '@/app/lib/date';
 import { placeholderCellHeight } from '@/app/lib/pagination';
-import { T, R, W, HEAT } from '@/app/lib/theme';
+import { T, R, W } from '@/app/lib/theme';
 
 // A célula de espera tem a altura da de verdade — o `Badge` da coluna de status
 // entre os 11px de recuo —, para o cartão não encolher a cada seta.
@@ -29,8 +29,20 @@ const STATUS_VARIANT = { IN_PROGRESS: 'accent', COMPLETED: 'success' };
  * O painel do moderador.
  *
  * É onde ele cai ao entrar, antes das telas de chamado: quantos chamados estão
- * em cada ponto do caminho, o histórico de relatórios do prédio — o mesmo do
- * inspetor e do visualizador — e o calendário do que aconteceu em cada dia.
+ * em cada ponto do caminho, onde eles estão parados, o histórico de relatórios
+ * do prédio — o mesmo do inspetor e do visualizador — e de que tipo de trabalho
+ * o prédio é feito.
+ *
+ * A tela desce em graus de detalhe. Os contadores do topo são o número que se
+ * bate o olho e vai embora. A pizza abre esse número: mostra de que o "em
+ * andamento" é feito, e é o único lugar da tela onde a decisão parada com o
+ * moderador — o chamado que o responsável já deu por terminado — aparece
+ * separada. As barras de categoria embaixo trocam a pergunta: não é mais onde o
+ * trabalho está, é de que ele é.
+ *
+ * Os dois gráficos têm período próprio, e não um só compartilhado: quem compara
+ * o mês corrente com o ano inteiro precisa dos dois recortes na tela ao mesmo
+ * tempo.
  */
 export default function ModeradorPage() {
   const { download, pendingId } = useExcelDownload();
@@ -41,16 +53,9 @@ export default function ModeradorPage() {
   // visão mora aqui para o modal de relatório não levá-la junto ao fechar.
   const historico = useHistoricoView();
 
-  const now = new Date();
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year, setYear] = useState(now.getFullYear());
-  const [dayModal, setDayModal] = useState(null);
   const [reportId, setReportId] = useState(null);
 
   const { data: stats, isLoading: statsLoading } = useTicketStats(buildingId);
-  const { data: calData, isLoading: calLoading } = useCalendar(
-    buildingId ? { month, year, building_id: buildingId } : null
-  );
   // Oito por página: quem anda pelo resto é o rodapé de setas do cartão.
   const vistorias = useBuildingHistory(buildingId);
   // Enquanto a próxima página não chega, a que está saindo deixa a tela: o que
@@ -58,10 +63,7 @@ export default function ModeradorPage() {
   // `usePagedList`).
   const rows = vistorias.isPaging ? [] : vistorias.rows;
   const histLoading = vistorias.isLoading;
-  const monthLabel = format(new Date(year, month - 1), 'MMMM yyyy', { locale: ptBR });
 
-  function prev() { if (month === 1) { setMonth(12); setYear((y) => y - 1); } else setMonth((m) => m - 1); }
-  function next() { if (month === 12) { setMonth(1); setYear((y) => y + 1); } else setMonth((m) => m + 1); }
 
   /**
    * O histórico de vistorias: a tabela de relatórios do prédio, como sempre
@@ -166,39 +168,14 @@ export default function ModeradorPage() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, alignItems: 'start' }}>
-          {/* Calendário: quantas vistorias em cada dia */}
-          <div className="anim-fade-up anim-d5" style={{ background: T.card, borderRadius: R.card, padding: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <button onClick={prev} aria-label="Mês anterior" style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 4, display: 'flex' }}>
-                <ChevronLeft size={17} />
-              </button>
-              <span key={monthLabel} className="anim-fade-in" style={{ color: T.text, fontSize: 14, fontWeight: W.title, textTransform: 'capitalize' }}>
-                {monthLabel}
-              </span>
-              <button onClick={next} aria-label="Próximo mês" style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 4, display: 'flex' }}>
-                <ChevronRight size={17} />
-              </button>
-            </div>
+          {/* Onde estão as ocorrências do período, em pizza.
 
-            {calLoading ? (
-              <Skeleton style={{ height: 190, width: '100%' }} />
-            ) : (
-              <CalendarHeatmap
-                heatmap={calData?.heatmap ?? {}}
-                month={month}
-                year={year}
-                onDayClick={(day, info) => setDayModal({ day, info })}
-              />
-            )}
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 14, justifyContent: 'flex-end' }}>
-              <span style={{ color: T.mute, fontSize: 12 }}>Menos</span>
-              {HEAT.map((c) => (
-                <div key={c} style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
-              ))}
-              <span style={{ color: T.mute, fontSize: 12 }}>Mais</span>
-            </div>
-          </div>
+              Tomou o lugar do calendário de atividade. Os dois cabiam aqui, mas
+              não respondiam à mesma pessoa: o calendário diz em que dias se
+              vistoriou, que é a pergunta de quem monta escala, e esta é a mesa
+              de quem despacha chamado. O calendário continua onde ele responde
+              alguma coisa — a tela inicial, o histórico e o painel do gestor. */}
+          <OcorrenciasPorStatus buildingId={buildingId} className="anim-fade-up anim-d5" />
 
           {/* Histórico — a mesma leitura das outras telas, e as mesmas duas
               visões: vistorias e ocorrências, alternadas pelos botões. */}
@@ -224,20 +201,18 @@ export default function ModeradorPage() {
             </div>
 
             {/* `key` na visão: só o conteúdo do cartão troca — os contadores e
-                o calendário ficam onde estão. */}
+                a pizza ao lado ficam onde estão. */}
             <div key={historico.view} className="anim-fade-up">
               {historico.isVistorias ? relatoriosPanel : <OcorrenciasTable buildingId={buildingId} />}
             </div>
           </div>
         </div>
-      </div>
 
-      <DayInspectionsModal
-        open={!!dayModal}
-        onClose={() => setDayModal(null)}
-        day={dayModal?.day}
-        info={dayModal?.info}
-      />
+        {/* Largo e embaixo: são cinco barras a comparar entre si, e comparação
+            de comprimento quer a linha inteira. Ao lado dos outros dois ele
+            teria um terço da tela e as barras curtas ficariam todas iguais. */}
+        <OcorrenciasPorCategoria buildingId={buildingId} className="anim-fade-up anim-d6" />
+      </div>
 
       <ReportDocumentModal open={!!reportId} onClose={() => setReportId(null)} reportId={reportId} />
     </ModeradorShell>

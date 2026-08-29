@@ -423,6 +423,63 @@ describe('ticketService.stats', () => {
   });
 });
 
+// ── O resumo dos gráficos do painel ───────────────────────────────────────────
+describe('ticketService.summary', () => {
+  const contagens = {
+    status: {
+      ABERTO: 4,
+      ENCAMINHADO: 5,
+      EM_ANDAMENTO: 3,
+      AGUARDANDO_TERCEIRO: 1,
+      AGUARDANDO_FECHAMENTO: 2,
+      CONCLUIDO: 7,
+    },
+    category: { PREVENTIVA: 8, CORRETIVA: 9, EMERGENCIAL: 3, EVENTOS: 1, PROJETOS: 1 },
+  };
+
+  beforeEach(() => {
+    mockTicketRepo.countByStatusAndCategory.mockResolvedValue(contagens as any);
+  });
+
+  it('devolve as contagens cruas, sem agrupar o que a tela agrupa', async () => {
+    // A pizza junta EM_ANDAMENTO com AGUARDANDO_TERCEIRO, e os contadores do
+    // topo juntam ainda o AGUARDANDO_FECHAMENTO. Se o servidor entregasse
+    // somado, cada leitura dessas viraria um campo próprio aqui.
+    const resumo = await ticketService.summary(BUILDING_ID, {});
+
+    expect(resumo.by_status).toEqual(contagens.status);
+    expect(resumo.by_category).toEqual(contagens.category);
+  });
+
+  it('o total é a soma dos estados, e não a das categorias', async () => {
+    // As duas somas dão o mesmo número — são os mesmos registros contados por
+    // colunas diferentes. O total sai daqui para a pizza virar porcentagem
+    // sobre um número só; somar no cliente daria dois totais se um dia alguma
+    // fatia ficasse de fora do desenho.
+    const resumo = await ticketService.summary(BUILDING_ID, {});
+
+    expect(resumo.total).toBe(22);
+  });
+
+  it('o período chega inteiro ao banco, e não peneira depois', async () => {
+    const date_from = new Date('2026-01-01');
+    const date_to = new Date('2026-08-29');
+
+    await ticketService.summary(BUILDING_ID, { date_from, date_to });
+
+    expect(mockTicketRepo.countByStatusAndCategory).toHaveBeenCalledWith(BUILDING_ID, {
+      date_from,
+      date_to,
+    });
+  });
+
+  it('sem período, o resumo é o prédio inteiro desde sempre', async () => {
+    await ticketService.summary(BUILDING_ID, {});
+
+    expect(mockTicketRepo.countByStatusAndCategory).toHaveBeenCalledWith(BUILDING_ID, {});
+  });
+});
+
 // ── Cancelar o envio ──────────────────────────────────────────────────────────
 describe('ticketService.unforward', () => {
   it('devolve o chamado à fila de novos, sem dono e sem carimbos', async () => {

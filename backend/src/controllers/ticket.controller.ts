@@ -10,6 +10,7 @@ import {
   updateTicketSchema,
   closeTicketSchema,
   ticketReportSchema,
+  ticketSummarySchema,
 } from '../validators/ticket.validator';
 import { buildTicketReport, reportFileName } from '../services/ticketReport';
 
@@ -28,6 +29,15 @@ export const ticketController = {
   /** Contadores do painel do moderador. */
   async stats(req: AuthenticatedRequest, res: Response) {
     ok(res, await ticketService.stats(req.params.id));
+  },
+
+  /**
+   * As contagens por estado e por categoria dentro de um período — os dois
+   * gráficos do painel. Sem período, o prédio inteiro desde sempre.
+   */
+  async summary(req: AuthenticatedRequest, res: Response) {
+    const period = ticketSummarySchema.parse(req.query);
+    ok(res, await ticketService.summary(req.params.id, period));
   },
 
   /**
