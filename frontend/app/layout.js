@@ -1,5 +1,5 @@
 import './globals.css';
-import { Poppins } from 'next/font/google';
+import localFont from 'next/font/local';
 import { QueryProvider } from '@/app/lib/QueryProvider';
 import { AuthProvider } from '@/app/lib/AuthProvider';
 import { Toast } from '@/app/components/Toast';
@@ -10,10 +10,15 @@ import { THEME_COLOR, THEME_KEY } from '@/app/lib/theme';
 /**
  * Uma família para o produto inteiro. Os quatro pesos carregam a hierarquia:
  * 900 é exclusivo do wordmark, 600 titula, 500 é ação e 400 é corpo.
+ * Os arquivos vivem no repositório: o build não depende do Google Fonts.
  */
-const poppins = Poppins({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '900'],
+const poppins = localFont({
+  src: [
+    { path: './fonts/poppins-latin-400.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/poppins-latin-500.woff2', weight: '500', style: 'normal' },
+    { path: './fonts/poppins-latin-600.woff2', weight: '600', style: 'normal' },
+    { path: './fonts/poppins-latin-900.woff2', weight: '900', style: 'normal' },
+  ],
   variable: '--font-poppins',
   display: 'swap',
 });
