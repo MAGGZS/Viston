@@ -42,3 +42,59 @@ export class ValidationError extends AppError {
     super('VALIDATION_ERROR', message, 400);
   }
 }
+
+/**
+ * A conta existe, a senha está certa, e o dono do endereço nunca provou ser o
+ * dono.
+ *
+ * 403 e não 401 de propósito: 401 é "não sei quem você é", e aqui se sabe. O
+ * app usa o `code` para trocar a mensagem de erro pelo botão de reenviar — ver
+ * a tela de login.
+ */
+export class EmailNotConfirmedError extends AppError {
+  constructor() {
+    super(
+      'EMAIL_NAO_CONFIRMADO',
+      'Confirme seu e-mail para liberar o acesso.',
+      403
+    );
+  }
+}
+
+/**
+ * Link de confirmação que não abre.
+ *
+ * Um código só para os três casos — nunca existiu, já foi usado, passou das 24
+ * horas — porque separá-los diria a quem tenta adivinhar qual das três coisas
+ * ele acertou. Para quem clicou de boa-fé, os três levam ao mesmo lugar: pedir
+ * outro link.
+ */
+export class InvalidTokenError extends AppError {
+  constructor() {
+    super('TOKEN_INVALIDO', 'Link inválido ou expirado', 400);
+  }
+}
+
+/** Envios demais para o mesmo endereço na última hora. */
+export class TooManyEmailsError extends AppError {
+  constructor() {
+    super('LIMITE', 'Muitas tentativas. Aguarde alguns minutos.', 429);
+  }
+}
+
+/**
+ * O Resend recusou a mensagem.
+ *
+ * 502 e não 500: o que falhou está fora daqui, e a diferença importa para quem
+ * lê o log às três da manhã. Cota diária estourada cai aqui, e é o caminho mais
+ * provável de todos no plano gratuito.
+ */
+export class EmailDeliveryError extends AppError {
+  constructor() {
+    super(
+      'EMAIL_FALHOU',
+      'Não foi possível enviar o e-mail agora. Tente em alguns minutos.',
+      502
+    );
+  }
+}

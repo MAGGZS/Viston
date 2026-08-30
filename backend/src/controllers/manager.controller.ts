@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/authenticate';
 import { managerService } from '../services/manager.service';
-import { ok, created, noContent } from '../utils/response';
+import { ok, noContent } from '../utils/response';
 import { ForbiddenError } from '../utils/errors';
 
 /** As rotas de `/managers/me` só existem para quem entrou como gestor. */
@@ -13,8 +13,9 @@ function asManager(req: AuthenticatedRequest) {
 }
 
 export const managerController = {
+  /** Cadastro público de gestor — 200 e resposta única, ver `userController.create`. */
   async create(req: AuthenticatedRequest, res: Response) {
-    created(res, await managerService.create(req.body));
+    ok(res, await managerService.create(req.body));
   },
 
   async findAll(req: AuthenticatedRequest, res: Response) {

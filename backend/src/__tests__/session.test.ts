@@ -37,6 +37,11 @@ function makeUser(overrides: Record<string, unknown> = {}) {
     avatar_url: null,
     status: 'ACTIVE',
     token_version: 0,
+    // Conta que já existe é conta confirmada: é o que o backfill da migration
+    // 20260830000000_email_confirmation fez com todas as que havia. Sem isto o
+    // login para no 403 antes de chegar ao que estas suítes medem — a sessão e
+    // o custo do hash. A confirmação em si é medida em `confirmation.test.ts`.
+    email_verified_at: new Date(),
     created_at: new Date(),
     updated_at: new Date(),
     ...overrides,
@@ -52,6 +57,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     avatar_url: null,
     status: 'ACTIVE',
     token_version: 0,
+    email_verified_at: new Date(),
     created_at: new Date(),
     updated_at: new Date(),
     ...overrides,

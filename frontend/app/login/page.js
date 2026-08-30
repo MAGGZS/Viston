@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { AuthShell } from '@/app/components/AuthShell';
 import { useAuthStore } from '@/app/store/auth';
 import { T, R } from '@/app/lib/theme';
-import { useLogin } from '@/app/hooks/useApi';
+import { useLogin, useResendConfirmation } from '@/app/hooks/useApi';
 
 const schema = yup.object({
   email: yup.string().email('E-mail inválido').required('Obrigatório'),
@@ -23,6 +23,15 @@ const S = {
   eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: T.mute, display: 'flex', alignItems: 'center' },
   btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: 500, fontSize: 15, padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4 },
   errBox: { background: 'rgba(248,113,113,0.13)', borderRadius: R.control, padding: '11px 14px', textAlign: 'center' },
+  // E-mail não confirmado não é erro: é um passo pendente. Por isso o aviso usa
+  // o dourado da marca, e não o vermelho do `errBox` — o que falta aqui tem
+  // botão, não culpa.
+  avisoBox: { background: 'rgba(224,180,0,0.11)', borderRadius: R.control, padding: '13px 14px', textAlign: 'center' },
+  btnSecundario: {
+    width: '100%', background: 'transparent', color: T.accentInk, fontWeight: 500, fontSize: 14,
+    padding: '10px', marginTop: 10, borderRadius: R.control,
+    borderWidth: 1, borderStyle: 'solid', borderColor: T.accentInk, cursor: 'pointer',
+  },
   footer: { color: T.faint, fontSize: 14 },
   link: { color: T.accentInk, fontWeight: 500, textDecoration: 'none' },
 };
@@ -34,7 +43,19 @@ export default function LoginPage() {
   const { register, handleSubmit, formState: { errors } } = useForm({ resolver: yupResolver(schema) });
   const [showPassword, setShowPassword] = useState(false);
 
+  // As credenciais da última tentativa, guardadas para o reenvio.
+  //
+  // O endpoint de reenvio exige a senha, e pedi-la de novo numa segunda caixa
+  // seria pedir duas vezes a mesma coisa na mesma tela. Vive só em memória, e
+  // some quando a aba fecha.
+  const [ultimaTentativa, setUltimaTentativa] = useState(null);
+  const [segundosAteReenviar, setSegundosAteReenviar] = useState(0);
+  const [reenviado, setReenviado] = useState(false);
+  const reenvio = useResendConfirmation();
+
   async function onSubmit(data) {
+    setUltimaTentativa(data);
+    setReenviado(false);
     try {
       const res = await mutateAsync(data);
       login(res.access_token, res.refresh_token, res.user);
@@ -42,7 +63,30 @@ export default function LoginPage() {
     } catch {}
   }
 
+  // O cooldown de 60s do botão de reenviar. O backend tem o teto próprio dele
+  // (cinco por hora, por endereço); isto é para a mão, não para o servidor.
+  useEffect(() => {
+    if (segundosAteReenviar <= 0) return;
+    const t = setTimeout(() => setSegundosAteReenviar((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [segundosAteReenviar]);
+
+  async function reenviarConfirmacao() {
+    if (!ultimaTentativa || segundosAteReenviar > 0) return;
+    setSegundosAteReenviar(60);
+    try {
+      await reenvio.mutateAsync(ultimaTentativa);
+      setReenviado(true);
+    } catch {}
+  }
+
+  const codigo = error?.response?.data?.error?.code;
   const apiError = error?.response?.data?.error?.message;
+
+  // Conta que existe, senha certa, e-mail não confirmado. Não é erro de quem
+  // digitou: é um passo que ficou para trás, e o que a tela deve oferecer é o
+  // caminho de volta a ele — não uma mensagem vermelha.
+  const naoConfirmado = codigo === 'EMAIL_NAO_CONFIRMADO';
 
   return (
     <AuthShell
@@ -96,7 +140,33 @@ export default function LoginPage() {
           </div>
           {errors.password && <span id="senha-erro" role="alert" style={{ fontSize: 12, color: T.danger }}>{errors.password.message}</span>}
         </div>
-        {apiError && <div role="alert" style={S.errBox}><p style={{ color: T.danger, fontSize: 14 }}>{apiError}</p></div>}
+        {naoConfirmado ? (
+          <div role="alert" style={S.avisoBox}>
+            <p style={{ color: T.text, fontSize: 14, lineHeight: 1.6 }}>
+              Confirme seu e-mail para liberar o acesso.
+            </p>
+            {reenviado ? (
+              <p style={{ color: T.mute, fontSize: 13, marginTop: 8, lineHeight: 1.6 }}>
+                Enviamos outro link. Verifique sua caixa de entrada.
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={reenviarConfirmacao}
+                disabled={segundosAteReenviar > 0 || reenvio.isPending}
+                style={{ ...S.btnSecundario, opacity: segundosAteReenviar > 0 || reenvio.isPending ? 0.6 : 1 }}
+              >
+                {segundosAteReenviar > 0
+                  ? `Reenviar em ${segundosAteReenviar}s`
+                  : reenvio.isPending
+                    ? 'Reenviando...'
+                    : 'Reenviar confirmação'}
+              </button>
+            )}
+          </div>
+        ) : (
+          apiError && <div role="alert" style={S.errBox}><p style={{ color: T.danger, fontSize: 14 }}>{apiError}</p></div>
+        )}
         <button type="submit" disabled={isPending} style={{ ...S.btn, opacity: isPending ? 0.6 : 1 }}>
           {isPending ? 'Entrando...' : 'Entrar'}
         </button>

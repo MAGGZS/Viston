@@ -6,8 +6,18 @@ export const userRepository = {
     return prisma.user.findUnique({ where: { id } });
   },
 
+  /**
+   * Acha a conta ignorando a caixa do e-mail.
+   *
+   * Era `findUnique`, que no Postgres compara texto cru: quem se cadastrou como
+   * `Joao@x.com` não entrava digitando `joao@x.com`. `findFirst` porque não
+   * existe unique declarado sobre a expressão — mas existe no banco, o índice
+   * `uq_users_email_lower`, e é ele que garante que "first" é sempre "único".
+   */
   findByEmail(email: string) {
-    return prisma.user.findUnique({ where: { email } });
+    return prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+    });
   },
 
   findAll(page: number, limit: number) {

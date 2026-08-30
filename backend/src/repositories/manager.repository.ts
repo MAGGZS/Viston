@@ -17,8 +17,11 @@ export const managerRepository = {
     return prisma.manager.findUnique({ where: { id } });
   },
 
+  /** Ignora a caixa do e-mail — ver `userRepository.findByEmail`. */
   findByEmail(email: string) {
-    return prisma.manager.findUnique({ where: { email } });
+    return prisma.manager.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+    });
   },
 
   create(data: { name: string; email: string; password_hash: string }) {

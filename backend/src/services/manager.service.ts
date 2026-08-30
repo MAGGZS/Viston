@@ -6,6 +6,12 @@ import { buildingRepository } from '../repositories/building.repository';
 import { storageService } from './storage.service';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { decodeAvatarDataUrl } from '../utils/image';
+import {
+  enviarConfirmacaoDeCadastro,
+  normalizeEmail,
+  outraTabelaLivre,
+  RESPOSTA_CADASTRO,
+} from './confirmation.service';
 
 /**
  * O e-mail precisa ser livre nas duas tabelas.
@@ -56,17 +62,36 @@ export const managerService = {
    * Ela já nasce podendo cadastrar prédio — e vira gestora de cada prédio que
    * cadastrar.
    */
-  async create(data: { name: string; email: string; password: string }) {
-    await assertEmailIsFree(data.email);
+  async create(data: { name: string; email: string; password: string; website?: string }) {
+    // Os quatro caminhos daqui são os mesmos de `userService.create`, e pela
+    // mesma razão: o cadastro de gestor também é público, e também não pode
+    // dizer quais endereços já têm conta. `assertEmailIsFree` continua valendo
+    // para a troca de e-mail no perfil, onde quem pede já provou ser quem é —
+    // ali o 409 é informação devida, não vazamento.
+    if (data.website) return RESPOSTA_CADASTRO;
+
+    const email = normalizeEmail(data.email);
+    const existing = await managerRepository.findByEmail(email);
+
+    if (existing?.email_verified_at) return RESPOSTA_CADASTRO;
+    if (!existing && !(await outraTabelaLivre('MANAGER', email))) return RESPOSTA_CADASTRO;
 
     const password_hash = await bcrypt.hash(data.password, PASSWORD_ROUNDS);
+
+    if (existing) {
+      await managerRepository.update(existing.id, { name: data.name, password_hash });
+      await enviarConfirmacaoDeCadastro({ kind: 'MANAGER', id: existing.id }, data.name, email);
+      return RESPOSTA_CADASTRO;
+    }
+
     const manager = await managerRepository.create({
       name: data.name,
-      email: data.email,
+      email,
       password_hash,
     });
 
-    return withoutHash(manager);
+    await enviarConfirmacaoDeCadastro({ kind: 'MANAGER', id: manager.id }, data.name, email);
+    return RESPOSTA_CADASTRO;
   },
 
   async findById(id: string) {

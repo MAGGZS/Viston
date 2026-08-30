@@ -7,6 +7,10 @@ jest.mock('../repositories/manager.repository');
 jest.mock('../repositories/inspection.repository');
 jest.mock('../repositories/user.repository');
 jest.mock('../repositories/ticket.repository');
+// O cadastro emite o link de confirmação. Sem estes dois, ele cairia no Prisma
+// e no Resend de verdade a cada teste que posta em /users ou /managers.
+jest.mock('../repositories/emailToken.repository');
+jest.mock('../lib/resend');
 jest.mock('../services/excel.service');
 jest.mock('../services/storage.service');
 
@@ -147,8 +151,9 @@ describe('cadastro público', () => {
     expect(mockUserRepo.create).not.toHaveBeenCalled();
   });
 
-  it('cria a conta sem vínculo quando o payload é válido', async () => {
+  it('cria a conta sem vínculo e sem acesso quando o payload é válido', async () => {
     mockUserRepo.findByEmail.mockResolvedValue(null);
+    mockManagerRepo.findByEmail.mockResolvedValue(null);
     mockUserRepo.create.mockResolvedValue({
       id: 'novo',
       name: 'Novo',
@@ -161,9 +166,14 @@ describe('cadastro público', () => {
       .post('/users')
       .send({ name: 'Novo', email: 'novo@test.com', password: 'Senha@123' });
 
-    expect(res.status).toBe(201);
+    // 200 e não 201: o "Created" contaria pelo status o que a mensagem se
+    // recusa a contar — que este endereço ainda não tinha conta.
+    expect(res.status).toBe(200);
     expect(mockUserRepo.create).toHaveBeenCalledWith(expect.objectContaining({ role: 'NONE' }));
+    // A conta não volta no corpo: só a mensagem, igual para todo mundo.
     expect(res.body).not.toHaveProperty('password_hash');
+    expect(res.body).not.toHaveProperty('id');
+    expect(res.body).toHaveProperty('ok', true);
   });
 
   it('o cadastro de gestor cria a conta na tabela de gestores', async () => {
@@ -182,24 +192,53 @@ describe('cadastro público', () => {
       .post('/managers')
       .send({ name: 'Gestor', email: 'gestor@test.com', password: 'Senha@123' });
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     expect(mockManagerRepo.create).toHaveBeenCalled();
     expect(mockUserRepo.create).not.toHaveBeenCalled();
     expect(res.body).not.toHaveProperty('password_hash');
   });
 
-  it('recusa cadastrar gestor com e-mail que já é de um usuário', async () => {
-    // O e-mail é único entre as duas tabelas: o login procura nas duas, e o
-    // mesmo endereço nos dois lugares deixaria a entrada ambígua.
-    mockUserRepo.findByEmail.mockResolvedValue({ id: 'user-1' } as any);
+  /**
+   * Era um 409 esperado, e virou silêncio.
+   *
+   * O e-mail continua sendo único entre as duas tabelas — o login procura nas
+   * duas, e o mesmo endereço nos dois lugares deixaria a entrada ambígua. O que
+   * mudou é a resposta: dizer "já cadastrado" a quem digita num formulário
+   * público entrega quais endereços têm conta. Agora recusa calado, e por fora
+   * o caminho é indistinguível de um cadastro que deu certo.
+   */
+  it('e-mail que já é de um usuário não vira conta de gestor, e nem diz que não virou', async () => {
+    mockUserRepo.findByEmail.mockResolvedValue({ id: 'user-1', email_verified_at: new Date() } as any);
     mockManagerRepo.findByEmail.mockResolvedValue(null);
 
     const res = await request(app)
       .post('/managers')
       .send({ name: 'Gestor', email: 'view@test.com', password: 'Senha@123' });
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('ok', true);
     expect(mockManagerRepo.create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A armadilha do formulário: um campo escondido no CSS que humano nenhum vê.
+   *
+   * Responder erro seria ensinar o robô a apagar o campo na próxima tentativa —
+   * por isso o sucesso de sempre, e nenhuma escrita por trás dele.
+   */
+  it('honeypot preenchido: sucesso na resposta, nenhuma conta criada', async () => {
+    const res = await request(app)
+      .post('/users')
+      .send({
+        name: 'Robo',
+        email: 'robo@test.com',
+        password: 'Senha@123',
+        website: 'http://spam.example',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('ok', true);
+    expect(mockUserRepo.create).not.toHaveBeenCalled();
   });
 });
 

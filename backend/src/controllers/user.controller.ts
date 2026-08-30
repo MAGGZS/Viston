@@ -1,12 +1,18 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/authenticate';
 import { userService } from '../services/user.service';
-import { ok, created, noContent } from '../utils/response';
+import { ok, noContent } from '../utils/response';
 
 export const userController = {
+  /**
+   * Cadastro público. 200 e não 201, e sem a conta no corpo.
+   *
+   * 201 "Created" seria a resposta honesta de um dos caminhos, e por isso
+   * mesmo não serve: o código de status contaria o que a mensagem se recusa a
+   * contar. Ver `RESPOSTA_CADASTRO`.
+   */
   async create(req: AuthenticatedRequest, res: Response) {
-    const user = await userService.create(req.body);
-    created(res, user);
+    ok(res, await userService.create(req.body));
   },
 
   async findAll(req: AuthenticatedRequest, res: Response) {

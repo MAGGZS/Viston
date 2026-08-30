@@ -5,29 +5,65 @@ import { buildingRepository } from '../repositories/building.repository';
 import { storageService } from './storage.service';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { decodeAvatarDataUrl } from '../utils/image';
+import {
+  enviarConfirmacaoDeCadastro,
+  normalizeEmail,
+  outraTabelaLivre,
+  RESPOSTA_CADASTRO,
+} from './confirmation.service';
 
 /**
- * Cadastro público. Toda conta nasce igual: sem poder nenhum.
+ * Cadastro público. Toda conta nasce igual: sem poder nenhum, e sem acesso.
  *
  * `role` entra como literal e não como `AccountRole.X`: se o Prisma Client
  * estiver desatualizado, o enum vira `undefined`, o Prisma omite a coluna e o
  * banco aplica o default sem erro nenhum. Com literal, ou o valor chega inteiro
  * ou o insert falha alto.
+ *
+ * A conta não volta na resposta, e nem existe resposta que dependa do que foi
+ * encontrado: os quatro caminhos daqui saem no mesmo `RESPOSTA_CADASTRO`.
  */
-async function register(data: { name: string; email: string; password: string }) {
-  const existing = await userRepository.findByEmail(data.email);
-  if (existing) throw new ConflictError('E-mail já cadastrado');
+async function register(data: {
+  name: string;
+  email: string;
+  password: string;
+  website?: string;
+}) {
+  // A armadilha, antes de tudo: robô que a preenche recebe o sucesso de sempre
+  // e vai embora achando que funcionou. Devolver erro aqui só o ensinaria a
+  // apagar o campo na próxima tentativa.
+  if (data.website) return RESPOSTA_CADASTRO;
+
+  const email = normalizeEmail(data.email);
+  const existing = await userRepository.findByEmail(email);
+
+  // Conta confirmada: nada é criado, nada é alterado, nada é enviado. Quem já
+  // tem conta e digitou de novo não pode ser distinguido de quem nunca teve.
+  if (existing?.email_verified_at) return RESPOSTA_CADASTRO;
+
+  if (!existing && !(await outraTabelaLivre('USER', email))) return RESPOSTA_CADASTRO;
 
   const password_hash = await bcrypt.hash(data.password, PASSWORD_ROUNDS);
+
+  // Existe e nunca foi confirmada: ninguém provou ser dono dela, e ela não tem
+  // dado nenhum — sem confirmar não se entra, sem entrar não se cria nada.
+  // Sobrescrever nome e senha é seguro porque o link vai para o endereço real
+  // de qualquer forma: quem não abre a caixa não fica com a conta.
+  if (existing) {
+    await userRepository.update(existing.id, { name: data.name, password_hash });
+    await enviarConfirmacaoDeCadastro({ kind: 'USER', id: existing.id }, data.name, email);
+    return RESPOSTA_CADASTRO;
+  }
+
   const user = await userRepository.create({
     name: data.name,
-    email: data.email,
+    email,
     role: 'NONE',
     password_hash,
   });
 
-  const { password_hash: _, ...safe } = user;
-  return safe;
+  await enviarConfirmacaoDeCadastro({ kind: 'USER', id: user.id }, data.name, email);
+  return RESPOSTA_CADASTRO;
 }
 
 /** Junta os vínculos ao usuário — o formato que o app espera do perfil. */
@@ -37,10 +73,11 @@ async function withMemberships<T extends { id: string }>(user: T) {
 
 export const userService = {
   /**
-   * Cadastro público comum. A conta nasce sem vínculo: só a tela inicial, o
-   * histórico e o perfil. Ganha papel quando entra num prédio.
+   * Cadastro público comum. A conta nasce sem vínculo e sem acesso: só entra no
+   * sistema depois que o dono do e-mail clica no link. Ganha papel quando entra
+   * num prédio.
    */
-  create(data: { name: string; email: string; password: string }) {
+  create(data: { name: string; email: string; password: string; website?: string }) {
     return register(data);
   },
 

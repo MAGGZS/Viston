@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../middlewares/authenticate';
 import { authService } from '../services/auth.service';
 import { userService } from '../services/user.service';
 import { managerService } from '../services/manager.service';
+import { confirmationService, RESPOSTA_CADASTRO } from '../services/confirmation.service';
 import { ok, noContent } from '../utils/response';
 
 export const authController = {
@@ -31,6 +32,27 @@ export const authController = {
   async refresh(req: Request, res: Response) {
     const result = await authService.refresh(req.body.refresh_token);
     ok(res, result);
+  },
+
+  /**
+   * Consome o link do e-mail e libera a conta.
+   *
+   * Sem sessão na resposta: quem clicou pode estar noutro aparelho, ou num link
+   * encaminhado. Liberar o acesso e mandar para o login é o que mantém a senha
+   * como a única porta.
+   */
+  async confirmar(req: Request, res: Response) {
+    await confirmationService.confirmar(req.body.token);
+    ok(res, { ok: true });
+  },
+
+  /**
+   * Reenvia o link. Sempre a mesma resposta, tenha reenviado ou não — ver
+   * `authService.reenviarConfirmacao`.
+   */
+  async reenviar(req: Request, res: Response) {
+    await authService.reenviarConfirmacao(req.body.email, req.body.password);
+    ok(res, RESPOSTA_CADASTRO);
   },
 
   /**

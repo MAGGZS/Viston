@@ -145,9 +145,17 @@ model User {
   /// existem — é o que faz sair, trocar de senha e excluir a conta valerem de
   /// verdade, em vez de só apagar o token do navegador de quem saiu.
   token_version Int         @default(0)
+  /// Quando o dono do endereço provou ser o dono, clicando no link enviado.
+  ///
+  /// Nulo é conta que existe e não entra: o login para no 403 depois de
+  /// conferir a senha (ver `authService.login`). Nulo também é o que permite
+  /// um segundo cadastro no mesmo e-mail sobrescrever nome e senha — ninguém
+  /// provou ser dono ainda, e a conta não tem dado nenhum.
+  email_verified_at DateTime?
   created_at    DateTime    @default(now())
   updated_at    DateTime    @updatedAt
 
+  email_tokens    EmailToken[]
   inspections     InspectionReport[]
   audit_logs      AuditLog[]
   building_members  BuildingMember[]       @relation("BuildingMembers")
@@ -180,15 +188,49 @@ model Manager {
   status        UserStatus @default(ACTIVE)
   /// Mesma geração de sessões da conta de usuário — ver `User.token_version`.
   token_version Int        @default(0)
+  /// Mesma confirmação da conta de usuário — ver `User.email_verified_at`.
+  /// Gestor não tem passe livre: cadastro de gestor também é público.
+  email_verified_at DateTime?
   created_at    DateTime   @default(now())
   updated_at    DateTime   @updatedAt
 
+  email_tokens      EmailToken[]
   created_buildings Building[]        @relation("BuildingCreator")
   managed_buildings BuildingManager[]
   audit_logs        AuditLog[]
   feedbacks         Feedback[]
 
   @@map("managers")
+}
+
+/// O link de confirmação, guardado como hash.
+///
+/// O valor cru vive só dentro do e-mail: aqui fica `sha256` dele. Quem ler o
+/// banco inteiro não consegue confirmar conta nenhuma, que é o ponto.
+///
+/// Dois donos possíveis porque o sistema tem duas tabelas de conta. Exatamente
+/// uma das duas colunas é preenchida — o CHECK `email_tokens_one_owner`, na
+/// migration, é quem garante isso; o Prisma não modela CHECK.
+model EmailToken {
+  id         String    @id @default(uuid())
+  user_id    String?
+  manager_id String?
+  /// O endereço para onde este link foi. Guardado à parte da conta porque é
+  /// por ele que o teto de envios por hora conta, antes mesmo de saber quem é.
+  email      String
+  token_hash String    @unique
+  expires_at DateTime
+  /// Carimbado no consumo e também quando um link novo é emitido: só o mais
+  /// recente vale. Nulo é o único estado em que o link ainda abre.
+  used_at    DateTime?
+  created_at DateTime  @default(now())
+
+  user    User?    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  manager Manager? @relation(fields: [manager_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([manager_id])
+  @@map("email_tokens")
 }
 
 model Building {

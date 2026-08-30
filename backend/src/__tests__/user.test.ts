@@ -1,5 +1,8 @@
 import { userService } from '../services/user.service';
 import { userRepository } from '../repositories/user.repository';
+import { managerRepository } from '../repositories/manager.repository';
+import { emailTokenRepository } from '../repositories/emailToken.repository';
+import { hasEmailProvider } from '../lib/resend';
 import { buildingRepository } from '../repositories/building.repository';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { submitInspectionSchema } from '../validators/inspection.validator';
@@ -12,9 +15,17 @@ jest.mock('../repositories/user.repository');
 // O serviço consulta os vínculos antes de apagar uma conta: prédio não pode
 // ficar sem gestor (ver assertNotSoleManager).
 jest.mock('../repositories/building.repository');
+// O cadastro passou a olhar a outra tabela de conta e a emitir o link de
+// confirmação. Sem estes três, o serviço cairia no Prisma de verdade.
+jest.mock('../repositories/manager.repository');
+jest.mock('../repositories/emailToken.repository');
+jest.mock('../lib/resend');
 jest.mock('bcrypt');
 
 const mockUserRepo = userRepository as jest.Mocked<typeof userRepository>;
+const mockManagerRepo = managerRepository as jest.Mocked<typeof managerRepository>;
+const mockTokens = emailTokenRepository as jest.Mocked<typeof emailTokenRepository>;
+const mockHasProvider = hasEmailProvider as jest.MockedFunction<typeof hasEmailProvider>;
 const mockBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
 
 function makeUser(overrides = {}) {
@@ -26,6 +37,9 @@ function makeUser(overrides = {}) {
     role: 'INSPECTOR',
     avatar_url: null,
     status: UserStatus.ACTIVE,
+    // Conta que já existe é conta confirmada — ver o backfill da migration
+    // 20260830000000_email_confirmation.
+    email_verified_at: new Date(),
     created_at: new Date(),
     updated_at: new Date(),
     ...overrides,
@@ -34,7 +48,17 @@ function makeUser(overrides = {}) {
 
 // ── Testes: userService.create ────────────────────────────────────────────────
 describe('userService.create', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Sem provedor de e-mail, `enviarConfirmacao` grava o token e registra o
+    // link no log em vez de enviar — o que estas suítes medem é o cadastro, e o
+    // envio tem suíte própria em `confirmation.test.ts`.
+    mockHasProvider.mockReturnValue(false);
+    mockManagerRepo.findByEmail.mockResolvedValue(null);
+    mockTokens.countRecent.mockResolvedValue(0);
+    mockTokens.invalidateOpen.mockResolvedValue({ count: 0 } as any);
+    mockTokens.create.mockResolvedValue({} as any);
+  });
 
   it('cria usuário com senha hasheada', async () => {
     mockUserRepo.findByEmail.mockResolvedValue(null);
@@ -68,11 +92,27 @@ describe('userService.create', () => {
     expect(mockUserRepo.create).toHaveBeenCalledWith(expect.objectContaining({ role: 'NONE' }));
   });
 
-  it('lança ConflictError quando e-mail já existe', async () => {
+  /**
+   * Este teste virou o contrário do que era, e de propósito.
+   *
+   * Ele exigia `ConflictError` para e-mail já cadastrado — o 409 que dizia "esta
+   * pessoa tem conta aqui" a quem só precisava digitar um endereço num
+   * formulário público. O cadastro passou a responder a mesma coisa em todos os
+   * caminhos; o que se mede agora é justamente que nada distinga os dois casos.
+   */
+  it('e-mail já cadastrado não vaza: mesma resposta, e nada é criado', async () => {
     mockUserRepo.findByEmail.mockResolvedValue(makeUser());
-    await expect(
-      userService.create({ name: 'X', email: 'carlos@test.com', password: 'Senha@123' })
-    ).rejects.toThrow(ConflictError);
+
+    const r = await userService.create({
+      name: 'X',
+      email: 'carlos@test.com',
+      password: 'Senha@123',
+    });
+
+    expect(r).toHaveProperty('ok', true);
+    expect(mockUserRepo.create).not.toHaveBeenCalled();
+    expect(mockUserRepo.update).not.toHaveBeenCalled();
+    expect(mockTokens.create).not.toHaveBeenCalled();
   });
 });
 

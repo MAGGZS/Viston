@@ -3,7 +3,8 @@ import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { auditRepository, buildingRepository } from '../repositories/building.repository';
 import { AccountKind, signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/jwt';
-import { UnauthorizedError } from '../utils/errors';
+import { EmailNotConfirmedError, UnauthorizedError } from '../utils/errors';
+import { enviarConfirmacao, normalizeEmail } from './confirmation.service';
 import { hashPassword, needsRehash } from '../utils/password';
 import { Actor } from '../middlewares/authenticate';
 import { AuditAction } from '@prisma/client';
@@ -30,6 +31,8 @@ type Account = {
   avatar_url: string | null;
   status: string;
   token_version: number;
+  /// Nulo é conta que existe e não entra — ver o passo 3 de `login`.
+  email_verified_at: Date | null;
   kind: AccountKind;
   role: string;
 };
@@ -77,6 +80,20 @@ export const authService = {
     const valid = await bcrypt.compare(password, account.password_hash);
     if (!valid) throw new UnauthorizedError('Credenciais inválidas');
 
+    /**
+     * A confirmação do e-mail, depois da senha e antes da sessão.
+     *
+     * Depois da senha de propósito. Checar antes responderia 403 a quem
+     * digitasse qualquer senha num endereço cadastrado, e o formulário de login
+     * viraria o verificador de e-mails que o cadastro deixou de ser.
+     *
+     * Sem olhar `role`, e sem exceção para tabela nenhuma: o ADMIN e o gestor
+     * passam por esta mesma linha. Conta anterior a esta regra tem a coluna
+     * preenchida pelo backfill da migration, então ninguém foi trancado do lado
+     * de fora no dia do deploy.
+     */
+    if (!account.email_verified_at) throw new EmailNotConfirmedError();
+
     // Custo antigo vira custo de hoje aqui, e só aqui: é o único ponto em que a
     // senha em claro existe depois do cadastro. Falhar em refazer o hash não
     // pode barrar quem acertou a senha — o hash antigo continua correto.
@@ -116,6 +133,28 @@ export const authService = {
         memberships,
       },
     };
+  },
+
+  /**
+   * Manda outro link de confirmação, para quem tem a senha da conta.
+   *
+   * Exigir a senha é o que separa isto de um botão para disparar e-mail em nome
+   * de qualquer endereço cadastrado. O teto por hora de `enviarConfirmacao`
+   * limitaria o volume; não impediria o incômodo.
+   *
+   * Credencial errada e conta já confirmada saem calados, sem erro: quem chega
+   * aqui chutando não descobre nem se a conta existe nem em que estado ela está.
+   * Para quem clicou no botão de boa-fé, os dois casos são inofensivos — no
+   * segundo, o acesso já está liberado e o login seguinte funciona.
+   */
+  async reenviarConfirmacao(emailBruto: string, password: string) {
+    const email = normalizeEmail(emailBruto);
+    const account = await findAccountByEmail(email);
+    if (!account || account.status === 'DELETED') return;
+    if (!(await bcrypt.compare(password, account.password_hash))) return;
+    if (account.email_verified_at) return;
+
+    await enviarConfirmacao({ kind: account.kind, id: account.id }, account.name, email);
   },
 
   /**

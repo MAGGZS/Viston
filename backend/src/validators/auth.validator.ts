@@ -15,10 +15,17 @@ export const refreshSchema = z.object({
 export const createUserSchema = z
   .object({
     name: z.string().trim().min(2, 'Nome deve ter ao menos 2 caracteres').max(120),
-    // Sem normalizar caixa: o banco já tem contas gravadas como digitadas e
-    // `findUnique` no Postgres é case-sensitive — mudar aqui quebraria logins.
+    // A caixa é normalizada no serviço, não aqui: o índice `uq_users_email_lower`
+    // e o `findByEmail` insensível passaram a tratar `Joao@x.com` e `joao@x.com`
+    // como o mesmo endereço, que é o que impede duas contas do mesmo dono — as
+    // duas com link de confirmação válido.
     email: z.string().trim().email('E-mail inválido').max(160),
     password: z.string().min(8, 'Senha deve ter ao menos 8 caracteres').max(200),
+    // Armadilha. O campo é escondido no CSS e humano nenhum o preenche; robô de
+    // formulário preenche tudo que encontra. Precisa estar declarado porque o
+    // `.strict()` abaixo recusaria o campo desconhecido com 400 — e o 400 é
+    // justamente o que ensinaria o robô a removê-lo da próxima vez.
+    website: z.string().max(200).optional(),
   })
   .strict();
 

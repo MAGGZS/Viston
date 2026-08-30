@@ -124,6 +124,30 @@ export function useLogin() {
   });
 }
 
+/**
+ * Consome o link que chegou no e-mail.
+ *
+ * O token vai no corpo, e não na URL da API: query string aparece em log de
+ * servidor, em histórico e em cabeçalho `Referer`, e este valor é a chave da
+ * conta até ser usado. Ele já viaja na URL da nossa própria tela porque não há
+ * outro jeito de um link carregar dado — daí para a API, vai no corpo.
+ */
+export function useConfirmEmail() {
+  return useMutation({
+    mutationFn: (token) => api.post('/auth/confirmar', { token }).then((r) => r.data),
+  });
+}
+
+/**
+ * Pede outro link. Exige a senha — sem ela, seria um botão para disparar e-mail
+ * em nome de qualquer endereço cadastrado.
+ */
+export function useResendConfirmation() {
+  return useMutation({
+    mutationFn: (data) => api.post('/auth/reenviar', data).then((r) => r.data),
+  });
+}
+
 // ── Users ─────────────────────────────────────────────────────────────────────
 export function useMe() {
   return useQuery({

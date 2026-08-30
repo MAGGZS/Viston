@@ -49,6 +49,27 @@ export const config = {
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
 
+  /**
+   * O envio do link de confirmação.
+   *
+   * Obrigatórias só em produção. Fora dela o cadastro precisa continuar
+   * rodando na máquina de quem não configurou Resend nenhum — sem a chave, o
+   * serviço registra o link no log em vez de mandar e-mail (ver
+   * `confirmation.service`), e o desenvolvimento não para.
+   *
+   * `appUrl` é a base do link que vai no e-mail, e por isso é a URL do
+   * frontend, não a da API: quem clica cai numa tela, não num endpoint.
+   */
+  email: {
+    appUrl: isProduction
+      ? required('APP_URL')
+      : process.env.APP_URL || 'http://localhost:3001',
+    resendApiKey: isProduction ? required('RESEND_API_KEY') : process.env.RESEND_API_KEY || '',
+    from: isProduction
+      ? required('EMAIL_FROM')
+      : process.env.EMAIL_FROM || 'Viston <onboarding@resend.dev>',
+  },
+
   cors: {
     /**
      * FRONTEND_URL aceita uma ou várias origens separadas por vírgula.
