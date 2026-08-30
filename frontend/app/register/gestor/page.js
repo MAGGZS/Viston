@@ -108,7 +108,7 @@ export default function RegisterGestorPage() {
   return (
     <AuthShell
       title="Criar conta de gestor"
-      subtitle="Conta de gestor: você cadastra os prédios, aprova quem entra e define quem vistoria. Confirme seu e-mail para liberar o acesso."
+      subtitle="Conta de gestor: você cadastra os prédios, aprova quem entra e define quem vistoria."
       footer={
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <p style={{ color: T.faint, fontSize: 14 }}>

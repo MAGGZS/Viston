@@ -112,7 +112,7 @@ export default function RegisterPage() {
   return (
     <AuthShell
       title="Criar conta"
-      subtitle="Confirme seu e-mail para liberar o acesso. Depois, peça a chave do prédio ao administrador para começar a vistoriar."
+      subtitle="Depois de entrar, peça a chave do prédio ao administrador para começar a vistoriar."
       footer={
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <p style={{ color: T.faint, fontSize: 14 }}>
