@@ -7,7 +7,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { AuthShell } from '@/app/components/AuthShell';
 import { ConfirmarCodigo } from '@/app/components/ConfirmarCodigo';
-import { SenhaChecklist, senhaValida } from '@/app/components/SenhaChecklist';
+import { SenhaChecklist, senhaValida, useFocoSenha } from '@/app/components/SenhaChecklist';
 import { useUnsavedFlag } from '@/app/hooks/useUnsavedGuard';
 import { useCreateUser } from '@/app/hooks/useApi';
 import { T, R } from '@/app/lib/theme';
@@ -28,7 +28,9 @@ const schema = yup.object({
 });
 
 const S = {
-  field: { display: 'flex', flexDirection: 'column', gap: 6 },
+  // `position: relative` faz deste bloco a âncora da lista de exigências
+  // da senha, que flutua ao lado sem ocupar espaço — ver `.senha-regras`.
+  field: { display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' },
   label: { fontSize: 12, fontWeight: 400, color: T.mute },
   input: { background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent', borderRadius: R.control, padding: '13px 16px', color: T.text, fontSize: 16, outline: 'none', width: '100%' },
   inputWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
@@ -58,6 +60,7 @@ export default function RegisterPage() {
   // e o compilador do React desiste de memoizar o componente inteiro — e o
   // projeto ja carrega um aviso desses no `FloorForm`.
   const senhaDigitada = useWatch({ control, name: 'password' }) ?? '';
+  const foco = useFocoSenha();
 
   // Sair da tela com o cadastro pela metade — pelo link de entrar, por um
   // recarregar — passa a perguntar antes (ver components/UnsavedGuard.js).
@@ -163,7 +166,7 @@ export default function RegisterPage() {
               const isPassword = type === 'password';
               const inputStyle = { ...S.input, ...(isPassword ? { paddingRight: 46 } : {}), ...(errors[name] ? { borderColor: 'rgba(248,113,113,0.5)' } : {}) };
               return (
-                <div key={name} style={S.field}>
+                <div key={name} style={S.field} {...(name === 'password' ? foco.ancora : {})}>
                   <label style={S.label}>{label}</label>
                   <div style={S.inputWrap}>
                     <input
@@ -182,7 +185,7 @@ export default function RegisterPage() {
                   {errors[name] && <span style={{ fontSize: 12, color: T.danger }}>{errors[name].message}</span>}
                   {/* A lista fica sob a senha, e nao sob a confirmacao: e naquele
                       campo que as regras valem. */}
-                  {name === 'password' && <SenhaChecklist senha={senhaDigitada} />}
+                  {name === 'password' && <SenhaChecklist senha={senhaDigitada} aberta={foco.aberta} />}
                 </div>
               );
             })}

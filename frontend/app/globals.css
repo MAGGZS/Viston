@@ -590,3 +590,55 @@ input:-webkit-autofill:focus {
     padding-top: 90px;
   }
 }
+
+/*
+ * A lista de exigências da senha, flutuando ao lado do campo.
+ *
+ * `position: absolute` porque ela não pode empurrar nada: inline, ela nascia
+ * entre a senha e a confirmação e deslocava metade do formulário a cada vez que
+ * aparecia ou sumia — o botão de enviar pulava debaixo do dedo.
+ *
+ * Ao lado só onde há lado. A coluna de acesso tem 380px centrados; abaixo de
+ * ~980px de janela não sobra espaço à direita sem a lista sair da tela, e aí
+ * ela cai para baixo do campo, ainda flutuando. O ponto de virada é a largura
+ * que a conta pede, não um número redondo: 190 (meia coluna) + 14 (respiro) +
+ * 232 (lista) = 436, e a metade de 980 é 490.
+ */
+.senha-regras {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 8px);
+  /* A sombra é o que diz "isto está por cima", e não "isto empurrou o resto". */
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+@media (min-width: 980px) {
+  .senha-regras {
+    left: calc(100% + 14px);
+    right: auto;
+    top: 0;
+    width: 232px;
+  }
+}
+
+/*
+ * Texto só para leitor de tela.
+ *
+ * O truque antigo era `position: absolute; left: -9999px`, que funciona até o
+ * elemento cair dentro de um contêiner posicionado — aí ele passa a esticar a
+ * caixa para a esquerda e a criar rolagem que ninguém pediu. Este recorta a
+ * área para um pixel e não tem como empurrar nada.
+ */
+.so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

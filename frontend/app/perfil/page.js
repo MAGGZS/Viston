@@ -7,7 +7,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { LogOut, ArrowLeft, Building2, Check, ChevronRight, KeyRound, MessageSquarePlus, Palette, Pencil, Trash2, UserRound } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
-import { SenhaChecklist, senhaValida } from '@/app/components/SenhaChecklist';
+import { SenhaChecklist, senhaValida, useFocoSenha } from '@/app/components/SenhaChecklist';
 import { Avatar } from '@/app/components/Avatar';
 import { AvatarEditorModal } from '@/app/components/AvatarEditorModal';
 import { AparenciaModal } from '@/app/components/AparenciaModal';
@@ -246,6 +246,7 @@ function PasswordForm() {
   // `useWatch` e nao `watch()`: o segundo devolve uma funcao nova a cada render
   // e o compilador do React desiste de memoizar o componente inteiro.
   const senhaNova = useWatch({ control: form.control, name: 'new_password' }) ?? '';
+  const foco = useFocoSenha();
 
   // A confirmação existe só para o dedo errar menos; a API recebe as duas senhas.
   async function onSubmit({ new_password_confirmation, ...data }) {
@@ -261,8 +262,12 @@ function PasswordForm() {
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <MField label="Senha atual" type="password" error={form.formState.errors.current_password?.message} {...form.register('current_password')} />
-      <MField label="Nova senha" type="password" error={form.formState.errors.new_password?.message} {...form.register('new_password')} />
-      <SenhaChecklist senha={senhaNova} />
+      {/* O invólucro é a âncora: o `MField` é um componente e não dá para lhe
+          pôr `position: relative` de fora. Ver `.senha-regras`. */}
+      <div style={{ position: 'relative' }} {...foco.ancora}>
+        <MField label="Nova senha" type="password" error={form.formState.errors.new_password?.message} {...form.register('new_password')} />
+        <SenhaChecklist senha={senhaNova} aberta={foco.aberta} />
+      </div>
       <MField label="Confirmar nova senha" type="password" error={form.formState.errors.new_password_confirmation?.message} {...form.register('new_password_confirmation')} />
       <MButton type="submit" loading={changePassword.isPending} style={{ width: '100%' }}>Alterar senha</MButton>
     </form>

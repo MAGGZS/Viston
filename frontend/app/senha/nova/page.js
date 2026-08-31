@@ -4,13 +4,15 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { AuthShell } from '@/app/components/AuthShell';
 import { CodigoInput } from '@/app/components/CodigoInput';
-import { SenhaChecklist, senhaValida } from '@/app/components/SenhaChecklist';
+import { SenhaChecklist, senhaValida, useFocoSenha } from '@/app/components/SenhaChecklist';
 import { useResetPassword, useVerifyResetCode } from '@/app/hooks/useApi';
 import { limparEmailPendente, useEmailPendente } from '@/app/lib/emailPendente';
 import { T, R } from '@/app/lib/theme';
 
 const S = {
-  campo: { display: 'flex', flexDirection: 'column', gap: 6 },
+  // `position: relative` faz deste bloco a âncora da lista de exigências
+  // da senha, que flutua ao lado sem ocupar espaço — ver `.senha-regras`.
+  campo: { display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' },
   rotulo: { fontSize: 12, fontWeight: 400, color: T.mute },
   input: {
     background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent',
@@ -54,6 +56,7 @@ export default function NovaSenhaPage() {
   const [confirmacao, setConfirmacao] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [erroLocal, setErroLocal] = useState(null);
+  const foco = useFocoSenha();
 
   const verificar = useVerifyResetCode();
   const redefinir = useResetPassword();
@@ -175,7 +178,7 @@ export default function NovaSenhaPage() {
       <p style={S.texto}>Código conferido. Escolha sua nova senha.</p>
 
       {campos.map(({ id, rotulo, valor, set, placeholder }) => (
-        <div key={id} style={S.campo}>
+        <div key={id} style={S.campo} {...(id === 'senha' ? foco.ancora : {})}>
           <label htmlFor={id} style={S.rotulo}>{rotulo}</label>
           <div style={S.inputWrap}>
             <input
@@ -197,7 +200,7 @@ export default function NovaSenhaPage() {
             </button>
           </div>
           {/* A lista fica sob a senha nova, e nao sob a confirmacao. */}
-          {id === 'senha' && <SenhaChecklist senha={senha} />}
+          {id === 'senha' && <SenhaChecklist senha={senha} aberta={foco.aberta} />}
         </div>
       ))}
 
