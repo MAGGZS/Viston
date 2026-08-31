@@ -13,7 +13,7 @@ import {
   RECORD_STATUS_VARIANT,
   labelOf,
 } from '@/app/lib/maintenanceOptions';
-import { T, R, W } from '@/app/lib/theme';
+import { T, R, W, MOTION } from '@/app/lib/theme';
 
 const PRIORITY_VARIANT = { ALTA: 'danger', MEDIA: 'warning', BAIXA: 'default' };
 
@@ -72,13 +72,10 @@ export const HISTORICO_SWITCHER_HEIGHT = 80;
 const TRACK_PAD = 4;
 
 /**
- * A curva do movimento: sai rápido e chega devagar.
- *
- * É a mesma sensação de uma chave física que se solta e assenta — sem o
- * repique do `anim-pop-in`, que é para coisa que aparece, não para coisa que
- * anda.
+ * A curva do movimento mora em `lib/theme.js`: o seletor de fila do responsável
+ * usa a mesma, e os dois precisam chegar juntos (ver `MOTION`).
  */
-const SLIDE = 'transform 260ms cubic-bezier(0.32, 0.72, 0, 1)';
+const SLIDE = MOTION.slide;
 
 /**
  * O cabeçalho do cartão: os dois botões no canto, o título embaixo.

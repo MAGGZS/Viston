@@ -165,6 +165,24 @@ export const NUM = {
 };
 
 /**
+ * As curvas do movimento, num lugar só.
+ *
+ * `slide` sai rápido e chega devagar — a sensação de uma chave física que se
+ * solta e assenta, sem o repique do `anim-pop-in`, que é para coisa que aparece
+ * e não para coisa que anda.
+ *
+ * Ela é partilhada de propósito: a pílula do seletor de visão do histórico, a
+ * do seletor de fila do responsável e a entrada lateral dos cartões
+ * (`.anim-slide-from-*`, no globals.css) são o mesmo gesto visto em três peças.
+ * Com curvas próprias em cada uma, elas chegariam em tempos diferentes e a tela
+ * pareceria ter três coisas se mexendo em vez de uma.
+ */
+export const MOTION = {
+  slideEase: 'cubic-bezier(0.32, 0.72, 0, 1)',
+  slide: 'transform 260ms cubic-bezier(0.32, 0.72, 0, 1)',
+};
+
+/**
  * Único cartão com gradiente no produto: a credencial do perfil.
  * Cinco pontos de luminância dão volume sem virar ornamento.
  */

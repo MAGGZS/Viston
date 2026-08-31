@@ -269,6 +269,34 @@ input:-webkit-autofill:focus {
 .anim-fade-out   { animation: fade-out 0.18s ease both; }
 .anim-scale-out  { animation: scale-out 0.18s ease both; }
 
+/**
+ * A lista entra pelo lado em que está o botão que a abriu.
+ *
+ * Trocar de fila troca a lista inteira no mesmo lugar da tela, e sem percurso o
+ * que se vê é um conteúdo virando outro — a pessoa tem de reler o cabeçalho
+ * para saber se o toque pegou. Vindo do lado do botão, o movimento já responde:
+ * é aquela fila, e ela estava guardada ali.
+ *
+ * Termina em `none`, e não em `translateX(0)`: um transform, mesmo zerado, faz
+ * do elemento bloco de contenção para filho `position: fixed` (ver a nota das
+ * utilitárias acima). Zerar de vez é a única diferença prática entre os dois.
+ *
+ * A curva é a mesma da pílula do seletor (`MOTION.slide`, em lib/theme.js) — os
+ * dois são o mesmo gesto, e curvas diferentes os fariam parecer dois.
+ */
+@keyframes slide-from-left {
+  from { opacity: 0; transform: translateX(-28px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes slide-from-right {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.anim-slide-from-left  { animation: slide-from-left 0.38s cubic-bezier(0.32, 0.72, 0, 1) both; }
+.anim-slide-from-right { animation: slide-from-right 0.38s cubic-bezier(0.32, 0.72, 0, 1) both; }
+
 /* Stagger helpers */
 .anim-d1 { animation-delay: 0.05s; }
 .anim-d2 { animation-delay: 0.10s; }

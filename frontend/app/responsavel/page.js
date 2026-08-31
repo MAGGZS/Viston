@@ -19,7 +19,7 @@ import {
   formatCost,
 } from '@/app/lib/maintenanceOptions';
 import { parseReportDate } from '@/app/lib/date';
-import { R } from '@/app/lib/theme';
+import { R, MOTION } from '@/app/lib/theme';
 import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
 
@@ -244,17 +244,39 @@ function TicketCard({ ticket, className = '' }) {
  * propósito: para quem executou, os dois são "trabalho que terminei" — a
  * diferença é de quem fecha, e ela aparece dentro do cartão, não na fila.
  */
-const ABAS = [
+export const ABAS = [
   { id: 'RECEBER', label: 'A receber', status: ['ENCAMINHADO'] },
   { id: 'ANDAMENTO', label: 'Em andamento', status: ['EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO'] },
   { id: 'CONCLUIDOS', label: 'Concluídos', status: ['AGUARDANDO_FECHAMENTO', 'CONCLUIDO'] },
 ];
+
+/**
+ * De que lado a lista daquela fila entra.
+ *
+ * Do lado em que está o botão que a abriu: a fila da esquerda vem da esquerda,
+ * a da direita vem da direita. É a pílula dourada continuando o movimento — os
+ * cartões saem de debaixo dela, e não de um lugar qualquer.
+ *
+ * A do meio não tem lado, e sobe, que é como todas as listas do produto entram.
+ * O que decide é de que lado do centro o botão está, e não o índice: com uma
+ * quarta fila um dia, as duas do meio continuam subindo.
+ */
+export function entradaDaFila(id) {
+  const posicao = ABAS.findIndex((aba) => aba.id === id);
+  const centro = (ABAS.length - 1) / 2;
+
+  if (posicao < 0 || posicao === centro) return 'anim-fade-up';
+  return posicao < centro ? 'anim-slide-from-left' : 'anim-slide-from-right';
+}
 
 const VAZIO = {
   RECEBER: 'Nenhum chamado esperando você receber',
   ANDAMENTO: 'Nenhum chamado em andamento com você',
   CONCLUIDOS: 'Você ainda não concluiu nenhum chamado',
 };
+
+/** O trilho tem 4px de folga de cada lado; a pílula que corre ocupa o resto. */
+const FOLGA_TRILHO = 4;
 
 /**
  * O seletor de fila.
@@ -265,17 +287,56 @@ const VAZIO = {
  *
  * O número fica no próprio botão porque é ele que diz onde há trabalho: sem
  * isso, descobrir que a fila está vazia custa um toque.
+ *
+ * O dourado é uma peça só, que corre de uma fila à outra em vez de acender numa
+ * e apagar na outra — é o mesmo alternador do histórico (ver
+ * `HistoricoSwitcher`), e partilha com ele a curva do movimento. Acender e
+ * apagar são dois eventos que a pessoa tem de juntar; o movimento já diz que é
+ * o mesmo lugar que mudou de lado, e diz também de onde ela veio.
+ *
+ * Duas decisões que o movimento cobra, e que valem a nota:
+ *
+ * - As colunas são iguais (`grid-auto-columns: 1fr`) e sem vão entre elas. É o
+ *   que deixa a pílula andar por porcentagem, sem medir nada no DOM. Com o vão
+ *   de 6px que havia aqui, cada passo erraria o alvo por alguns pixels.
+ * - O peso da fonte não muda com a seleção. "Em andamento" em 600 é mais larga
+ *   que em 400: com o peso variando, o trilho mudava de largura no meio da
+ *   viagem e a pílula chegava tremendo. Quem diz qual está aberta é a cor.
  */
-function SeletorFila({ abas, atual, onPick, contagem }) {
+export function SeletorFila({ abas, atual, onPick, contagem }) {
+  const indice = Math.max(0, abas.findIndex((aba) => aba.id === atual));
+
   return (
     <div
       role="tablist"
       aria-label="Filas de chamados"
       style={{
-        display: 'flex', gap: 6, background: M.card, borderRadius: 999,
-        padding: 4, marginBottom: 16,
+        position: 'relative',
+        display: 'grid', gridAutoFlow: 'column', gridAutoColumns: '1fr',
+        background: M.card, borderRadius: 999,
+        padding: FOLGA_TRILHO, marginBottom: 16,
       }}
     >
+      {/*
+        A pílula que corre.
+
+        Fica atrás dos rótulos, e não dentro do botão ativo: dentro dele, ela
+        nasceria e morreria a cada troca, e o que se veria seria um piscar. As
+        medidas saem de porcentagem do próprio trilho — `100%` aqui é a caixa
+        com o recuo, daí o desconto dos dois lados.
+      */}
+      <span
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          top: FOLGA_TRILHO, bottom: FOLGA_TRILHO, left: FOLGA_TRILHO,
+          width: `calc((100% - ${FOLGA_TRILHO * 2}px) / ${abas.length})`,
+          transform: `translateX(${indice * 100}%)`,
+          background: M.accent, borderRadius: 999,
+          transition: MOTION.slide,
+        }}
+      />
+
       {abas.map((aba) => {
         const ativo = aba.id === atual;
         return (
@@ -285,12 +346,15 @@ function SeletorFila({ abas, atual, onPick, contagem }) {
             aria-selected={ativo}
             onClick={() => onPick(aba.id)}
             style={{
-              flex: 1, border: 'none', cursor: 'pointer', borderRadius: 999,
-              padding: '9px 6px', fontFamily: M.display, fontSize: 13,
-              fontWeight: ativo ? 600 : 400,
-              background: ativo ? M.accent : 'transparent',
+              // `relative` põe o rótulo acima da pílula sem tirá-lo do grid:
+              // é o empilhamento que faz o dourado passar por baixo do texto.
+              position: 'relative',
+              border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 999,
+              padding: '9px 6px', fontFamily: M.display, fontSize: 13, fontWeight: 600,
               color: ativo ? M.onAccent : M.mute,
-              transition: 'background-color 0.15s, color 0.15s',
+              // A cor troca em metade da viagem: a palavra escurece quando o
+              // dourado já está debaixo dela, não antes de ele chegar.
+              transition: 'color 130ms ease 90ms',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
               whiteSpace: 'nowrap',
             }}
@@ -300,6 +364,7 @@ function SeletorFila({ abas, atual, onPick, contagem }) {
               <span style={{
                 fontSize: 11, fontWeight: 500,
                 color: ativo ? M.onAccent : M.faint,
+                transition: 'color 130ms ease 90ms',
               }}>
                 {contagem[aba.id]}
               </span>
@@ -340,6 +405,8 @@ export default function ResponsavelPage() {
 
   const abaAtual = ABAS.find((a) => a.id === aba) ?? ABAS[0];
   const visiveis = tickets.filter((t) => abaAtual.status.includes(t.status));
+
+  const entrada = entradaDaFila(abaAtual.id);
 
   /**
    * O que a pessoa lê antes do título.
@@ -397,7 +464,9 @@ export default function ResponsavelPage() {
         )}
 
         {!isLoading && tickets.length > 0 && visiveis.length === 0 && (
-          <MCard className="anim-fade-up anim-d1" style={{ textAlign: 'center', padding: '32px 20px' }}>
+          // O aviso de fila vazia ocupa o lugar dos cartões, e por isso entra
+          // pelo mesmo lado que eles: `key` na fila para tocar a cada troca.
+          <MCard key={abaAtual.id} className={`${entrada} anim-d1`} style={{ textAlign: 'center', padding: '32px 20px' }}>
             <p style={{ color: M.mute, fontSize: 14, lineHeight: 1.6 }}>{VAZIO[abaAtual.id]}</p>
           </MCard>
         )}
@@ -411,7 +480,7 @@ export default function ResponsavelPage() {
                 // aparece em outro.
                 key={`${abaAtual.id}-${ticket.id}`}
                 ticket={ticket}
-                className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
+                className={`${entrada} anim-d${Math.min(idx + 1, 6)}`}
               />
             ))}
           </div>
