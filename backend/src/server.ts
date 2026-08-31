@@ -6,20 +6,17 @@ import { logger } from './lib/logger';
 import { verificarSmtp } from './lib/mailer';
 
 /**
- * IPv4 primeiro, em todas as conexões de saída do processo.
+ * IPv4 primeiro nas conexões de saída que passam por `dns.lookup`.
  *
- * `smtp.gmail.com` responde em IPv4 e IPv6, e o Node 17+ passou a preferir o
- * que o sistema devolver primeiro — que no Render é o IPv6. O container não tem
- * rota IPv6 de saída, então a conexão morria em
- * `ENETUNREACH 2607:f8b0:...:465`, antes de qualquer byte de SMTP.
+ * O container do Render não tem rota IPv6 de saída: qualquer serviço externo
+ * com registro AAAA que o Node prefira por IPv6 morre em `ENETUNREACH`. Isto
+ * era o padrão do Node até a versão 17 — não é truque, é voltar ao que
+ * funcionava.
  *
- * Na máquina de quem desenvolve isso não aparece, porque lá o IPv6 costuma
- * funcionar: é um defeito que só existe do lado de lá, e por isso atravessou
- * todos os testes até chegar em produção.
- *
- * Vale para todo o processo, e não só para o e-mail, de propósito: qualquer
- * serviço externo com AAAA no DNS cairia no mesmo buraco. `ipv4first` era o
- * padrão do Node até a versão 17 — não é um truque, é voltar ao que funcionava.
+ * O que esta linha **não** resolve é o e-mail, e foi essa a lição: o Nodemailer
+ * resolve o host por conta própria, com `resolve4`/`resolve6`, e nunca chega
+ * aqui. O contorno de lá mora em `lib/mailer.ts`. Fica de rede de proteção para
+ * o resto — Prisma, Supabase Storage — que usa o caminho normal.
  */
 setDefaultResultOrder('ipv4first');
 
