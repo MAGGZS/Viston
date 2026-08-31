@@ -91,11 +91,6 @@ export default function EsqueciSenhaPage() {
         >
           {esqueci.isPending ? 'Enviando...' : 'Enviar código'}
         </button>
-
-        <p style={{ ...S.texto, fontSize: 13 }}>
-          Se este endereço tiver uma conta, o código chega em instantes. Sua
-          senha atual continua valendo até você definir outra.
-        </p>
       </form>
     </AuthShell>
   );
