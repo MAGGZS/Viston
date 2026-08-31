@@ -1,28 +1,44 @@
 import { z } from 'zod';
 
 /**
- * O token vem cru da query string do link.
+ * Seis dígitos, e só dígitos.
  *
- * `base64url` de 32 bytes dá 43 caracteres, mas o schema não fixa o tamanho: um
- * token de formato errado tem de morrer no `TOKEN_INVALIDO` como qualquer
- * outro, e não num 400 de validação que diria "o formato certo não é esse".
+ * O `regex` recusa "12 34 56" e "abc123" antes de qualquer ida ao banco — mas
+ * não é validação de segurança: código de formato certo e valor errado morre
+ * igual, no `CODIGO_INVALIDO`, e é lá que o contador de tentativas mora.
  */
-export const confirmEmailSchema = z
-  .object({
-    token: z.string().min(1, 'Token obrigatório').max(500),
-  })
-  .strict();
+const codigo = z
+  .string()
+  .trim()
+  .regex(/^\d{6}$/, 'O código tem 6 dígitos');
+
+const email = z.string().trim().email('E-mail inválido').max(160);
+
+/**
+ * A senha nova, com o mesmo piso do cadastro.
+ *
+ * Oito caracteres e nada de regra de maiúscula, número e símbolo: exigência de
+ * composição empurra as pessoas para `Senha@123` e para o papel colado no
+ * monitor. Comprimento é o que realmente pesa, e o bcrypt cuida do resto.
+ */
+const senha = z.string().min(8, 'A senha deve ter ao menos 8 caracteres').max(200);
+
+export const confirmEmailSchema = z.object({ email, code: codigo }).strict();
 
 /**
  * Reenvio exige a senha.
  *
  * Sem ela, o endpoint vira um botão para disparar e-mail em nome de qualquer
- * endereço cadastrado, de graça e à vontade — o teto por hora limitaria o
- * estrago, não o impediria.
+ * endereço cadastrado — o teto por hora limitaria o volume, não o incômodo.
  */
 export const resendConfirmationSchema = z
-  .object({
-    email: z.string().trim().email('E-mail inválido').max(160),
-    password: z.string().min(1, 'Senha obrigatória').max(200),
-  })
+  .object({ email, password: z.string().min(1, 'Senha obrigatória').max(200) })
+  .strict();
+
+export const forgotPasswordSchema = z.object({ email }).strict();
+
+export const verifyResetCodeSchema = z.object({ email, code: codigo }).strict();
+
+export const resetPasswordSchema = z
+  .object({ email, code: codigo, new_password: senha })
   .strict();

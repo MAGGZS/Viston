@@ -2,29 +2,41 @@ import bcrypt from 'bcrypt';
 import { authService } from '../services/auth.service';
 import {
   confirmationService,
-  enviarConfirmacao,
-  hashToken,
+  enviarCodigo,
+  hashCodigo,
+  INTERVALO_REENVIO_SEG,
 } from '../services/confirmation.service';
 import { userService } from '../services/user.service';
 import { managerService } from '../services/manager.service';
-import { emailTokenRepository } from '../repositories/emailToken.repository';
+import { emailTokenRepository, MAX_TENTATIVAS } from '../repositories/emailToken.repository';
 import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
-import { resend } from '../lib/resend';
+import { enviarEmail } from '../lib/mailer';
 import {
   EmailDeliveryError,
   EmailNotConfirmedError,
-  InvalidTokenError,
+  InvalidCodeError,
   TooManyEmailsError,
 } from '../utils/errors';
 import { UserStatus } from '@prisma/client';
 
-jest.mock('../repositories/emailToken.repository');
+jest.mock('../repositories/emailToken.repository', () => ({
+  ...jest.requireActual('../repositories/emailToken.repository'),
+  emailTokenRepository: {
+    countRecent: jest.fn(),
+    lastSentAt: jest.fn(),
+    invalidateOpen: jest.fn(),
+    create: jest.fn(),
+    findOpen: jest.fn(),
+    consume: jest.fn(),
+    registerFailure: jest.fn(),
+  },
+}));
 jest.mock('../repositories/user.repository');
 jest.mock('../repositories/manager.repository');
 jest.mock('../repositories/building.repository');
-jest.mock('../lib/resend');
+jest.mock('../lib/mailer');
 jest.mock('bcrypt');
 
 const tokens = emailTokenRepository as jest.Mocked<typeof emailTokenRepository>;
@@ -33,9 +45,9 @@ const managers = managerRepository as jest.Mocked<typeof managerRepository>;
 const buildings = buildingRepository as jest.Mocked<typeof buildingRepository>;
 const audit = auditRepository as jest.Mocked<typeof auditRepository>;
 const mockBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
-const mockResend = resend as jest.MockedFunction<typeof resend>;
+const mockEnviarEmail = enviarEmail as jest.MockedFunction<typeof enviarEmail>;
 
-const send = jest.fn();
+const CODIGO = '481507';
 
 function makeAccount(overrides: Record<string, unknown> = {}) {
   return {
@@ -54,63 +66,114 @@ function makeAccount(overrides: Record<string, unknown> = {}) {
   } as never;
 }
 
+/** Registro aberto, como `findOpen` o devolve. */
+function makeRegistro(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'tok-1',
+    code_hash: hashCodigo(CODIGO),
+    expires_at: new Date(Date.now() + 600_000),
+    attempts: 0,
+    user_id: 'user-1',
+    manager_id: null,
+    ...overrides,
+  } as never;
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
-  send.mockResolvedValue({ error: null });
-  mockResend.mockReturnValue({ emails: { send } } as never);
+  mockEnviarEmail.mockResolvedValue(undefined);
   tokens.countRecent.mockResolvedValue(0);
+  tokens.lastSentAt.mockResolvedValue(null);
   tokens.invalidateOpen.mockResolvedValue({ count: 0 } as never);
   tokens.create.mockResolvedValue({} as never);
+  tokens.consume.mockResolvedValue(true);
+  tokens.registerFailure.mockResolvedValue({} as never);
   users.findByEmail.mockResolvedValue(null);
   managers.findByEmail.mockResolvedValue(null);
   buildings.getUserMemberships.mockResolvedValue([] as never);
   audit.log.mockResolvedValue(undefined as never);
 });
 
-describe('o que vai para o banco', () => {
-  it('grava so o hash do token; o valor cru so existe na URL do e-mail', async () => {
-    await enviarConfirmacao({ kind: 'USER', id: 'user-1' }, 'Carlos', 'carlos@test.com');
+describe('emissao do codigo', () => {
+  it('grava so o hash; o codigo legivel so existe dentro do e-mail', async () => {
+    await enviarCodigo({ kind: 'USER', id: 'user-1' }, 'EMAIL_VERIFY', 'Carlos', 'carlos@test.com');
 
     const gravado = tokens.create.mock.calls[0][0];
-    expect(gravado.token_hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(gravado.code_hash).toMatch(/^[0-9a-f]{64}$/);
 
-    // O cru esta na URL — e e ele que, passado pelo hash, da o que foi gravado.
-    const html = send.mock.calls[0][0].html as string;
-    const cru = /token=([A-Za-z0-9_-]+)/.exec(html)?.[1] as string;
-    expect(hashToken(cru)).toBe(gravado.token_hash);
-    expect(html).not.toContain(gravado.token_hash);
+    // O codigo esta no corpo do e-mail — e, passado pelo hash, da o que foi gravado.
+    const html = mockEnviarEmail.mock.calls[0][2];
+    const codigo = /letter-spacing:8px;[^>]*">\s*(\d{6})/.exec(html)?.[1] as string;
+    expect(codigo).toMatch(/^\d{6}$/);
+    expect(hashCodigo(codigo)).toBe(gravado.code_hash);
+    expect(html).not.toContain(gravado.code_hash);
   });
 
-  it('normaliza a caixa do e-mail antes de gravar', async () => {
-    await enviarConfirmacao({ kind: 'USER', id: 'user-1' }, 'Carlos', '  Joao@X.com  ');
+  it('normaliza a caixa do e-mail antes de gravar e de enviar', async () => {
+    await enviarCodigo({ kind: 'USER', id: 'user-1' }, 'EMAIL_VERIFY', 'Carlos', '  Joao@X.com  ');
     expect(tokens.create.mock.calls[0][0].email).toBe('joao@x.com');
+    expect(mockEnviarEmail.mock.calls[0][0]).toBe('joao@x.com');
   });
 
-  it('fecha os links abertos antes de emitir outro', async () => {
-    await enviarConfirmacao({ kind: 'USER', id: 'user-1' }, 'Carlos', 'carlos@test.com');
-    expect(tokens.invalidateOpen).toHaveBeenCalledWith({ kind: 'USER', id: 'user-1' });
+  it('fecha os codigos abertos antes de emitir outro', async () => {
+    await enviarCodigo({ kind: 'USER', id: 'user-1' }, 'EMAIL_VERIFY', 'Carlos', 'carlos@test.com');
+    expect(tokens.invalidateOpen).toHaveBeenCalledWith({ kind: 'USER', id: 'user-1' }, 'EMAIL_VERIFY');
+  });
+
+  it('escapa o nome no corpo do e-mail', async () => {
+    // Nome vem de campo aberto no cadastro. Sem escapar, marcacao entraria
+    // inteira na mensagem — inclusive um link falso colado num e-mail nosso.
+    await enviarCodigo(
+      { kind: 'USER', id: 'user-1' },
+      'EMAIL_VERIFY',
+      '<a href="http://mau">Carlos</a>',
+      'carlos@test.com'
+    );
+    const html = mockEnviarEmail.mock.calls[0][2];
+    expect(html).not.toContain('<a href="http://mau">');
+    expect(html).toContain('&lt;a href=&quot;http://mau&quot;&gt;');
+  });
+
+  it('o e-mail de recuperacao e outro texto, com o mesmo codigo', async () => {
+    await enviarCodigo({ kind: 'USER', id: 'user-1' }, 'PASSWORD_RESET', 'Carlos', 'carlos@test.com');
+    expect(mockEnviarEmail.mock.calls[0][1]).toMatch(/redefinir/i);
   });
 });
 
-describe('teto de envios', () => {
+describe('tetos de reenvio', () => {
+  it('recusa dois pedidos dentro do intervalo minimo', async () => {
+    tokens.lastSentAt.mockResolvedValue(new Date(Date.now() - (INTERVALO_REENVIO_SEG - 5) * 1000));
+
+    await expect(
+      enviarCodigo({ kind: 'USER', id: 'user-1' }, 'EMAIL_VERIFY', 'Carlos', 'carlos@test.com')
+    ).rejects.toThrow(TooManyEmailsError);
+
+    expect(tokens.create).not.toHaveBeenCalled();
+    expect(mockEnviarEmail).not.toHaveBeenCalled();
+  });
+
+  it('aceita depois de passado o intervalo', async () => {
+    tokens.lastSentAt.mockResolvedValue(new Date(Date.now() - (INTERVALO_REENVIO_SEG + 5) * 1000));
+    await enviarCodigo({ kind: 'USER', id: 'user-1' }, 'EMAIL_VERIFY', 'Carlos', 'carlos@test.com');
+    expect(mockEnviarEmail).toHaveBeenCalled();
+  });
+
   it('o sexto pedido na mesma hora da LIMITE e nao grava nada', async () => {
     tokens.countRecent.mockResolvedValue(5);
 
     await expect(
-      enviarConfirmacao({ kind: 'USER', id: 'user-1' }, 'Carlos', 'carlos@test.com')
+      enviarCodigo({ kind: 'USER', id: 'user-1' }, 'EMAIL_VERIFY', 'Carlos', 'carlos@test.com')
     ).rejects.toThrow(TooManyEmailsError);
 
     expect(tokens.create).not.toHaveBeenCalled();
-    expect(send).not.toHaveBeenCalled();
   });
 
   /**
-   * O 429 sozinho derrubaria a regra da resposta unica.
+   * O 429 sozinho derrubaria a regra da resposta unica no cadastro.
    *
-   * Ele so dispara quando ha tokens recentes para o endereco, e tokens so
-   * existem para conta nova ou nao confirmada. Seis cadastros seguidos vendo o
-   * sexto virar 429 provariam que aquele e-mail nao tem conta confirmada —
-   * exatamente o que o formulario publico nao pode contar.
+   * Ele so dispara quando ha codigos recentes, e codigos so existem para conta
+   * nova ou nao confirmada. Seis cadastros seguidos vendo o sexto virar 429
+   * provariam que aquele e-mail nao tem conta confirmada.
    */
   it('no cadastro o teto e engolido: mesma resposta, sem 429', async () => {
     tokens.countRecent.mockResolvedValue(5);
@@ -123,7 +186,7 @@ describe('teto de envios', () => {
     });
 
     expect(r).toHaveProperty('ok', true);
-    expect(send).not.toHaveBeenCalled();
+    expect(mockEnviarEmail).not.toHaveBeenCalled();
   });
 
   it('mas em /auth/reenviar ele continua honesto: la a senha ja foi provada', async () => {
@@ -137,57 +200,82 @@ describe('teto de envios', () => {
   });
 });
 
-describe('falha do provedor', () => {
-  it('recusa do Resend vira EMAIL_FALHOU', async () => {
-    send.mockResolvedValue({ error: { message: 'daily quota exceeded' } });
+describe('falha do SMTP', () => {
+  it('recusa do servidor vira EMAIL_FALHOU, e o codigo gravado sobrevive', async () => {
+    // Grava antes de enviar de proposito: codigo orfao no banco e inofensivo,
+    // codigo real numa caixa de entrada que o banco nao reconhece nao e.
+    mockEnviarEmail.mockRejectedValue(new EmailDeliveryError());
 
     await expect(
-      enviarConfirmacao({ kind: 'USER', id: 'user-1' }, 'Carlos', 'carlos@test.com')
-    ).rejects.toThrow(EmailDeliveryError);
-  });
-
-  it('o token gravado sobrevive a falha do envio, e o proximo pedido o invalida', async () => {
-    // Grava antes de enviar de proposito: token orfao no banco e inofensivo,
-    // link real numa caixa de entrada que o banco nao reconhece nao e.
-    send.mockResolvedValue({ error: { message: 'timeout' } });
-
-    await expect(
-      enviarConfirmacao({ kind: 'USER', id: 'user-1' }, 'Carlos', 'carlos@test.com')
+      enviarCodigo({ kind: 'USER', id: 'user-1' }, 'EMAIL_VERIFY', 'Carlos', 'carlos@test.com')
     ).rejects.toThrow(EmailDeliveryError);
 
     expect(tokens.create).toHaveBeenCalled();
   });
 });
 
-describe('consumo do link', () => {
-  it('libera a conta do usuario', async () => {
-    tokens.consume.mockResolvedValue({ user_id: 'user-1', manager_id: null } as never);
+describe('verificacao do codigo', () => {
+  it('codigo certo libera a conta do usuario', async () => {
+    tokens.findOpen.mockResolvedValue(makeRegistro());
 
-    await confirmationService.confirmar('cru');
+    await confirmationService.confirmar('carlos@test.com', CODIGO);
 
-    expect(tokens.consume).toHaveBeenCalledWith(hashToken('cru'));
-    expect(users.update).toHaveBeenCalledWith('user-1', {
-      email_verified_at: expect.any(Date),
-    });
+    expect(users.update).toHaveBeenCalledWith('user-1', { email_verified_at: expect.any(Date) });
   });
 
   it('libera a conta do gestor pelo mesmo caminho', async () => {
-    tokens.consume.mockResolvedValue({ user_id: null, manager_id: 'mgr-1' } as never);
+    tokens.findOpen.mockResolvedValue(makeRegistro({ user_id: null, manager_id: 'mgr-1' }));
 
-    await confirmationService.confirmar('cru');
+    await confirmationService.confirmar('gestor@test.com', CODIGO);
 
-    expect(managers.update).toHaveBeenCalledWith('mgr-1', {
-      email_verified_at: expect.any(Date),
-    });
+    expect(managers.update).toHaveBeenCalledWith('mgr-1', { email_verified_at: expect.any(Date) });
   });
 
-  it('link usado, expirado ou inexistente: TOKEN_INVALIDO e nada e liberado', async () => {
-    // `consume` devolve null nos tres casos — as condicoes estao no proprio UPDATE.
-    tokens.consume.mockResolvedValue(null);
+  it('codigo errado conta a tentativa e nao libera nada', async () => {
+    tokens.findOpen.mockResolvedValue(makeRegistro());
 
-    await expect(confirmationService.confirmar('cru')).rejects.toThrow(InvalidTokenError);
+    await expect(confirmationService.confirmar('carlos@test.com', '000000')).rejects.toThrow(
+      InvalidCodeError
+    );
+
+    expect(tokens.registerFailure).toHaveBeenCalledWith('tok-1', 0);
     expect(users.update).not.toHaveBeenCalled();
-    expect(managers.update).not.toHaveBeenCalled();
+  });
+
+  it('codigo vencido nao abre, e nem conta tentativa', async () => {
+    tokens.findOpen.mockResolvedValue(makeRegistro({ expires_at: new Date(Date.now() - 1000) }));
+
+    await expect(confirmationService.confirmar('carlos@test.com', CODIGO)).rejects.toThrow(
+      InvalidCodeError
+    );
+    expect(tokens.registerFailure).not.toHaveBeenCalled();
+  });
+
+  it('tentativas esgotadas fecham a porta mesmo para o codigo certo', async () => {
+    tokens.findOpen.mockResolvedValue(makeRegistro({ attempts: MAX_TENTATIVAS }));
+
+    await expect(confirmationService.confirmar('carlos@test.com', CODIGO)).rejects.toThrow(
+      InvalidCodeError
+    );
+    expect(users.update).not.toHaveBeenCalled();
+  });
+
+  it('sem registro aberto, o erro e o mesmo de codigo errado', async () => {
+    tokens.findOpen.mockResolvedValue(null);
+
+    await expect(confirmationService.confirmar('ninguem@test.com', CODIGO)).rejects.toThrow(
+      InvalidCodeError
+    );
+  });
+
+  it('perder a corrida do consumo nao libera a conta', async () => {
+    tokens.findOpen.mockResolvedValue(makeRegistro());
+    tokens.consume.mockResolvedValue(false);
+
+    await expect(confirmationService.confirmar('carlos@test.com', CODIGO)).rejects.toThrow(
+      InvalidCodeError
+    );
+    expect(users.update).not.toHaveBeenCalled();
   });
 });
 
@@ -199,17 +287,17 @@ describe('cadastro: uma resposta so', () => {
     const novo = await userService.create(dados);
 
     jest.clearAllMocks();
-      users.findByEmail.mockResolvedValue(makeAccount());
+    mockEnviarEmail.mockResolvedValue(undefined);
+    users.findByEmail.mockResolvedValue(makeAccount());
     const existente = await userService.create(dados);
 
     expect(existente).toEqual(novo);
-    // E o caminho da conta confirmada nao cria, nao altera e nao envia.
     expect(users.create).not.toHaveBeenCalled();
     expect(users.update).not.toHaveBeenCalled();
     expect(tokens.create).not.toHaveBeenCalled();
   });
 
-  it('conta nao confirmada e sobrescrita e ganha link novo', async () => {
+  it('conta nao confirmada e sobrescrita e ganha codigo novo', async () => {
     users.findByEmail.mockResolvedValue(makeAccount({ email_verified_at: null }));
     mockBcrypt.hash.mockResolvedValue('$2b$12$novo' as never);
 
@@ -225,9 +313,6 @@ describe('cadastro: uma resposta so', () => {
   it('a conta nasce sem acesso', async () => {
     users.create.mockResolvedValue(makeAccount({ email_verified_at: null }));
     await userService.create(dados);
-
-    // Nada de `email_verified_at` no insert: a coluna nasce nula, e e isso que
-    // segura o login ate o link ser aberto.
     expect(users.create.mock.calls[0][0]).not.toHaveProperty('email_verified_at');
   });
 
@@ -238,12 +323,10 @@ describe('cadastro: uma resposta so', () => {
 
     expect(r).toHaveProperty('ok', true);
     expect(users.create).not.toHaveBeenCalled();
-    expect(tokens.create).not.toHaveBeenCalled();
   });
 
   it('o cadastro de gestor segue as mesmas regras', async () => {
     users.findByEmail.mockResolvedValue(makeAccount());
-
     const r = await managerService.create(dados);
 
     expect(r).toHaveProperty('ok', true);
@@ -263,8 +346,7 @@ describe('honeypot', () => {
     expect(r).toHaveProperty('ok', true);
     expect(users.findByEmail).not.toHaveBeenCalled();
     expect(users.create).not.toHaveBeenCalled();
-    expect(tokens.create).not.toHaveBeenCalled();
-    expect(send).not.toHaveBeenCalled();
+    expect(mockEnviarEmail).not.toHaveBeenCalled();
   });
 
   it('vale igual no cadastro de gestor', async () => {
@@ -333,7 +415,7 @@ describe('reenvio', () => {
     expect(tokens.create).not.toHaveBeenCalled();
   });
 
-  it('com a senha certa, manda outro link', async () => {
+  it('com a senha certa, manda outro codigo', async () => {
     users.findByEmail.mockResolvedValue(makeAccount({ email_verified_at: null }));
     mockBcrypt.compare.mockResolvedValue(true as never);
 
@@ -341,7 +423,7 @@ describe('reenvio', () => {
     expect(tokens.create).toHaveBeenCalled();
   });
 
-  it('conta ja confirmada nao gera link novo', async () => {
+  it('conta ja confirmada nao gera codigo novo', async () => {
     users.findByEmail.mockResolvedValue(makeAccount());
     mockBcrypt.compare.mockResolvedValue(true as never);
 

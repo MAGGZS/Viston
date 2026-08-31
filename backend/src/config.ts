@@ -50,7 +50,7 @@ export const config = {
   },
 
   /**
-   * O envio do link de confirmação.
+   * O envio dos códigos por e-mail, via SMTP do Gmail.
    *
    * Obrigatórias sempre, e não só em produção. A máquina de quem desenvolve
    * roda contra os mesmos dados da nuvem (ver o comentário do arquivo de
@@ -58,16 +58,22 @@ export const config = {
    * antes do deploy: o defeito aparece na primeira pessoa que se cadastra em
    * produção, não em quem escreveu o código.
    *
-   * O preço é o backend não subir sem as três. É o preço certo — o mesmo que
+   * O preço é o backend não subir sem elas. É o preço certo — o mesmo que
    * `JWT_SECRET` cobra desde sempre, e pela mesma razão.
    *
-   * `appUrl` é a base do link que vai no e-mail, e por isso é a URL do
-   * frontend, não a da API: quem clica cai numa tela, não num endpoint.
+   * `SMTP_APP_PASSWORD` é a senha de app do Google, de 16 caracteres, e nunca a
+   * senha da conta: ela vale só para SMTP, é revogável sozinha, e a conta segue
+   * protegida pelo segundo fator.
    */
-  email: {
-    appUrl: required('APP_URL'),
-    resendApiKey: required('RESEND_API_KEY'),
-    from: required('EMAIL_FROM'),
+  smtp: {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '465', 10),
+    user: required('SMTP_USER'),
+    appPassword: required('SMTP_APP_PASSWORD'),
+    // O remetente cai no próprio usuário quando não é dito: o Gmail recusa
+    // mandar em nome de endereço que não seja o da conta, então um `from`
+    // diferente do `user` é erro de configuração, não uma opção.
+    from: process.env.SMTP_FROM || `Viston <${required('SMTP_USER')}>`,
   },
 
   cors: {

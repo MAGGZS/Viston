@@ -44,19 +44,18 @@ services:
         value: 7d
       - key: FRONTEND_URL
         sync: false
-      # Base do link de confirmação: a URL do frontend, não a da API — quem
-      # clica no e-mail cai numa tela, não num endpoint.
-      - key: APP_URL
+      # Gmail SMTP. `sync: false` — o valor entra pelo painel, e segredo
+      # nenhum mora neste arquivo. A senha de app é a de 16 caracteres gerada
+      # em myaccount.google.com/apppasswords, nunca a senha da conta.
+      # Use uma senha de app por lugar: revogar a do Render não derruba a da
+      # máquina de quem desenvolve.
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_USER
         sync: false
-      # Chave do Resend. `sending_access`, nunca `full_access`, e uma por lugar:
-      # a do Render não é a mesma da máquina de quem desenvolve, para revogar
-      # uma não derrubar a outra. `sync: false` — o valor entra pelo painel, e
-      # segredo nenhum mora neste arquivo.
-      - key: RESEND_API_KEY
+      - key: SMTP_APP_PASSWORD
         sync: false
-      # Remetente. Precisa ser de domínio verificado no Resend; sem domínio, o
-      # único valor que funciona é "onboarding@resend.dev", e ele só entrega no
-      # e-mail da própria conta Resend — o cadastro aberto não atende mais
-      # ninguém até um domínio existir.
-      - key: EMAIL_FROM
+      - key: SMTP_FROM
         sync: false

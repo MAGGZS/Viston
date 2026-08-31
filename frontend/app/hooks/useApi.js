@@ -125,26 +125,57 @@ export function useLogin() {
 }
 
 /**
- * Consome o link que chegou no e-mail.
+ * Confirma o e-mail com o código de 6 dígitos.
  *
- * O token vai no corpo, e não na URL da API: query string aparece em log de
- * servidor, em histórico e em cabeçalho `Referer`, e este valor é a chave da
- * conta até ser usado. Ele já viaja na URL da nossa própria tela porque não há
- * outro jeito de um link carregar dado — daí para a API, vai no corpo.
+ * O código vai no corpo, e não na URL: query string aparece em log de servidor,
+ * em histórico e em cabeçalho `Referer`, e este valor é a chave da conta até ser
+ * usado.
  */
 export function useConfirmEmail() {
   return useMutation({
-    mutationFn: (token) => api.post('/auth/confirmar', { token }).then((r) => r.data),
+    mutationFn: (data) => api.post('/auth/confirmar', data).then((r) => r.data),
   });
 }
 
 /**
- * Pede outro link. Exige a senha — sem ela, seria um botão para disparar e-mail
- * em nome de qualquer endereço cadastrado.
+ * Pede outro código. Exige a senha — sem ela, seria um botão para disparar
+ * e-mail em nome de qualquer endereço cadastrado.
  */
 export function useResendConfirmation() {
   return useMutation({
     mutationFn: (data) => api.post('/auth/reenviar', data).then((r) => r.data),
+  });
+}
+
+/**
+ * Esqueci minha senha.
+ *
+ * A resposta é a mesma para endereço com conta e sem conta — a tela não decide
+ * nada com base nela, e é isso que impede o formulário de virar um verificador
+ * de quais e-mails estão cadastrados.
+ */
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (email) => api.post('/auth/senha/esqueci', { email }).then((r) => r.data),
+  });
+}
+
+/**
+ * Confere o código de redefinição sem gastá-lo.
+ *
+ * Existe para a tela validar antes de pedir a senha nova: sem isto, quem
+ * digitasse o código errado só descobriria depois de escolher a senha.
+ */
+export function useVerifyResetCode() {
+  return useMutation({
+    mutationFn: (data) => api.post('/auth/senha/verificar', data).then((r) => r.data),
+  });
+}
+
+/** Troca a senha. O backend derruba todas as sessões abertas da conta. */
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: (data) => api.post('/auth/senha/redefinir', data).then((r) => r.data),
   });
 }
 

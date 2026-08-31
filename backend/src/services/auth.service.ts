@@ -4,7 +4,7 @@ import { managerRepository } from '../repositories/manager.repository';
 import { auditRepository, buildingRepository } from '../repositories/building.repository';
 import { AccountKind, signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/jwt';
 import { EmailNotConfirmedError, UnauthorizedError } from '../utils/errors';
-import { enviarConfirmacao, normalizeEmail } from './confirmation.service';
+import { enviarCodigo, normalizeEmail } from './confirmation.service';
 import { hashPassword, needsRehash } from '../utils/password';
 import { Actor } from '../middlewares/authenticate';
 import { AuditAction } from '@prisma/client';
@@ -154,7 +154,7 @@ export const authService = {
     if (!(await bcrypt.compare(password, account.password_hash))) return;
     if (account.email_verified_at) return;
 
-    await enviarConfirmacao({ kind: account.kind, id: account.id }, account.name, email);
+    await enviarCodigo({ kind: account.kind, id: account.id }, 'EMAIL_VERIFY', account.name, email);
   },
 
   /**

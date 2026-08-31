@@ -94,6 +94,9 @@ export default function LoginPage() {
       subtitle="Acesse as vistorias do prédio em que você trabalha."
       footer={
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <p style={S.footer}>
+            <a href="/senha" style={S.link}>Esqueci minha senha</a>
+          </p>
           <p style={S.footer}>Não tem conta?{' '}<a href="/register" style={S.link}>Criar conta</a></p>
           <p style={S.footer}>
             Vai administrar um prédio?{' '}
@@ -147,7 +150,7 @@ export default function LoginPage() {
             </p>
             {reenviado ? (
               <p style={{ color: T.mute, fontSize: 13, marginTop: 8, lineHeight: 1.6 }}>
-                Enviamos outro link. Verifique sua caixa de entrada.
+                Enviamos outro código. Verifique sua caixa de entrada.
               </p>
             ) : (
               <button
@@ -160,9 +163,24 @@ export default function LoginPage() {
                   ? `Reenviar em ${segundosAteReenviar}s`
                   : reenvio.isPending
                     ? 'Reenviando...'
-                    : 'Reenviar confirmação'}
+                    : 'Reenviar código'}
               </button>
             )}
+            {/*
+              Quem já tem o código na caixa de entrada não precisa de outro: o
+              caminho dele é digitar o que recebeu. O e-mail vai na URL porque
+              é o dele, acabou de ser digitado nesta tela, e a tela de destino
+              precisa dele para conferir o código.
+            */}
+            <button
+              type="button"
+              onClick={() =>
+                router.push(`/confirmar?email=${encodeURIComponent(ultimaTentativa?.email ?? '')}`)
+              }
+              style={{ ...S.btnSecundario, marginTop: 8 }}
+            >
+              Já tenho o código
+            </button>
           </div>
         ) : (
           apiError && <div role="alert" style={S.errBox}><p style={{ color: T.danger, fontSize: 14 }}>{apiError}</p></div>

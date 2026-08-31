@@ -2,7 +2,7 @@ import { userService } from '../services/user.service';
 import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { emailTokenRepository } from '../repositories/emailToken.repository';
-import { resend } from '../lib/resend';
+import { enviarEmail } from '../lib/mailer';
 import { buildingRepository } from '../repositories/building.repository';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { submitInspectionSchema } from '../validators/inspection.validator';
@@ -15,17 +15,17 @@ jest.mock('../repositories/user.repository');
 // O serviço consulta os vínculos antes de apagar uma conta: prédio não pode
 // ficar sem gestor (ver assertNotSoleManager).
 jest.mock('../repositories/building.repository');
-// O cadastro passou a olhar a outra tabela de conta e a emitir o link de
-// confirmação. Sem estes três, o serviço cairia no Prisma de verdade.
+// O cadastro passou a olhar a outra tabela de conta e a emitir o código de
+// confirmação. Sem estes três, o serviço cairia no Prisma e no SMTP de verdade.
 jest.mock('../repositories/manager.repository');
 jest.mock('../repositories/emailToken.repository');
-jest.mock('../lib/resend');
+jest.mock('../lib/mailer');
 jest.mock('bcrypt');
 
 const mockUserRepo = userRepository as jest.Mocked<typeof userRepository>;
 const mockManagerRepo = managerRepository as jest.Mocked<typeof managerRepository>;
 const mockTokens = emailTokenRepository as jest.Mocked<typeof emailTokenRepository>;
-const mockResend = resend as jest.MockedFunction<typeof resend>;
+const mockEnviarEmail = enviarEmail as jest.MockedFunction<typeof enviarEmail>;
 const mockBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
 
 function makeUser(overrides = {}) {
@@ -51,10 +51,9 @@ describe('userService.create', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // O envio tem suíte própria em `confirmation.test.ts`; aqui ele só precisa
-    // não atrapalhar. Não há mais modo "sem provedor" para desviar dele.
-    mockResend.mockReturnValue({
-      emails: { send: jest.fn().mockResolvedValue({ error: null }) },
-    } as any);
+    // não atrapalhar.
+    mockEnviarEmail.mockResolvedValue(undefined);
+    mockTokens.lastSentAt.mockResolvedValue(null);
     mockManagerRepo.findByEmail.mockResolvedValue(null);
     mockTokens.countRecent.mockResolvedValue(0);
     mockTokens.invalidateOpen.mockResolvedValue({ count: 0 } as any);

@@ -62,20 +62,20 @@ export class EmailNotConfirmedError extends AppError {
 }
 
 /**
- * Link de confirmação que não abre.
+ * Código que não abre.
  *
- * Um código só para os três casos — nunca existiu, já foi usado, passou das 24
- * horas — porque separá-los diria a quem tenta adivinhar qual das três coisas
- * ele acertou. Para quem clicou de boa-fé, os três levam ao mesmo lugar: pedir
- * outro link.
+ * Um código de erro só para os quatro casos — nunca existiu, já foi usado,
+ * venceu, tentativas esgotadas — porque separá-los diria a quem chuta qual das
+ * quatro coisas ele acertou. Para quem digitou de boa-fé, os quatro levam ao
+ * mesmo lugar: pedir outro código.
  */
-export class InvalidTokenError extends AppError {
+export class InvalidCodeError extends AppError {
   constructor() {
-    super('TOKEN_INVALIDO', 'Link inválido ou expirado', 400);
+    super('CODIGO_INVALIDO', 'Código inválido ou expirado', 400);
   }
 }
 
-/** Envios demais para o mesmo endereço na última hora. */
+/** Pedidos demais para o mesmo endereço, por intervalo ou por hora. */
 export class TooManyEmailsError extends AppError {
   constructor() {
     super('LIMITE', 'Muitas tentativas. Aguarde alguns minutos.', 429);
@@ -83,11 +83,11 @@ export class TooManyEmailsError extends AppError {
 }
 
 /**
- * O Resend recusou a mensagem.
+ * O servidor de e-mail recusou a mensagem.
  *
  * 502 e não 500: o que falhou está fora daqui, e a diferença importa para quem
- * lê o log às três da manhã. Cota diária estourada cai aqui, e é o caminho mais
- * provável de todos no plano gratuito.
+ * lê o log às três da manhã. Senha de app revogada e cota diária do Gmail
+ * estourada caem os dois aqui.
  */
 export class EmailDeliveryError extends AppError {
   constructor() {

@@ -2,11 +2,21 @@ import { config } from './config';
 import app from './app';
 import { prisma } from './lib/prisma';
 import { logger } from './lib/logger';
+import { verificarSmtp } from './lib/mailer';
 
 async function bootstrap() {
   try {
     await prisma.$connect();
     logger.info('Banco de dados conectado');
+
+    // Confere o SMTP agora, e não no primeiro cadastro de alguém.
+    //
+    // Senha de app revogada é a falha mais provável aqui, e sem esta checagem
+    // ela só apareceria quando um usuário tentasse criar conta — em produção,
+    // na cara dele. Não segura a subida: o resto da API não depende de e-mail,
+    // e ficar fora do ar inteiro porque o Gmail recusou seria trocar um defeito
+    // por um pior. O que ela faz é gritar no log, na hora certa.
+    void verificarSmtp();
 
     app.listen(config.port, () => {
       logger.info(

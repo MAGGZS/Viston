@@ -3,8 +3,10 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { Eye, EyeOff, MailCheck } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { AuthShell } from '@/app/components/AuthShell';
+import { ConfirmarCodigo } from '@/app/components/ConfirmarCodigo';
 import { useUnsavedFlag } from '@/app/hooks/useUnsavedGuard';
 import { useCreateUser } from '@/app/hooks/useApi';
 import { T, R } from '@/app/lib/theme';
@@ -29,6 +31,7 @@ const S = {
 };
 
 export default function RegisterPage() {
+  const router = useRouter();
   const createUser = useCreateUser();
   // Campos vazios declarados: sem eles `isDirty` nunca volta a falso, e o
   // cadastro passa a perguntar "descartar alterações?" ao sair mesmo com tudo
@@ -38,14 +41,19 @@ export default function RegisterPage() {
     defaultValues: { name: '', email: '', password: '', password_confirmation: '', website: '' },
   });
 
-  const [enviado, setEnviado] = useState(false);
+  // As credenciais do cadastro, guardadas para o passo do código.
+  //
+  // O e-mail nunca aparece na tela: a tela de sucesso não pode dizer nem qual
+  // endereço recebeu nem se a conta é nova — é a mesma regra da resposta única
+  // do backend. A senha fica só para o botão de reenviar, que a exige.
+  const [credenciais, setCredenciais] = useState(null);
 
   // Sair da tela com o cadastro pela metade — pelo link de entrar, por um
   // recarregar — passa a perguntar antes (ver components/UnsavedGuard.js).
   // Depois de enviado não há mais o que descartar: os campos ainda estão
   // preenchidos por baixo, e sem o `!enviado` a tela de sucesso perguntaria
   // "descartar alterações?" a quem só quer ir ler o e-mail.
-  useUnsavedFlag(isDirty && !enviado);
+  useUnsavedFlag(isDirty && !credenciais);
   const [showPassword, setShowPassword] = useState(false);
 
   /**
@@ -62,7 +70,7 @@ export default function RegisterPage() {
   async function onSubmit({ password_confirmation, ...data }) {
     try {
       await createUser.mutateAsync(data);
-      setEnviado(true);
+      setCredenciais({ email: data.email, senha: data.password });
     } catch {}
   }
 
@@ -84,10 +92,10 @@ export default function RegisterPage() {
    * sido em vão. Sem redirecionamento automático também — o próximo passo não é
    * nesta aba, é na caixa de entrada.
    */
-  if (enviado) {
+  if (credenciais) {
     return (
       <AuthShell
-        title="Verifique seu e-mail"
+        title="Confirme seu e-mail"
         footer={
           <p style={{ color: T.faint, fontSize: 14 }}>
             Já confirmou?{' '}
@@ -95,16 +103,11 @@ export default function RegisterPage() {
           </p>
         }
       >
-        <div role="status" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center' }}>
-          <MailCheck size={40} color={T.accentInk} aria-hidden="true" />
-          <p style={{ color: T.mute, fontSize: 14, lineHeight: 1.6 }}>
-            Enviamos um link de confirmação para o endereço informado. Abra o
-            e-mail para liberar seu acesso.
-          </p>
-          <p style={{ color: T.faint, fontSize: 13, lineHeight: 1.6 }}>
-            O link expira em 24 horas.
-          </p>
-        </div>
+        <ConfirmarCodigo
+          email={credenciais.email}
+          senha={credenciais.senha}
+          aoConfirmar={() => router.replace('/login?confirmado=1')}
+        />
       </AuthShell>
     );
   }

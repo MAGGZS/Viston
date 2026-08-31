@@ -1,87 +1,77 @@
 'use client';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CheckCircle2, XCircle } from 'lucide-react';
 import { AuthShell } from '@/app/components/AuthShell';
-import { useConfirmEmail } from '@/app/hooks/useApi';
+import { ConfirmarCodigo } from '@/app/components/ConfirmarCodigo';
 import { T, R } from '@/app/lib/theme';
 
-const SEGUNDOS_ATE_O_LOGIN = 3;
-
 const S = {
-  box: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center' },
-  texto: { color: T.mute, fontSize: 14, lineHeight: 1.6 },
+  campo: { display: 'flex', flexDirection: 'column', gap: 6 },
+  rotulo: { fontSize: 12, fontWeight: 400, color: T.mute },
+  input: {
+    background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent',
+    borderRadius: R.control, padding: '13px 16px', color: T.text, fontSize: 16,
+    outline: 'none', width: '100%',
+  },
   btn: {
     width: '100%', background: T.accent, color: T.onAccent, fontWeight: 500, fontSize: 15,
-    padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 8,
+    padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4,
   },
 };
 
 /**
- * O que a tela faz assim que abre: troca o token pelo acesso.
+ * A tela para quem chegou aqui sem vir do cadastro.
  *
- * Sem formulário e sem botão de confirmar. Quem chegou aqui já clicou uma vez,
- * no e-mail; pedir um segundo clique só adiaria a mesma coisa.
+ * O caminho comum é o cadastro, que já traz o campo do código na própria tela de
+ * sucesso e não passa por aqui. Esta existe para quem tentou entrar e levou o
+ * 403 de e-mail não confirmado, e para quem fechou a aba no meio.
+ *
+ * O e-mail vem por `?email=` quando o login já o conhece; sem ele, a pessoa
+ * digita. Nada de token na URL — o que se digita é o código, e ele vai no corpo
+ * da requisição.
  */
 function Confirmacao() {
   const router = useRouter();
-  const token = useSearchParams().get('token');
-  const { mutate, isSuccess, isError, isPending } = useConfirmEmail();
+  const emailDaUrl = useSearchParams().get('email') ?? '';
+  const [email, setEmail] = useState(emailDaUrl);
+  const [confirmando, setConfirmando] = useState(Boolean(emailDaUrl));
 
-  // O React roda o efeito duas vezes em desenvolvimento (StrictMode), e o
-  // segundo disparo encontraria o link já consumido pelo primeiro — sucesso
-  // viraria "link inválido" só na máquina de quem desenvolve. Uma trava por
-  // montagem resolve, e não custa nada em produção.
-  const jaPediu = useRef(false);
-
-  useEffect(() => {
-    if (!token || jaPediu.current) return;
-    jaPediu.current = true;
-    mutate(token);
-  }, [token, mutate]);
-
-  // Depois de liberar o acesso, o caminho é o login: confirmar não cria sessão,
-  // porque quem clicou pode estar noutro aparelho, ou num link encaminhado.
-  useEffect(() => {
-    if (!isSuccess) return;
-    const t = setTimeout(() => router.replace('/login'), SEGUNDOS_ATE_O_LOGIN * 1000);
-    return () => clearTimeout(t);
-  }, [isSuccess, router]);
-
-  const falhou = isError || !token;
-
-  if (isPending || (!falhou && !isSuccess)) {
+  if (!confirmando) {
     return (
-      <div style={S.box} role="status">
-        <p style={S.texto}>Confirmando seu e-mail...</p>
-      </div>
-    );
-  }
-
-  if (falhou) {
-    return (
-      <div style={S.box} role="alert">
-        <XCircle size={40} color={T.danger} aria-hidden="true" />
-        <p style={S.texto}>
-          Link inválido ou expirado. Entre com sua conta para pedir outro.
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (email.trim()) setConfirmando(true);
+        }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+      >
+        <p style={{ color: T.mute, fontSize: 14, lineHeight: 1.6 }}>
+          Informe o e-mail que você usou no cadastro para digitar o código.
         </p>
-        <button type="button" onClick={() => router.replace('/login')} style={S.btn}>
-          Ir para o login
+        <div style={S.campo}>
+          <label htmlFor="email" style={S.rotulo}>E-mail</label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            placeholder="seu@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            style={S.input}
+          />
+        </div>
+        <button type="submit" disabled={!email.trim()} style={{ ...S.btn, opacity: email.trim() ? 1 : 0.6 }}>
+          Continuar
         </button>
-      </div>
+      </form>
     );
   }
 
   return (
-    <div style={S.box} role="status">
-      <CheckCircle2 size={40} color={T.accentInk} aria-hidden="true" />
-      <p style={S.texto}>
-        Acesso liberado. Levando você ao login...
-      </p>
-      <button type="button" onClick={() => router.replace('/login')} style={S.btn}>
-        Entrar agora
-      </button>
-    </div>
+    // Sem `senha`, o botão de reenviar não aparece: o endpoint a exige, e quem
+    // chega por aqui não a digitou nesta tela. Para reenviar, a pessoa tenta
+    // entrar — o login pede a senha e oferece o reenvio ali.
+    <ConfirmarCodigo email={email} aoConfirmar={() => router.replace('/login?confirmado=1')} />
   );
 }
 
@@ -92,8 +82,17 @@ function Confirmacao() {
  */
 export default function ConfirmarPage() {
   return (
-    <AuthShell title="Confirmação de e-mail">
-      <Suspense fallback={<p style={S.texto}>Confirmando seu e-mail...</p>}>
+    <AuthShell
+      title="Confirme seu e-mail"
+      footer={
+        <p style={{ color: T.faint, fontSize: 14 }}>
+          <a href="/login" style={{ color: T.accentInk, fontWeight: 500, textDecoration: 'none' }}>
+            Voltar para o login
+          </a>
+        </p>
+      }
+    >
+      <Suspense fallback={<p style={{ color: T.mute, fontSize: 14 }}>Carregando...</p>}>
         <Confirmacao />
       </Suspense>
     </AuthShell>

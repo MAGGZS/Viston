@@ -133,18 +133,18 @@ enum AuditAction {
 // ─────────────────────────────────────────────
 
 model User {
-  id            String      @id @default(uuid())
-  name          String
-  email         String      @unique
-  password_hash String
-  role          AccountRole @default(NONE)
-  avatar_url    String?
-  status        UserStatus  @default(ACTIVE)
+  id                String      @id @default(uuid())
+  name              String
+  email             String      @unique
+  password_hash     String
+  role              AccountRole @default(NONE)
+  avatar_url        String?
+  status            UserStatus  @default(ACTIVE)
   /// Geração das sessões desta conta. O refresh token carrega o número que
   /// valia quando foi emitido; incrementar aqui derruba todos os que já
   /// existem — é o que faz sair, trocar de senha e excluir a conta valerem de
   /// verdade, em vez de só apagar o token do navegador de quem saiu.
-  token_version Int         @default(0)
+  token_version     Int         @default(0)
   /// Quando o dono do endereço provou ser o dono, clicando no link enviado.
   ///
   /// Nulo é conta que existe e não entra: o login para no 403 depois de
@@ -152,17 +152,17 @@ model User {
   /// um segundo cadastro no mesmo e-mail sobrescrever nome e senha — ninguém
   /// provou ser dono ainda, e a conta não tem dado nenhum.
   email_verified_at DateTime?
-  created_at    DateTime    @default(now())
-  updated_at    DateTime    @updatedAt
+  created_at        DateTime    @default(now())
+  updated_at        DateTime    @updatedAt
 
-  email_tokens    EmailToken[]
-  inspections     InspectionReport[]
-  audit_logs      AuditLog[]
-  building_members  BuildingMember[]       @relation("BuildingMembers")
-  access_requests   BuildingAccessRequest[] @relation("BuildingAccessRequests")
-  feedbacks         Feedback[]
-  assigned_records  MaintenanceRecord[]    @relation("RecordResponsible")
-  closed_records    MaintenanceRecord[]    @relation("RecordClosedBy")
+  email_tokens     EmailToken[]
+  inspections      InspectionReport[]
+  audit_logs       AuditLog[]
+  building_members BuildingMember[]        @relation("BuildingMembers")
+  access_requests  BuildingAccessRequest[] @relation("BuildingAccessRequests")
+  feedbacks        Feedback[]
+  assigned_records MaintenanceRecord[]     @relation("RecordResponsible")
+  closed_records   MaintenanceRecord[]     @relation("RecordClosedBy")
 
   @@map("users")
 }
@@ -180,19 +180,19 @@ model User {
 /// O e-mail é único aqui e em `users`, e a checagem cruzada é da aplicação
 /// (Postgres não faz unique entre tabelas) — ver `accountRepository.findByEmail`.
 model Manager {
-  id            String     @id @default(uuid())
-  name          String
-  email         String     @unique
-  password_hash String
-  avatar_url    String?
-  status        UserStatus @default(ACTIVE)
+  id                String     @id @default(uuid())
+  name              String
+  email             String     @unique
+  password_hash     String
+  avatar_url        String?
+  status            UserStatus @default(ACTIVE)
   /// Mesma geração de sessões da conta de usuário — ver `User.token_version`.
-  token_version Int        @default(0)
+  token_version     Int        @default(0)
   /// Mesma confirmação da conta de usuário — ver `User.email_verified_at`.
   /// Gestor não tem passe livre: cadastro de gestor também é público.
   email_verified_at DateTime?
-  created_at    DateTime   @default(now())
-  updated_at    DateTime   @updatedAt
+  created_at        DateTime   @default(now())
+  updated_at        DateTime   @updatedAt
 
   email_tokens      EmailToken[]
   created_buildings Building[]        @relation("BuildingCreator")
@@ -203,33 +203,44 @@ model Manager {
   @@map("managers")
 }
 
-/// O link de confirmação, guardado como hash.
+/// Para que o código serve. Ver o comentário da migration `otp_e_recuperacao`.
+enum TokenPurpose {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+
+/// O código de 6 dígitos enviado por e-mail, guardado como hash.
 ///
-/// O valor cru vive só dentro do e-mail: aqui fica `sha256` dele. Quem ler o
-/// banco inteiro não consegue confirmar conta nenhuma, que é o ponto.
+/// O valor legível vive só dentro da mensagem: aqui fica `sha256` dele. Quem
+/// ler o banco inteiro não confirma conta nem troca senha de ninguém.
 ///
 /// Dois donos possíveis porque o sistema tem duas tabelas de conta. Exatamente
 /// uma das duas colunas é preenchida — o CHECK `email_tokens_one_owner`, na
 /// migration, é quem garante isso; o Prisma não modela CHECK.
 model EmailToken {
-  id         String    @id @default(uuid())
+  id         String       @id @default(uuid())
+  purpose    TokenPurpose @default(EMAIL_VERIFY)
   user_id    String?
   manager_id String?
-  /// O endereço para onde este link foi. Guardado à parte da conta porque é
-  /// por ele que o teto de envios por hora conta, antes mesmo de saber quem é.
+  /// O endereço para onde o código foi. Guardado à parte da conta porque é por
+  /// ele que o teto de envios por hora conta, antes mesmo de saber quem é.
   email      String
-  token_hash String    @unique
+  code_hash  String?
   expires_at DateTime
-  /// Carimbado no consumo e também quando um link novo é emitido: só o mais
-  /// recente vale. Nulo é o único estado em que o link ainda abre.
+  /// Chutes errados. No quinto o registro morre — é isto, e não o prazo, que
+  /// torna a força bruta inviável contra seis dígitos.
+  attempts   Int          @default(0)
+  /// Carimbado no consumo e também quando um código novo é emitido: só o mais
+  /// recente vale. Nulo é o único estado em que o código ainda abre.
   used_at    DateTime?
-  created_at DateTime  @default(now())
+  created_at DateTime     @default(now())
 
   user    User?    @relation(fields: [user_id], references: [id], onDelete: Cascade)
   manager Manager? @relation(fields: [manager_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([manager_id])
+  @@index([email, purpose, used_at, created_at(sort: Desc)], map: "email_tokens_lookup_idx")
   @@map("email_tokens")
 }
 
@@ -242,13 +253,13 @@ model Building {
   // quem administra está em `managers`. Fica nulo se a conta sumir.
   created_by  String?
 
-  creator     Manager?               @relation("BuildingCreator", fields: [created_by], references: [id], onDelete: SetNull)
-  floors      Floor[]
-  inspections InspectionReport[]
-  managers    BuildingManager[]
-  members     BuildingMember[]
+  creator         Manager?                @relation("BuildingCreator", fields: [created_by], references: [id], onDelete: SetNull)
+  floors          Floor[]
+  inspections     InspectionReport[]
+  managers        BuildingManager[]
+  members         BuildingMember[]
   access_requests BuildingAccessRequest[]
-  audit_logs  AuditLog[]
+  audit_logs      AuditLog[]
 
   @@map("buildings")
 }
@@ -296,11 +307,11 @@ model BuildingMember {
 }
 
 model BuildingAccessRequest {
-  id          String    @id @default(uuid())
-  building_id String
-  user_id     String
-  status      String    @default("PENDING")
-  requested_at DateTime @default(now())
+  id           String    @id @default(uuid())
+  building_id  String
+  user_id      String
+  status       String    @default("PENDING")
+  requested_at DateTime  @default(now())
   reviewed_at  DateTime?
 
   building Building @relation(fields: [building_id], references: [id], onDelete: Cascade)
@@ -311,11 +322,11 @@ model BuildingAccessRequest {
 }
 
 model Floor {
-  id          String  @id @default(uuid())
+  id          String @id @default(uuid())
   building_id String
   label       String
 
-  building          Building           @relation(fields: [building_id], references: [id], onDelete: Cascade)
+  building           Building         @relation(fields: [building_id], references: [id], onDelete: Cascade)
   floor_form_entries FloorFormEntry[]
 
   @@unique([building_id, label])
@@ -458,20 +469,20 @@ model Feedback {
 }
 
 model AuditLog {
-  id        String      @id @default(uuid())
+  id          String      @id @default(uuid())
   // Quem agiu. Exatamente um dos dois é preenchido: a ação partiu de uma conta
   // de usuário ou de uma conta de gestor, e elas vivem em tabelas diferentes.
-  user_id   String?
-  manager_id String?
+  user_id     String?
+  manager_id  String?
   // Prédio a que o registro pertence, quando houver: é o que permite ao gestor
   // ver a trilha do prédio dele em vez da do sistema inteiro. Login, logout e
   // mexida em conta não têm prédio, e ficam nulos.
   building_id String?
-  action    AuditAction
-  entity    String?
-  entity_id String?
-  metadata  Json?
-  timestamp DateTime    @default(now())
+  action      AuditAction
+  entity      String?
+  entity_id   String?
+  metadata    Json?
+  timestamp   DateTime    @default(now())
 
   user     User?     @relation(fields: [user_id], references: [id])
   manager  Manager?  @relation(fields: [manager_id], references: [id], onDelete: SetNull)

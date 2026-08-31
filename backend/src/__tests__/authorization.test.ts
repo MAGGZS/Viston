@@ -7,10 +7,10 @@ jest.mock('../repositories/manager.repository');
 jest.mock('../repositories/inspection.repository');
 jest.mock('../repositories/user.repository');
 jest.mock('../repositories/ticket.repository');
-// O cadastro emite o link de confirmação. Sem estes dois, ele cairia no Prisma
-// e no Resend de verdade a cada teste que posta em /users ou /managers.
+// O cadastro emite o código de confirmação. Sem estes dois, ele cairia no Prisma
+// e no SMTP de verdade a cada teste que posta em /users ou /managers.
 jest.mock('../repositories/emailToken.repository');
-jest.mock('../lib/resend');
+jest.mock('../lib/mailer');
 jest.mock('../services/excel.service');
 jest.mock('../services/storage.service');
 
@@ -20,7 +20,7 @@ import { inspectionRepository } from '../repositories/inspection.repository';
 import { ticketRepository } from '../repositories/ticket.repository';
 import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
-import { resend } from '../lib/resend';
+import { enviarEmail } from '../lib/mailer';
 import { storageService } from '../services/storage.service';
 import { signAccessToken } from '../utils/jwt';
 
@@ -109,11 +109,9 @@ function chamadoDoPredio(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  // O cadastro publico emite o link de confirmacao, e nao existe mais desvio
-  // que pule o envio: o cliente do Resend precisa responder alguma coisa.
-  (resend as jest.MockedFunction<typeof resend>).mockReturnValue({
-    emails: { send: jest.fn().mockResolvedValue({ error: null }) },
-  } as any);
+  // O cadastro publico emite o codigo de confirmacao: o mailer precisa
+  // responder alguma coisa, senao o envio real seria tentado.
+  (enviarEmail as jest.MockedFunction<typeof enviarEmail>).mockResolvedValue(undefined);
   (auditRepository.log as jest.Mock) = jest.fn().mockResolvedValue(undefined);
   mockBuildingRepo.findById.mockResolvedValue(building as any);
   mockTicketRepo.findByBuilding.mockResolvedValue([[], 0] as any);
