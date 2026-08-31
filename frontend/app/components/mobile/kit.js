@@ -2,6 +2,7 @@
 import { useId } from 'react';
 import { T, R } from '@/app/lib/theme';
 import { Select } from '@/app/components/ui';
+import { useDirecaoDaTela } from '@/app/lib/telaMovel';
 
 /**
  * Componentes das telas mobile.
@@ -19,19 +20,38 @@ export const CONTENT_ID = 'conteudo';
 /**
  * Tela: fundo preto e espaço para a barra inferior.
  *
- * Sem `className` de propósito. As classes de animação terminam com um
- * `transform` aplicado (o `both` do fill-mode mantém o último quadro), e
- * elemento com transform vira bloco de contenção: a barra inferior, que é
- * `position: fixed`, passaria a se posicionar em relação a ele em vez da
- * janela. Quem anima aqui são os filhos.
+ * Ela desliza ao entrar, pelo lado em que está na barra de baixo (ver
+ * `useDirecaoDaTela`): ir para a direita traz a tela nova da direita, voltar
+ * traz da esquerda. Sem isso, trocar de tela é um corte seco, e num telefone,
+ * onde a tela inteira muda de uma vez, o corte não diz se a pessoa avançou ou
+ * voltou — ela confere o ícone aceso para saber onde caiu.
+ *
+ * Quem anda é o conteúdo, e não o `<main>`: o fundo fica parado e a tela nova
+ * passa por cima dele, em vez de o próprio fundo escorregar e descobrir o que
+ * há atrás. E o `<main>` recorta o que sai pela borda, senão a tela que vem da
+ * direita alarga a página e o telefone ganha rolagem horizontal — foi o que
+ * aconteceu com os cartões da fila "Concluídos" do responsável.
+ *
+ * `clip` e não `hidden`: com `hidden` num eixo, o outro vira `auto`, e o
+ * `<main>` viraria um contentor de rolagem próprio dentro da página.
+ *
+ * A barra inferior é portada para o `<body>` (ver `BottomNav`), e não é
+ * elegância: elemento com `transform` vira bloco de contenção, e filho
+ * `position: fixed` passa a se posicionar em relação a ele em vez da janela —
+ * a barra viajaria com a tela e depois pararia no lugar errado. As classes de
+ * deslizar usam `animation-fill-mode: backwards` para não deixar transform
+ * nenhum quando acabam, mas durante os 380ms ele existe, e é a barra que não
+ * pode estar debaixo dele.
  */
 export function MPage({ children, pad = true }) {
+  const entrada = useDirecaoDaTela();
+
   return (
     // `<main>` e não `<div>`: é o marco que o leitor de tela usa para pular
     // direto ao conteúdo, e é o alvo do "Pular para o conteúdo" do layout. As
     // telas do desktop já tinham o seu; o telefone é que estava sem.
-    <main id={CONTENT_ID} style={{ minHeight: '100vh', background: M.bg, paddingBottom: 108 }}>
-      <div style={{ padding: pad ? '0 16px' : 0 }}>{children}</div>
+    <main id={CONTENT_ID} style={{ minHeight: '100vh', background: M.bg, paddingBottom: 108, overflowX: 'clip' }}>
+      <div className={entrada} style={{ padding: pad ? '0 16px' : 0 }}>{children}</div>
     </main>
   );
 }

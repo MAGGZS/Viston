@@ -277,9 +277,18 @@ input:-webkit-autofill:focus {
  * para saber se o toque pegou. Vindo do lado do botão, o movimento já responde:
  * é aquela fila, e ela estava guardada ali.
  *
- * Termina em `none`, e não em `translateX(0)`: um transform, mesmo zerado, faz
- * do elemento bloco de contenção para filho `position: fixed` (ver a nota das
- * utilitárias acima). Zerar de vez é a única diferença prática entre os dois.
+ * `backwards`, e não `both`, e a diferença é o que estas classes têm de
+ * diferente das de cima. Com `both`, o último quadro fica aplicado para sempre,
+ * e um transform aplicado — mesmo zerado — faz do elemento bloco de contenção
+ * para filho `position: fixed` (ver a nota das utilitárias acima). Terminar o
+ * keyframe em `transform: none` não salva: o valor retido vira a matriz
+ * identidade, medida no navegador como `matrix(1, 0, 0, 1, 0, 0)`, e o filho
+ * fixo continua preso ao pai. Com `backwards` o elemento volta ao estilo dele
+ * quando a animação acaba, e não sobra transform nenhum.
+ *
+ * O `backwards` continua sendo preciso: sem ele, o cartão que espera a vez no
+ * escalonamento (`anim-d1`..`anim-d6`) aparece inteiro e opaco antes de começar
+ * a andar.
  *
  * A curva é a mesma da pílula do seletor (`MOTION.slide`, em lib/theme.js) — os
  * dois são o mesmo gesto, e curvas diferentes os fariam parecer dois.
@@ -294,8 +303,8 @@ input:-webkit-autofill:focus {
   to   { opacity: 1; transform: none; }
 }
 
-.anim-slide-from-left  { animation: slide-from-left 0.38s cubic-bezier(0.32, 0.72, 0, 1) both; }
-.anim-slide-from-right { animation: slide-from-right 0.38s cubic-bezier(0.32, 0.72, 0, 1) both; }
+.anim-slide-from-left  { animation: slide-from-left 0.38s cubic-bezier(0.32, 0.72, 0, 1) backwards; }
+.anim-slide-from-right { animation: slide-from-right 0.38s cubic-bezier(0.32, 0.72, 0, 1) backwards; }
 
 /* Stagger helpers */
 .anim-d1 { animation-delay: 0.05s; }
