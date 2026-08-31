@@ -3,20 +3,19 @@ import { config } from './config';
 import app from './app';
 import { prisma } from './lib/prisma';
 import { logger } from './lib/logger';
-import { verificarSmtp } from './lib/mailer';
+import { verificarProvedorEmail } from './lib/mailer';
 
 /**
- * IPv4 primeiro nas conexões de saída que passam por `dns.lookup`.
+ * IPv4 primeiro em todas as conexões de saída do processo.
  *
- * O container do Render não tem rota IPv6 de saída: qualquer serviço externo
- * com registro AAAA que o Node prefira por IPv6 morre em `ENETUNREACH`. Isto
- * era o padrão do Node até a versão 17 — não é truque, é voltar ao que
- * funcionava.
+ * O container do Render não tem rota IPv6 de saída: qualquer host com registro
+ * AAAA que o Node prefira por IPv6 morre em `ENETUNREACH`. Foi assim que o
+ * envio de e-mail quebrou quando ainda era SMTP, e vale igual para a API da
+ * Brevo, para o Supabase e para qualquer serviço externo que ganhe um AAAA
+ * amanhã.
  *
- * O que esta linha **não** resolve é o e-mail, e foi essa a lição: o Nodemailer
- * resolve o host por conta própria, com `resolve4`/`resolve6`, e nunca chega
- * aqui. O contorno de lá mora em `lib/mailer.ts`. Fica de rede de proteção para
- * o resto — Prisma, Supabase Storage — que usa o caminho normal.
+ * Era o padrão do Node até a versão 17 — não é truque, é voltar ao que
+ * funcionava numa rede sem IPv6.
  */
 setDefaultResultOrder('ipv4first');
 
@@ -25,14 +24,14 @@ async function bootstrap() {
     await prisma.$connect();
     logger.info('Banco de dados conectado');
 
-    // Confere o SMTP agora, e não no primeiro cadastro de alguém.
+    // Confere o provedor de e-mail agora, e não no primeiro cadastro de alguém.
     //
-    // Senha de app revogada é a falha mais provável aqui, e sem esta checagem
-    // ela só apareceria quando um usuário tentasse criar conta — em produção,
-    // na cara dele. Não segura a subida: o resto da API não depende de e-mail,
-    // e ficar fora do ar inteiro porque o Gmail recusou seria trocar um defeito
-    // por um pior. O que ela faz é gritar no log, na hora certa.
-    void verificarSmtp();
+    // Chave revogada é a falha mais provável aqui, e sem esta checagem ela só
+    // apareceria quando um usuário tentasse criar conta — em produção, na cara
+    // dele. Não segura a subida: o resto da API não depende de e-mail, e ficar
+    // fora do ar inteiro porque o provedor recusou seria trocar um defeito por
+    // um pior. O que ela faz é gritar no log, na hora certa.
+    void verificarProvedorEmail();
 
     app.listen(config.port, () => {
       logger.info(

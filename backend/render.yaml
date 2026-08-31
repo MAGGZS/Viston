@@ -44,18 +44,18 @@ services:
         value: 7d
       - key: FRONTEND_URL
         sync: false
-      # Gmail SMTP. `sync: false` — o valor entra pelo painel, e segredo
-      # nenhum mora neste arquivo. A senha de app é a de 16 caracteres gerada
-      # em myaccount.google.com/apppasswords, nunca a senha da conta.
-      # Use uma senha de app por lugar: revogar a do Render não derruba a da
-      # máquina de quem desenvolve.
-      - key: SMTP_HOST
-        value: smtp.gmail.com
-      - key: SMTP_PORT
-        value: "465"
-      - key: SMTP_USER
+      # Brevo, API HTTPS. `sync: false` — o valor entra pelo painel, e segredo
+      # nenhum mora neste arquivo.
+      #
+      # HTTPS e nao SMTP porque o Render bloqueia saida SMTP: 465 e 587 foram
+      # testadas aqui e as duas deram ETIMEDOUT. A API fala na 443.
+      #
+      # Use uma chave por lugar — uma para a maquina de quem desenvolve, outra
+      # para producao. Revogar uma nao derruba a outra.
+      - key: BREVO_API_KEY
         sync: false
-      - key: SMTP_APP_PASSWORD
+      # So o endereco, e precisa ser remetente verificado no painel da Brevo.
+      - key: EMAIL_FROM
         sync: false
-      - key: SMTP_FROM
-        sync: false
+      - key: EMAIL_FROM_NAME
+        value: Viston

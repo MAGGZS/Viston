@@ -50,7 +50,7 @@ export const config = {
   },
 
   /**
-   * O envio dos códigos por e-mail, via SMTP do Gmail.
+   * O envio dos códigos por e-mail, pela API da Brevo.
    *
    * Obrigatórias sempre, e não só em produção. A máquina de quem desenvolve
    * roda contra os mesmos dados da nuvem (ver o comentário do arquivo de
@@ -61,19 +61,15 @@ export const config = {
    * O preço é o backend não subir sem elas. É o preço certo — o mesmo que
    * `JWT_SECRET` cobra desde sempre, e pela mesma razão.
    *
-   * `SMTP_APP_PASSWORD` é a senha de app do Google, de 16 caracteres, e nunca a
-   * senha da conta: ela vale só para SMTP, é revogável sozinha, e a conta segue
-   * protegida pelo segundo fator.
+   * `EMAIL_FROM` é só o endereço, e precisa ser um remetente verificado no
+   * painel da Brevo. Verificar lá é um clique num e-mail de confirmação; não
+   * exige domínio próprio, que é o que este projeto não tem.
    */
-  smtp: {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '465', 10),
-    user: required('SMTP_USER'),
-    appPassword: required('SMTP_APP_PASSWORD'),
-    // O remetente cai no próprio usuário quando não é dito: o Gmail recusa
-    // mandar em nome de endereço que não seja o da conta, então um `from`
-    // diferente do `user` é erro de configuração, não uma opção.
-    from: process.env.SMTP_FROM || `Viston <${required('SMTP_USER')}>`,
+  email: {
+    apiKey: required('BREVO_API_KEY'),
+    from: required('EMAIL_FROM'),
+    // O nome que aparece na caixa de entrada, ao lado do endereço.
+    fromName: process.env.EMAIL_FROM_NAME || 'Viston',
   },
 
   cors: {
