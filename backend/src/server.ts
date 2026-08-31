@@ -1,8 +1,27 @@
+import { setDefaultResultOrder } from 'node:dns';
 import { config } from './config';
 import app from './app';
 import { prisma } from './lib/prisma';
 import { logger } from './lib/logger';
 import { verificarSmtp } from './lib/mailer';
+
+/**
+ * IPv4 primeiro, em todas as conexões de saída do processo.
+ *
+ * `smtp.gmail.com` responde em IPv4 e IPv6, e o Node 17+ passou a preferir o
+ * que o sistema devolver primeiro — que no Render é o IPv6. O container não tem
+ * rota IPv6 de saída, então a conexão morria em
+ * `ENETUNREACH 2607:f8b0:...:465`, antes de qualquer byte de SMTP.
+ *
+ * Na máquina de quem desenvolve isso não aparece, porque lá o IPv6 costuma
+ * funcionar: é um defeito que só existe do lado de lá, e por isso atravessou
+ * todos os testes até chegar em produção.
+ *
+ * Vale para todo o processo, e não só para o e-mail, de propósito: qualquer
+ * serviço externo com AAAA no DNS cairia no mesmo buraco. `ipv4first` era o
+ * padrão do Node até a versão 17 — não é um truque, é voltar ao que funcionava.
+ */
+setDefaultResultOrder('ipv4first');
 
 async function bootstrap() {
   try {

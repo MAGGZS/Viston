@@ -2,7 +2,7 @@ import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { hashPassword } from '../utils/password';
 import { logger } from '../lib/logger';
-import { TooManyEmailsError } from '../utils/errors';
+import { EmailDeliveryError, TooManyEmailsError } from '../utils/errors';
 import { enviarCodigo, normalizeEmail, verificarCodigo } from './confirmation.service';
 
 /**
@@ -58,9 +58,16 @@ export const passwordService = {
         email
       );
     } catch (err) {
-      // Mesmo raciocínio do cadastro: o 429 aqui contaria que a conta existe.
+      // Mesmo raciocínio do cadastro, e os dois erros pela mesma razão: aqui só
+      // se tenta enviar quando a conta existe, então tanto o 429 quanto o 502
+      // contariam que ela existe. Visto em produção: com o SMTP fora, este
+      // endpoint respondia 502 para quem tem conta e 200 para quem não tem.
       if (err instanceof TooManyEmailsError) {
         logger.warn({ email }, '[Senha] Teto de reenvio; resposta única mantida');
+        return RESPOSTA_RECUPERACAO;
+      }
+      if (err instanceof EmailDeliveryError) {
+        logger.error({ email }, '[Senha] Envio falhou; resposta única mantida');
         return RESPOSTA_RECUPERACAO;
       }
       throw err;

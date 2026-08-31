@@ -1,4 +1,5 @@
 import nodemailer, { Transporter } from 'nodemailer';
+import type SMTPPool from 'nodemailer/lib/smtp-pool';
 import { config } from '../config';
 import { logger } from '../lib/logger';
 import { EmailDeliveryError } from '../utils/errors';
@@ -24,17 +25,32 @@ let transporter: Transporter | null = null;
 function getTransporter(): Transporter {
   if (transporter) return transporter;
 
-  transporter = nodemailer.createTransport({
+  const opcoes: SMTPPool.Options = {
     host: config.smtp.host,
     port: config.smtp.port,
     // 465 é TLS desde o primeiro byte; 587 começa em claro e sobe com STARTTLS.
     // A porta decide, e não uma segunda variável que pode discordar dela.
     secure: config.smtp.port === 465,
     auth: { user: config.smtp.user, pass: config.smtp.appPassword },
+
+    /**
+     * Falhar rápido em vez de pendurar.
+     *
+     * Sem estes tetos, o pedido de código ficava 150 segundos preso antes de
+     * devolver 502 — o Nodemailer esperava o padrão dele, e quem clicou olhava
+     * uma tela parada por dois minutos e meio. Dez segundos bastam para saber
+     * que não vai conectar.
+     */
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
+
     pool: true,
     maxConnections: 1,
     maxMessages: 50,
-  });
+  };
+
+  transporter = nodemailer.createTransport(opcoes);
 
   return transporter;
 }

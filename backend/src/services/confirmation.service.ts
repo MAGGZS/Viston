@@ -10,7 +10,7 @@ import {
 } from '../repositories/emailToken.repository';
 import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
-import { InvalidCodeError, TooManyEmailsError } from '../utils/errors';
+import { EmailDeliveryError, InvalidCodeError, TooManyEmailsError } from '../utils/errors';
 
 /** Quanto tempo um código vale. Curto de propósito — ver `gerarCodigo`. */
 export const VALIDADE_MINUTOS = 10;
@@ -220,10 +220,19 @@ export async function outraTabelaLivre(
  * caixa, e o mais recente ainda vale. Em `/auth/reenviar` o 429 continua
  * honesto — lá quem pergunta já provou saber a senha.
  *
- * `EMAIL_FALHOU` continua subindo. Ele também distingue caminhos, mas só
- * enquanto o SMTP está fora do ar — condição barulhenta, temporária e visível
- * para quem opera —, e em troca diz à pessoa que o e-mail não vem e que vale
- * tentar de novo. Calar isso seria mandá-la esperar para sempre.
+ * `EMAIL_FALHOU` é engolido pela mesma razão, e essa parte eu escrevi errado da
+ * primeira vez. O raciocínio era que o 502 só distingue caminhos enquanto o
+ * SMTP está fora do ar, e que em troca ele diz à pessoa que o e-mail não vem.
+ * Só que ele também só *dispara* quando houve tentativa de envio — ou seja,
+ * quando a conta é nova ou não confirmada. Com o servidor de e-mail fora, o
+ * formulário passou a responder 502 para endereço com conta e 200 para
+ * endereço sem conta, que é exatamente o verificador que este desenho existe
+ * para impedir. Foi visto em produção, não em teoria.
+ *
+ * Quem precisa saber que o envio falhou tem por onde: o botão de reenviar, que
+ * exige a senha, e o log, que grita. A tela do cadastro não é lugar para essa
+ * informação, porque ali qualquer diferença é uma resposta a mais do que se
+ * deve dar.
  */
 export async function enviarConfirmacaoDeCadastro(
   owner: TokenOwner,
@@ -235,6 +244,10 @@ export async function enviarConfirmacaoDeCadastro(
   } catch (err) {
     if (err instanceof TooManyEmailsError) {
       logger.warn({ owner }, '[Confirmacao] Teto de reenvio no cadastro; resposta única mantida');
+      return;
+    }
+    if (err instanceof EmailDeliveryError) {
+      logger.error({ owner }, '[Confirmacao] Envio falhou no cadastro; resposta única mantida');
       return;
     }
     throw err;
