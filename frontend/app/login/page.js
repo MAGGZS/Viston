@@ -94,9 +94,6 @@ export default function LoginPage() {
       subtitle="Acesse as vistorias do prédio em que você trabalha."
       footer={
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <p style={S.footer}>
-            <a href="/senha" style={S.link}>Esqueci minha senha</a>
-          </p>
           <p style={S.footer}>Não tem conta?{' '}<a href="/register" style={S.link}>Criar conta</a></p>
           <p style={S.footer}>
             Vai administrar um prédio?{' '}
@@ -142,6 +139,19 @@ export default function LoginPage() {
             </button>
           </div>
           {errors.password && <span id="senha-erro" role="alert" style={{ fontSize: 12, color: T.danger }}>{errors.password.message}</span>}
+          {/*
+            O link mora colado ao campo, e não no rodapé com os de cadastro.
+            Quem esquece a senha descobre isso olhando para a caixa da senha —
+            é ali que a saída precisa estar, e não três linhas abaixo, no meio
+            de convites para criar conta.
+
+            Alinhado à direita e menor que o rótulo: é uma saída, não um passo
+            do formulário, e competir com o botão de entrar seria oferecer o
+            desvio antes da estrada.
+          */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
+            <a href="/senha" style={{ ...S.link, fontSize: 13 }}>Esqueci minha senha</a>
+          </div>
         </div>
         {naoConfirmado ? (
           <div role="alert" style={S.avisoBox}>
