@@ -52,22 +52,22 @@ export const config = {
   /**
    * O envio do link de confirmação.
    *
-   * Obrigatórias só em produção. Fora dela o cadastro precisa continuar
-   * rodando na máquina de quem não configurou Resend nenhum — sem a chave, o
-   * serviço registra o link no log em vez de mandar e-mail (ver
-   * `confirmation.service`), e o desenvolvimento não para.
+   * Obrigatórias sempre, e não só em produção. A máquina de quem desenvolve
+   * roda contra os mesmos dados da nuvem (ver o comentário do arquivo de
+   * ambiente), e um caminho mais frouxo aqui é um caminho que ninguém exercita
+   * antes do deploy: o defeito aparece na primeira pessoa que se cadastra em
+   * produção, não em quem escreveu o código.
+   *
+   * O preço é o backend não subir sem as três. É o preço certo — o mesmo que
+   * `JWT_SECRET` cobra desde sempre, e pela mesma razão.
    *
    * `appUrl` é a base do link que vai no e-mail, e por isso é a URL do
    * frontend, não a da API: quem clica cai numa tela, não num endpoint.
    */
   email: {
-    appUrl: isProduction
-      ? required('APP_URL')
-      : process.env.APP_URL || 'http://localhost:3001',
-    resendApiKey: isProduction ? required('RESEND_API_KEY') : process.env.RESEND_API_KEY || '',
-    from: isProduction
-      ? required('EMAIL_FROM')
-      : process.env.EMAIL_FROM || 'Viston <onboarding@resend.dev>',
+    appUrl: required('APP_URL'),
+    resendApiKey: required('RESEND_API_KEY'),
+    from: required('EMAIL_FROM'),
   },
 
   cors: {

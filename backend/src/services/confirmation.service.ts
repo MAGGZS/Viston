@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { config } from '../config';
-import { hasEmailProvider, resend } from '../lib/resend';
+import { resend } from '../lib/resend';
 import { logger } from '../lib/logger';
 import {
   emailTokenRepository,
@@ -81,15 +81,11 @@ export async function enviarConfirmacao(owner: TokenOwner, nome: string, emailBr
 
   const url = `${config.email.appUrl}/confirmar?token=${raw}`;
 
-  // Sem provedor configurado — a máquina de quem desenvolve — o link vai para o
-  // log em vez do e-mail. É o que torna o fluxo inteiro testável sem conta no
-  // Resend. Em produção `RESEND_API_KEY` é obrigatória (ver config.ts), então
-  // este desvio não existe lá.
-  if (!hasEmailProvider()) {
-    logger.warn({ url }, '[Confirmacao] Sem RESEND_API_KEY: link não enviado, só registrado');
-    return;
-  }
-
+  // Um caminho só, aqui e na nuvem. Havia um desvio que registrava o link no
+  // log quando faltava a chave, para o cadastro rodar sem conta no Resend —
+  // conveniente, e por isso mesmo perigoso: era o caminho que ninguém
+  // exercitava antes do deploy. O que falha em produção passa a falhar na
+  // máquina de quem escreveu, na mesma hora e com a mesma mensagem.
   const { error } = await resend().emails.send({
     from: config.email.from,
     to: email,

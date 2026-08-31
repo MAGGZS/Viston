@@ -2,7 +2,7 @@ import { userService } from '../services/user.service';
 import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { emailTokenRepository } from '../repositories/emailToken.repository';
-import { hasEmailProvider } from '../lib/resend';
+import { resend } from '../lib/resend';
 import { buildingRepository } from '../repositories/building.repository';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { submitInspectionSchema } from '../validators/inspection.validator';
@@ -25,7 +25,7 @@ jest.mock('bcrypt');
 const mockUserRepo = userRepository as jest.Mocked<typeof userRepository>;
 const mockManagerRepo = managerRepository as jest.Mocked<typeof managerRepository>;
 const mockTokens = emailTokenRepository as jest.Mocked<typeof emailTokenRepository>;
-const mockHasProvider = hasEmailProvider as jest.MockedFunction<typeof hasEmailProvider>;
+const mockResend = resend as jest.MockedFunction<typeof resend>;
 const mockBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
 
 function makeUser(overrides = {}) {
@@ -50,10 +50,11 @@ function makeUser(overrides = {}) {
 describe('userService.create', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    // Sem provedor de e-mail, `enviarConfirmacao` grava o token e registra o
-    // link no log em vez de enviar — o que estas suítes medem é o cadastro, e o
-    // envio tem suíte própria em `confirmation.test.ts`.
-    mockHasProvider.mockReturnValue(false);
+    // O envio tem suíte própria em `confirmation.test.ts`; aqui ele só precisa
+    // não atrapalhar. Não há mais modo "sem provedor" para desviar dele.
+    mockResend.mockReturnValue({
+      emails: { send: jest.fn().mockResolvedValue({ error: null }) },
+    } as any);
     mockManagerRepo.findByEmail.mockResolvedValue(null);
     mockTokens.countRecent.mockResolvedValue(0);
     mockTokens.invalidateOpen.mockResolvedValue({ count: 0 } as any);

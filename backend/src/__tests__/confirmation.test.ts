@@ -11,7 +11,7 @@ import { emailTokenRepository } from '../repositories/emailToken.repository';
 import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
-import { hasEmailProvider, resend } from '../lib/resend';
+import { resend } from '../lib/resend';
 import {
   EmailDeliveryError,
   EmailNotConfirmedError,
@@ -33,7 +33,6 @@ const managers = managerRepository as jest.Mocked<typeof managerRepository>;
 const buildings = buildingRepository as jest.Mocked<typeof buildingRepository>;
 const audit = auditRepository as jest.Mocked<typeof auditRepository>;
 const mockBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
-const mockHasProvider = hasEmailProvider as jest.MockedFunction<typeof hasEmailProvider>;
 const mockResend = resend as jest.MockedFunction<typeof resend>;
 
 const send = jest.fn();
@@ -57,7 +56,6 @@ function makeAccount(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockHasProvider.mockReturnValue(true);
   send.mockResolvedValue({ error: null });
   mockResend.mockReturnValue({ emails: { send } } as never);
   tokens.countRecent.mockResolvedValue(0);
@@ -148,13 +146,16 @@ describe('falha do provedor', () => {
     ).rejects.toThrow(EmailDeliveryError);
   });
 
-  it('sem chave configurada, nao tenta enviar e nao quebra o cadastro', async () => {
-    mockHasProvider.mockReturnValue(false);
+  it('o token gravado sobrevive a falha do envio, e o proximo pedido o invalida', async () => {
+    // Grava antes de enviar de proposito: token orfao no banco e inofensivo,
+    // link real numa caixa de entrada que o banco nao reconhece nao e.
+    send.mockResolvedValue({ error: { message: 'timeout' } });
 
-    await enviarConfirmacao({ kind: 'USER', id: 'user-1' }, 'Carlos', 'carlos@test.com');
+    await expect(
+      enviarConfirmacao({ kind: 'USER', id: 'user-1' }, 'Carlos', 'carlos@test.com')
+    ).rejects.toThrow(EmailDeliveryError);
 
     expect(tokens.create).toHaveBeenCalled();
-    expect(send).not.toHaveBeenCalled();
   });
 });
 
@@ -198,8 +199,7 @@ describe('cadastro: uma resposta so', () => {
     const novo = await userService.create(dados);
 
     jest.clearAllMocks();
-    mockHasProvider.mockReturnValue(true);
-    users.findByEmail.mockResolvedValue(makeAccount());
+      users.findByEmail.mockResolvedValue(makeAccount());
     const existente = await userService.create(dados);
 
     expect(existente).toEqual(novo);

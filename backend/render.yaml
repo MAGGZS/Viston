@@ -44,3 +44,19 @@ services:
         value: 7d
       - key: FRONTEND_URL
         sync: false
+      # Base do link de confirmação: a URL do frontend, não a da API — quem
+      # clica no e-mail cai numa tela, não num endpoint.
+      - key: APP_URL
+        sync: false
+      # Chave do Resend. `sending_access`, nunca `full_access`, e uma por lugar:
+      # a do Render não é a mesma da máquina de quem desenvolve, para revogar
+      # uma não derrubar a outra. `sync: false` — o valor entra pelo painel, e
+      # segredo nenhum mora neste arquivo.
+      - key: RESEND_API_KEY
+        sync: false
+      # Remetente. Precisa ser de domínio verificado no Resend; sem domínio, o
+      # único valor que funciona é "onboarding@resend.dev", e ele só entrega no
+      # e-mail da própria conta Resend — o cadastro aberto não atende mais
+      # ninguém até um domínio existir.
+      - key: EMAIL_FROM
+        sync: false

@@ -4,16 +4,13 @@ import { config } from '../config';
 /**
  * O cliente do Resend, único ponto do sistema que toca a chave.
  *
- * Preguiçoso de propósito: `new Resend()` com chave vazia não reclama na hora,
- * reclama no envio, e em desenvolvimento nem chega lá — `hasEmailProvider`
- * desvia antes. Instanciar no import faria o backend local exigir uma conta
- * Resend só para subir.
+ * Preguiçoso porque `new Resend()` no import ligaria a carga deste módulo à
+ * ordem de carga do `config` — e o erro daí sai como um `undefined` obscuro em
+ * vez do "variável de ambiente obrigatória não definida" que o `config` já
+ * sabe dar. Não há mais um modo sem provedor: a chave é obrigatória em toda
+ * parte, e quando falta o servidor não sobe.
  */
 let client: Resend | null = null;
-
-export function hasEmailProvider(): boolean {
-  return Boolean(config.email.resendApiKey);
-}
 
 export function resend(): Resend {
   if (!client) client = new Resend(config.email.resendApiKey);
