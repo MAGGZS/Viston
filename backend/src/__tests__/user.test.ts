@@ -16,7 +16,7 @@ jest.mock('../repositories/user.repository');
 // ficar sem gestor (ver assertNotSoleManager).
 jest.mock('../repositories/building.repository');
 // O cadastro passou a olhar a outra tabela de conta e a emitir o código de
-// confirmação. Sem estes três, o serviço cairia no Prisma e no SMTP de verdade.
+// confirmação. Sem estes três, o serviço cairia no Prisma e no provedor real.
 jest.mock('../repositories/manager.repository');
 jest.mock('../repositories/emailToken.repository');
 jest.mock('../lib/mailer');

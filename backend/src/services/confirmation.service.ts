@@ -13,11 +13,11 @@ import { managerRepository } from '../repositories/manager.repository';
 import { EmailDeliveryError, InvalidCodeError, TooManyEmailsError } from '../utils/errors';
 
 /** Quanto tempo um código vale. Curto de propósito — ver `gerarCodigo`. */
-export const VALIDADE_MINUTOS = 10;
+const VALIDADE_MINUTOS = 10;
 /** Espera mínima entre dois pedidos do mesmo endereço. */
 export const INTERVALO_REENVIO_SEG = 60;
 /** Teto de códigos por endereço por hora. */
-export const MAX_POR_HORA = 5;
+const MAX_POR_HORA = 5;
 
 const UMA_HORA_MS = 3_600_000;
 
@@ -220,9 +220,9 @@ export async function outraTabelaLivre(
  * caixa, e o mais recente ainda vale. Em `/auth/reenviar` o 429 continua
  * honesto — lá quem pergunta já provou saber a senha.
  *
- * `EMAIL_FALHOU` é engolido pela mesma razão, e essa parte eu escrevi errado da
- * primeira vez. O raciocínio era que o 502 só distingue caminhos enquanto o
- * SMTP está fora do ar, e que em troca ele diz à pessoa que o e-mail não vem.
+ * `EMAIL_FALHOU` é engolido pela mesma razão, e essa parte estava errada na
+ * primeira versão. O raciocínio era que o 502 só distingue caminhos enquanto o
+ * provedor está fora do ar, e que em troca ele diz à pessoa que o e-mail não vem.
  * Só que ele também só *dispara* quando houve tentativa de envio — ou seja,
  * quando a conta é nova ou não confirmada. Com o servidor de e-mail fora, o
  * formulário passou a responder 502 para endereço com conta e 200 para

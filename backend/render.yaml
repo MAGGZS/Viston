@@ -2,8 +2,16 @@ services:
   - type: web
     name: viston-api
     env: node
-    region: frankfurt  # Mais próximo de sa-east-1 (São Paulo) disponível no plano free
-                     # Trocar para "oregon" se frankfurt não estiver disponível no seu plano
+    # O serviço roda em oregon — conferido na API do Render. O arquivo dizia
+    # frankfurt, e a divergência importa: recriar o serviço pelo blueprint o
+    # moveria de região sem ninguém pedir.
+    #
+    # Nenhuma das regiões do plano free fica perto do banco (Supabase em
+    # sa-east-1, São Paulo), então a ida e volta custa o que custa. Trocar de
+    # região não vale o risco de recriar o serviço; se um dia a latência
+    # incomodar, o caminho é aproximar banco e aplicação, não trocar um oceano
+    # por outro.
+    region: oregon
                      # Render regiões: oregon, frankfurt, singapore, ohio
     plan: free
     # `--include=dev` é obrigatório: NODE_ENV=production (logo abaixo) faz o npm
@@ -14,6 +22,15 @@ services:
     # `npm run build` já roda `prisma generate` — não precisa repetir.
     buildCommand: npm ci --include=dev && npm run build && npm run prisma:migrate:deploy
     startCommand: npm start
+    # O Render passa a saber quando a instância está viva de verdade, e não só
+    # quando o processo existe: `/health` responde 200 sem tocar no banco.
+    # Estava vazio, e sem isso um processo que subiu mas não responde continua
+    # marcado como saudável.
+    #
+    # `/health` e não `/health/ready`: o segundo faz `SELECT 1`, e uma queda
+    # momentânea do banco derrubaria a instância inteira em vez de deixá-la
+    # responder o que não depende de banco.
+    healthCheckPath: /health
     envVars:
       # O cliente do Supabase usa o WebSocket nativo do Node, que só existe a
       # partir do 22 — numa versão anterior ele quebra na carga do módulo, e o

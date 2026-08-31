@@ -182,6 +182,36 @@ compartilhamento é aprovado — e a aprovação sempre entra como `VIEWER`, com
 gestor promovendo depois. O middleware `validate` reescreve `req.body` com o
 resultado do parse, então nenhum campo fora do contrato chega ao service.
 
+A conta também nasce **sem acesso**: `email_verified_at` nulo, e o login para
+num `403 EMAIL_NAO_CONFIRMADO` depois de conferir a senha — depois, e não antes,
+senão o formulário de login viraria um verificador de quais e-mails existem. Não
+há exceção por papel nem por tabela: o ADMIN e o gestor passam pela mesma linha.
+
+Os dois cadastros respondem **sempre a mesma coisa**, com `200` e uma frase
+única: e-mail novo, e-mail que já tem conta, e-mail preso na outra tabela, e o
+campo-armadilha `website` preenchido por robô. Nem o status distingue os casos —
+`201` seria a resposta honesta de um deles, e por isso mesmo não serve. Falha de
+envio e teto de reenvio são engolidos aqui pela mesma razão: os dois só disparam
+quando houve tentativa de envio, e só se tenta enviar quando a conta é nova ou
+não confirmada.
+
+**Confirmação e recuperação de senha.** Código de 6 dígitos por e-mail, guardado
+como `sha256` em `email_tokens` — o valor legível existe dentro da mensagem e em
+lugar nenhum daqui. Vale 10 minutos, morre no uso, morre quando outro é emitido,
+e aguenta 5 chutes antes de fechar. É esse teto, e não o prazo, que torna a
+força bruta inviável contra um milhão de combinações; a comparação é
+`timingSafeEqual`, para o tempo de resposta não dizer onde os hashes divergem.
+A mesma tabela serve aos dois fins, separada por `purpose`.
+
+Redefinir a senha incrementa `token_version`: sem isso a troca seria teatro, e
+o refresh token que já estava na mão de quem invadiu seguiria valendo sete dias.
+
+**Envio.** Brevo, pela API HTTPS (`lib/mailer.ts`). Não é SMTP porque o Render
+bloqueia saída SMTP — 465 e 587 foram testadas em produção e as duas deram
+`ETIMEDOUT`. Não é um provedor que exija domínio verificado porque o projeto não
+tem domínio; a Brevo verifica um *endereço*. O envio mora atrás de duas funções,
+então trocar de provedor não toca em mais nada.
+
 **Feedback.** Mandar (`POST /feedbacks`) é de qualquer conta autenticada, das
 duas naturezas; ler a caixa, decidir o destino e descartar é só do ADMIN. O
 `status` não entra no corpo do envio — o feedback nasce `PENDENTE` e quem o
@@ -407,10 +437,16 @@ públicos, o login, o refresh e os health checks.
 GET    /health                                   (liveness)
 GET    /health/ready                             (readiness — SELECT 1)
 
-POST   /auth/login
+POST   /auth/login                               (403 EMAIL_NAO_CONFIRMADO se pendente)
 POST   /auth/refresh
 POST   /auth/logout                              (encerra as sessões da conta)
 GET    /auth/me
+
+POST   /auth/confirmar                           ({ email, code } — libera a conta)
+POST   /auth/reenviar                            ({ email, password } — outro código)
+POST   /auth/senha/esqueci                       ({ email } — resposta única)
+POST   /auth/senha/verificar                     ({ email, code } — confere sem gastar)
+POST   /auth/senha/redefinir                     ({ email, code, new_password })
 
 POST   /users                                    (cadastro público — nasce sem vínculo)
 GET    /users/me      PATCH /users/me

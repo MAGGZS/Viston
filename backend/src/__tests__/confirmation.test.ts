@@ -200,8 +200,8 @@ describe('tetos de reenvio', () => {
   });
 });
 
-describe('falha do SMTP', () => {
-  it('recusa do servidor vira EMAIL_FALHOU, e o codigo gravado sobrevive', async () => {
+describe('falha do provedor', () => {
+  it('recusa do provedor vira EMAIL_FALHOU, e o codigo gravado sobrevive', async () => {
     // Grava antes de enviar de proposito: codigo orfao no banco e inofensivo,
     // codigo real numa caixa de entrada que o banco nao reconhece nao e.
     mockEnviarEmail.mockRejectedValue(new EmailDeliveryError());

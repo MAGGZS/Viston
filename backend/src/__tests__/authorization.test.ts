@@ -8,7 +8,7 @@ jest.mock('../repositories/inspection.repository');
 jest.mock('../repositories/user.repository');
 jest.mock('../repositories/ticket.repository');
 // O cadastro emite o código de confirmação. Sem estes dois, ele cairia no Prisma
-// e no SMTP de verdade a cada teste que posta em /users ou /managers.
+// e no provedor de e-mail de verdade a cada teste que posta em /users ou /managers.
 jest.mock('../repositories/emailToken.repository');
 jest.mock('../lib/mailer');
 jest.mock('../services/excel.service');

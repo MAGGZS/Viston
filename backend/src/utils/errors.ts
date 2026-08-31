@@ -86,8 +86,8 @@ export class TooManyEmailsError extends AppError {
  * O servidor de e-mail recusou a mensagem.
  *
  * 502 e não 500: o que falhou está fora daqui, e a diferença importa para quem
- * lê o log às três da manhã. Senha de app revogada e cota diária do Gmail
- * estourada caem os dois aqui.
+ * lê o log às três da manhã. Chave revogada, remetente não verificado e cota
+ * diária estourada caem os três aqui.
  */
 export class EmailDeliveryError extends AppError {
   constructor() {
