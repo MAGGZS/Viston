@@ -40,7 +40,12 @@ function cabecalhos() {
  * conta de envio — chave revogada, remetente não verificado, cota do dia
  * estourada — que não são da conta de quem está se cadastrando.
  */
-export async function enviarEmail(para: string, assunto: string, html: string): Promise<void> {
+export async function enviarEmail(
+  para: string,
+  assunto: string,
+  html: string,
+  texto: string
+): Promise<void> {
   try {
     const resposta = await fetch(`${API}/smtp/email`, {
       method: 'POST',
@@ -50,6 +55,10 @@ export async function enviarEmail(para: string, assunto: string, html: string): 
         to: [{ email: para }],
         subject: assunto,
         htmlContent: html,
+        // A versão em texto puro vai junto sempre. Cliente que não renderiza
+        // HTML mostraria a mensagem em branco sem ela, e filtro de spam trata
+        // com desconfiança quem manda só HTML.
+        textContent: texto,
       }),
       // Sem isto o `fetch` espera o padrão do Node, e o pedido de código ficaria
       // preso enquanto quem clicou olha uma tela parada.

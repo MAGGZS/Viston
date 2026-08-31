@@ -21,6 +21,14 @@ import {
 } from '../utils/errors';
 import { UserStatus } from '@prisma/client';
 
+/**
+ * O modulo e mockado pela metade, de proposito.
+ *
+ * `MAX_TENTATIVAS` e uma constante de verdade que os testes usam para montar o
+ * caso do teto — se ela virasse `undefined` junto com o resto, os testes
+ * passariam comparando `undefined` com `undefined`. O `requireActual` mantem os
+ * exports reais e so troca o objeto do repositorio.
+ */
 jest.mock('../repositories/emailToken.repository', () => ({
   ...jest.requireActual('../repositories/emailToken.repository'),
   emailTokenRepository: {
@@ -101,12 +109,45 @@ describe('emissao do codigo', () => {
     const gravado = tokens.create.mock.calls[0][0];
     expect(gravado.code_hash).toMatch(/^[0-9a-f]{64}$/);
 
-    // O codigo esta no corpo do e-mail — e, passado pelo hash, da o que foi gravado.
-    const html = mockEnviarEmail.mock.calls[0][2];
-    const codigo = /letter-spacing:8px;[^>]*">\s*(\d{6})/.exec(html)?.[1] as string;
-    expect(codigo).toMatch(/^\d{6}$/);
+    // O codigo esta no corpo do e-mail — e, passado pelo hash, da o que foi
+    // gravado. A leitura sai da versao em texto puro, e nao do HTML: prender o
+    // teste a marcacao faz ele quebrar a cada mudanca de aparencia, como ja
+    // quebrou uma vez.
+    const [, assunto, html, texto] = mockEnviarEmail.mock.calls[0];
+
+    // Esta assercao vem antes de extrair, e nao depois. Extrair primeiro e
+    // conferir o formato depois nao prova nada — o proprio `\d{6}` ja garante
+    // seis digitos no que captura — e, quando nao casa, o `undefined` chega no
+    // matcher como "received must be a string", que esconde a causa.
+    expect(texto).toMatch(/\d{6}/);
+    const codigo = (/(\d{6})/.exec(texto) as RegExpExecArray)[1];
     expect(hashCodigo(codigo)).toBe(gravado.code_hash);
+
+    // As duas versoes carregam o mesmo codigo, e nenhuma carrega o hash.
+    expect(html).toContain(codigo);
     expect(html).not.toContain(gravado.code_hash);
+    expect(texto).not.toContain(gravado.code_hash);
+
+    // O assunto abre com o codigo: e o que deixa a pessoa ler o numero na lista
+    // de e-mails, sem abrir a mensagem.
+    expect(assunto.startsWith(codigo)).toBe(true);
+  });
+
+  /**
+   * A versao em texto puro faz parte do contrato, e nao e enfeite.
+   *
+   * Cliente que nao renderiza HTML mostraria a mensagem em branco sem ela, e
+   * filtro de spam trata com desconfianca quem manda so HTML. Sem esta
+   * assercao, alguem poderia passar `''` e nada reclamaria.
+   */
+  it('manda as duas versoes, e a de texto puro nao vai vazia', async () => {
+    await enviarCodigo({ kind: 'USER', id: 'user-1' }, 'EMAIL_VERIFY', 'Carlos', 'carlos@test.com');
+
+    const [, , html, texto] = mockEnviarEmail.mock.calls[0];
+    expect(html.length).toBeGreaterThan(200);
+    expect(texto.length).toBeGreaterThan(80);
+    // Texto puro e texto puro: sem marcacao sobrando de um copiar e colar.
+    expect(texto).not.toMatch(/<[a-z][^>]*>/i);
   });
 
   it('normaliza a caixa do e-mail antes de gravar e de enviar', async () => {

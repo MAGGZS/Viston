@@ -101,12 +101,12 @@ export async function enviarCodigo(
     expires_at: new Date(Date.now() + VALIDADE_MINUTOS * 60_000),
   });
 
-  const { assunto, html } =
+  const { assunto, html, texto } =
     purpose === 'PASSWORD_RESET'
       ? emailRecuperacao(nome, codigo, VALIDADE_MINUTOS)
       : emailVerificacao(nome, codigo, VALIDADE_MINUTOS);
 
-  await enviarEmail(email, assunto, html);
+  await enviarEmail(email, assunto, html, texto);
 }
 
 /**
