@@ -269,6 +269,29 @@ export function entradaDaFila(id) {
   return posicao < centro ? 'anim-slide-from-left' : 'anim-slide-from-right';
 }
 
+/**
+ * A faixa em que a lista vive, recortada nas bordas da tela.
+ *
+ * Sem ela, o cartao que entra pela direita empurrava a pagina: 28px alem da
+ * coluna e 12px alem da janela, e o telefone ganhava rolagem horizontal que
+ * nao sumia depois. So a fila da direita bugava — deslocamento para a esquerda
+ * nao gera rolagem nenhuma, e foi por isso que o defeito parecia ser da aba
+ * "Concluidos".
+ *
+ * A margem negativa desfaz o recuo do `MPage` e o recuo volta aqui dentro: o
+ * corte fica na borda da janela, a 16px do cartao parado. E o que faz o cartao
+ * chegar de fora da tela em vez de aparecer inteiro numa pagina mais larga —
+ * o efeito que se queria — e mantem o fio de 1px do `cardRing` longe do corte.
+ *
+ * `clip` e nao `hidden`: com `hidden` num eixo, o outro vira `auto`, e a faixa
+ * viraria um contentor de rolagem propria no meio da tela.
+ */
+const FAIXA_LISTA = {
+  margin: '0 -16px',
+  padding: '0 16px',
+  overflowX: 'clip',
+};
+
 const VAZIO = {
   RECEBER: 'Nenhum chamado esperando você receber',
   ANDAMENTO: 'Nenhum chamado em andamento com você',
@@ -439,6 +462,7 @@ export default function ResponsavelPage() {
           contagem={contagem}
         />
 
+        <div style={FAIXA_LISTA}>
         {isLoading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[1, 2, 3].map((i) => (
@@ -485,6 +509,7 @@ export default function ResponsavelPage() {
             ))}
           </div>
         </UnsavedScope>
+        </div>
 
         <UnsavedChangesModal open={saida.asking} onConfirm={saida.confirm} onCancel={saida.cancel} />
 
