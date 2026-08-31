@@ -43,6 +43,20 @@ export const metadata = {
   creator: SITE_NAME,
   publisher: SITE_NAME,
   category: 'business',
+  /**
+   * Nenhuma URL nossa sai daqui para fora.
+   *
+   * As telas de confirmação e de nova senha carregam o e-mail na query string,
+   * e sem esta linha ele viajaria no cabeçalho `Referer` de qualquer recurso de
+   * terceiro que a página venha a carregar — um script de análise, uma fonte
+   * remota, uma imagem. Hoje não há nenhum, e é justamente por isso que a hora
+   * de fechar é agora: o dia em que alguém acrescentar um, o vazamento chega
+   * junto e sem aviso.
+   *
+   * `same-origin` e não `no-referrer`: para as nossas próprias requisições o
+   * cabeçalho continua indo, e ele é útil no log do servidor.
+   */
+  referrer: 'same-origin',
   alternates: {
     canonical: '/',
   },

@@ -9,6 +9,7 @@ import { AuthShell } from '@/app/components/AuthShell';
 import { useAuthStore } from '@/app/store/auth';
 import { T, R } from '@/app/lib/theme';
 import { useLogin, useResendConfirmation } from '@/app/hooks/useApi';
+import { guardarEmailPendente } from '@/app/lib/emailPendente';
 
 const schema = yup.object({
   email: yup.string().email('E-mail inválido').required('Obrigatório'),
@@ -178,15 +179,16 @@ export default function LoginPage() {
             )}
             {/*
               Quem já tem o código na caixa de entrada não precisa de outro: o
-              caminho dele é digitar o que recebeu. O e-mail vai na URL porque
-              é o dele, acabou de ser digitado nesta tela, e a tela de destino
-              precisa dele para conferir o código.
+              caminho dele é digitar o que recebeu. O endereço vai pelo
+              `sessionStorage`, e não pela URL — e-mail em query string fica no
+              histórico do navegador e sai no cabeçalho `Referer`.
             */}
             <button
               type="button"
-              onClick={() =>
-                router.push(`/confirmar?email=${encodeURIComponent(ultimaTentativa?.email ?? '')}`)
-              }
+              onClick={() => {
+                guardarEmailPendente(ultimaTentativa?.email ?? '');
+                router.push('/confirmar');
+              }}
               style={{ ...S.btnSecundario, marginTop: 8 }}
             >
               Já tenho o código

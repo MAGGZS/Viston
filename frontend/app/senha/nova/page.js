@@ -1,10 +1,11 @@
 'use client';
-import { Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { AuthShell } from '@/app/components/AuthShell';
 import { CodigoInput } from '@/app/components/CodigoInput';
 import { useResetPassword, useVerifyResetCode } from '@/app/hooks/useApi';
+import { limparEmailPendente, useEmailPendente } from '@/app/lib/emailPendente';
 import { T, R } from '@/app/lib/theme';
 
 const S = {
@@ -36,10 +37,15 @@ const S = {
  * de escolher uma senha, mandar, e só então descobrir que errou um dígito. O
  * segundo manda código e senha juntos: a validação do primeiro passo não
  * autoriza nada sozinha, senão bastaria pular aquela tela e postar direto.
+ *
+ * O endereço vem do `sessionStorage`, e não mais da query string: e-mail em URL
+ * fica no histórico do navegador e sai no cabeçalho `Referer`. Some o
+ * `useSearchParams`, e com ele o `<Suspense>` que ele obrigava.
  */
-function Redefinicao() {
+export default function NovaSenhaPage() {
   const router = useRouter();
-  const email = useSearchParams().get('email') ?? '';
+
+  const email = useEmailPendente();
 
   const [passo, setPasso] = useState('codigo');
   const [codigo, setCodigo] = useState('');
@@ -77,6 +83,7 @@ function Redefinicao() {
 
     try {
       await redefinir.mutateAsync({ email, code: codigo, new_password: senha });
+      limparEmailPendente();
       setPasso('pronto');
     } catch {
       // Código que venceu entre um passo e outro cai aqui — o backend recusa e
@@ -84,13 +91,26 @@ function Redefinicao() {
     }
   }
 
-  // Sem e-mail não há o que redefinir: quem chegou direto na URL volta ao começo.
-  if (!email) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <p style={S.texto}>
-          Informe seu e-mail para receber um código de redefinição.
+  const casca = (miolo) => (
+    <AuthShell
+      title="Nova senha"
+      footer={
+        <p style={{ color: T.faint, fontSize: 14 }}>
+          <a href="/login" style={{ color: T.accentInk, fontWeight: 500, textDecoration: 'none' }}>
+            Voltar para o login
+          </a>
         </p>
+      }
+    >
+      {miolo}
+    </AuthShell>
+  );
+
+  // Sem e-mail não há o que redefinir: quem abriu numa aba nova volta ao começo.
+  if (!email) {
+    return casca(
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <p style={S.texto}>Informe seu e-mail para receber um código de redefinição.</p>
         <button type="button" onClick={() => router.replace('/senha')} style={S.btn}>
           Pedir código
         </button>
@@ -99,7 +119,7 @@ function Redefinicao() {
   }
 
   if (passo === 'pronto') {
-    return (
+    return casca(
       <div role="status" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <p style={S.texto}>Senha alterada.</p>
         <div style={S.aviso}>
@@ -117,11 +137,10 @@ function Redefinicao() {
 
   if (passo === 'codigo') {
     const erro = verificar.error?.response?.data?.error?.message;
-    return (
+    return casca(
       <form onSubmit={conferirCodigo} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <p style={S.texto}>
-          Enviamos um código de 6 dígitos para o seu e-mail. Ele vale por 10
-          minutos.
+          Enviamos um código de 6 dígitos para o seu e-mail. Ele vale por 10 minutos.
         </p>
 
         <CodigoInput valor={codigo} aoMudar={setCodigo} erro={erro} />
@@ -150,7 +169,7 @@ function Redefinicao() {
     { id: 'confirmacao', rotulo: 'Confirmar senha', valor: confirmacao, set: setConfirmacao, placeholder: 'Repita a senha' },
   ];
 
-  return (
+  return casca(
     <form onSubmit={trocarSenha} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <p style={S.texto}>Código conferido. Escolha sua nova senha.</p>
 
@@ -193,24 +212,5 @@ function Redefinicao() {
         {redefinir.isPending ? 'Salvando...' : 'Salvar nova senha'}
       </button>
     </form>
-  );
-}
-
-export default function NovaSenhaPage() {
-  return (
-    <AuthShell
-      title="Nova senha"
-      footer={
-        <p style={{ color: T.faint, fontSize: 14 }}>
-          <a href="/login" style={{ color: T.accentInk, fontWeight: 500, textDecoration: 'none' }}>
-            Voltar para o login
-          </a>
-        </p>
-      }
-    >
-      <Suspense fallback={<p style={{ color: T.mute, fontSize: 14 }}>Carregando...</p>}>
-        <Redefinicao />
-      </Suspense>
-    </AuthShell>
   );
 }

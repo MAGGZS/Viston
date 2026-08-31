@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AuthShell } from '@/app/components/AuthShell';
 import { useForgotPassword } from '@/app/hooks/useApi';
+import { guardarEmailPendente } from '@/app/lib/emailPendente';
 import { T, R } from '@/app/lib/theme';
 
 const S = {
@@ -40,10 +41,10 @@ export default function EsqueciSenhaPage() {
     if (!email.trim()) return;
     try {
       await esqueci.mutateAsync(email.trim());
-      // O e-mail vai na URL da próxima tela porque ela precisa dele para o
-      // código, e é o endereço da própria pessoa, digitado por ela agora. O
-      // que nunca entra em URL é o código.
-      router.push(`/senha/nova?email=${encodeURIComponent(email.trim())}`);
+      // O endereço vai pelo `sessionStorage`, e não pela URL: e-mail em query
+      // string fica no histórico do navegador e sai no cabeçalho `Referer`.
+      guardarEmailPendente(email.trim());
+      router.push('/senha/nova');
     } catch {
       // Erro real de rede ou de limite; a mensagem vem do backend.
     }
