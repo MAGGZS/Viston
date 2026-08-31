@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { AuthShell } from '@/app/components/AuthShell';
 import { CodigoInput } from '@/app/components/CodigoInput';
+import { SenhaChecklist, senhaValida } from '@/app/components/SenhaChecklist';
 import { useResetPassword, useVerifyResetCode } from '@/app/hooks/useApi';
 import { limparEmailPendente, useEmailPendente } from '@/app/lib/emailPendente';
 import { T, R } from '@/app/lib/theme';
@@ -72,8 +73,8 @@ export default function NovaSenhaPage() {
     e.preventDefault();
     setErroLocal(null);
 
-    if (senha.length < 8) {
-      setErroLocal('A senha deve ter ao menos 8 caracteres');
+    if (!senhaValida(senha)) {
+      setErroLocal('A senha não cumpre os requisitos abaixo');
       return;
     }
     if (senha !== confirmacao) {
@@ -195,6 +196,8 @@ export default function NovaSenhaPage() {
               {mostrarSenha ? <EyeOff size={17} /> : <Eye size={17} />}
             </button>
           </div>
+          {/* A lista fica sob a senha nova, e nao sob a confirmacao. */}
+          {id === 'senha' && <SenhaChecklist senha={senha} />}
         </div>
       ))}
 
@@ -206,8 +209,11 @@ export default function NovaSenhaPage() {
 
       <button
         type="submit"
-        disabled={redefinir.isPending}
-        style={{ ...S.btn, opacity: redefinir.isPending ? 0.6 : 1 }}
+        disabled={redefinir.isPending || !senhaValida(senha) || senha !== confirmacao}
+        style={{
+          ...S.btn,
+          opacity: redefinir.isPending || !senhaValida(senha) || senha !== confirmacao ? 0.6 : 1,
+        }}
       >
         {redefinir.isPending ? 'Salvando...' : 'Salvar nova senha'}
       </button>

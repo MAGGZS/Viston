@@ -2,11 +2,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { LogOut, ArrowLeft, Building2, Check, ChevronRight, KeyRound, MessageSquarePlus, Palette, Pencil, Trash2, UserRound } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
+import { SenhaChecklist, senhaValida } from '@/app/components/SenhaChecklist';
 import { Avatar } from '@/app/components/Avatar';
 import { AvatarEditorModal } from '@/app/components/AvatarEditorModal';
 import { AparenciaModal } from '@/app/components/AparenciaModal';
@@ -48,7 +49,10 @@ const feedbackSchema = yup.object({
 
 const passwordSchema = yup.object({
   current_password: yup.string().required('Obrigatório'),
-  new_password: yup.string().min(8, 'Mínimo 8 caracteres').required('Obrigatório'),
+  new_password: yup
+    .string()
+    .required('Obrigatório')
+    .test('forte', 'A senha não cumpre os requisitos', (v) => senhaValida(v ?? '')),
   new_password_confirmation: yup
     .string()
     .oneOf([yup.ref('new_password')], 'As senhas não coincidem')
@@ -239,6 +243,10 @@ function PasswordForm() {
 
   useUnsavedField(form.formState.isDirty);
 
+  // `useWatch` e nao `watch()`: o segundo devolve uma funcao nova a cada render
+  // e o compilador do React desiste de memoizar o componente inteiro.
+  const senhaNova = useWatch({ control: form.control, name: 'new_password' }) ?? '';
+
   // A confirmação existe só para o dedo errar menos; a API recebe as duas senhas.
   async function onSubmit({ new_password_confirmation, ...data }) {
     try {
@@ -254,6 +262,7 @@ function PasswordForm() {
     <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <MField label="Senha atual" type="password" error={form.formState.errors.current_password?.message} {...form.register('current_password')} />
       <MField label="Nova senha" type="password" error={form.formState.errors.new_password?.message} {...form.register('new_password')} />
+      <SenhaChecklist senha={senhaNova} />
       <MField label="Confirmar nova senha" type="password" error={form.formState.errors.new_password_confirmation?.message} {...form.register('new_password_confirmation')} />
       <MButton type="submit" loading={changePassword.isPending} style={{ width: '100%' }}>Alterar senha</MButton>
     </form>

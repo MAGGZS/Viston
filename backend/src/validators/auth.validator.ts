@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { senhaSchema } from './confirmation.validator';
 
 export const loginSchema = z.object({
   email: z.string().email('E-mail inválido'),
@@ -20,7 +21,7 @@ export const createUserSchema = z
     // como o mesmo endereço, que é o que impede duas contas do mesmo dono — as
     // duas com link de confirmação válido.
     email: z.string().trim().email('E-mail inválido').max(160),
-    password: z.string().min(8, 'Senha deve ter ao menos 8 caracteres').max(200),
+    password: senhaSchema,
     // Armadilha. O campo é escondido no CSS e humano nenhum o preenche; robô de
     // formulário preenche tudo que encontra. Precisa estar declarado porque o
     // `.strict()` abaixo recusaria o campo desconhecido com 400 — e o 400 é
@@ -115,5 +116,5 @@ export const updateAvatarSchema = z
 
 export const changePasswordSchema = z.object({
   current_password: z.string().min(1),
-  new_password: z.string().min(8, 'Nova senha deve ter ao menos 8 caracteres'),
+  new_password: senhaSchema,
 });

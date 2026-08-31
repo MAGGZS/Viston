@@ -1,12 +1,13 @@
 'use client';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { AuthShell } from '@/app/components/AuthShell';
 import { ConfirmarCodigo } from '@/app/components/ConfirmarCodigo';
+import { SenhaChecklist, senhaValida } from '@/app/components/SenhaChecklist';
 import { useUnsavedFlag } from '@/app/hooks/useUnsavedGuard';
 import { useCreateManager } from '@/app/hooks/useApi';
 import { T, R, W } from '@/app/lib/theme';
@@ -14,7 +15,12 @@ import { T, R, W } from '@/app/lib/theme';
 const schema = yup.object({
   name: yup.string().min(2, 'Mínimo 2 caracteres').required('Obrigatório'),
   email: yup.string().email('E-mail inválido').required('Obrigatório'),
-  password: yup.string().min(8, 'Mínimo 8 caracteres').required('Obrigatório'),
+  password: yup
+    .string()
+    .required('Obrigatório')
+    // As quatro regras vêm do mesmo lugar que a lista de verificação desenha e
+    // que o backend cobra — ver `components/SenhaChecklist`.
+    .test('forte', 'A senha não cumpre os requisitos', (v) => senhaValida(v ?? '')),
   password_confirmation: yup
     .string()
     .oneOf([yup.ref('password')], 'As senhas não coincidem')
@@ -43,7 +49,7 @@ export default function RegisterGestorPage() {
   // Campos vazios declarados: sem eles `isDirty` nunca volta a falso, e o
   // cadastro passa a perguntar "descartar alterações?" ao sair mesmo com tudo
   // apagado (ver desktop/admin/page.js).
-  const { register, handleSubmit, formState: { errors, isDirty } } = useForm({
+  const { register, control, handleSubmit, formState: { errors, isDirty } } = useForm({
     resolver: yupResolver(schema),
     defaultValues: { name: '', email: '', password: '', password_confirmation: '', website: '' },
   });
@@ -54,6 +60,11 @@ export default function RegisterGestorPage() {
   // endereço recebeu nem se a conta é nova — é a mesma regra da resposta única
   // do backend. A senha fica só para o botão de reenviar, que a exige.
   const [credenciais, setCredenciais] = useState(null);
+
+  // `useWatch` e nao `watch()`: o segundo devolve uma funcao nova a cada render
+  // e o compilador do React desiste de memoizar o componente inteiro — e o
+  // projeto ja carrega um aviso desses no `FloorForm`.
+  const senhaDigitada = useWatch({ control, name: 'password' }) ?? '';
 
   // Sair da tela com o cadastro pela metade — pelo link de entrar, por um
   // recarregar — passa a perguntar antes (ver components/UnsavedGuard.js).
@@ -156,6 +167,7 @@ export default function RegisterGestorPage() {
                 )}
               </div>
               {errors[name] && <span style={{ fontSize: 12, color: T.danger }}>{errors[name].message}</span>}
+              {name === 'password' && <SenhaChecklist senha={senhaDigitada} />}
             </div>
           );
         })}

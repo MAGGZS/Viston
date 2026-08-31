@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { mensagemSenhaFraca, regrasFaltando } from '../utils/senhaForte';
 
 /**
  * Seis dígitos, e só dígitos.
@@ -15,13 +16,19 @@ const codigo = z
 const email = z.string().trim().email('E-mail inválido').max(160);
 
 /**
- * A senha nova, com o mesmo piso do cadastro.
+ * A senha, com as quatro exigências de composição — ver `utils/senhaForte`.
  *
- * Oito caracteres e nada de regra de maiúscula, número e símbolo: exigência de
- * composição empurra as pessoas para `Senha@123` e para o papel colado no
- * monitor. Comprimento é o que realmente pesa, e o bcrypt cuida do resto.
+ * O `max(200)` vem antes do `refine` de propósito: bcrypt só olha os primeiros
+ * 72 bytes, e um campo sem teto deixaria alguém mandar um megabyte para o hash
+ * mastigar a cada tentativa de login.
+ *
+ * A mensagem diz *o que faltou*, e não "senha fraca": a tela mostra a lista,
+ * mas a API responde a mais gente que a tela.
  */
-const senha = z.string().min(8, 'A senha deve ter ao menos 8 caracteres').max(200);
+export const senhaSchema = z
+  .string()
+  .max(200, 'A senha é longa demais')
+  .refine((v) => regrasFaltando(v).length === 0, (v) => ({ message: mensagemSenhaFraca(v) }));
 
 export const confirmEmailSchema = z.object({ email, code: codigo }).strict();
 
@@ -40,5 +47,5 @@ export const forgotPasswordSchema = z.object({ email }).strict();
 export const verifyResetCodeSchema = z.object({ email, code: codigo }).strict();
 
 export const resetPasswordSchema = z
-  .object({ email, code: codigo, new_password: senha })
+  .object({ email, code: codigo, new_password: senhaSchema })
   .strict();

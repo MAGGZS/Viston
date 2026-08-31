@@ -117,6 +117,59 @@ describe('userService.create', () => {
 });
 
 // ── Testes: createUserSchema (cadastro público) ──────────────────────────────
+/**
+ * As quatro exigências de composição da senha.
+ *
+ * Elas moram em `utils/senhaForte` e são cobradas em três lugares — cadastro,
+ * troca de senha no perfil e redefinição. A tela desenha a mesma lista, e é por
+ * isso que estes casos existem: se o servidor e a lista discordarem, a pessoa
+ * vê quatro vistos verdes e um erro vermelho.
+ */
+describe('composicao da senha', () => {
+  const base = { name: 'Carlos', email: 'carlos@test.com' };
+  const recusa = (password: string) =>
+    createUserSchema.safeParse({ ...base, password });
+
+  it.each([
+    ['curta demais', 'Ab1@'],
+    ['sem maiuscula', 'senha@123'],
+    ['sem numero', 'SenhaSenha@'],
+    ['sem caractere especial', 'Senha12345'],
+    ['so letras', 'senhasenha'],
+  ])('recusa senha %s', (_caso, senha) => {
+    expect(recusa(senha).success).toBe(false);
+  });
+
+  it.each([
+    ['acento como especial', 'Senhaç123'],
+    ['simbolo comum', 'Senha@123'],
+    ['exatamente 8', 'Senha1@a'],
+  ])('aceita senha com %s', (_caso, senha) => {
+    expect(recusa(senha).success).toBe(true);
+  });
+
+  /**
+   * A mensagem diz o que faltou, e não "senha fraca".
+   *
+   * A tela mostra a lista, mas a API responde a mais gente que a tela — e quem
+   * recebe só "fraca" precisa adivinhar qual das quatro regras furou.
+   */
+  it('a recusa nomeia o que faltou', () => {
+    const r = recusa('senhasenha');
+    const mensagem = r.success ? '' : r.error.issues[0].message;
+
+    expect(mensagem).toContain('maiúscula');
+    expect(mensagem).toContain('número');
+    expect(mensagem).toContain('especial');
+    // O tamanho passou: dez caracteres. Não pode aparecer na lista do que falta.
+    expect(mensagem).not.toContain('8 caracteres');
+  });
+
+  it('o teto de tamanho continua valendo', () => {
+    expect(recusa(`Aa1@${'x'.repeat(300)}`).success).toBe(false);
+  });
+});
+
 describe('createUserSchema', () => {
   it('descarta role enviado no cadastro público', () => {
     expect(() =>
