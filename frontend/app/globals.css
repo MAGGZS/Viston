@@ -563,3 +563,30 @@ input:-webkit-autofill:focus {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
 }
+
+/*
+ * A casca das telas de acesso.
+ *
+ * No computador ela centraliza na vertical, e é o que se espera de uma coluna
+ * estreita num monitor largo. No telefone, centralizar faz a marca de cada tela
+ * parar numa altura diferente, porque cada uma tem uma quantidade de conteúdo:
+ * o login abria a logo a 90px do topo e a de esqueci a senha, mais curta, a
+ * 177px — quase o dobro, na mesma tela do mesmo produto.
+ *
+ * `flex-start` com um respiro fixo alinha todas pela mesma linha. O valor sai
+ * de onde o login já pousava, que é a tela que as pessoas veem mais.
+ */
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+}
+
+@media (max-height: 900px), (max-width: 640px) {
+  .auth-shell {
+    align-items: flex-start;
+    padding-top: 90px;
+  }
+}

@@ -10,11 +10,10 @@ import { T, W } from '@/app/lib/theme';
  * quem chega, e antes ela aparecia de uma vez, seca.
  */
 export function AuthShell({ title, subtitle, children, footer }) {
+  // O posicionamento mora no `globals.css`, e não aqui: ele precisa de media
+  // query, e estilo em atributo não tem como expressar uma. Ver `.auth-shell`.
   return (
-    <div style={{
-      minHeight: '100vh', background: T.bg,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 24px',
-    }}>
+    <div className="auth-shell" style={{ background: T.bg }}>
       <div style={{ width: '100%', maxWidth: 380 }}>
         <div style={{ textAlign: 'center' }}>
           {/* A marca abre o escalonamento: mesma subida do resto da coluna, no
