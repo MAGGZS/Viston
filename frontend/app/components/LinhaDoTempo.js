@@ -314,6 +314,7 @@ function Anotacao({ update, atual, ultimo, podeAlterar, ticketId, onAbrirFoto })
         title="Apagar esta atualização?"
         message="O texto e as fotos saem da linha do tempo, e isso não tem volta."
         confirmLabel="Apagar"
+        loading={remover.isPending}
         onConfirm={apagar}
         onCancel={() => setApagando(false)}
       />

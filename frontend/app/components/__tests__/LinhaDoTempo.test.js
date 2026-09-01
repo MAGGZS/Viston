@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import userEvent from '@testing-library/user-event';
 import { LinhaDoTempo, temLinhaDoTempo } from '@/app/components/LinhaDoTempo';
 import { useAuthStore } from '@/app/store/auth';
 
@@ -78,6 +79,7 @@ function Linha({ ticket = TICKET, podeEscrever = false }) {
 
 beforeEach(() => {
   api.get.mockReset();
+  api.delete.mockReset();
   api.get.mockResolvedValue({ data: { updates: UPDATES } });
   useAuthStore.setState({ user: { id: EU, name: 'Marina' } });
 });
@@ -185,6 +187,41 @@ describe('LinhaDoTempo', () => {
     // deixar de valer como registro.
     expect(screen.getAllByRole('button', { name: /Editar/ })).toHaveLength(1);
     expect(screen.getAllByRole('button', { name: /Apagar/ })).toHaveLength(1);
+  });
+
+  /**
+   * O relato de quem usou: sem sinal nenhum entre o toque e a resposta, a caixa
+   * parecia travada e a pessoa tocava em "Apagar" de novo — a segunda vez caindo
+   * num registro que já tinha ido.
+   */
+  it('apagar mostra que está apagando, e o segundo toque não manda outro pedido', async () => {
+    const user = userEvent.setup();
+    // A resposta fica pendente: é a janela em que a pessoa tocava de novo.
+    let concluir;
+    api.delete.mockReturnValue(new Promise((resolve) => { concluir = resolve; }));
+
+    render(<Linha podeEscrever />);
+    await screen.findByText('Troquei a válvula e testei por 20 minutos.');
+
+    await user.click(screen.getByRole('button', { name: /Apagar/ }));
+
+    const caixa = screen.getByRole('dialog');
+    const confirmar = within(caixa).getByRole('button', { name: 'Apagar' });
+    await user.click(confirmar);
+
+    expect(api.delete).toHaveBeenCalledTimes(1);
+    // O rótulo dá lugar ao giro, e o botão para de aceitar toque.
+    expect(confirmar).toBeDisabled();
+    expect(within(caixa).getByRole('button', { name: 'Voltar' })).toBeDisabled();
+
+    // `fireEvent` porque o `userEvent` recusaria o clique num botão desativado —
+    // e o que se quer provar aqui é justamente que ele não faz nada.
+    fireEvent.click(confirmar);
+    expect(api.delete).toHaveBeenCalledTimes(1);
+
+    // Deixar a promessa pendente ao fim do teste faria o toast e o refetch
+    // caírem fora do act do React, com aviso no console.
+    await act(async () => { concluir({ data: { ok: true } }); });
   });
 
   it('não oferece alterar a última anotação escrita por outra pessoa', async () => {

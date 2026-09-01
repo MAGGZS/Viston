@@ -871,8 +871,18 @@ export function useTicketUpdates(id, enabled = true) {
  * porque "concluir" passa a ser permitido a partir do primeiro registro.
  */
 function invalidateUpdates(qc, id) {
-  qc.invalidateQueries({ queryKey: ['ticket-updates', id] });
   invalidateTickets(qc);
+
+  // A linha do tempo é devolvida, e não só invalidada: o React Query espera a
+  // promessa que sai do `onSuccess`, então a mutação só termina quando a lista
+  // já voltou do servidor. Sem isso, o botão saía do estado de espera com a
+  // anotação ainda na tela por um instante — tempo suficiente para alguém
+  // tocar em "Apagar" outra vez, agora numa linha que já não existe.
+  //
+  // Só esta consulta é esperada. As outras (as filas, os contadores) são de
+  // telas que não estão sob o dedo de quem apagou, e segurar o botão por elas
+  // seria cobrar da pessoa a espera de uma tela que ela não está vendo.
+  return qc.invalidateQueries({ queryKey: ['ticket-updates', id] });
 }
 
 /** Um passo da manutenção: o que foi feito agora, e as fotos disso. */
