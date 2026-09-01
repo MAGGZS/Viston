@@ -378,9 +378,9 @@ function Marco({ titulo, texto, quando, ultimo }) {
  * botão flutuante — escrever aqui é a continuação natural da leitura, e é o
  * gesto mais frequente desta tela.
  *
- * "O lugar exato" muda com a ordem escolhida: no topo quando a lista abre pelas
- * mais recentes, no pé quando abre pelas mais antigas. É por isso que `ultimo`
- * vem de fora — quem sabe se sobrou fio embaixo é a lista, não ele.
+ * "O lugar exato" é o pé da lista, que é onde o fio acaba e onde a próxima
+ * anotação vai aparecer. `ultimo` ainda vem de fora porque quem sabe se sobrou
+ * fio embaixo é a lista, e não ele.
  */
 function Compositor({ ticketId, ultimo = true }) {
   const [texto, setTexto] = useState('');
@@ -595,34 +595,33 @@ export function LinhaDoTempo({ ticket, podeEscrever = false }) {
   /**
    * As linhas na ordem em que serão desenhadas, com os dias intercalados.
    *
-   * Do mais recente ao mais antigo, sempre. Quem abre um chamado que já corre
-   * há dias quer saber em que pé ele está agora, e não recomeçar a história do
-   * princípio — o que decide o próximo passo é o último. Não há controle para
-   * inverter: a linha é curta, cabe numa tela, e um botão de ordem aqui seria
-   * uma pergunta a mais numa peça que existe para responder uma só. Escolher
-   * ordem é coisa de lista de arquivo, e ali ela existe (ver `FiltrosChamados`,
-   * nos finalizados).
+   * Do mais antigo ao mais recente: a linha é uma história, e história se lê do
+   * princípio. O fio desce, cada passo puxa o seguinte, e o de baixo é o de
+   * agora — que é para onde a leitura ia acabar indo de qualquer jeito.
    *
-   * O dia entra quando muda em relação ao passo anterior — e é o que faz o
-   * cabeçalho continuar certo de cabeça para baixo: lendo do mais novo, "sexta"
-   * abre a sexta e "quinta" abre a quinta, mais abaixo.
+   * Não é a ordem da lista de finalizados, e não deveria ser. Lá são chamados
+   * soltos, sem relação entre si, e ler o arquivo é procurar o último; aqui é
+   * um só, contado em partes que dependem umas das outras. Ordem é do que se
+   * está lendo, não do produto (ver `FiltrosChamados` para o outro caso).
    *
-   * O compositor abre a lista, e não a fecha: a próxima anotação nasce em cima,
-   * e o campo tem de estar onde ela vai aparecer. É a linha continuando para
-   * dentro do que se digita.
+   * O dia entra quando muda em relação ao passo anterior — o cabeçalho é o que
+   * a sequência produz, e não uma gaveta em que ela é guardada.
+   *
+   * O compositor fecha a lista: a próxima anotação nasce embaixo, e o campo tem
+   * de estar onde ela vai aparecer. É a linha continuando para dentro do que se
+   * digita.
    */
-  const ordenados = [...passos].reverse();
-
   const linhas = [];
-  if (escrevendo) linhas.push({ chave: 'compositor', tipo: 'compositor' });
 
-  ordenados.forEach((passo, i) => {
-    const anterior = ordenados[i - 1];
+  passos.forEach((passo, i) => {
+    const anterior = passos[i - 1];
     if (!anterior || !isSameDay(passo.quando, anterior.quando)) {
       linhas.push({ chave: `dia-${passo.chave}`, tipo: 'dia', quando: passo.quando });
     }
     linhas.push(passo);
   });
+
+  if (escrevendo) linhas.push({ chave: 'compositor', tipo: 'compositor' });
 
   return (
     <div>

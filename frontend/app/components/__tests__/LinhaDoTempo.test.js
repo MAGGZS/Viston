@@ -134,20 +134,20 @@ describe('LinhaDoTempo', () => {
     const PRIMEIRA = 'Abri o forro e achei a válvula travada';
     const ULTIMA = 'Troquei a válvula e testei por 20 minutos.';
 
-    it('abre pelas mais recentes', async () => {
+    it('lê do princípio: o primeiro passo em cima, o de agora embaixo', async () => {
       render(<Linha />);
       await screen.findByText(ULTIMA);
 
-      expect(posicao(ULTIMA)).toBeLessThan(posicao(PRIMEIRA));
-      // O cabeçalho do dia acompanha: a sexta abre a lista, a quinta vem depois.
-      expect(posicao('Sexta-feira, 21 de agosto')).toBeLessThan(posicao('Quinta-feira, 20 de agosto'));
+      expect(posicao(PRIMEIRA)).toBeLessThan(posicao(ULTIMA));
+      // O cabeçalho do dia acompanha: a quinta abre a lista, a sexta vem depois.
+      expect(posicao('Quinta-feira, 20 de agosto')).toBeLessThan(posicao('Sexta-feira, 21 de agosto'));
     });
 
-    it('o compositor abre a lista — é onde a próxima anotação vai nascer', async () => {
+    it('o compositor fecha a lista — é onde a próxima anotação vai nascer', async () => {
       render(<Linha podeEscrever />);
       await screen.findByText(ULTIMA);
 
-      expect(posicao('O que foi feito agora?')).toBeLessThan(posicao(ULTIMA));
+      expect(posicao('O que foi feito agora?')).toBeGreaterThan(posicao(ULTIMA));
     });
 
     it('não oferece controle de ordem — isso é da lista de finalizados', async () => {
@@ -175,9 +175,9 @@ describe('LinhaDoTempo', () => {
       );
       await screen.findByText('Conclusão informada');
 
-      // Do mais novo para o mais velho: a terceira, o marco, a segunda.
-      expect(posicao(ULTIMA)).toBeLessThan(posicao('Conclusão informada'));
-      expect(posicao('Conclusão informada')).toBeLessThan(posicao('Comprei a peça. Chega amanhã.'));
+      // Do mais velho para o mais novo: a segunda, o marco, a terceira.
+      expect(posicao('Comprei a peça. Chega amanhã.')).toBeLessThan(posicao('Conclusão informada'));
+      expect(posicao('Conclusão informada')).toBeLessThan(posicao(ULTIMA));
     });
   });
 
