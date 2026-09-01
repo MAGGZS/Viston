@@ -13,7 +13,7 @@ import { AvatarEditorModal } from '@/app/components/AvatarEditorModal';
 import { AparenciaModal } from '@/app/components/AparenciaModal';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { Logo } from '@/app/components/Logo';
-import { M, MPage, MRound, MField, MButton } from '@/app/components/mobile/kit';
+import { M, MPage, MRound, MField, MButton, RESPIRO_TOPO } from '@/app/components/mobile/kit';
 import { BottomNav } from '@/app/components/BottomNav';
 import { Button, Modal, Textarea } from '@/app/components/ui';
 import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
@@ -523,9 +523,10 @@ export default function PerfilPage() {
       {/* ── MOBILE ── */}
       <div className="lg:hidden">
         <MPage>
-          {/* Mesmo respiro do topo que o MTopBar dá nas outras telas mobile —
-              sem ele o botão encosta na barra de status do telefone. */}
-          <div style={{ display: 'flex', alignItems: 'center', padding: '52px 0 4px' }}>
+          {/* O mesmo respiro do MTopBar, e vindo de lá: são a primeira linha
+              da tela nas duas, e desencontrados um teria o entalhe descontado
+              e o outro não. */}
+          <div style={{ display: 'flex', alignItems: 'center', padding: `${RESPIRO_TOPO} 0 4px` }}>
             <MRound label="Voltar" onClick={() => router.back()}>
               <ArrowLeft size={18} />
             </MRound>

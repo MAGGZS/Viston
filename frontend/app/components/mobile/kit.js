@@ -56,10 +56,25 @@ export function MPage({ children, pad = true }) {
   );
 }
 
+/**
+ * A folga acima do título, no telefone.
+ *
+ * Eram 52px fixos, e eles faziam dois trabalhos ao mesmo tempo: desviar do
+ * entalhe do aparelho e dar respiro ao título. Quem abre no navegador não tem
+ * entalhe nenhum — a barra de endereço já ocupa aquela faixa —, e pagava os
+ * 52px assim mesmo: o conteúdo nascia longe do topo sem motivo.
+ *
+ * Agora são duas parcelas. `env(safe-area-inset-top)` é a medida que o próprio
+ * aparelho informa, e ela vale zero onde não há o que desviar (o `layout.js`
+ * declara `viewportFit: 'cover'`, que é o que faz o navegador informá-la de
+ * verdade). Os 20px são o respiro, e só ele.
+ */
+export const RESPIRO_TOPO = 'calc(20px + env(safe-area-inset-top))';
+
 /** Barra do topo: título grande à esquerda, botões redondos à direita. */
 export function MTopBar({ eyebrow, title, accent, actions, avatar, className = '' }) {
   return (
-    <header className={className} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '52px 0 22px' }}>
+    <header className={className} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: `${RESPIRO_TOPO} 0 22px` }}>
       {avatar}
       <div style={{ flex: 1, minWidth: 0 }}>
         {eyebrow && <p style={{ color: M.faint, fontSize: 12, marginBottom: 2 }}>{eyebrow}</p>}
