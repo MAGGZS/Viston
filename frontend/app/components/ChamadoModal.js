@@ -204,15 +204,11 @@ export function ChamadoModal({ ticket, buildingId, open, onClose, onFinalizar })
     <>
       <Modal open={open} onClose={() => saida.guard(onClose)} title={null} maxWidth={520}>
         <UnsavedScope report={report}>
-          {/* O `<dialog>` é `overflow: visible`, então conteúdo alto sairia da tela
-              em vez de rolar — e um chamado com descrição longa, relato do
-              responsável e caixa de reenvio passa fácil da altura da janela. A
-              lista suspensa do Select não é cortada por isto: ela vive num portal
-              preso ao `<dialog>`, e se reposiciona ao rolar. */}
-          <div style={{
-            display: 'flex', flexDirection: 'column', gap: 16,
-            maxHeight: 'calc(100vh - 120px)', overflowY: 'auto',
-          }}>
+          {/* A rolagem de caixa alta mora no `Modal` agora, e vale para todas —
+              esta caixa foi só a primeira a precisar dela. A lista suspensa do
+              Select não é cortada por isso: ela vive num portal preso ao
+              `<dialog>`, e se reposiciona ao rolar. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <Badge variant={PRIORITY_VARIANT[ticket.priority] ?? 'default'}>

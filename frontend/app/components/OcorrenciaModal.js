@@ -69,14 +69,7 @@ export function OcorrenciaModal({ occurrence, open, onClose }) {
   return (
     <Modal open={open} onClose={onClose} title="Ocorrência" maxWidth={560}>
       {occurrence && (
-        // O `<dialog>` é `overflow: visible`, então conteúdo alto sairia da tela
-        // em vez de rolar — e uma ocorrência com descrição longa, relato do
-        // responsável e a linha do tempo inteira passa fácil da altura da
-        // janela.
-        <div style={{
-          display: 'flex', flexDirection: 'column', gap: 18,
-          maxHeight: 'calc(100vh - 120px)', overflowY: 'auto',
-        }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <Badge variant={PRIORITY_VARIANT[occurrence.priority] ?? 'default'}>

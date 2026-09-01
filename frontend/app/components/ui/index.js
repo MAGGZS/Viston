@@ -382,16 +382,39 @@ export function Modal({ open, onClose, title, children, maxWidth = 400 }) {
       labelledBy={shownTitle ? titleId : undefined}
       aria-label={shownTitle ? undefined : 'Caixa de diálogo'}
     >
+      {/*
+        A caixa cresce com o que tem dentro, até a altura da janela — e daí em
+        diante o miolo rola.
+
+        Sem isto, conteúdo alto simplesmente saía da tela: o `<dialog>` é
+        `overflow: visible`, e uma ocorrência com descrição longa, relato do
+        responsável e a linha do tempo inteira passa fácil da altura do
+        telefone. O que ficava para fora não tinha como ser alcançado — nem
+        rolando a página, que o `<dialog>` trava.
+
+        `maxHeight: 'inherit'` pega o teto que o `.dialog` já declara no
+        globals.css, em vez de repetir o número aqui. Dois lugares com a mesma
+        medida viram um dia dois números diferentes.
+
+        O título fica de fora da rolagem: em caixa alta, ele é o que diz onde a
+        pessoa está, e some justamente quando ela precisa dele.
+      */}
       <div
         className={closing ? 'anim-scale-out' : 'anim-scale-in'}
-        style={{ background: T.card, borderRadius: R.card, boxShadow: T.cardRing, padding: 22 }}
+        style={{
+          background: T.card, borderRadius: R.card, boxShadow: T.cardRing, padding: 22,
+          maxHeight: 'inherit', display: 'flex', flexDirection: 'column',
+        }}
       >
         {shownTitle && (
-          <h2 id={titleId} style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text, marginBottom: 16 }}>
+          <h2 id={titleId} style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text, marginBottom: 16, flexShrink: 0 }}>
             {shownTitle}
           </h2>
         )}
-        {shownChildren}
+        {/* `minHeight: 0` é o que deixa o filho de um flex encolher abaixo do
+            próprio conteúdo. Sem ele o miolo empurra a caixa para fora da tela
+            e a rolagem nunca chega a acontecer. */}
+        <div style={{ overflowY: 'auto', minHeight: 0 }}>{shownChildren}</div>
       </div>
     </Dialog>
   );
