@@ -143,6 +143,27 @@ describe('LinhaDoTempo', () => {
     expect(screen.getByText('Válvula trocada, sem vazamento.')).toBeInTheDocument();
   });
 
+  it('conclusão informada tranca a linha, mesmo para quem escreveria', async () => {
+    render(
+      <Linha
+        podeEscrever
+        ticket={{
+          ...TICKET,
+          status: 'AGUARDANDO_FECHAMENTO',
+          done_at: local(2026, 8, 21, 14, 0),
+        }}
+      />
+    );
+    await screen.findByText('Conclusão informada');
+
+    // O que o responsável entregou é o que o moderador vai validar: a linha não
+    // pode crescer por baixo dele. Quem precisa acrescentar cancela a conclusão.
+    expect(screen.queryByText('O que foi feito agora?')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Registrar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Editar/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Apagar/ })).not.toBeInTheDocument();
+  });
+
   it('fecha a linha no fechamento do moderador, dizendo quem fechou', async () => {
     render(
       <Linha

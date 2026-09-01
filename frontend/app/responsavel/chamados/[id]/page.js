@@ -10,6 +10,7 @@ import { M, MCard, MButton, MRound, CONTENT_ID, RESPIRO_TOPO } from '@/app/compo
 import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
 import { UnsavedScope, useUnsavedField, useUnsavedGuard, useUnsavedScope } from '@/app/hooks/useUnsavedGuard';
 import { LinhaDoTempo, temLinhaDoTempo } from '@/app/components/LinhaDoTempo';
+import { CancelarConclusaoBox } from '@/app/components/CancelarConclusaoBox';
 import { dayLabel, stampLabel } from '@/app/components/OcorrenciaModal';
 import { useTicket, useTicketUpdates, useReceiveTicket, useReportTicketDone } from '@/app/hooks/useApi';
 import {
@@ -147,6 +148,7 @@ function TelaDaOcorrencia() {
 
   const pendente = ticket?.status === 'ENCAMINHADO';
   const executando = ticket && ['EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO'].includes(ticket.status);
+  const aguardandoFechamento = ticket?.status === 'AGUARDANDO_FECHAMENTO';
   const meu = !!user?.id && ticket?.responsible_id === user.id;
   const temRegistro = (updatesData?.updates?.length ?? 0) > 0;
 
@@ -259,6 +261,15 @@ function TelaDaOcorrencia() {
               <div className="anim-fade-up anim-d2">
                 <ConclusaoBox ticket={ticket} temRegistro={temRegistro} />
               </div>
+            )}
+
+            {/* Concluído, e o moderador ainda não fechou. A conclusão trancou a
+                linha do tempo — esta é a porta de volta de quem concluiu cedo
+                demais e ainda tem o que registrar. */}
+            {aguardandoFechamento && meu && (
+              <MCard className="anim-fade-up anim-d2">
+                <CancelarConclusaoBox ticket={ticket} />
+              </MCard>
             )}
           </UnsavedScope>
         )}

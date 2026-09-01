@@ -44,6 +44,9 @@ router.patch('/tickets/:id', auth, ticketController.update);
 router.post('/tickets/:id/receive', auth, ticketController.receive);
 // O responsável avisa que terminou; fechar é outra rota, de outra pessoa.
 router.post('/tickets/:id/done', auth, ticketController.reportDone);
+// E desdiz, enquanto o moderador não fechou: a conclusão tranca a linha do
+// tempo, e esta e a porta de volta para quem precisa registrar mais.
+router.post('/tickets/:id/undone', auth, ticketController.undoDone);
 router.post('/tickets/:id/close', auth, ticketController.close);
 
 // ── A linha do tempo da manutenção ───────────────────────────────────────────

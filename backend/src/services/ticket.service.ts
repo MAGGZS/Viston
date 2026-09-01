@@ -118,15 +118,18 @@ const COM_LINHA_DO_TEMPO: RecordStatus[] = [
 /**
  * Nos quais ainda se escreve.
  *
- * `AGUARDANDO_FECHAMENTO` entra de propósito: informar a conclusão não encerra
- * o chamado, e o moderador pode pedir mais detalhes antes de fechar. Depois de
- * `CONCLUIDO` a linha vira arquivo — acrescentar ali seria mexer no que já foi
- * validado e encerrado.
+ * A conclusão informada fecha a linha, e fecha para todo mundo — inclusive para
+ * o moderador. O que o responsável entregou é o que o moderador vai validar, e
+ * uma linha que continua crescendo depois da entrega não é mais a entrega: o
+ * moderador leria hoje uma coisa e amanhã outra, sem saber que mudou.
+ *
+ * Quem precisa acrescentar cancela a conclusão (ver `undoDone`) — o chamado
+ * volta a andar, e a linha volta a aceitar. É um gesto explícito, e é o que
+ * mantém "concluído" querendo dizer alguma coisa.
  */
 const ACEITA_ESCRITA: RecordStatus[] = [
   RecordStatus.EM_ANDAMENTO,
   RecordStatus.AGUARDANDO_TERCEIRO,
-  RecordStatus.AGUARDANDO_FECHAMENTO,
 ];
 
 /** É o dono do chamado — a pessoa a quem ele foi encaminhado. */
@@ -466,6 +469,49 @@ export const ticketService = {
   },
 
   /**
+   * Desfaz a conclusão informada — o chamado volta a andar.
+   *
+   * É o par de `reportDone`, e o irmão de `unforward`: cada passo que muda o
+   * estado do chamado sem fechá-lo tem a sua volta. Existe porque a conclusão
+   * passou a trancar a linha do tempo, e sem esta porta quem concluiu cedo
+   * demais — a peça que ainda ia chegar, o teste que faltou — não teria como
+   * registrar o resto. Antes, a saída era o moderador reencaminhar, que zera o
+   * recebimento e faz o chamado parecer novo para quem já estava nele.
+   *
+   * Volta para `EM_ANDAMENTO`, e não para o estado anterior: `AGUARDANDO_TERCEIRO`
+   * era uma espera que já terminou quando a pessoa disse "terminei", e supor
+   * que ela continua seria inventar um fato. Se ainda depende de terceiro, o
+   * moderador o diz de novo (ver `update`).
+   *
+   * `done_report` fica. É o texto que a pessoa escreveu, e ela vai concluir de
+   * novo daqui a pouco — apagá-lo seria cobrar que reescrevesse do zero. Some
+   * da tela junto com `done_at`, porque é ele quem diz que houve conclusão.
+   */
+  async undoDone(id: string, user: Actor) {
+    const { ticket, buildingId } = await loadTicket(id);
+
+    // A mesma dupla de `reportDone`: quem pôde dizer "terminei" pode desdizer.
+    if (!isAssignedTo(ticket, user) && !(await canModerateBuilding(user, buildingId))) {
+      throw new ForbiddenError('Este chamado não está com você');
+    }
+
+    if (ticket.status !== RecordStatus.AGUARDANDO_FECHAMENTO) {
+      if (ticket.status === RecordStatus.CONCLUIDO) {
+        throw new ConflictError('Este chamado já foi fechado');
+      }
+      throw new ConflictError('Este chamado não está concluído');
+    }
+
+    const updated = await ticketRepository.update(id, {
+      status: RecordStatus.EM_ANDAMENTO,
+      done_at: null,
+    });
+
+    await logTicket(user, buildingId, id, { undone_by: user.id });
+    return toTicket(updated);
+  },
+
+  /**
    * Devolve o chamado à fila de novos, desfazendo o encaminhamento.
    *
    * Existe porque encaminhar para a pessoa errada não tinha volta: trocar de
@@ -618,6 +664,9 @@ export const ticketService = {
     if (!ACEITA_ESCRITA.includes(ticket.status)) {
       if (ticket.status === RecordStatus.CONCLUIDO) {
         throw new ConflictError('Este chamado já foi fechado');
+      }
+      if (ticket.status === RecordStatus.AGUARDANDO_FECHAMENTO) {
+        throw new ConflictError('Cancele a conclusão para registrar mais andamento');
       }
       throw new ConflictError('Receba o chamado antes de registrar o andamento');
     }

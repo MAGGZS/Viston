@@ -35,8 +35,17 @@ export function temLinhaDoTempo(status) {
   return COM_LINHA_DO_TEMPO.includes(status);
 }
 
-/** Depois de fechado a linha vira arquivo: ninguém acrescenta ao que já acabou. */
-const ACEITA_ESCRITA = ['EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO', 'AGUARDANDO_FECHAMENTO'];
+/**
+ * Onde ainda se escreve.
+ *
+ * A conclusão informada fecha a linha, e fecha para todo mundo — inclusive para
+ * o moderador. O que o responsável entregou é o que o moderador vai validar, e
+ * uma linha que continua crescendo depois da entrega não é mais a entrega.
+ *
+ * Quem precisa acrescentar cancela a conclusão, e o chamado volta a andar (ver
+ * `CancelarConclusaoBox`). O espelho da regra está em `ticket.service.ts`.
+ */
+const ACEITA_ESCRITA = ['EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO'];
 
 const MAX_FOTOS = 4;
 

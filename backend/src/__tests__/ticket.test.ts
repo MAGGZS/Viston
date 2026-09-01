@@ -368,6 +368,81 @@ describe('ticketService.reportDone', () => {
   });
 });
 
+// ── Desfazer a conclusão ──────────────────────────────────────────────────────
+describe('ticketService.undoDone', () => {
+  it('devolve o chamado ao andamento e apaga a data da conclusão', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({
+        status: 'AGUARDANDO_FECHAMENTO',
+        responsible_id: RESPONSIBLE_ID,
+        done_at: new Date(),
+        done_report: 'Trocado o reator',
+      })
+    );
+
+    await ticketService.undoDone(TICKET_ID, responsavel);
+
+    const [, patch] = mockTicketRepo.update.mock.calls[0];
+    expect(patch.status).toBe('EM_ANDAMENTO');
+    expect(patch.done_at).toBeNull();
+    // O texto fica: quem cancelou vai concluir de novo, e reescrever do zero
+    // seria cobrar duas vezes o mesmo relato.
+    expect(patch).not.toHaveProperty('done_report');
+  });
+
+  it('deixa o moderador desfazer também', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'AGUARDANDO_FECHAMENTO', responsible_id: RESPONSIBLE_ID, done_at: new Date() })
+    );
+
+    await ticketService.undoDone(TICKET_ID, moderador);
+
+    const [, patch] = mockTicketRepo.update.mock.calls[0];
+    expect(patch.status).toBe('EM_ANDAMENTO');
+  });
+
+  it('recusa o chamado que ainda nem foi concluído', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID })
+    );
+
+    await expect(ticketService.undoDone(TICKET_ID, responsavel)).rejects.toThrow(ConflictError);
+    expect(mockTicketRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('recusa o chamado que o moderador já fechou — desfazer ali seria reabrir', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'CONCLUIDO', responsible_id: RESPONSIBLE_ID, closed_at: new Date() })
+    );
+
+    await expect(ticketService.undoDone(TICKET_ID, responsavel)).rejects.toThrow(ConflictError);
+  });
+
+  it('recusa o responsável de outro chamado', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'AGUARDANDO_FECHAMENTO', responsible_id: 'outra-pessoa', done_at: new Date() })
+    );
+
+    await expect(ticketService.undoDone(TICKET_ID, responsavel)).rejects.toThrow(ForbiddenError);
+  });
+
+  it('a linha do tempo volta a aceitar depois de desfeita a conclusão', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID, done_report: 'Trocado o reator' })
+    );
+
+    await ticketService.addUpdate(TICKET_ID, responsavel, { description: 'A peça chegou', photos: [] });
+
+    expect(mockTicketRepo.createUpdate).toHaveBeenCalled();
+  });
+});
+
 // ── A linha do tempo da manutenção ────────────────────────────────────────────
 describe('ticketService.addUpdate', () => {
   const passo = { description: 'Troquei a válvula', photos: [] };
@@ -429,7 +504,7 @@ describe('ticketService.addUpdate', () => {
     await expect(ticketService.addUpdate(TICKET_ID, responsavel, passo)).rejects.toThrow(ConflictError);
   });
 
-  it('continua aceitando depois da conclusão informada — o moderador ainda pode cobrar detalhe', async () => {
+  it('recusa depois da conclusão informada — a entrega nao cresce sozinha', async () => {
     comPapel('RESPONSAVEL');
     mockTicketRepo.findById.mockResolvedValue(
       makeTicket({
@@ -439,9 +514,23 @@ describe('ticketService.addUpdate', () => {
       })
     );
 
-    await ticketService.addUpdate(TICKET_ID, responsavel, passo);
+    // O que o responsável entregou é o que o moderador vai validar. Quem
+    // precisa acrescentar cancela a conclusão primeiro.
+    await expect(ticketService.addUpdate(TICKET_ID, responsavel, passo)).rejects.toThrow(ConflictError);
+    expect(mockTicketRepo.createUpdate).not.toHaveBeenCalled();
+  });
 
-    expect(mockTicketRepo.createUpdate).toHaveBeenCalled();
+  it('recusa o moderador depois da conclusão informada, como recusa o responsável', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({
+        status: 'AGUARDANDO_FECHAMENTO',
+        responsible_id: RESPONSIBLE_ID,
+        done_at: new Date(),
+      })
+    );
+
+    await expect(ticketService.addUpdate(TICKET_ID, moderador, passo)).rejects.toThrow(ConflictError);
   });
 
   it('sobe as fotos antes de gravar a linha e guarda as URLs', async () => {

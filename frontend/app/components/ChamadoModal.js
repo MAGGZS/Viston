@@ -5,6 +5,7 @@ import { Badge, Button, Modal, Select } from '@/app/components/ui';
 import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
 import { UnsavedScope, useUnsavedField, useUnsavedGuard, useUnsavedScope } from '@/app/hooks/useUnsavedGuard';
 import { LinhaDoTempo, temLinhaDoTempo } from '@/app/components/LinhaDoTempo';
+import { CancelarConclusaoBox } from '@/app/components/CancelarConclusaoBox';
 import {
   MAINTENANCE_TYPES,
   CATEGORIES,
@@ -296,6 +297,11 @@ export function ChamadoModal({ ticket, buildingId, open, onClose, onFinalizar })
             {aguardandoFechamento && (
               <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <ReenviarBox ticket={ticket} buildingId={buildingId} onDone={onClose} />
+                {/* A saída de quem lê a entrega e vê que falta coisa. Sem ela, a
+                    única forma de destravar a linha do tempo seria reencaminhar
+                    — que zera o recebimento e faz o chamado parecer novo para
+                    quem já estava nele. */}
+                <CancelarConclusaoBox ticket={ticket} />
                 <Button onClick={() => onFinalizar?.(ticket)} style={{ width: '100%' }}>
                   <CheckCheck size={15} /> Finalizar
                 </Button>

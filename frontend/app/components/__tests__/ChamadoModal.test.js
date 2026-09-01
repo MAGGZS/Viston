@@ -75,4 +75,26 @@ describe('ChamadoModal', () => {
     await waitFor(() => expect(useUnsavedStore.getState().dirty).toHaveLength(0));
     expect(campo).toHaveValue('trocar a lâmpada');
   });
+
+  /**
+   * A conclusão informada tranca a linha do tempo. Sem esta saída, a única
+   * forma de destravá-la seria reencaminhar — que zera o recebimento e faz o
+   * chamado parecer novo para quem já estava nele.
+   */
+  it('em execução não oferece cancelar a conclusão — não há conclusão a desfazer', async () => {
+    render(<Caixa />);
+    await screen.findByText('Notas para o responsável');
+
+    expect(screen.queryByRole('button', { name: /Cancelar conclusão/ })).not.toBeInTheDocument();
+  });
+
+  it('concluído pelo responsável, o moderador pode devolver o chamado ao andamento', async () => {
+    const user = userEvent.setup();
+    api.post.mockResolvedValue({ data: {} });
+    render(<Caixa ticket={{ ...TICKET, status: 'AGUARDANDO_FECHAMENTO', done_at: '2026-08-21T17:00:00.000Z' }} />);
+
+    await user.click(await screen.findByRole('button', { name: /Cancelar conclusão/ }));
+
+    expect(api.post).toHaveBeenCalledWith('/tickets/t1/undone');
+  });
 });

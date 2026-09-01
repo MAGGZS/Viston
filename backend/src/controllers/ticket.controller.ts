@@ -106,6 +106,11 @@ export const ticketController = {
     ok(res, await ticketService.reportDone(req.params.id, req.user, done_report));
   },
 
+  /** Desfaz a conclusão informada — o chamado volta a andar. */
+  async undoDone(req: AuthenticatedRequest, res: Response) {
+    ok(res, await ticketService.undoDone(req.params.id, req.user));
+  },
+
   /** Desfaz o encaminhamento — o chamado volta a ser novo, sem dono. */
   async unforward(req: AuthenticatedRequest, res: Response) {
     ok(res, await ticketService.unforward(req.params.id, req.user));

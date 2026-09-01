@@ -826,6 +826,24 @@ export function useReportTicketDone() {
   });
 }
 
+/**
+ * Desfaz a conclusão informada: o chamado volta a andar.
+ *
+ * O par de `useReportTicketDone`. A conclusão tranca a linha do tempo, e esta é
+ * a porta de volta de quem precisa registrar mais — o `ticket-updates` entra na
+ * invalidação porque é ela que destranca o compositor.
+ */
+export function useUndoTicketDone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post(`/tickets/${id}/undone`).then((r) => r.data),
+    onSuccess: (_res, id) => {
+      qc.invalidateQueries({ queryKey: ['ticket-updates', id] });
+      invalidateTickets(qc);
+    },
+  });
+}
+
 /** Cancela o envio: o chamado volta a ser novo, sem dono. */
 export function useUnforwardTicket() {
   const qc = useQueryClient();
