@@ -124,6 +124,20 @@ export const ticketFiltersSchema = z.object({
   date_to: dateFilter('Data final'),
   /** Texto solto na descrição da ocorrência. */
   q: buscaLivre,
+
+  /**
+   * A ordem da lista.
+   *
+   * Existe por causa dos finalizados. Ali a coluna que a pessoa lê é "Fechado
+   * em", e a lista vinha ordenada por criação: um chamado aberto em março e
+   * fechado ontem aparecia no fim, longe de quem foi procurar o que acabou de
+   * fechar. Ordenar pela data que está na tela é o mínimo que uma lista deve.
+   *
+   * Só as duas pontas de `closed_at`: é o único campo que faz sentido ordenar
+   * numa lista onde todas as linhas já terminaram. Ausente, o serviço escolhe o
+   * padrão de cada grupo.
+   */
+  sort: z.enum(['CLOSED_DESC', 'CLOSED_ASC']).optional(),
 });
 
 export type TicketFilters = z.infer<typeof ticketFiltersSchema>;

@@ -143,30 +143,19 @@ describe('LinhaDoTempo', () => {
       expect(posicao('Sexta-feira, 21 de agosto')).toBeLessThan(posicao('Quinta-feira, 20 de agosto'));
     });
 
-    it('o controle inverte a leitura', async () => {
-      const user = userEvent.setup();
-      render(<Linha />);
-      await screen.findByText(ULTIMA);
-
-      await user.click(screen.getByRole('button', { name: /Mostrando as mais recentes/ }));
-
-      await waitFor(() => expect(posicao(PRIMEIRA)).toBeLessThan(posicao(ULTIMA)));
-      expect(posicao('Quinta-feira, 20 de agosto')).toBeLessThan(posicao('Sexta-feira, 21 de agosto'));
-      // E volta.
-      await user.click(screen.getByRole('button', { name: /Mostrando as mais antigas/ }));
-      await waitFor(() => expect(posicao(ULTIMA)).toBeLessThan(posicao(PRIMEIRA)));
-    });
-
-    it('o compositor acompanha a ordem — é onde a próxima anotação vai nascer', async () => {
-      const user = userEvent.setup();
+    it('o compositor abre a lista — é onde a próxima anotação vai nascer', async () => {
       render(<Linha podeEscrever />);
       await screen.findByText(ULTIMA);
 
       expect(posicao('O que foi feito agora?')).toBeLessThan(posicao(ULTIMA));
+    });
 
-      await user.click(screen.getByRole('button', { name: /Mostrando as mais recentes/ }));
+    it('não oferece controle de ordem — isso é da lista de finalizados', async () => {
+      render(<Linha />);
+      await screen.findByText(ULTIMA);
 
-      await waitFor(() => expect(posicao('O que foi feito agora?')).toBeGreaterThan(posicao(ULTIMA)));
+      expect(screen.queryByRole('button', { name: /Mostrando/ })).not.toBeInTheDocument();
+      expect(screen.queryByText(/Mais antigas/)).not.toBeInTheDocument();
     });
 
     /**
@@ -189,14 +178,6 @@ describe('LinhaDoTempo', () => {
       // Do mais novo para o mais velho: a terceira, o marco, a segunda.
       expect(posicao(ULTIMA)).toBeLessThan(posicao('Conclusão informada'));
       expect(posicao('Conclusão informada')).toBeLessThan(posicao('Comprei a peça. Chega amanhã.'));
-    });
-
-    it('com um registro só não há ordem a escolher', async () => {
-      api.get.mockResolvedValue({ data: { updates: [UPDATES[0]] } });
-      render(<Linha />);
-      await screen.findByText(PRIMEIRA);
-
-      expect(screen.queryByRole('button', { name: /Mostrando/ })).not.toBeInTheDocument();
     });
   });
 

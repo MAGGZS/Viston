@@ -1040,3 +1040,40 @@ describe('ticketService.listByBuilding', () => {
     expect(resultado.tickets).toEqual([]);
   });
 });
+
+// ── A ordem da lista ──────────────────────────────────────────────────────────
+describe('ticketService.listByBuilding — ordem', () => {
+  beforeEach(() => {
+    mockTicketRepo.findByBuilding.mockResolvedValue([[], 0] as any);
+  });
+
+  function filtros(extra: any = {}) {
+    return { group: 'TODOS', page: 1, limit: 30, ...extra } as any;
+  }
+
+  /** A ordem escolhida na chamada ao repositório. */
+  const ordemPedida = () => mockTicketRepo.findByBuilding.mock.calls[0][0].sort;
+
+  it('os finalizados abrem pelo que fechou por último, sem a tela pedir', async () => {
+    // A coluna que a pessoa lê ali é "Fechado em". Ordenar por criação punha um
+    // chamado aberto em março e fechado ontem no fim da lista.
+    await ticketService.listByBuilding(BUILDING_ID, filtros({ group: 'CONCLUIDOS' }));
+
+    expect(ordemPedida()).toBe('CLOSED_DESC');
+  });
+
+  it('as demais filas seguem pela criação — nelas nada fechou ainda', async () => {
+    await ticketService.listByBuilding(BUILDING_ID, filtros({ group: 'NOVOS' }));
+
+    expect(ordemPedida()).toBeUndefined();
+  });
+
+  it('a ordem pedida pela tela vence o padrão do grupo', async () => {
+    await ticketService.listByBuilding(
+      BUILDING_ID,
+      filtros({ group: 'CONCLUIDOS', sort: 'CLOSED_ASC' })
+    );
+
+    expect(ordemPedida()).toBe('CLOSED_ASC');
+  });
+});

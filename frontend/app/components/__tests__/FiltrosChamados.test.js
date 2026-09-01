@@ -151,4 +151,46 @@ describe('FiltrosChamados', () => {
 
     expect(await screen.findByText('Nenhuma ocorrência com esses filtros')).toBeInTheDocument();
   });
+
+  /**
+   * A ordem é o oitavo chip da fileira.
+   *
+   * A coluna que esta lista mostra é "Fechado em", e ela vinha ordenada por
+   * criação: um chamado aberto em março e fechado ontem aparecia no fim, longe
+   * de quem foi justamente procurar o que acabou de fechar.
+   */
+  describe('ordem', () => {
+    it('abre no padrão, e o padrão não viaja — quem o aplica é o servidor', async () => {
+      renderTela();
+
+      await waitFor(() => expect(ultimaBusca()).toBeDefined());
+      // O chip diz em que ordem se está lendo, mesmo sem ninguém ter escolhido.
+      expect(screen.getByRole('combobox', { name: 'Ordem' })).toHaveTextContent('Fechado recentemente');
+      expect(ultimaBusca()).not.toHaveProperty('sort');
+    });
+
+    it('a outra ponta vai ao servidor', async () => {
+      const user = userEvent.setup();
+      renderTela();
+
+      await escolher(user, 'Ordem', 'Fechado há mais tempo');
+
+      await waitFor(() => expect(ultimaBusca()).toMatchObject({
+        group: 'CONCLUIDOS',
+        sort: 'CLOSED_ASC',
+      }));
+    });
+
+    it('"Limpar" devolve a ordem ao padrão junto com o resto', async () => {
+      const user = userEvent.setup();
+      renderTela();
+
+      await escolher(user, 'Ordem', 'Fechado há mais tempo');
+      await waitFor(() => expect(ultimaBusca()).toMatchObject({ sort: 'CLOSED_ASC' }));
+
+      await user.click(screen.getByRole('button', { name: /Limpar/ }));
+
+      await waitFor(() => expect(ultimaBusca()).not.toHaveProperty('sort'));
+    });
+  });
 });

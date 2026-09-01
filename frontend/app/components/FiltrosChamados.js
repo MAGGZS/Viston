@@ -34,7 +34,24 @@ export const FILTROS_CHAMADOS_VAZIOS = {
   responsible_id: '',
   date_from: '',
   date_to: '',
+  sort: '',
 };
+
+/**
+ * A ordem da lista.
+ *
+ * O vazio aqui não é ausência de filtro: é a ordem padrão, e ela tem nome. Por
+ * isso a opção entra direto em `options` com valor `''` — o chip a mostra no
+ * gatilho, e quem olha a fileira sabe em que ordem está lendo sem tocar em
+ * nada. (Ver a nota sobre `todos` no `ChipSelect`.)
+ *
+ * As duas pontas de "Fechado em", que é a coluna que esta lista mostra e a
+ * única data que todas as linhas daqui têm.
+ */
+export const ORDENS_FINALIZADOS = [
+  { value: '', label: 'Fechado recentemente' },
+  { value: 'CLOSED_ASC', label: 'Fechado há mais tempo' },
+];
 
 /**
  * O estado dos filtros e o recorte que vai à consulta.
@@ -109,6 +126,14 @@ export function FiltrosChamados({ buildingId, filtros, onChange, style = {} }) {
 
       <DataChip label="De" value={filtros.date_from} onChange={(v) => set('date_from', v)} />
       <DataChip label="Até" value={filtros.date_to} onChange={(v) => set('date_to', v)} />
+
+      {/* A ordem fecha a fileira, depois dos recortes: primeiro se decide o que
+          entra na lista, e só então em que ordem se lê o que sobrou. Acende só
+          quando sai do padrão, como o chip de período — nascer dourado faria o
+          dourado deixar de querer dizer "mexi nisto". */}
+      <ChipSelect label="Ordem" options={ORDENS_FINALIZADOS}
+        value={filtros.sort} onChange={(v) => set('sort', v)}
+        ativo={filtros.sort !== ''} />
 
       {/* Só aparece quando há o que limpar — botão morto na fileira seria mais
           um chip a ler antes de chegar aos que fazem alguma coisa. */}

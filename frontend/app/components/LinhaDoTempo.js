@@ -3,8 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
-  ArrowDownWideNarrow,
-  ArrowUpNarrowWide,
   Camera,
   Check,
   CheckCheck,
@@ -57,34 +55,6 @@ export function temLinhaDoTempo(status) {
 const ACEITA_ESCRITA = ['EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO'];
 
 const MAX_FOTOS = 4;
-
-/**
- * As duas leituras da linha, e a ordem em que ela abre.
- *
- * Abre pelas mais recentes. Quem abre um chamado que já corre há dias quer
- * saber em que pé está agora, e não recomeçar a história do princípio: o que
- * decide o próximo passo é o último. Ler do começo é a outra pergunta — como
- * chegamos aqui —, e essa se faz de vez em quando, não a cada abertura.
- *
- * A ordem é sempre a do relógio, e só ela. Anotação e marco são ordenados
- * juntos pelo instante em que aconteceram, sem separar por tipo e sem agrupar
- * antes de ordenar — o dia é um cabeçalho que a sequência produz, e não uma
- * gaveta em que ela é guardada.
- */
-const ORDENS = [
-  {
-    recentesPrimeiro: true,
-    curto: 'Mais recentes',
-    label: 'as mais recentes primeiro',
-    Icone: ArrowDownWideNarrow,
-  },
-  {
-    recentesPrimeiro: false,
-    curto: 'Mais antigas',
-    label: 'as mais antigas primeiro',
-    Icone: ArrowUpNarrowWide,
-  },
-];
 
 /** Largura da coluna do fio, e o ponto que corre por ela. */
 const PONTO = 11;
@@ -566,7 +536,6 @@ function Compositor({ ticketId, ultimo = true }) {
 export function LinhaDoTempo({ ticket, podeEscrever = false }) {
   const { user } = useAuthStore();
   const [foto, setFoto] = useState(null);
-  const [recentesPrimeiro, setRecentesPrimeiro] = useState(true);
 
   const mostra = temLinhaDoTempo(ticket?.status);
   const { data, isLoading } = useTicketUpdates(ticket?.id, mostra);
@@ -626,18 +595,26 @@ export function LinhaDoTempo({ ticket, podeEscrever = false }) {
   /**
    * As linhas na ordem em que serão desenhadas, com os dias intercalados.
    *
-   * O dia entra quando muda em relação ao passo anterior *da ordem escolhida* —
-   * e é o que faz o cabeçalho continuar certo de cabeça para baixo: lendo do
-   * mais novo, "sexta" abre a sexta e "quinta" abre a quinta, mais abaixo.
+   * Do mais recente ao mais antigo, sempre. Quem abre um chamado que já corre
+   * há dias quer saber em que pé ele está agora, e não recomeçar a história do
+   * princípio — o que decide o próximo passo é o último. Não há controle para
+   * inverter: a linha é curta, cabe numa tela, e um botão de ordem aqui seria
+   * uma pergunta a mais numa peça que existe para responder uma só. Escolher
+   * ordem é coisa de lista de arquivo, e ali ela existe (ver `FiltrosChamados`,
+   * nos finalizados).
    *
-   * O compositor acompanha a ordem, e não fica preso ao pé: com as mais
-   * recentes em cima, a próxima anotação nasce em cima, e o campo tem de estar
-   * onde ela vai aparecer. É a linha continuando para dentro do que se digita.
+   * O dia entra quando muda em relação ao passo anterior — e é o que faz o
+   * cabeçalho continuar certo de cabeça para baixo: lendo do mais novo, "sexta"
+   * abre a sexta e "quinta" abre a quinta, mais abaixo.
+   *
+   * O compositor abre a lista, e não a fecha: a próxima anotação nasce em cima,
+   * e o campo tem de estar onde ela vai aparecer. É a linha continuando para
+   * dentro do que se digita.
    */
-  const ordenados = recentesPrimeiro ? [...passos].reverse() : passos;
+  const ordenados = [...passos].reverse();
 
   const linhas = [];
-  if (escrevendo && recentesPrimeiro) linhas.push({ chave: 'compositor', tipo: 'compositor' });
+  if (escrevendo) linhas.push({ chave: 'compositor', tipo: 'compositor' });
 
   ordenados.forEach((passo, i) => {
     const anterior = ordenados[i - 1];
@@ -647,32 +624,9 @@ export function LinhaDoTempo({ ticket, podeEscrever = false }) {
     linhas.push(passo);
   });
 
-  if (escrevendo && !recentesPrimeiro) linhas.push({ chave: 'compositor', tipo: 'compositor' });
-
-  const ordem = ORDENS.find((o) => o.recentesPrimeiro === recentesPrimeiro);
-  const inversa = ORDENS.find((o) => o.recentesPrimeiro !== recentesPrimeiro);
-
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
-        <h3 style={{ color: T.mute, fontSize: 12 }}>Andamento da manutenção</h3>
-
-        {/* Só com dois passos para cima: um registro sozinho não tem ordem, e o
-            controle ali diria que há uma escolha a fazer onde não há. */}
-        {passos.length > 1 && (
-          <Button
-            variant="ghost"
-            onClick={() => setRecentesPrimeiro((v) => !v)}
-            // O rótulo diz a ordem em que a lista está, que é a leitura de quem
-            // olha; o nome acessível diz o que o toque faz, que é o que falta a
-            // quem não vê a lista mudar.
-            aria-label={`Mostrando ${ordem.label}. Tocar para ver ${inversa.label}.`}
-            style={{ padding: '5px 8px', fontSize: 12, flexShrink: 0, gap: 5 }}
-          >
-            <ordem.Icone size={13} /> {ordem.curto}
-          </Button>
-        )}
-      </div>
+      <h3 style={{ color: T.mute, fontSize: 12, marginBottom: 14 }}>Andamento da manutenção</h3>
 
       {isLoading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -691,10 +645,7 @@ export function LinhaDoTempo({ ticket, podeEscrever = false }) {
       )}
 
       {!isLoading && (
-        // A ordem entra na chave: a lista inteira renasce ao inverter, e a
-        // animação de entrada diz que ela virou — sem isso, doze linhas trocam
-        // de conteúdo paradas no lugar e nada avisa que o toque fez efeito.
-        <div key={recentesPrimeiro ? 'recentes' : 'antigas'}>
+        <div>
           {linhas.map((linha, i) => {
             const ultimo = i === linhas.length - 1;
 

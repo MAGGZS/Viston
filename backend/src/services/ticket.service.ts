@@ -205,6 +205,20 @@ export const ticketService = {
       ? doGrupo.filter((s) => s === filters.status)
       : doGrupo;
 
+    /**
+     * A ordem padrão é a do grupo, e não uma só para todos.
+     *
+     * Nos finalizados a coluna que a pessoa lê é "Fechado em", e ordenar por
+     * criação punha um chamado aberto em março e fechado ontem no fim da lista.
+     * Nas demais filas nada fechou ainda, e a criação continua sendo a única
+     * data que todas as linhas têm.
+     *
+     * Fica aqui, e não na tela: quem chama a API sem dizer nada merece a lista
+     * na ordem certa, e não a ordem que a tela lembrou de pedir.
+     */
+    const sort =
+      filters.sort ?? (filters.group === 'CONCLUIDOS' ? 'CLOSED_DESC' : undefined);
+
     const [rows, total] = await ticketRepository.findByBuilding({
       building_id: buildingId,
       statuses,
@@ -218,6 +232,7 @@ export const ticketService = {
       date_from: filters.date_from,
       date_to: filters.date_to,
       q: filters.q,
+      sort,
     });
 
     return {

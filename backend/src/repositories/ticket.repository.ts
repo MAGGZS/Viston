@@ -114,6 +114,8 @@ export const ticketRepository = {
     date_to?: Date;
     /** Texto solto na descrição. */
     q?: string;
+    /** A ordem da lista. Ausente, é a de sempre: do mais novo para o mais velho. */
+    sort?: 'CLOSED_DESC' | 'CLOSED_ASC';
   }) {
     const { floor_id, maintenance_type, category, priority, responsible_id, date_from, date_to, q } =
       filters;
@@ -154,11 +156,33 @@ export const ticketRepository = {
       ...(Object.keys(daVistoria).length ? { AND: [{ floor_form_entry: daVistoria }] } : {}),
     };
 
+    /**
+     * A ordem da lista, e o desempate.
+     *
+     * `closed_at` é nulo em tudo que ainda não fechou, e por isso o `nulls`
+     * é dito à mão: o padrão do Postgres põe nulo primeiro no crescente, e a
+     * lista abriria com o que nem tem data.
+     *
+     * O `id` no fim não é decoração. Sem um critério que nunca empata, duas
+     * linhas com o mesmo instante podem trocar de lugar entre uma página e a
+     * seguinte — e aí uma delas aparece duas vezes e outra some, sem nada na
+     * tela dizendo que isso aconteceu.
+     */
+    const porData: Record<string, Prisma.MaintenanceRecordOrderByWithRelationInput> = {
+      CLOSED_DESC: { closed_at: { sort: 'desc', nulls: 'last' } },
+      CLOSED_ASC: { closed_at: { sort: 'asc', nulls: 'last' } },
+    };
+
+    const orderBy: Prisma.MaintenanceRecordOrderByWithRelationInput[] = [
+      filters.sort ? porData[filters.sort] : { created_at: 'desc' },
+      { id: 'desc' },
+    ];
+
     return Promise.all([
       prisma.maintenanceRecord.findMany({
         where,
         include: ticketInclude,
-        orderBy: { created_at: 'desc' },
+        orderBy,
         skip: (filters.page - 1) * filters.limit,
         take: filters.limit,
       }),
