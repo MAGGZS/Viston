@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { HISTORICO_VIEWS, HistoricoSwitcher } from '@/app/components/HistoricoSwitcher';
 import { HistoricoCompleto } from '@/app/components/HistoricoExpandido';
-import { M, MRound, CONTENT_ID } from '@/app/components/mobile/kit';
+import { M, MRound, CONTENT_ID, RESPIRO_TOPO } from '@/app/components/mobile/kit';
 import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
 import { T, W } from '@/app/lib/theme';
 
@@ -56,7 +56,10 @@ function TelaCompleta() {
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}
     >
-      <header className="anim-fade-down" style={{ padding: '52px 16px 14px', flexShrink: 0 }}>
+      {/* O respiro do topo vem do `MTopBar`: esta tela é irmã das outras do
+          telefone, e um número copiado à mão aqui deixaria de descontar o
+          entalhe do aparelho no dia em que lá mudasse. */}
+      <header className="anim-fade-down" style={{ padding: `${RESPIRO_TOPO} 16px 14px`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <MRound label="Voltar ao histórico" onClick={() => router.back()}>
             <ArrowLeft size={18} />
