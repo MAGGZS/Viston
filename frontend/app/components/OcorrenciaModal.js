@@ -2,6 +2,7 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge, Modal } from '@/app/components/ui';
+import { LinhaDoTempo, temLinhaDoTempo } from '@/app/components/LinhaDoTempo';
 import {
   MAINTENANCE_TYPES,
   CATEGORIES,
@@ -68,7 +69,14 @@ export function OcorrenciaModal({ occurrence, open, onClose }) {
   return (
     <Modal open={open} onClose={onClose} title="Ocorrência" maxWidth={560}>
       {occurrence && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        // O `<dialog>` é `overflow: visible`, então conteúdo alto sairia da tela
+        // em vez de rolar — e uma ocorrência com descrição longa, relato do
+        // responsável e a linha do tempo inteira passa fácil da altura da
+        // janela.
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 18,
+          maxHeight: 'calc(100vh - 120px)', overflowY: 'auto',
+        }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <Badge variant={PRIORITY_VARIANT[occurrence.priority] ?? 'default'}>
@@ -99,29 +107,27 @@ export function OcorrenciaModal({ occurrence, open, onClose }) {
             <Fact label="Responsável">{occurrence.responsible ?? 'Sem responsável'}</Fact>
             {occurrence.forwarded_at && <Fact label="Encaminhado em">{stampLabel(occurrence.forwarded_at)}</Fact>}
             {occurrence.received_at && <Fact label="Recebido em">{stampLabel(occurrence.received_at)}</Fact>}
-            {/* Quem concluiu e quando: é o responsável do chamado, e a data é a
-                do "terminei" dele — não a do fechamento, que é de outra pessoa. */}
-            {occurrence.done_at && (
-              <Fact label="Concluído por">
-                {occurrence.responsible ?? 'Responsável'} em {stampLabel(occurrence.done_at)}
-              </Fact>
-            )}
-            {occurrence.closed_at && (
-              <Fact label="Fechado por">
-                {occurrence.closed_by?.name ?? 'Moderador'} em {stampLabel(occurrence.closed_at)}
-              </Fact>
-            )}
+            {/* Concluído e fechado saíram desta grade: eles são o fim da
+                história, e a linha do tempo lá embaixo é onde a história
+                acontece. Aqui fica de onde a ocorrência veio e de quem ela é. */}
             <Fact label="Gasto">{formatCost(occurrence.maintenance_cost)}</Fact>
           </div>
 
-          {(occurrence.done_report || occurrence.maintenance_note) && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: `1px solid ${T.line}`, paddingTop: 16 }}>
-              {occurrence.done_report && (
-                <NoteBlock label="Relatório do responsável">{occurrence.done_report}</NoteBlock>
-              )}
-              {occurrence.maintenance_note && (
-                <NoteBlock label="Manutenção — anotação do moderador">{occurrence.maintenance_note}</NoteBlock>
-              )}
+          {/* A anotação do moderador não é o fechamento: ela pode ter sido
+              escrita com o chamado ainda correndo, e por isso continua sendo um
+              bloco à parte, e não um passo da linha. */}
+          {occurrence.maintenance_note && (
+            <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 16 }}>
+              <NoteBlock label="Manutenção — anotação do moderador">{occurrence.maintenance_note}</NoteBlock>
+            </div>
+          )}
+
+          {/* O passo a passo de quem executou. Só leitura, como o resto desta
+              caixa: quem chega pelo histórico está lendo o que aconteceu no
+              prédio, não trabalhando o chamado. */}
+          {temLinhaDoTempo(occurrence.status) && (
+            <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 16 }}>
+              <LinhaDoTempo ticket={occurrence} />
             </div>
           )}
         </div>

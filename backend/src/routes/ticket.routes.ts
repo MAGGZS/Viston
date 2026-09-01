@@ -32,6 +32,10 @@ router.get('/buildings/:id/responsibles', auth, member, ticketController.respons
 // Sem guarda de papel na rota: quem pode mexer depende do prédio do chamado, e
 // só o serviço sabe qual é depois de carregá-lo (ver services/ticket.service.ts).
 router.get('/tickets/me', auth, ticketController.mine);
+// Depois de `/tickets/me`, e a ordem é o que faz as duas conviverem: declarado
+// antes, o segmento variável engoliria "me" e a lista do responsável viraria
+// uma busca por um chamado de id "me".
+router.get('/tickets/:id', auth, ticketController.findOne);
 router.post('/tickets/:id/forward', auth, ticketController.forward);
 // Cancelar o envio: o oposto de encaminhar, e só enquanto ninguém aceitou.
 router.post('/tickets/:id/unforward', auth, ticketController.unforward);
@@ -41,5 +45,14 @@ router.post('/tickets/:id/receive', auth, ticketController.receive);
 // O responsável avisa que terminou; fechar é outra rota, de outra pessoa.
 router.post('/tickets/:id/done', auth, ticketController.reportDone);
 router.post('/tickets/:id/close', auth, ticketController.close);
+
+// ── A linha do tempo da manutenção ───────────────────────────────────────────
+// Ler é de quem enxerga o chamado; escrever é do responsável dele ou do
+// moderador do prédio — e alterar, só da última linha e de quem a escreveu.
+// Tudo conferido no serviço, pelo mesmo motivo das rotas acima.
+router.get('/tickets/:id/updates', auth, ticketController.listUpdates);
+router.post('/tickets/:id/updates', auth, ticketController.addUpdate);
+router.patch('/tickets/:id/updates/:updateId', auth, ticketController.editUpdate);
+router.delete('/tickets/:id/updates/:updateId', auth, ticketController.removeUpdate);
 
 export default router;

@@ -4,6 +4,15 @@ import { ConflictError } from './errors';
 export const MAX_AVATAR_BYTES = 1_500_000;
 
 /**
+ * Teto de cada foto da linha do tempo da manutenção.
+ *
+ * O mesmo do avatar, e não por acaso: o app reduz a maior aresta a 1600px e
+ * exporta em JPEG antes de enviar, e o que sai daí fica bem abaixo disto. O
+ * teto é a rede embaixo do trapézio, não a medida esperada.
+ */
+export const MAX_PHOTO_BYTES = 1_500_000;
+
+/**
  * Assinatura dos três formatos que o `<canvas>` do app exporta.
  *
  * WebP é RIFF: os quatro primeiros bytes são "RIFF", o tamanho vem depois, e
@@ -32,7 +41,7 @@ export function sniffImageType(buffer: Buffer): string | null {
 }
 
 /**
- * Decodifica a foto de perfil que chegou como data URL, conferindo o que ela é.
+ * Decodifica uma imagem que chegou como data URL, conferindo o que ela é.
  *
  * O schema valida o *rótulo* do data URL — o texto `data:image/png;base64,` —,
  * que quem envia escreve. Sozinho, ele deixava subir qualquer coisa com o
@@ -44,7 +53,10 @@ export function sniffImageType(buffer: Buffer): string | null {
  * ignora o que não reconhece e devolve um buffer curto, e o resultado era uma
  * foto corrompida no bucket sem erro nenhum no caminho.
  */
-export function decodeAvatarDataUrl(dataUrl: string): { buffer: Buffer; contentType: string } {
+export function decodeImageDataUrl(
+  dataUrl: string,
+  maxBytes: number
+): { buffer: Buffer; contentType: string } {
   const separator = dataUrl.indexOf(',');
   if (separator === -1) throw new ConflictError('Arquivo de imagem inválido');
 
@@ -59,12 +71,20 @@ export function decodeAvatarDataUrl(dataUrl: string): { buffer: Buffer; contentT
     throw new ConflictError('Arquivo de imagem inválido');
   }
 
-  if (buffer.byteLength > MAX_AVATAR_BYTES) {
-    throw new ConflictError('Imagem muito grande. O limite é 1,5 MB.');
+  if (buffer.byteLength > maxBytes) {
+    // O número sai do teto, e não do texto: os dois usos têm o mesmo limite
+    // hoje, e um deles mudar não pode deixar a mensagem dizendo o do outro.
+    const mb = (maxBytes / 1_000_000).toLocaleString('pt-BR');
+    throw new ConflictError(`Imagem muito grande. O limite é ${mb} MB.`);
   }
 
   const real = sniffImageType(buffer);
   if (!real || real !== declared) throw new ConflictError('Arquivo de imagem inválido');
 
   return { buffer, contentType: real };
+}
+
+/** A foto de perfil, com o teto dela. */
+export function decodeAvatarDataUrl(dataUrl: string): { buffer: Buffer; contentType: string } {
+  return decodeImageDataUrl(dataUrl, MAX_AVATAR_BYTES);
 }

@@ -142,4 +142,55 @@ export const storageService = {
     const { error } = await supabase.storage.from(config.supabase.bucketPhotos).remove([fileName]);
     if (error) logger.error({ err: error }, '[Avatar] Falha ao remover foto antiga');
   },
+
+  /**
+   * Sobe uma foto da linha do tempo da manutenção.
+   *
+   * Mesmo bucket público do avatar, e pela mesma razão escrita ali em cima: a
+   * foto aparece em `<img>` na página do chamado e nas duas caixas de leitura,
+   * e URL assinada expiraria — a tela mostraria imagem quebrada minutos depois.
+   * O que precisava sair de público era a planilha, que é o relatório.
+   *
+   * O prefixo distingue o que é foto de manutenção do que é avatar: é por ele
+   * que `removeTicketPhoto` sabe que pode apagar, e é o que impede uma URL de
+   * avatar de entrar por aquela porta.
+   */
+  async uploadTicketPhoto(ticketId: string, buffer: Buffer, contentType: string): Promise<string> {
+    const extension = contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg';
+    // O sufixo aleatório separa duas fotos enviadas no mesmo milissegundo — o
+    // que acontece quando a atualização vai com quatro de uma vez.
+    const unique = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const fileName = `ticket_${ticketId}_${unique}.${extension}`;
+    const bucket = config.supabase.bucketPhotos;
+
+    const { error } = await supabase.storage
+      .from(bucket)
+      .upload(fileName, buffer, { contentType, upsert: false });
+
+    if (error) throw new Error(`Falha no upload da foto: ${error.message}`);
+
+    const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
+    return data.publicUrl;
+  },
+
+  /**
+   * Apaga uma foto da linha do tempo, a partir da URL pública.
+   *
+   * Gêmeo de `removeAvatar`, com o prefixo que é dela — e, como ele, nunca
+   * derruba quem chamou: apagar a atualização tem de funcionar mesmo que o
+   * arquivo já tenha sumido do bucket.
+   */
+  async removeTicketPhoto(photoUrl: string): Promise<void> {
+    let fileName: string;
+    try {
+      fileName = decodeURIComponent(new URL(photoUrl).pathname.split('/').pop() ?? '');
+    } catch {
+      return;
+    }
+
+    if (!fileName || !fileName.startsWith('ticket_') || fileName.includes('..')) return;
+
+    const { error } = await supabase.storage.from(config.supabase.bucketPhotos).remove([fileName]);
+    if (error) logger.error({ err: error }, '[Chamado] Falha ao remover foto da atualização');
+  },
 };

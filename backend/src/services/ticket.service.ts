@@ -1,8 +1,12 @@
-import { AuditAction, Prisma, RecordStatus } from '@prisma/client';
-import { ticketRepository, TicketRow } from '../repositories/ticket.repository';
+import { AuditAction, BuildingRole, Prisma, RecordStatus } from '@prisma/client';
+import { ticketRepository, TicketRow, TicketUpdateRow } from '../repositories/ticket.repository';
 import { buildingRepository, auditRepository, actorAudit } from '../repositories/building.repository';
 import { Actor } from '../middlewares/authenticate';
-import { canModerateBuilding } from '../middlewares/buildingAccess';
+import { canModerateBuilding, getBuildingStanding } from '../middlewares/buildingAccess';
+import { managerRepository } from '../repositories/manager.repository';
+import { userRepository } from '../repositories/user.repository';
+import { storageService } from './storage.service';
+import { decodeImageDataUrl, MAX_PHOTO_BYTES } from '../utils/image';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { TICKET_GROUPS, TicketFilters, TicketGroup } from '../validators/ticket.validator';
 import { zonedTimeToUtc } from '../utils/timezone';
@@ -79,6 +83,93 @@ async function assertResponsibleOfBuilding(buildingId: string, responsibleId: st
   const responsible = await buildingRepository.findResponsible(buildingId, responsibleId);
   if (!responsible) throw new ConflictError('Esta pessoa não é responsável neste prédio');
   return responsible;
+}
+
+/**
+ * A atualização como a linha do tempo a lê.
+ *
+ * `author` é o nome congelado, e não o da conta: é ele que sobrevive à saída de
+ * quem escreveu, e é o único que existe quando quem escreveu foi um gestor. A
+ * foto vem da conta porque foto não se congela — se ela mudou, a atual é a
+ * certa; se a conta sumiu, a linha fica sem foto e com nome, que é o que
+ * importa.
+ */
+function toUpdate(row: TicketUpdateRow) {
+  return {
+    id: row.id,
+    description: row.description,
+    photos: row.photos,
+    author: row.author_name,
+    author_id: row.author_id,
+    author_avatar: row.author?.avatar_url ?? null,
+    created_at: row.created_at,
+    edited_at: row.edited_at,
+  };
+}
+
+/** Os estados em que existe manutenção a contar — e, portanto, linha do tempo. */
+const COM_LINHA_DO_TEMPO: RecordStatus[] = [
+  RecordStatus.EM_ANDAMENTO,
+  RecordStatus.AGUARDANDO_TERCEIRO,
+  RecordStatus.AGUARDANDO_FECHAMENTO,
+  RecordStatus.CONCLUIDO,
+];
+
+/**
+ * Nos quais ainda se escreve.
+ *
+ * `AGUARDANDO_FECHAMENTO` entra de propósito: informar a conclusão não encerra
+ * o chamado, e o moderador pode pedir mais detalhes antes de fechar. Depois de
+ * `CONCLUIDO` a linha vira arquivo — acrescentar ali seria mexer no que já foi
+ * validado e encerrado.
+ */
+const ACEITA_ESCRITA: RecordStatus[] = [
+  RecordStatus.EM_ANDAMENTO,
+  RecordStatus.AGUARDANDO_TERCEIRO,
+  RecordStatus.AGUARDANDO_FECHAMENTO,
+];
+
+/** É o dono do chamado — a pessoa a quem ele foi encaminhado. */
+function isAssignedTo(ticket: { responsible_id: string | null }, user: Actor) {
+  return user.kind === 'USER' && ticket.responsible_id === user.id;
+}
+
+/**
+ * Quem pode ler a linha do tempo: o responsável do chamado, ou quem tem
+ * qualquer vínculo com o prédio.
+ *
+ * O vínculo basta porque a lista de ocorrências do prédio já é de membro (ver
+ * `ticket.routes.ts`): quem enxerga a ocorrência enxerga o que se fez nela. O
+ * que é de moderador continua sendo o gasto e as filas, não o relato.
+ */
+async function assertCanRead(ticket: TicketRow, buildingId: string, user: Actor) {
+  if (isAssignedTo(ticket, user)) return;
+  if (await getBuildingStanding(user, buildingId)) return;
+  throw new ForbiddenError('Você não tem acesso a este chamado');
+}
+
+/**
+ * Quem pode escrever nela: o responsável do chamado ou o moderador do prédio.
+ *
+ * `MODERADOR` estrito, e não `canModerateBuilding` — este é o único lugar do
+ * módulo em que gestor não entra junto. A linha do tempo é o registro de quem
+ * pôs a mão na manutenção; quem administra o prédio a lê e fecha o chamado com
+ * base nela, e escrever ali confundiria as duas coisas.
+ */
+async function assertCanWrite(ticket: TicketRow, buildingId: string, user: Actor) {
+  if (isAssignedTo(ticket, user)) return;
+  if ((await getBuildingStanding(user, buildingId)) === BuildingRole.MODERADOR) return;
+  throw new ForbiddenError('Só o responsável ou o moderador registram o andamento');
+}
+
+/** O nome de quem escreve, para congelar na linha. */
+async function actorName(user: Actor): Promise<string> {
+  const account =
+    user.kind === 'MANAGER'
+      ? await managerRepository.findById(user.id)
+      : await userRepository.findById(user.id);
+
+  return account?.name ?? 'Conta removida';
 }
 
 async function logTicket(user: Actor, buildingId: string, ticketId: string, metadata: Record<string, unknown>) {
@@ -186,6 +277,19 @@ export const ticketService = {
     if (user.kind !== 'USER') return { tickets: [] };
     const rows = await ticketRepository.findByResponsible(user.id, includeClosed);
     return { tickets: rows.map(toTicket) };
+  },
+
+  /**
+   * Um chamado só.
+   *
+   * Existe por causa da página da ocorrência: abrir o endereço dela do zero, ou
+   * recarregar, não tem lista em cache de onde tirar o chamado — e antes disto
+   * todo detalhe vinha por props de uma lista que a tela já tinha.
+   */
+  async getOne(id: string, user: Actor) {
+    const { ticket, buildingId } = await loadTicket(id);
+    await assertCanRead(ticket, buildingId, user);
+    return toTicket(ticket);
   },
 
   /**
@@ -319,11 +423,16 @@ export const ticketService = {
    * continua na tela do moderador, que é quem encerra. É esta separação que dá
    * ao moderador o que validar — e o relatório é o que ele valida: sem ele, o
    * chamado voltava só com uma data, e o que foi feito ficava fora do sistema.
+   *
+   * Concluir exige ao menos uma atualização na linha do tempo. O relatório
+   * continua opcional, e a exigência não é sobre ele: é sobre haver algum
+   * registro do trabalho. Sem isso, um chamado podia ir de "recebido" a
+   * "concluído" sem que uma linha do sistema dissesse o que aconteceu no meio.
    */
   async reportDone(id: string, user: Actor, doneReport?: string | null) {
     const { ticket, buildingId } = await loadTicket(id);
 
-    const isAssigned = user.kind === 'USER' && ticket.responsible_id === user.id;
+    const isAssigned = isAssignedTo(ticket, user);
     if (!isAssigned && !(await canModerateBuilding(user, buildingId))) {
       throw new ForbiddenError('Este chamado não está com você');
     }
@@ -338,6 +447,10 @@ export const ticketService = {
     }
     if (ticket.status === RecordStatus.CONCLUIDO) {
       throw new ConflictError('Este chamado já foi fechado');
+    }
+
+    if ((await ticketRepository.countUpdates(id)) === 0) {
+      throw new ConflictError('Registre ao menos uma atualização antes de concluir');
     }
 
     const updated = await ticketRepository.update(id, {
@@ -471,4 +584,117 @@ export const ticketService = {
       total_cost: tickets.reduce((sum, t) => sum + (t.maintenance_cost ?? 0), 0),
     };
   },
+
+  // ── A linha do tempo da manutenção ─────────────────────────────────────────
+
+  /**
+   * O andamento do chamado, do primeiro passo ao último.
+   *
+   * Devolve vazio, e não erro, nos estados sem linha do tempo: a ocorrência
+   * aberta ou recém-encaminhada não tem nada a contar, e a tela que a abre não
+   * precisa saber disso para desenhar.
+   */
+  async listUpdates(id: string, user: Actor) {
+    const { ticket, buildingId } = await loadTicket(id);
+    await assertCanRead(ticket, buildingId, user);
+
+    if (!COM_LINHA_DO_TEMPO.includes(ticket.status)) return { updates: [] };
+
+    const rows = await ticketRepository.listUpdates(id);
+    return { updates: rows.map(toUpdate) };
+  },
+
+  /**
+   * Registra um passo da manutenção.
+   *
+   * As fotos sobem antes da linha ser gravada, e é a ordem certa: se o bucket
+   * recusar, não fica atualização apontando para foto que não existe. O
+   * contrário deixaria a linha do tempo mentindo.
+   */
+  async addUpdate(id: string, user: Actor, data: { description: string; photos: string[] }) {
+    const { ticket, buildingId } = await loadTicket(id);
+    await assertCanWrite(ticket, buildingId, user);
+
+    if (!ACEITA_ESCRITA.includes(ticket.status)) {
+      if (ticket.status === RecordStatus.CONCLUIDO) {
+        throw new ConflictError('Este chamado já foi fechado');
+      }
+      throw new ConflictError('Receba o chamado antes de registrar o andamento');
+    }
+
+    const photos: string[] = [];
+    for (const dataUrl of data.photos) {
+      const { buffer, contentType } = decodeImageDataUrl(dataUrl, MAX_PHOTO_BYTES);
+      photos.push(await storageService.uploadTicketPhoto(id, buffer, contentType));
+    }
+
+    const row = await ticketRepository.createUpdate({
+      ticket_id: id,
+      // Nulo quando quem escreve é gestor: ele não está em `users`. O nome
+      // congelado ao lado é o que faz a linha continuar dizendo quem foi.
+      author_id: user.kind === 'USER' ? user.id : null,
+      author_name: await actorName(user),
+      description: data.description,
+      photos,
+    });
+
+    await logTicket(user, buildingId, id, { update_added: row.id });
+    return toUpdate(row);
+  },
+
+  /**
+   * Corrige o texto do último passo.
+   *
+   * Só o último, e só de quem o escreveu. O que já tem outra linha embaixo foi
+   * lido — reescrevê-lo faria a linha do tempo deixar de valer como registro do
+   * que aconteceu, que é a única coisa que ela serve para ser.
+   */
+  async editUpdate(id: string, updateId: string, user: Actor, description: string) {
+    const { ticket, buildingId } = await loadTicket(id);
+    await assertCanWrite(ticket, buildingId, user);
+
+    const last = await assertLastUpdateOwnedBy(id, updateId, user);
+    const row = await ticketRepository.editUpdate(last.id, description);
+
+    await logTicket(user, buildingId, id, { update_edited: last.id });
+    return toUpdate(row);
+  },
+
+  /** Apaga o último passo — e as fotos dele, que não servem a mais ninguém. */
+  async removeUpdate(id: string, updateId: string, user: Actor) {
+    const { ticket, buildingId } = await loadTicket(id);
+    await assertCanWrite(ticket, buildingId, user);
+
+    const last = await assertLastUpdateOwnedBy(id, updateId, user);
+    await ticketRepository.removeUpdate(last.id);
+
+    // Depois de apagar a linha: falha no bucket deixa um arquivo órfão, e isso
+    // é bem melhor que uma linha viva sem as fotos que ela cita.
+    for (const url of last.photos) await storageService.removeTicketPhoto(url);
+
+    await logTicket(user, buildingId, id, { update_removed: last.id });
+    return { ok: true };
+  },
 };
+
+/**
+ * A atualização existe, é a última do chamado, e é de quem está pedindo.
+ *
+ * A autoria é conferida por `author_id` quando ela existe; quando é nula, quem
+ * escreveu foi um gestor — e gestor não escreve aqui (ver `assertCanWrite`), o
+ * que só acontece com linha antiga de um vínculo que mudou. Nesse caso ninguém
+ * altera, que é o mais seguro dos dois erros.
+ */
+async function assertLastUpdateOwnedBy(ticketId: string, updateId: string, user: Actor) {
+  const last = await ticketRepository.lastUpdate(ticketId);
+  if (!last) throw new NotFoundError('Atualização');
+
+  if (last.id !== updateId) {
+    throw new ConflictError('Só a última atualização pode ser alterada');
+  }
+  if (user.kind !== 'USER' || last.author_id !== user.id) {
+    throw new ForbiddenError('Esta atualização foi escrita por outra pessoa');
+  }
+
+  return last;
+}

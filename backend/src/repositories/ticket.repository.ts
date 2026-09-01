@@ -38,6 +38,19 @@ const ticketInclude = {
 
 export type TicketRow = Prisma.MaintenanceRecordGetPayload<{ include: typeof ticketInclude }>;
 
+/**
+ * A conta de quem escreveu, ao lado da atualização.
+ *
+ * Só a foto interessa aqui — o nome vem congelado em `author_name`, que é o que
+ * continua valendo quando a conta some ou quando quem escreveu foi um gestor,
+ * que nem está em `users`.
+ */
+const updateInclude = {
+  author: { select: { id: true, name: true, avatar_url: true } },
+} satisfies Prisma.TicketUpdateInclude;
+
+export type TicketUpdateRow = Prisma.TicketUpdateGetPayload<{ include: typeof updateInclude }>;
+
 /** Filtro "as ocorrências deste prédio", escrito uma vez só. */
 function inBuilding(buildingId: string): Prisma.MaintenanceRecordWhereInput {
   return { floor_form_entry: { report: { building_id: buildingId } } };
@@ -277,5 +290,63 @@ export const ticketRepository = {
 
   update(id: string, data: Prisma.MaintenanceRecordUncheckedUpdateInput) {
     return prisma.maintenanceRecord.update({ where: { id }, data, include: ticketInclude });
+  },
+
+  // ── A linha do tempo da manutenção ─────────────────────────────────────────
+
+  /**
+   * As atualizações do chamado, da primeira à última.
+   *
+   * Ordem crescente, ao contrário de todas as outras listas daqui: é uma
+   * narrativa, e narrativa se lê do começo. O que a tela destaca é a ponta,
+   * mas quem chega precisa saber onde a história começou.
+   *
+   * O autor vem junto pela foto — a linha do tempo mostra quem escreveu cada
+   * passo, e sem ele a tela pediria um usuário por entrada.
+   */
+  listUpdates(ticketId: string) {
+    return prisma.ticketUpdate.findMany({
+      where: { ticket_id: ticketId },
+      include: updateInclude,
+      orderBy: { created_at: 'asc' },
+    });
+  },
+
+  /**
+   * A última atualização do chamado, ou nada.
+   *
+   * É o que sustenta a regra de edição: só a ponta se altera. A comparação é
+   * por id, e não por data — duas linhas gravadas no mesmo milissegundo
+   * empatariam, e a decisão de qual delas é "a última" precisa ser a mesma que
+   * a listagem toma.
+   */
+  lastUpdate(ticketId: string) {
+    return prisma.ticketUpdate.findFirst({
+      where: { ticket_id: ticketId },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+    });
+  },
+
+  countUpdates(ticketId: string) {
+    return prisma.ticketUpdate.count({ where: { ticket_id: ticketId } });
+  },
+
+  createUpdate(data: Prisma.TicketUpdateUncheckedCreateInput) {
+    return prisma.ticketUpdate.create({
+      data,
+      include: updateInclude,
+    });
+  },
+
+  editUpdate(id: string, description: string) {
+    return prisma.ticketUpdate.update({
+      where: { id },
+      data: { description, edited_at: new Date() },
+      include: updateInclude,
+    });
+  },
+
+  removeUpdate(id: string) {
+    return prisma.ticketUpdate.delete({ where: { id } });
   },
 };

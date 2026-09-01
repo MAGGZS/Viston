@@ -1,107 +1,58 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CheckCheck, ClipboardList, FileText, Hourglass, Inbox } from 'lucide-react';
+import { ChevronRight, ClipboardList, Inbox } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { Badge } from '@/app/components/ui';
-import { M, MPage, MTopBar, MCard, MButton, MButtonGhost } from '@/app/components/mobile/kit';
-import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
-import { UnsavedScope, useUnsavedField, useUnsavedGuard, useUnsavedScope } from '@/app/hooks/useUnsavedGuard';
-import { OcorrenciaModal } from '@/app/components/OcorrenciaModal';
-import { useMyTickets, useReceiveTicket, useReportTicketDone } from '@/app/hooks/useApi';
+import { M, MPage, MTopBar, MCard, MButton } from '@/app/components/mobile/kit';
+import { useMyTickets, useReceiveTicket } from '@/app/hooks/useApi';
 import {
   MAINTENANCE_TYPES,
   CATEGORIES,
   PRIORITIES,
+  OCCURRENCE_STATUS_LABEL,
+  RECORD_STATUS_VARIANT,
   labelOf,
-  formatCost,
 } from '@/app/lib/maintenanceOptions';
 import { parseReportDate } from '@/app/lib/date';
-import { R, MOTION } from '@/app/lib/theme';
+import { R, W, MOTION } from '@/app/lib/theme';
 import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
 
 const PRIORITY_VARIANT = { ALTA: 'danger', MEDIA: 'warning', BAIXA: 'default' };
 
 /**
- * O bloco de conclusão: o relatório do serviço e o botão que o envia.
- *
- * O texto é opcional — nem toda manutenção tem o que relatar, e obrigar o campo
- * só encheria o sistema de "ok". Mas ele fica aberto na tela, e não atrás de um
- * botão, porque é a única chance de contar o que foi feito: depois de concluir,
- * quem lê é o moderador, e ele não tem como perguntar de volta.
- */
-function ConclusaoBox({ ticket }) {
-  const reportDone = useReportTicketDone();
-  const { show: toast } = useToastStore();
-  const [report, setReport] = useState(ticket.done_report ?? '');
-
-  // O relato é a única chance de contar o que foi feito, e ele só sai daqui em
-  // "Concluir serviço": trocar de fila remonta o cartão e o levaria junto.
-  useUnsavedField(report !== (ticket.done_report ?? ''));
-
-  async function handleDone() {
-    try {
-      await reportDone.mutateAsync({ id: ticket.id, done_report: report.trim() });
-      toast('Conclusão informada. O moderador vai fechar o chamado.', 'success');
-    } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao informar conclusão', 'error');
-    }
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-        <span style={{ color: M.mute, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <FileText size={13} /> Relatório do serviço (se necessário)
-        </span>
-        <textarea
-          rows={3}
-          value={report}
-          onChange={(e) => setReport(e.target.value)}
-          placeholder="O que foi feito, o que precisou trocar, o que ficou pendente…"
-          style={{
-            background: M.chip, border: '1px solid transparent', borderRadius: R.control,
-            padding: '13px 15px', color: M.text, fontSize: 14, outline: 'none',
-            width: '100%', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6,
-          }}
-        />
-      </label>
-
-      <MButton onClick={handleDone} loading={reportDone.isPending} style={{ width: '100%' }}>
-        <CheckCheck size={15} /> Concluir serviço
-      </MButton>
-    </div>
-  );
-}
-
-/**
  * Um chamado encaminhado a esta pessoa.
  *
- * São dois gestos, um de cada vez. Primeiro "receber": o chamado chega
- * encaminhado e não anda até esta pessoa confirmar que sabe dele — antes,
- * encaminhar já o dava por começado, e ninguém tinha dito nada. Só depois
- * aparece a conclusão, que diz o que faz: o chamado passa a esperar o
- * moderador, que é quem fecha. Depois de informada, o cartão mostra que está
- * esperando — e não some da lista, senão quem informou por engano não teria
- * como perceber.
+ * Tem a forma do cartão de ocorrência do histórico ampliado (ver
+ * `HistoricoSwitcher`), e é de propósito: o mesmo objeto lido na mesma forma em
+ * todo o produto. O que o distingue lá é ser leitura; aqui, ser trabalho — daí
+ * o nome do prédio, que a lista do histórico não precisa porque já está dentro
+ * de um, e o botão de receber.
  *
- * A descrição fica resumida aqui e inteira em "Detalhes": no telefone, o texto
- * completo de cada chamado empurra os outros para fora da tela.
+ * Antes ele carregava a descrição inteira, o bloco do moderador, três faixas de
+ * estado e uma caixa de texto com o botão de concluir. Era formulário, não
+ * cartão: no telefone, cada chamado empurrava os outros para fora da tela, e
+ * concluir ficava a um toque de distância no meio de uma pilha. Tudo isso mudou
+ * de lugar — o chamado tem tela própria agora, e é lá que se trabalha nele.
+ *
+ * A borda dourada segue sendo só do que espera aceite: é o único cartão em que
+ * a pessoa ainda não fez nada.
  */
 function TicketCard({ ticket, className = '' }) {
+  const router = useRouter();
   const receive = useReceiveTicket();
   const { show: toast } = useToastStore();
-  const [details, setDetails] = useState(false);
   const pending = ticket.status === 'ENCAMINHADO';
-  const waiting = ticket.status === 'AGUARDANDO_FECHAMENTO';
-  // Finalizado pelo moderador. Só passa a aparecer nesta tela com a aba de
-  // concluídos — antes a lista parava em "aguardando o moderador".
-  const closed = ticket.status === 'CONCLUIDO';
 
-  async function handleReceive() {
+  // O cartão inteiro é o botão que abre a tela do chamado, e este botão vive
+  // dentro dele: sem parar a propagação, receber abriria a tela junto.
+  async function handleReceive(event) {
+    event.stopPropagation();
+
     try {
       await receive.mutateAsync(ticket.id);
       toast('Chamado recebido. Ele está com você agora.', 'success');
@@ -113,122 +64,63 @@ function TicketCard({ ticket, className = '' }) {
   const day = parseReportDate(ticket.report?.date);
 
   return (
+    // O recuo mora no botão de dentro, e não no cartão: "Receber" é um segundo
+    // botão, e botão dentro de botão não é HTML válido — o cartão inteiro tinha
+    // de deixar de ser o elemento clicável para os dois caberem.
     <MCard
       className={className}
       style={{
-        display: 'flex', flexDirection: 'column', gap: 12,
-        // O que espera aceite se destaca na pilha: é o único cartão em que a
-        // pessoa ainda não fez nada.
+        padding: 0, overflow: 'hidden',
         ...(pending ? { border: `1px solid ${M.accent}` } : {}),
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ minWidth: 0 }}>
-          <p style={{ fontFamily: M.display, fontWeight: 600, fontSize: 15, color: M.text }}>
-            {labelOf(MAINTENANCE_TYPES, ticket.maintenance_type)}
-          </p>
-          <p style={{ color: M.mute, fontSize: 12, marginTop: 3 }}>
-            {ticket.report?.building?.name} · {ticket.floor?.label}
-          </p>
-        </div>
-        <Badge variant={PRIORITY_VARIANT[ticket.priority] ?? 'default'}>
-          {labelOf(PRIORITIES, ticket.priority)}
-        </Badge>
-      </div>
-
-      <p style={{
-        color: M.text, fontSize: 14, lineHeight: 1.6,
-        display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-      }}>
-        {ticket.description}
-      </p>
-
-      {ticket.maintenance_note && (
-        <div style={{ background: M.chip, borderRadius: R.control, padding: '11px 13px' }}>
-          <p style={{ color: M.mute, fontSize: 12, marginBottom: 4 }}>Do moderador</p>
-          <p style={{ color: M.text, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-            {ticket.maintenance_note}
-          </p>
-          {ticket.maintenance_cost !== null && ticket.maintenance_cost !== undefined && (
-            <p style={{ color: M.mute, fontSize: 12, marginTop: 6 }}>
-              Valor: {formatCost(ticket.maintenance_cost)}
+      <button
+        type="button"
+        onClick={() => router.push(`/responsavel/chamados/${ticket.id}`)}
+        aria-label={`Abrir ${labelOf(MAINTENANCE_TYPES, ticket.maintenance_type)} em ${ticket.floor?.label ?? 'andar não informado'}`}
+        style={{
+          display: 'flex', flexDirection: 'column', gap: 12, width: '100%', padding: 16,
+          background: 'transparent', border: 'none', font: 'inherit', color: 'inherit',
+          textAlign: 'left', cursor: 'pointer',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, width: '100%' }}>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ color: M.text, fontWeight: W.title, fontSize: 14 }}>
+              {ticket.floor?.label ?? 'Andar não informado'} ·{' '}
+              {labelOf(MAINTENANCE_TYPES, ticket.maintenance_type)}
             </p>
-          )}
+            <p style={{ color: M.mute, fontSize: 12, marginTop: 2 }}>
+              {ticket.report?.building?.name} · {labelOf(CATEGORIES, ticket.category)}
+            </p>
+            {day && (
+              <p style={{ color: M.faint, fontSize: 12, marginTop: 2 }}>
+                Relatado em {format(day, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              </p>
+            )}
+          </div>
+          <ChevronRight size={18} color={M.faint} style={{ flexShrink: 0 }} />
         </div>
-      )}
 
-      <p style={{ color: M.faint, fontSize: 12 }}>
-        {labelOf(CATEGORIES, ticket.category)}
-        {day ? ` · relatado em ${format(day, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}` : ''}
-      </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <Badge variant={RECORD_STATUS_VARIANT[ticket.status] ?? 'default'}>
+            {OCCURRENCE_STATUS_LABEL[ticket.status] ?? ticket.status}
+          </Badge>
+          <Badge variant={PRIORITY_VARIANT[ticket.priority] ?? 'default'}>
+            {labelOf(PRIORITIES, ticket.priority)}
+          </Badge>
+        </div>
+      </button>
 
+      {/* Receber é o único gesto que sobra na lista: é um toque, não tem o que
+          escrever, e é ele que tira o chamado da espera. */}
       {pending && (
-        <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: R.control, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'center' }}>
-          <Hourglass size={15} color={M.accentInk} style={{ flexShrink: 0 }} />
-          <p style={{ color: M.text, fontSize: 12, lineHeight: 1.5 }}>
-            Encaminhado a você
-            {ticket.forwarded_at
-              ? ` em ${format(new Date(ticket.forwarded_at), 'dd/MM/yyyy', { locale: ptBR })}`
-              : ''}
-            . Receba para começar.
-          </p>
-        </div>
-      )}
-
-      {waiting && (
-        <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: R.control, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-          <CheckCheck size={15} color={M.accentInk} style={{ flexShrink: 0, marginTop: 1 }} />
-          <div>
-            <p style={{ color: M.text, fontSize: 12, lineHeight: 1.5 }}>
-              Conclusão informada — aguardando o moderador fechar.
-            </p>
-            {ticket.done_report && (
-              <p style={{ color: M.mute, fontSize: 12, lineHeight: 1.5, marginTop: 6, whiteSpace: 'pre-wrap' }}>
-                {ticket.done_report}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {closed && (
-        <div className="anim-scale-in" style={{ background: M.accentSoft, borderRadius: R.control, padding: '11px 13px', display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-          <CheckCheck size={15} color={M.accentInk} style={{ flexShrink: 0, marginTop: 1 }} />
-          <div>
-            <p style={{ color: M.text, fontSize: 12, lineHeight: 1.5 }}>
-              Aprovado e finalizado pelo moderador
-              {ticket.closed_at
-                ? ` em ${format(new Date(ticket.closed_at), 'dd/MM/yyyy', { locale: ptBR })}`
-                : ''}
-              .
-            </p>
-            {ticket.done_report && (
-              <p style={{ color: M.mute, fontSize: 12, lineHeight: 1.5, marginTop: 6, whiteSpace: 'pre-wrap' }}>
-                {ticket.done_report}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Um gesto de cada vez: a conclusão só existe depois do recebimento —
-          não se conclui o que não se recebeu. E não existe mais depois de
-          fechado: oferecer "concluir" num chamado encerrado convidaria a
-          reabrir o que já acabou. */}
-      {!pending && !waiting && !closed && <ConclusaoBox ticket={ticket} />}
-
-      <div style={{ display: 'flex', gap: 10 }}>
-        <MButtonGhost onClick={() => setDetails(true)} style={{ flex: 1 }}>
-          Detalhes
-        </MButtonGhost>
-        {pending && (
-          <MButton onClick={handleReceive} loading={receive.isPending} style={{ flex: 1 }}>
+        <div style={{ borderTop: `1px solid ${M.line}`, margin: '0 16px', padding: '12px 0 16px' }}>
+          <MButton onClick={handleReceive} loading={receive.isPending} style={{ width: '100%' }}>
             <Inbox size={15} /> Receber
           </MButton>
-        )}
-      </div>
-
-      <OcorrenciaModal open={details} occurrence={ticket} onClose={() => setDetails(false)} />
+        </div>
+      )}
     </MCard>
   );
 }
@@ -242,7 +134,7 @@ function TicketCard({ ticket, className = '' }) {
  *
  * A terceira junta o que ele concluiu com o que o moderador já aprovou de
  * propósito: para quem executou, os dois são "trabalho que terminei" — a
- * diferença é de quem fecha, e ela aparece dentro do cartão, não na fila.
+ * diferença é de quem fecha, e ela aparece na etiqueta de estado, não na fila.
  */
 export const ABAS = [
   { id: 'RECEBER', label: 'A receber', status: ['ENCAMINHADO'] },
@@ -402,10 +294,13 @@ export function SeletorFila({ abas, atual, onPick, contagem }) {
 /**
  * A tela do responsável: o que foi encaminhado a ele, em todos os prédios.
  *
- * Ele não escolhe prédio: abre e vê o que é dele. Os gestos continuam dois, e
- * só eles — receber o que foi encaminhado e, depois, dizer que terminou; fechar
- * é do moderador. O que a tela ganhou foi separar em que ponto cada chamado
- * está, em vez de empilhar tudo.
+ * Ele não escolhe prédio: abre e vê o que é dele, separado pelo ponto em que
+ * cada chamado está.
+ *
+ * A lista é para achar, não para trabalhar. O único gesto que sobrou nela é
+ * receber, que é um toque e não tem o que escrever; registrar o andamento e
+ * concluir moraram aqui dentro e passaram para a tela do chamado, onde há
+ * espaço para a história inteira dele. Fechar continua sendo do moderador.
  */
 export default function ResponsavelPage() {
   const { user } = useAuthStore();
@@ -415,11 +310,6 @@ export default function ResponsavelPage() {
   const tickets = data?.tickets ?? [];
 
   const [aba, setAba] = useState('RECEBER');
-
-  // Cada fila monta os seus cartões do zero (ver a `key` da lista): trocar com
-  // um relatório escrito e não enviado o apagaria.
-  const { dirty, report } = useUnsavedScope();
-  const saida = useUnsavedGuard(dirty);
 
   const contagem = ABAS.reduce((acc, a) => {
     acc[a.id] = tickets.filter((t) => a.status.includes(t.status)).length;
@@ -454,19 +344,16 @@ export default function ResponsavelPage() {
           accent="chamados"
         />
 
-        <SeletorFila
-          abas={ABAS}
-          atual={aba}
-          // Tocar na fila que já está aberta não muda nada, e por isso não pergunta.
-          onPick={(id) => id !== aba && saida.guard(() => setAba(id))}
-          contagem={contagem}
-        />
+        {/* Trocar de fila não pergunta nada: desde que o relatório e as
+            anotações passaram para a tela do chamado, não há texto digitado
+            nesta lista para se perder. */}
+        <SeletorFila abas={ABAS} atual={aba} onPick={setAba} contagem={contagem} />
 
         <div style={FAIXA_LISTA}>
         {isLoading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[1, 2, 3].map((i) => (
-              <div key={i} className="anim-fade-in animate-pulse" style={{ height: 150, background: M.card, borderRadius: R.card }} />
+              <div key={i} className="anim-fade-in animate-pulse" style={{ height: 132, background: M.card, borderRadius: R.card }} />
             ))}
           </div>
         )}
@@ -495,23 +382,23 @@ export default function ResponsavelPage() {
           </MCard>
         )}
 
-        <UnsavedScope report={report}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {visiveis.map((ticket, idx) => (
-              <TicketCard
-                // A fila entra na chave: sem isso o React reaproveita o cartão da
-                // fila anterior, e o texto do relatório digitado num chamado
-                // aparece em outro.
-                key={`${abaAtual.id}-${ticket.id}`}
-                ticket={ticket}
-                className={`${entrada} anim-d${Math.min(idx + 1, 6)}`}
-              />
-            ))}
-          </div>
-        </UnsavedScope>
-        </div>
+        {/* A fila entra na chave para a lista inteira entrar de novo a cada
+            troca — é ela que toca a animação de lado, e sem isso os cartões
+            trocariam de conteúdo parados no lugar.
 
-        <UnsavedChangesModal open={saida.asking} onConfirm={saida.confirm} onCancel={saida.cancel} />
+            Com prefixo: o aviso de fila vazia é irmão desta lista e usa a mesma
+            fila na chave dele. Só com o id, os dois seriam `RECEBER` no mesmo
+            nível, e o React descartaria um deles — a lista sumia. */}
+        <div key={`lista-${abaAtual.id}`} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {visiveis.map((ticket, idx) => (
+            <TicketCard
+              key={ticket.id}
+              ticket={ticket}
+              className={`${entrada} anim-d${Math.min(idx + 1, 6)}`}
+            />
+          ))}
+        </div>
+        </div>
 
         <BottomNav />
       </MPage>

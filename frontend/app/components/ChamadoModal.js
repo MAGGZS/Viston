@@ -4,6 +4,7 @@ import { CheckCheck, Hourglass, Send, Undo2 } from 'lucide-react';
 import { Badge, Button, Modal, Select } from '@/app/components/ui';
 import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
 import { UnsavedScope, useUnsavedField, useUnsavedGuard, useUnsavedScope } from '@/app/hooks/useUnsavedGuard';
+import { LinhaDoTempo, temLinhaDoTempo } from '@/app/components/LinhaDoTempo';
 import {
   MAINTENANCE_TYPES,
   CATEGORIES,
@@ -21,6 +22,8 @@ import {
   useUpdateTicket,
 } from '@/app/hooks/useApi';
 import { useToastStore } from '@/app/store/toast';
+import { useAuthStore } from '@/app/store/auth';
+import { roleIn } from '@/app/lib/roles';
 import { T, R, W } from '@/app/lib/theme';
 
 /**
@@ -183,6 +186,12 @@ export function ChamadoModal({ ticket, buildingId, open, onClose, onFinalizar })
   // a caixa poder perguntar antes de fechar.
   const { dirty, report } = useUnsavedScope();
   const saida = useUnsavedGuard(dirty);
+  const { user } = useAuthStore();
+
+  // `MODERADOR` estrito, e não `canModerate`: é o único lugar em que o gestor
+  // não entra junto. A linha do tempo é o registro de quem põe a mão na
+  // manutenção; quem administra o prédio a lê e fecha o chamado com base nela.
+  const podeAnotar = roleIn(user, buildingId) === 'MODERADOR';
 
   if (!ticket) return null;
 
@@ -236,7 +245,8 @@ export function ChamadoModal({ ticket, buildingId, open, onClose, onFinalizar })
               <Fact label="Responsável">{ticket.responsible ?? 'Sem responsável'}</Fact>
               {ticket.forwarded_at && <Fact label="Encaminhado em">{stampLabel(ticket.forwarded_at)}</Fact>}
               {ticket.received_at && <Fact label="Recebido em">{stampLabel(ticket.received_at)}</Fact>}
-              {ticket.done_at && <Fact label="Concluído em">{stampLabel(ticket.done_at)}</Fact>}
+              {/* "Concluído em" saiu da grade: ele é o último passo da linha do
+                  tempo aqui embaixo, com o relato do responsável junto. */}
               {ticket.maintenance_cost !== null && ticket.maintenance_cost !== undefined && (
                 <Fact label="Gasto">{formatCost(ticket.maintenance_cost)}</Fact>
               )}
@@ -252,21 +262,17 @@ export function ChamadoModal({ ticket, buildingId, open, onClose, onFinalizar })
               </div>
             )}
 
-            {/* O relato do responsável é o que há para validar antes de finalizar:
-                sem ele, fechar seria confiar numa data. */}
-            {aguardandoFechamento && (
-              <div className="anim-scale-in" style={{ background: T.accentSoft, borderRadius: R.control, padding: '12px 14px', display: 'flex', gap: 10 }}>
-                <CheckCheck size={16} color={T.accentInk} style={{ flexShrink: 0, marginTop: 1 }} />
-                <div>
-                  <p style={{ color: T.text, fontSize: 12, lineHeight: 1.6 }}>
-                    {ticket.responsible ?? 'O responsável'} concluiu em {stampLabel(ticket.done_at)}.
-                  </p>
-                  {ticket.done_report && (
-                    <p style={{ color: T.text, fontSize: 12, lineHeight: 1.6, marginTop: 8, whiteSpace: 'pre-wrap', borderTop: `1px solid ${T.line}`, paddingTop: 8 }}>
-                      {ticket.done_report}
-                    </p>
-                  )}
-                </div>
+            {/* O passo a passo de quem executou — o que há para validar antes
+                de fechar, e o que faltava aqui: esta caixa mostrava carimbos de
+                data e um parágrafo final, e o trabalho no meio não aparecia em
+                lugar nenhum.
+
+                A faixa "fulano concluiu em tal dia", com o relato junto, era um
+                bloco próprio logo acima. Virou o último passo da linha — que é
+                onde quem lê já está procurando o que validar. */}
+            {temLinhaDoTempo(ticket.status) && (
+              <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 16 }}>
+                <LinhaDoTempo ticket={ticket} podeEscrever={podeAnotar} />
               </div>
             )}
 

@@ -11,6 +11,8 @@ import {
   closeTicketSchema,
   ticketReportSchema,
   ticketSummarySchema,
+  ticketUpdateSchema,
+  editTicketUpdateSchema,
 } from '../validators/ticket.validator';
 import { buildTicketReport, reportFileName } from '../services/ticketReport';
 
@@ -54,6 +56,33 @@ export const ticketController = {
   async mine(req: AuthenticatedRequest, res: Response) {
     const includeClosed = String(req.query.closed ?? '') === 'true';
     ok(res, await ticketService.listMine(req.user, includeClosed));
+  },
+
+  /** Um chamado só — o que a página da ocorrência abre. */
+  async findOne(req: AuthenticatedRequest, res: Response) {
+    ok(res, await ticketService.getOne(req.params.id, req.user));
+  },
+
+  /** A linha do tempo da manutenção, do primeiro passo ao último. */
+  async listUpdates(req: AuthenticatedRequest, res: Response) {
+    ok(res, await ticketService.listUpdates(req.params.id, req.user));
+  },
+
+  /** Registra um passo da manutenção, com as fotos dele. */
+  async addUpdate(req: AuthenticatedRequest, res: Response) {
+    const data = ticketUpdateSchema.parse(req.body);
+    ok(res, await ticketService.addUpdate(req.params.id, req.user, data));
+  },
+
+  /** Corrige o texto do último passo. */
+  async editUpdate(req: AuthenticatedRequest, res: Response) {
+    const { description } = editTicketUpdateSchema.parse(req.body);
+    ok(res, await ticketService.editUpdate(req.params.id, req.params.updateId, req.user, description));
+  },
+
+  /** Apaga o último passo. */
+  async removeUpdate(req: AuthenticatedRequest, res: Response) {
+    ok(res, await ticketService.removeUpdate(req.params.id, req.params.updateId, req.user));
   },
 
   async forward(req: AuthenticatedRequest, res: Response) {

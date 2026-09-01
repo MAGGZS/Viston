@@ -149,6 +149,55 @@ export const reportDoneSchema = z
   .strict();
 
 /**
+ * Uma anotação do andamento da manutenção.
+ *
+ * A descrição é obrigatória, ao contrário do `done_report`: aqui o texto é a
+ * razão de a linha existir — uma entrada sem texto não conta nada, só carimba
+ * uma hora.
+ *
+ * As fotos chegam como data URL, no mesmo formato do avatar (ver
+ * `updateAvatarSchema`), e o regex é só o rótulo: quem confere os bytes de
+ * verdade é `decodeImageDataUrl`. Quatro por entrada — o suficiente para
+ * mostrar o antes, o problema e o depois, e pouco o bastante para o telefone
+ * conseguir enviar de uma vez.
+ */
+export const ticketUpdateSchema = z
+  .object({
+    description: z
+      .string()
+      .trim()
+      .min(1, 'Escreva o que foi feito')
+      .max(2000, 'Texto muito longo'),
+    photos: z
+      .array(
+        z
+          .string()
+          .regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/, 'Formato de imagem inválido')
+          .max(2_100_000, 'Imagem muito grande')
+      )
+      .max(4, 'No máximo 4 fotos por atualização')
+      .default([]),
+  })
+  .strict();
+
+/**
+ * A correção do texto de uma atualização.
+ *
+ * Só o texto: trocar as fotos de uma linha já lida seria reescrever o registro,
+ * e não corrigir o que se digitou errado. Quem errou a foto apaga a entrada e
+ * escreve outra — o que só vale para a última, que é a regra da edição.
+ */
+export const editTicketUpdateSchema = z
+  .object({
+    description: z
+      .string()
+      .trim()
+      .min(1, 'Escreva o que foi feito')
+      .max(2000, 'Texto muito longo'),
+  })
+  .strict();
+
+/**
  * O que o moderador acrescenta ao chamado em andamento.
  *
  * `maintenance_cost` chega como número e é gravado em DECIMAL: dinheiro não

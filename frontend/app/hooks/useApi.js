@@ -751,15 +751,34 @@ export function useMyTickets(enabled = true, includeClosed = false) {
 }
 
 /**
+ * Um chamado só — o que a página da ocorrência abre.
+ *
+ * Chave própria, e não uma garimpagem no cache de `my-tickets`: a página tem
+ * endereço, e abrir esse endereço direto ou recarregar chega sem lista nenhuma
+ * em memória.
+ */
+export function useTicket(id) {
+  return useQuery({
+    queryKey: ['ticket', id],
+    queryFn: () => api.get(`/tickets/${id}`).then((r) => r.data),
+    enabled: !!id,
+  });
+}
+
+/**
  * Toda ação sobre um chamado mexe em duas listas — a de onde ele saiu e a para
  * onde foi — e nos contadores. Por isso nenhuma delas invalida só a própria:
  * encaminhar em "Novos" tem de esvaziar a linha ali e fazê-la aparecer em
  * "Em andamento".
+ *
+ * `['ticket']` entra sem id: a página da ocorrência está aberta enquanto o
+ * gesto acontece, e é ela que mostra o resultado dele.
  */
 function invalidateTickets(qc) {
   qc.invalidateQueries({ queryKey: ['tickets'] });
   qc.invalidateQueries({ queryKey: ['ticket-stats'] });
   qc.invalidateQueries({ queryKey: ['my-tickets'] });
+  qc.invalidateQueries({ queryKey: ['ticket'] });
 }
 
 /** Encaminhar: o chamado ganha dono e passa a esperar o aceite dele. */
@@ -828,6 +847,59 @@ export function useCloseTicket() {
   return useMutation({
     mutationFn: ({ id, ...data }) => api.post(`/tickets/${id}/close`, data).then((r) => r.data),
     onSuccess: () => invalidateTickets(qc),
+  });
+}
+
+// ── A linha do tempo da manutenção ───────────────────────────────────────────
+
+/**
+ * O andamento do chamado, do primeiro passo ao último.
+ *
+ * Chave por id porque três telas a abrem — a página do responsável, a caixa do
+ * moderador e a do histórico —, e cada uma pode estar num chamado diferente.
+ */
+export function useTicketUpdates(id, enabled = true) {
+  return useQuery({
+    queryKey: ['ticket-updates', id],
+    queryFn: () => api.get(`/tickets/${id}/updates`).then((r) => r.data),
+    enabled: !!id && enabled,
+  });
+}
+
+/**
+ * Registrar, corrigir e apagar mexem na mesma linha do tempo — e no chamado,
+ * porque "concluir" passa a ser permitido a partir do primeiro registro.
+ */
+function invalidateUpdates(qc, id) {
+  qc.invalidateQueries({ queryKey: ['ticket-updates', id] });
+  invalidateTickets(qc);
+}
+
+/** Um passo da manutenção: o que foi feito agora, e as fotos disso. */
+export function useAddTicketUpdate(id) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => api.post(`/tickets/${id}/updates`, data).then((r) => r.data),
+    onSuccess: () => invalidateUpdates(qc, id),
+  });
+}
+
+/** Corrige o texto do último passo — só ele, e só de quem o escreveu. */
+export function useEditTicketUpdate(id) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ updateId, description }) =>
+      api.patch(`/tickets/${id}/updates/${updateId}`, { description }).then((r) => r.data),
+    onSuccess: () => invalidateUpdates(qc, id),
+  });
+}
+
+/** Apaga o último passo, com as fotos dele. */
+export function useRemoveTicketUpdate(id) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (updateId) => api.delete(`/tickets/${id}/updates/${updateId}`).then((r) => r.data),
+    onSuccess: () => invalidateUpdates(qc, id),
   });
 }
 

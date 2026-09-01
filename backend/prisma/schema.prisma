@@ -163,6 +163,7 @@ model User {
   feedbacks        Feedback[]
   assigned_records MaintenanceRecord[]     @relation("RecordResponsible")
   closed_records   MaintenanceRecord[]     @relation("RecordClosedBy")
+  ticket_updates   TicketUpdate[]          @relation("TicketUpdateAuthor")
 
   @@map("users")
 }
@@ -432,12 +433,54 @@ model MaintenanceRecord {
   floor_form_entry FloorFormEntry @relation(fields: [floor_form_entry_id], references: [id], onDelete: Cascade)
   responsible_user User?          @relation("RecordResponsible", fields: [responsible_id], references: [id], onDelete: SetNull)
   closed_by        User?          @relation("RecordClosedBy", fields: [closed_by_id], references: [id], onDelete: SetNull)
+  updates          TicketUpdate[]
 
   // As telas de chamado são sempre "um status, do mais novo para o mais velho";
   // a do responsável é "o que é meu", e por isso o id dele também é indexado.
   @@index([status, created_at(sort: Desc)])
   @@index([responsible_id])
   @@map("maintenance_records")
+}
+
+/// Uma anotação do andamento da manutenção, no instante em que ela foi escrita.
+///
+/// Existe porque `done_report` era o único registro do trabalho: um texto só,
+/// escrito no fim e sobrescrito a cada edição. Manutenção que leva dias não
+/// cabe nele — o que se descobriu na segunda, a peça que chegou na quarta e o
+/// teste da sexta viravam um parágrafo ou nada. Aqui cada passo é uma linha
+/// com hora própria, e o conjunto é a linha do tempo que o moderador lê antes
+/// de fechar.
+///
+/// Quem escreve é o responsável do chamado ou o moderador do prédio. Alterar
+/// vale só para a última linha e só para quem a escreveu: o que já foi lido
+/// por outra pessoa não se reescreve, senão o registro deixa de valer como
+/// registro.
+///
+/// O relatório do período não lê esta tabela de propósito — ele resume o que
+/// foi gasto e fechado, e o passo a passo da execução é leitura de tela.
+model TicketUpdate {
+  id        String @id @default(uuid())
+  ticket_id String
+  author_id String?
+  /// Nome de quem escreveu, congelado aqui — como `MaintenanceRecord.responsible`.
+  ///
+  /// O gestor não está em `users`, então `author_id` fica nulo quando é ele que
+  /// escreve; e o vínculo do usuário é SetNull, então a conta pode sumir. Nos
+  /// dois casos a linha continua dizendo quem a escreveu.
+  author_name String
+  description String
+  /// URLs públicas das fotos, no bucket de fotos — a mesma casa dos avatares.
+  photos      String[]
+  created_at  DateTime  @default(now())
+  /// Quando o autor corrigiu o texto. Nulo = como foi escrita.
+  edited_at   DateTime?
+
+  ticket MaintenanceRecord @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  author User?             @relation("TicketUpdateAuthor", fields: [author_id], references: [id], onDelete: SetNull)
+
+  // A leitura é sempre "a linha do tempo deste chamado, do começo ao fim".
+  @@index([ticket_id, created_at])
+  @@map("ticket_updates")
 }
 
 /// Sugestão que uma conta manda ao admin.

@@ -1,17 +1,27 @@
 import { ticketService } from '../services/ticket.service';
 import { ticketRepository } from '../repositories/ticket.repository';
 import { buildingRepository } from '../repositories/building.repository';
+import { userRepository } from '../repositories/user.repository';
+import { managerRepository } from '../repositories/manager.repository';
+import { storageService } from '../services/storage.service';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 
 jest.mock('../repositories/ticket.repository');
 jest.mock('../repositories/building.repository');
+jest.mock('../repositories/user.repository');
+jest.mock('../repositories/manager.repository');
+jest.mock('../services/storage.service');
 
 const mockTicketRepo = ticketRepository as jest.Mocked<typeof ticketRepository>;
 const mockBuildingRepo = buildingRepository as jest.Mocked<typeof buildingRepository>;
+const mockUserRepo = userRepository as jest.Mocked<typeof userRepository>;
+const mockManagerRepo = managerRepository as jest.Mocked<typeof managerRepository>;
+const mockStorage = storageService as jest.Mocked<typeof storageService>;
 
 const BUILDING_ID = '11111111-1111-4111-8111-111111111111';
 const TICKET_ID = '22222222-2222-4222-8222-222222222222';
 const RESPONSIBLE_ID = '33333333-3333-4333-8333-333333333333';
+const UPDATE_ID = '44444444-4444-4444-8444-444444444444';
 
 /** A ocorrência como o repositório a devolve, com o caminho até o prédio. */
 function makeTicket(overrides: any = {}) {
@@ -61,6 +71,22 @@ function comPapel(role: string | null) {
   mockBuildingRepo.findManagerLink.mockResolvedValue(null);
 }
 
+/** Uma anotação da linha do tempo, como o repositório a devolve. */
+function makeUpdate(overrides: any = {}) {
+  return {
+    id: UPDATE_ID,
+    ticket_id: TICKET_ID,
+    author_id: RESPONSIBLE_ID,
+    author_name: 'Marina',
+    description: 'Abri o forro e achei a válvula travada',
+    photos: [],
+    created_at: new Date('2026-08-20T12:00:00Z'),
+    edited_at: null,
+    author: { id: RESPONSIBLE_ID, name: 'Marina', avatar_url: null },
+    ...overrides,
+  } as any;
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockTicketRepo.findById.mockResolvedValue(makeTicket());
@@ -72,6 +98,22 @@ beforeEach(() => {
     email: 'marina@test.com',
     avatar_url: null,
   } as any);
+
+  // O chamado tem andamento registrado por padrão: é o estado normal de quem
+  // chega ao ponto de concluir, e os testes que cobrem a exigência zeram isto.
+  mockTicketRepo.countUpdates.mockResolvedValue(1);
+  mockTicketRepo.listUpdates.mockResolvedValue([makeUpdate()]);
+  mockTicketRepo.lastUpdate.mockResolvedValue(makeUpdate());
+  mockTicketRepo.createUpdate.mockImplementation(((data: any) =>
+    Promise.resolve(makeUpdate(data))) as any);
+  mockTicketRepo.editUpdate.mockImplementation(((id: string, description: string) =>
+    Promise.resolve(makeUpdate({ id, description, edited_at: new Date() }))) as any);
+  mockTicketRepo.removeUpdate.mockResolvedValue(makeUpdate());
+
+  mockUserRepo.findById.mockResolvedValue({ id: RESPONSIBLE_ID, name: 'Marina' } as any);
+  mockManagerRepo.findById.mockResolvedValue({ id: 'gestor-1', name: 'Dona Célia' } as any);
+  mockStorage.uploadTicketPhoto.mockResolvedValue('https://bucket/ticket_foto.jpg');
+  mockStorage.removeTicketPhoto.mockResolvedValue(undefined);
 });
 
 // ── Encaminhar ────────────────────────────────────────────────────────────────
@@ -310,6 +352,221 @@ describe('ticketService.reportDone', () => {
 
     await expect(ticketService.reportDone(TICKET_ID, responsavel)).rejects.toThrow(ConflictError);
     expect(mockTicketRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('recusa concluir sem nenhum passo registrado', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID, received_at: new Date() })
+    );
+    mockTicketRepo.countUpdates.mockResolvedValue(0);
+
+    // Sem isto, um chamado ia de "recebido" a "concluído" sem que uma linha do
+    // sistema dissesse o que aconteceu no meio.
+    await expect(ticketService.reportDone(TICKET_ID, responsavel)).rejects.toThrow(ConflictError);
+    expect(mockTicketRepo.update).not.toHaveBeenCalled();
+  });
+});
+
+// ── A linha do tempo da manutenção ────────────────────────────────────────────
+describe('ticketService.addUpdate', () => {
+  const passo = { description: 'Troquei a válvula', photos: [] };
+
+  it('grava o passo com o nome de quem escreveu congelado na linha', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID })
+    );
+
+    await ticketService.addUpdate(TICKET_ID, responsavel, passo);
+
+    const [data] = mockTicketRepo.createUpdate.mock.calls[0];
+    expect(data.ticket_id).toBe(TICKET_ID);
+    expect(data.author_id).toBe(RESPONSIBLE_ID);
+    // O nome vai junto: é o que sobra quando a conta sai do sistema.
+    expect(data.author_name).toBe('Marina');
+    expect(data.description).toBe('Troquei a válvula');
+  });
+
+  it('deixa o moderador do prédio registrar', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID })
+    );
+
+    await ticketService.addUpdate(TICKET_ID, moderador, passo);
+
+    expect(mockTicketRepo.createUpdate).toHaveBeenCalled();
+  });
+
+  it('recusa o gestor — ele lê a linha, não escreve nela', async () => {
+    comPapel(null);
+    mockBuildingRepo.findManagerLink.mockResolvedValue({ id: 'bm1' } as any);
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID })
+    );
+
+    await expect(ticketService.addUpdate(TICKET_ID, gestor, passo)).rejects.toThrow(ForbiddenError);
+    expect(mockTicketRepo.createUpdate).not.toHaveBeenCalled();
+  });
+
+  it('recusa o chamado que ainda não foi recebido', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'ENCAMINHADO', responsible_id: RESPONSIBLE_ID, forwarded_at: new Date() })
+    );
+
+    await expect(ticketService.addUpdate(TICKET_ID, responsavel, passo)).rejects.toThrow(ConflictError);
+    expect(mockTicketRepo.createUpdate).not.toHaveBeenCalled();
+  });
+
+  it('recusa o chamado já fechado — a linha vira arquivo', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'CONCLUIDO', responsible_id: RESPONSIBLE_ID, closed_at: new Date() })
+    );
+
+    await expect(ticketService.addUpdate(TICKET_ID, responsavel, passo)).rejects.toThrow(ConflictError);
+  });
+
+  it('continua aceitando depois da conclusão informada — o moderador ainda pode cobrar detalhe', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({
+        status: 'AGUARDANDO_FECHAMENTO',
+        responsible_id: RESPONSIBLE_ID,
+        done_at: new Date(),
+      })
+    );
+
+    await ticketService.addUpdate(TICKET_ID, responsavel, passo);
+
+    expect(mockTicketRepo.createUpdate).toHaveBeenCalled();
+  });
+
+  it('sobe as fotos antes de gravar a linha e guarda as URLs', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID })
+    );
+
+    // JPEG mínimo: os três bytes de assinatura, que é o que o servidor confere.
+    const jpeg = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0x00]).toString('base64')}`;
+
+    await ticketService.addUpdate(TICKET_ID, responsavel, { description: 'Com foto', photos: [jpeg] });
+
+    expect(mockStorage.uploadTicketPhoto).toHaveBeenCalledTimes(1);
+    const [data] = mockTicketRepo.createUpdate.mock.calls[0];
+    expect(data.photos).toEqual(['https://bucket/ticket_foto.jpg']);
+  });
+
+  it('recusa a foto cujo rótulo não bate com os bytes', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID })
+    );
+
+    // Diz ser PNG e é JPEG: sem a conferência dos bytes, o content-type do
+    // objeto no bucket viria de quem enviou.
+    const mentira = `data:image/png;base64,${Buffer.from([0xff, 0xd8, 0xff, 0x00]).toString('base64')}`;
+
+    await expect(
+      ticketService.addUpdate(TICKET_ID, responsavel, { description: 'Falsa', photos: [mentira] })
+    ).rejects.toThrow(ConflictError);
+    expect(mockTicketRepo.createUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('ticketService.editUpdate e removeUpdate', () => {
+  beforeEach(() => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID })
+    );
+  });
+
+  it('corrige o texto da última e marca que foi editada', async () => {
+    await ticketService.editUpdate(TICKET_ID, UPDATE_ID, responsavel, 'Texto corrigido');
+
+    const [id, description] = mockTicketRepo.editUpdate.mock.calls[0];
+    expect(id).toBe(UPDATE_ID);
+    expect(description).toBe('Texto corrigido');
+  });
+
+  it('recusa alterar o que já tem outra linha embaixo', async () => {
+    mockTicketRepo.lastUpdate.mockResolvedValue(makeUpdate({ id: 'outra-mais-nova' }));
+
+    await expect(
+      ticketService.editUpdate(TICKET_ID, UPDATE_ID, responsavel, 'Texto corrigido')
+    ).rejects.toThrow(ConflictError);
+    expect(mockTicketRepo.editUpdate).not.toHaveBeenCalled();
+  });
+
+  it('recusa alterar a linha escrita por outra pessoa', async () => {
+    mockTicketRepo.lastUpdate.mockResolvedValue(makeUpdate({ author_id: 'user-mod' }));
+
+    await expect(
+      ticketService.editUpdate(TICKET_ID, UPDATE_ID, responsavel, 'Texto corrigido')
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('apagar leva as fotos junto', async () => {
+    mockTicketRepo.lastUpdate.mockResolvedValue(
+      makeUpdate({ photos: ['https://bucket/ticket_a.jpg', 'https://bucket/ticket_b.jpg'] })
+    );
+
+    await ticketService.removeUpdate(TICKET_ID, UPDATE_ID, responsavel);
+
+    expect(mockTicketRepo.removeUpdate).toHaveBeenCalledWith(UPDATE_ID);
+    expect(mockStorage.removeTicketPhoto).toHaveBeenCalledTimes(2);
+  });
+
+  it('sem nenhuma linha, não há o que alterar', async () => {
+    mockTicketRepo.lastUpdate.mockResolvedValue(null);
+
+    await expect(
+      ticketService.removeUpdate(TICKET_ID, UPDATE_ID, responsavel)
+    ).rejects.toThrow(NotFoundError);
+  });
+});
+
+describe('ticketService.listUpdates', () => {
+  it('devolve a linha do tempo a quem tem vínculo com o prédio', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID })
+    );
+
+    const { updates } = await ticketService.listUpdates(TICKET_ID, moderador);
+
+    expect(updates).toHaveLength(1);
+    // O nome que sai é o congelado, e não o da conta ligada.
+    expect(updates[0].author).toBe('Marina');
+  });
+
+  it('devolve vazio no chamado que ainda não tem o que contar', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'ENCAMINHADO', responsible_id: RESPONSIBLE_ID })
+    );
+
+    const { updates } = await ticketService.listUpdates(TICKET_ID, moderador);
+
+    expect(updates).toEqual([]);
+    expect(mockTicketRepo.listUpdates).not.toHaveBeenCalled();
+  });
+
+  it('recusa quem não tem nada a ver com o prédio', async () => {
+    // Ator próprio, e não `visualizador`: o vínculo é cacheado por objeto (ver
+    // `getBuildingStanding`), e o dele já foi resolvido como INSPECTOR num
+    // teste acima — inspetor é membro, e membro lê.
+    const estranho = { id: 'user-de-fora', kind: 'USER', role: 'NONE' } as any;
+    comPapel(null);
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID })
+    );
+
+    await expect(ticketService.listUpdates(TICKET_ID, estranho)).rejects.toThrow(ForbiddenError);
   });
 });
 
