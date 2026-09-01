@@ -2,7 +2,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Camera, Check, CheckCheck, Pencil, Trash2, X } from 'lucide-react';
+import {
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
+  Camera,
+  Check,
+  CheckCheck,
+  Pencil,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { Button, Dialog, Skeleton } from '@/app/components/ui';
 import { ConfirmModal } from '@/app/components/ConfirmModal';
 import { useUnsavedField } from '@/app/hooks/useUnsavedGuard';
@@ -48,6 +57,34 @@ export function temLinhaDoTempo(status) {
 const ACEITA_ESCRITA = ['EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO'];
 
 const MAX_FOTOS = 4;
+
+/**
+ * As duas leituras da linha, e a ordem em que ela abre.
+ *
+ * Abre pelas mais recentes. Quem abre um chamado que já corre há dias quer
+ * saber em que pé está agora, e não recomeçar a história do princípio: o que
+ * decide o próximo passo é o último. Ler do começo é a outra pergunta — como
+ * chegamos aqui —, e essa se faz de vez em quando, não a cada abertura.
+ *
+ * A ordem é sempre a do relógio, e só ela. Anotação e marco são ordenados
+ * juntos pelo instante em que aconteceram, sem separar por tipo e sem agrupar
+ * antes de ordenar — o dia é um cabeçalho que a sequência produz, e não uma
+ * gaveta em que ela é guardada.
+ */
+const ORDENS = [
+  {
+    recentesPrimeiro: true,
+    curto: 'Mais recentes',
+    label: 'as mais recentes primeiro',
+    Icone: ArrowDownWideNarrow,
+  },
+  {
+    recentesPrimeiro: false,
+    curto: 'Mais antigas',
+    label: 'as mais antigas primeiro',
+    Icone: ArrowUpNarrowWide,
+  },
+];
 
 /** Largura da coluna do fio, e o ponto que corre por ela. */
 const PONTO = 11;
@@ -370,8 +407,12 @@ function Marco({ titulo, texto, quando, ultimo }) {
  * vai nascer: a linha continua para dentro do campo. Não é caixa à parte nem
  * botão flutuante — escrever aqui é a continuação natural da leitura, e é o
  * gesto mais frequente desta tela.
+ *
+ * "O lugar exato" muda com a ordem escolhida: no topo quando a lista abre pelas
+ * mais recentes, no pé quando abre pelas mais antigas. É por isso que `ultimo`
+ * vem de fora — quem sabe se sobrou fio embaixo é a lista, não ele.
  */
-function Compositor({ ticketId }) {
+function Compositor({ ticketId, ultimo = true }) {
   const [texto, setTexto] = useState('');
   const [fotos, setFotos] = useState([]);
   const [preparando, setPreparando] = useState(false);
@@ -432,7 +473,7 @@ function Compositor({ ticketId }) {
   }
 
   return (
-    <Fio variante="aberto" ultimo>
+    <Fio variante="aberto" ultimo={ultimo}>
       <label style={{ display: 'block' }}>
         <span style={{ color: T.mute, fontSize: 12 }}>O que foi feito agora?</span>
         <textarea
@@ -525,6 +566,7 @@ function Compositor({ ticketId }) {
 export function LinhaDoTempo({ ticket, podeEscrever = false }) {
   const { user } = useAuthStore();
   const [foto, setFoto] = useState(null);
+  const [recentesPrimeiro, setRecentesPrimeiro] = useState(true);
 
   const mostra = temLinhaDoTempo(ticket?.status);
   const { data, isLoading } = useTicketUpdates(ticket?.id, mostra);
@@ -552,16 +594,85 @@ export function LinhaDoTempo({ ticket, podeEscrever = false }) {
     },
   ].filter(Boolean);
 
+  /**
+   * Tudo o que aconteceu, numa sequência só, ordenada pelo relógio.
+   *
+   * Anotações e marcos entram na mesma lista e são ordenados juntos, pelo
+   * instante: são a mesma história contada por bocas diferentes, e uma
+   * conclusão informada às 14h vem depois da anotação das 11h — não depois de
+   * todas as anotações que existirem. Enquanto as duas listas eram desenhadas
+   * uma após a outra, isso valia por acaso, e deixaria de valer no dia em que
+   * alguém escrevesse depois de concluir.
+   */
+  const passos = [
+    ...updates.map((update) => ({
+      chave: update.id,
+      tipo: 'anotacao',
+      quando: new Date(update.created_at),
+      update,
+    })),
+    ...marcos.map((marco) => ({
+      chave: marco.chave,
+      tipo: 'marco',
+      quando: new Date(marco.quando),
+      marco,
+    })),
+  ].sort((a, b) => a.quando - b.quando);
+
   // A ponta viva é a última anotação — a menos que o chamado já tenha desfecho,
   // e aí quem fala pelo fim é o marco.
-  const ultimaAnotacao = updates.length - 1;
+  const ultimaAnotacao = updates.at(-1)?.id ?? null;
 
-  /** A última coisa desenhada, seja ela qual for: é ela que não leva traço. */
-  const fim = escrevendo ? 'compositor' : marcos.length ? 'marco' : 'anotacao';
+  /**
+   * As linhas na ordem em que serão desenhadas, com os dias intercalados.
+   *
+   * O dia entra quando muda em relação ao passo anterior *da ordem escolhida* —
+   * e é o que faz o cabeçalho continuar certo de cabeça para baixo: lendo do
+   * mais novo, "sexta" abre a sexta e "quinta" abre a quinta, mais abaixo.
+   *
+   * O compositor acompanha a ordem, e não fica preso ao pé: com as mais
+   * recentes em cima, a próxima anotação nasce em cima, e o campo tem de estar
+   * onde ela vai aparecer. É a linha continuando para dentro do que se digita.
+   */
+  const ordenados = recentesPrimeiro ? [...passos].reverse() : passos;
+
+  const linhas = [];
+  if (escrevendo && recentesPrimeiro) linhas.push({ chave: 'compositor', tipo: 'compositor' });
+
+  ordenados.forEach((passo, i) => {
+    const anterior = ordenados[i - 1];
+    if (!anterior || !isSameDay(passo.quando, anterior.quando)) {
+      linhas.push({ chave: `dia-${passo.chave}`, tipo: 'dia', quando: passo.quando });
+    }
+    linhas.push(passo);
+  });
+
+  if (escrevendo && !recentesPrimeiro) linhas.push({ chave: 'compositor', tipo: 'compositor' });
+
+  const ordem = ORDENS.find((o) => o.recentesPrimeiro === recentesPrimeiro);
+  const inversa = ORDENS.find((o) => o.recentesPrimeiro !== recentesPrimeiro);
 
   return (
     <div>
-      <h3 style={{ color: T.mute, fontSize: 12, marginBottom: 14 }}>Andamento da manutenção</h3>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+        <h3 style={{ color: T.mute, fontSize: 12 }}>Andamento da manutenção</h3>
+
+        {/* Só com dois passos para cima: um registro sozinho não tem ordem, e o
+            controle ali diria que há uma escolha a fazer onde não há. */}
+        {passos.length > 1 && (
+          <Button
+            variant="ghost"
+            onClick={() => setRecentesPrimeiro((v) => !v)}
+            // O rótulo diz a ordem em que a lista está, que é a leitura de quem
+            // olha; o nome acessível diz o que o toque faz, que é o que falta a
+            // quem não vê a lista mudar.
+            aria-label={`Mostrando ${ordem.label}. Tocar para ver ${inversa.label}.`}
+            style={{ padding: '5px 8px', fontSize: 12, flexShrink: 0, gap: 5 }}
+          >
+            <ordem.Icone size={13} /> {ordem.curto}
+          </Button>
+        )}
+      </div>
 
       {isLoading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -571,7 +682,7 @@ export function LinhaDoTempo({ ticket, podeEscrever = false }) {
         </div>
       )}
 
-      {!isLoading && updates.length === 0 && marcos.length === 0 && (
+      {!isLoading && passos.length === 0 && (
         <p style={{ color: T.faint, fontSize: 13, lineHeight: 1.6, marginBottom: escrevendo ? 18 : 0 }}>
           {escrevendo
             ? 'Nada registrado ainda. A primeira anotação abre a linha do tempo — e é ela que libera concluir.'
@@ -580,46 +691,55 @@ export function LinhaDoTempo({ ticket, podeEscrever = false }) {
       )}
 
       {!isLoading && (
-        <div>
-          {updates.map((update, i) => {
-            const quando = new Date(update.created_at);
-            const anterior = i > 0 ? new Date(updates[i - 1].created_at) : null;
-            const abreDia = !anterior || !isSameDay(quando, anterior);
+        // A ordem entra na chave: a lista inteira renasce ao inverter, e a
+        // animação de entrada diz que ela virou — sem isso, doze linhas trocam
+        // de conteúdo paradas no lugar e nada avisa que o toque fez efeito.
+        <div key={recentesPrimeiro ? 'recentes' : 'antigas'}>
+          {linhas.map((linha, i) => {
+            const ultimo = i === linhas.length - 1;
+
+            if (linha.tipo === 'dia') {
+              return (
+                <Fio key={linha.chave} variante="vazio" ultimo={ultimo}>
+                  <p style={{ color: T.faint, fontSize: 12, paddingBottom: 2 }}>{diaPorExtenso(linha.quando)}</p>
+                </Fio>
+              );
+            }
+
+            if (linha.tipo === 'compositor') {
+              return <Compositor key={linha.chave} ticketId={ticket.id} ultimo={ultimo} />;
+            }
+
+            if (linha.tipo === 'marco') {
+              return (
+                <Marco
+                  key={linha.chave}
+                  titulo={linha.marco.titulo}
+                  texto={linha.marco.texto}
+                  quando={linha.marco.quando}
+                  ultimo={ultimo}
+                />
+              );
+            }
+
+            const ehUltimaAnotacao = linha.update.id === ultimaAnotacao;
 
             return (
-              <div key={update.id}>
-                {abreDia && (
-                  <Fio variante="vazio">
-                    <p style={{ color: T.faint, fontSize: 12, paddingBottom: 2 }}>{diaPorExtenso(quando)}</p>
-                  </Fio>
-                )}
-                <Anotacao
-                  update={update}
-                  ticketId={ticket.id}
-                  atual={i === ultimaAnotacao && marcos.length === 0}
-                  ultimo={fim === 'anotacao' && i === ultimaAnotacao}
-                  // Só a última, só de quem a escreveu, e só enquanto o chamado
-                  // aceita escrita — depois de fechado nada mais se altera.
-                  podeAlterar={
-                    escrevendo && i === ultimaAnotacao && !!user?.id && update.author_id === user.id
-                  }
-                  onAbrirFoto={setFoto}
-                />
-              </div>
+              <Anotacao
+                key={linha.chave}
+                update={linha.update}
+                ticketId={ticket.id}
+                atual={ehUltimaAnotacao && marcos.length === 0}
+                ultimo={ultimo}
+                // Só a última, só de quem a escreveu, e só enquanto o chamado
+                // aceita escrita — depois de concluído nada mais se altera.
+                podeAlterar={
+                  escrevendo && ehUltimaAnotacao && !!user?.id && linha.update.author_id === user.id
+                }
+                onAbrirFoto={setFoto}
+              />
             );
           })}
-
-          {marcos.map((marco, i) => (
-            <Marco
-              key={marco.chave}
-              titulo={marco.titulo}
-              texto={marco.texto}
-              quando={marco.quando}
-              ultimo={fim === 'marco' && i === marcos.length - 1}
-            />
-          ))}
-
-          {escrevendo && <Compositor ticketId={ticket.id} />}
         </div>
       )}
 

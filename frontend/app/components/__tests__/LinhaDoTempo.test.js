@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { LinhaDoTempo, temLinhaDoTempo } from '@/app/components/LinhaDoTempo';
@@ -118,6 +118,86 @@ describe('LinhaDoTempo', () => {
     expect(screen.getByText('09:05')).toBeInTheDocument();
     expect(screen.getByText('16:40')).toBeInTheDocument();
     expect(screen.getByText('10:10')).toBeInTheDocument();
+  });
+
+  /**
+   * A ordem de leitura.
+   *
+   * Quem abre um chamado que corre há dias quer saber em que pé ele está agora,
+   * e não recomeçar a história do princípio. Ler do começo é a outra pergunta —
+   * como chegamos aqui —, e para ela existe o controle.
+   */
+  describe('ordem', () => {
+    /** Onde cada texto caiu na página, para comparar posições. */
+    const posicao = (texto) => document.body.textContent.indexOf(texto);
+
+    const PRIMEIRA = 'Abri o forro e achei a válvula travada';
+    const ULTIMA = 'Troquei a válvula e testei por 20 minutos.';
+
+    it('abre pelas mais recentes', async () => {
+      render(<Linha />);
+      await screen.findByText(ULTIMA);
+
+      expect(posicao(ULTIMA)).toBeLessThan(posicao(PRIMEIRA));
+      // O cabeçalho do dia acompanha: a sexta abre a lista, a quinta vem depois.
+      expect(posicao('Sexta-feira, 21 de agosto')).toBeLessThan(posicao('Quinta-feira, 20 de agosto'));
+    });
+
+    it('o controle inverte a leitura', async () => {
+      const user = userEvent.setup();
+      render(<Linha />);
+      await screen.findByText(ULTIMA);
+
+      await user.click(screen.getByRole('button', { name: /Mostrando as mais recentes/ }));
+
+      await waitFor(() => expect(posicao(PRIMEIRA)).toBeLessThan(posicao(ULTIMA)));
+      expect(posicao('Quinta-feira, 20 de agosto')).toBeLessThan(posicao('Sexta-feira, 21 de agosto'));
+      // E volta.
+      await user.click(screen.getByRole('button', { name: /Mostrando as mais antigas/ }));
+      await waitFor(() => expect(posicao(ULTIMA)).toBeLessThan(posicao(PRIMEIRA)));
+    });
+
+    it('o compositor acompanha a ordem — é onde a próxima anotação vai nascer', async () => {
+      const user = userEvent.setup();
+      render(<Linha podeEscrever />);
+      await screen.findByText(ULTIMA);
+
+      expect(posicao('O que foi feito agora?')).toBeLessThan(posicao(ULTIMA));
+
+      await user.click(screen.getByRole('button', { name: /Mostrando as mais recentes/ }));
+
+      await waitFor(() => expect(posicao('O que foi feito agora?')).toBeGreaterThan(posicao(ULTIMA)));
+    });
+
+    /**
+     * Enquanto anotações e marcos eram desenhados em duas listas seguidas, o
+     * marco caía sempre no fim — por acaso, e não por hora.
+     */
+    it('marco entra pelo relógio, e não depois de todas as anotações', async () => {
+      render(
+        <Linha
+          ticket={{
+            ...TICKET,
+            status: 'AGUARDANDO_FECHAMENTO',
+            // Entre a segunda e a terceira anotação.
+            done_at: local(2026, 8, 20, 18, 0),
+          }}
+        />
+      );
+      await screen.findByText('Conclusão informada');
+
+      // Do mais novo para o mais velho: a terceira, o marco, a segunda.
+      expect(posicao(ULTIMA)).toBeLessThan(posicao('Conclusão informada'));
+      expect(posicao('Conclusão informada')).toBeLessThan(posicao('Comprei a peça. Chega amanhã.'));
+    });
+
+    it('com um registro só não há ordem a escolher', async () => {
+      api.get.mockResolvedValue({ data: { updates: [UPDATES[0]] } });
+      render(<Linha />);
+      await screen.findByText(PRIMEIRA);
+
+      expect(screen.queryByRole('button', { name: /Mostrando/ })).not.toBeInTheDocument();
+    });
   });
 
   it('mostra as fotos do passo como miniaturas que abrem', async () => {
