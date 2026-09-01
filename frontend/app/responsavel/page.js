@@ -143,6 +143,40 @@ export const ABAS = [
 ];
 
 /**
+ * Quando o chamado deixou de ser trabalho de quem o atendeu.
+ *
+ * `closed_at` primeiro, que é o fim de verdade; `done_at` para o que ainda
+ * espera o moderador, que é o fim para quem executou. `created_at` é o chão
+ * para o caso de nenhum dos dois existir — sem ele, uma linha sem data iria
+ * para o topo, que é o pior lugar para o que não se sabe quando aconteceu.
+ */
+function fimDoTrabalho(ticket) {
+  const quando = ticket.closed_at ?? ticket.done_at ?? ticket.created_at;
+  return quando ? new Date(quando).getTime() : 0;
+}
+
+/**
+ * A ordem de cada fila.
+ *
+ * As três vêm de uma consulta só, ordenada por criação (ver
+ * `findByResponsible`) — e criação é a data certa para as duas primeiras: o que
+ * espera aceite e o que está em andamento se lêem pela ocorrência mais nova.
+ *
+ * Em "Concluídos" ela é a data errada. Ali a pergunta é "o que eu acabei de
+ * terminar", e um chamado aberto em março e fechado ontem aparecia no fim da
+ * fila, abaixo de coisas encerradas semanas antes. A ordem é do fim, e não do
+ * começo.
+ *
+ * Ordena aqui, e não no servidor, porque a ordem é da aba: a mesma resposta
+ * alimenta as três, e pedir três consultas para trocar o `ORDER BY` de uma
+ * delas custaria mais do que a lista inteira que já está na memória.
+ */
+export function ordenarFila(id, tickets) {
+  if (id !== 'CONCLUIDOS') return tickets;
+  return [...tickets].sort((a, b) => fimDoTrabalho(b) - fimDoTrabalho(a));
+}
+
+/**
  * De que lado a lista daquela fila entra.
  *
  * Do lado em que está o botão que a abriu: a fila da esquerda vem da esquerda,
@@ -317,7 +351,7 @@ export default function ResponsavelPage() {
   }, {});
 
   const abaAtual = ABAS.find((a) => a.id === aba) ?? ABAS[0];
-  const visiveis = tickets.filter((t) => abaAtual.status.includes(t.status));
+  const visiveis = ordenarFila(abaAtual.id, tickets.filter((t) => abaAtual.status.includes(t.status)));
 
   const entrada = entradaDaFila(abaAtual.id);
 

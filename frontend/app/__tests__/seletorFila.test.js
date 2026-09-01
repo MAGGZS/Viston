@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ABAS, SeletorFila, entradaDaFila } from '@/app/responsavel/page';
+import { ABAS, SeletorFila, entradaDaFila, ordenarFila } from '@/app/responsavel/page';
 
 /**
  * O seletor de fila da tela do responsável.
@@ -92,5 +92,65 @@ describe('entradaDaFila', () => {
 
   it('sobe também quando a fila não existe, em vez de vir de lugar nenhum', () => {
     expect(entradaDaFila('INVENTADA')).toBe('anim-fade-up');
+  });
+});
+
+/**
+ * A ordem de cada fila.
+ *
+ * A consulta que alimenta as três vem por criação, e para as duas primeiras é a
+ * data certa. Em "Concluídos" não: ali a pergunta é "o que eu acabei de
+ * terminar", e um chamado aberto em março e fechado ontem aparecia no fim,
+ * abaixo de coisas encerradas semanas antes.
+ */
+describe('ordenarFila', () => {
+  const t = (id, extra) => ({ id, created_at: '2026-03-01T10:00:00.000Z', ...extra });
+
+  it('deixa as filas de trabalho como o servidor as mandou', () => {
+    const fila = [t('a'), t('b'), t('c')];
+
+    expect(ordenarFila('RECEBER', fila).map((x) => x.id)).toEqual(['a', 'b', 'c']);
+    expect(ordenarFila('ANDAMENTO', fila).map((x) => x.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('em "Concluídos", o mais recentemente finalizado vem primeiro', () => {
+    const fila = [
+      // Aberto em março, fechado ontem: era o último da fila, e é o primeiro.
+      t('velho-fechado-ontem', { closed_at: '2026-08-30T12:00:00.000Z' }),
+      t('fechado-em-julho', { closed_at: '2026-07-02T12:00:00.000Z' }),
+      t('fechado-em-agosto', { closed_at: '2026-08-10T12:00:00.000Z' }),
+    ];
+
+    expect(ordenarFila('CONCLUIDOS', fila).map((x) => x.id)).toEqual([
+      'velho-fechado-ontem',
+      'fechado-em-agosto',
+      'fechado-em-julho',
+    ]);
+  });
+
+  it('o que ainda espera o moderador entra pela data em que quem executou terminou', () => {
+    const fila = [
+      t('fechado', { done_at: '2026-08-01T12:00:00.000Z', closed_at: '2026-08-02T12:00:00.000Z' }),
+      t('aguardando', { done_at: '2026-08-20T12:00:00.000Z' }),
+    ];
+
+    expect(ordenarFila('CONCLUIDOS', fila).map((x) => x.id)).toEqual(['aguardando', 'fechado']);
+  });
+
+  it('sem data de fim, a criação segura a linha embaixo em vez de jogá-la ao topo', () => {
+    const fila = [
+      t('sem-data', { created_at: '2026-01-01T10:00:00.000Z' }),
+      t('fechado', { closed_at: '2026-08-10T12:00:00.000Z' }),
+    ];
+
+    expect(ordenarFila('CONCLUIDOS', fila).map((x) => x.id)).toEqual(['fechado', 'sem-data']);
+  });
+
+  it('não mexe na lista que recebeu', () => {
+    const fila = [t('a', { closed_at: '2026-07-01T12:00:00.000Z' }), t('b', { closed_at: '2026-08-01T12:00:00.000Z' })];
+
+    ordenarFila('CONCLUIDOS', fila);
+
+    expect(fila.map((x) => x.id)).toEqual(['a', 'b']);
   });
 });
