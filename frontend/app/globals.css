@@ -35,7 +35,7 @@
  * Os dois temas.
  *
  * O escuro é o padrão e mora no `@theme` acima; aqui embaixo ficam só as peças
- * que o Tailwind não nomeia (degradê da credencial, fundo do diálogo, vinheta)
+ * que o Tailwind não nomeia (degradê da credencial, fundo do diálogo)
  * e, no bloco do claro, a sobrescrita de tudo.
  *
  * Quem troca é o atributo `data-theme` no `<html>`, escrito antes da primeira
@@ -51,7 +51,6 @@
   --color-hover-raised: #1F1F1F;
   --color-hover-strong: #2E2E2E;
   --backdrop: rgba(0, 0, 0, 0.6);
-  --vignette: radial-gradient(ellipse 70% 55% at 18% 0%, rgba(245, 197, 24, 0.035) 0%, transparent 62%);
   --scroll-thumb: rgba(255, 255, 255, 0.1);
   --autofill: #232323;
   --input-line: transparent;
@@ -130,7 +129,6 @@ html[data-theme='light'] {
   --color-hover-raised: #F2F4F7;
   --color-hover-strong: #DDE1E7;
   --backdrop: rgba(16, 19, 23, 0.35);
-  --vignette: radial-gradient(ellipse 70% 55% at 18% 0%, rgba(245, 197, 24, 0.10) 0%, transparent 62%);
   --scroll-thumb: rgba(16, 19, 23, 0.18);
   --autofill: #ECEEF2;
   /* O campo sobre o cartão branco precisa de contorno; no escuro o chip basta. */
@@ -165,16 +163,6 @@ html, body {
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
-}
-
-/* Vinheta única e discreta. Só ela — mancha de segunda cor vira ornamento. */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: var(--vignette);
-  pointer-events: none;
-  z-index: 0;
 }
 
 ::-webkit-scrollbar { width: 4px; }
