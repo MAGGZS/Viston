@@ -20,6 +20,10 @@ const S = {
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
   label: { fontSize: 12, fontWeight: 400, color: T.mute },
   input: { background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent', borderRadius: R.control, padding: '13px 16px', color: T.text, fontSize: 16, outline: 'none', width: '100%' },
+  // O mesmo vermelho rebaixado do campo obrigatório em branco, agora escrito
+  // uma vez só: são quatro campos-estado nesta tela contando os dois erros.
+  inputErro: { borderColor: 'rgba(248,113,113,0.5)' },
+  erro: { fontSize: 12, color: T.danger },
   inputWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
   eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: T.mute, display: 'flex', alignItems: 'center' },
   btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: 500, fontSize: 15, padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4 },
@@ -40,7 +44,7 @@ const S = {
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuthStore();
-  const { mutateAsync, isPending, error } = useLogin();
+  const { mutateAsync, isPending, error, reset: limparErro } = useLogin();
   const { register, handleSubmit, formState: { errors } } = useForm({ resolver: yupResolver(schema) });
   const [showPassword, setShowPassword] = useState(false);
 
@@ -89,6 +93,48 @@ export default function LoginPage() {
   // caminho de volta a ele — não uma mensagem vermelha.
   const naoConfirmado = codigo === 'EMAIL_NAO_CONFIRMADO';
 
+  /**
+   * E-mail ou senha errados — o erro que é do que foi digitado.
+   *
+   * Ele vinha numa caixa vermelha abaixo do formulário, longe dos dois campos
+   * que a pessoa precisa corrigir: a tela dizia que algo estava errado sem
+   * apontar onde. Agora ele marca os campos e escreve embaixo, exatamente como
+   * o "Obrigatório" já fazia — quem lê o formulário de cima a baixo encontra o
+   * problema no lugar em que vai mexer.
+   *
+   * Os dois campos ficam vermelhos, e não um: o servidor responde a mesma coisa
+   * para endereço que não existe e para senha errada, de propósito — dizer qual
+   * dos dois errou transformaria o login num verificador de quem tem conta. A
+   * tela não sabe, e não finge saber.
+   */
+  const credenciaisInvalidas = codigo === 'UNAUTHORIZED';
+
+  // Texto da tela, e não o do servidor: "Credenciais inválidas" é como o
+  // sistema chama isso entre si. Quem está no formulário reconhece "E-mail ou
+  // senha incorretos" — é o mesmo caminho que o aviso de confirmação já toma.
+  const MSG_CREDENCIAIS = 'E-mail ou senha incorretos';
+
+  const erroEmail = !!errors.email || credenciaisInvalidas;
+  const erroSenha = !!errors.password || credenciaisInvalidas;
+
+  /**
+   * Mexeu no campo, some o vermelho da tentativa anterior.
+   *
+   * Sem isto ele ficaria aceso enquanto a pessoa corrige, dizendo que está
+   * errado o que ela acabou de trocar. Os erros do formulário já se apagam
+   * sozinhos ao revalidar; este vem da resposta, e é preciso apagá-lo à mão.
+   */
+  function aoDigitar(campo) {
+    const { onChange } = campo;
+    return {
+      ...campo,
+      onChange: (e) => {
+        if (error) limparErro();
+        return onChange(e);
+      },
+    };
+  }
+
   return (
     <AuthShell
       title="Entrar"
@@ -114,12 +160,15 @@ export default function LoginPage() {
             type="email"
             autoComplete="email"
             placeholder="seu@email.com"
-            aria-invalid={errors.email ? true : undefined}
-            aria-describedby={errors.email ? 'email-erro' : undefined}
-            style={{ ...S.input, ...(errors.email ? { borderColor: 'rgba(248,113,113,0.5)' } : {}) }}
-            {...register('email')}
+            aria-invalid={erroEmail ? true : undefined}
+            // Aponta para a mensagem que existir. Na credencial errada ela mora
+            // sob a senha, e é para lá que este campo manda quem usa leitor de
+            // tela — senão o e-mail ficaria inválido sem dizer por quê.
+            aria-describedby={errors.email ? 'email-erro' : credenciaisInvalidas ? 'credenciais-erro' : undefined}
+            style={{ ...S.input, ...(erroEmail ? S.inputErro : {}) }}
+            {...aoDigitar(register('email'))}
           />
-          {errors.email && <span id="email-erro" role="alert" style={{ fontSize: 12, color: T.danger }}>{errors.email.message}</span>}
+          {errors.email && <span id="email-erro" role="alert" style={S.erro}>{errors.email.message}</span>}
         </div>
         <div style={S.field}>
           <label htmlFor="senha" style={S.label}>Senha</label>
@@ -129,17 +178,23 @@ export default function LoginPage() {
               type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
               placeholder="••••••••"
-              aria-invalid={errors.password ? true : undefined}
-              aria-describedby={errors.password ? 'senha-erro' : undefined}
-              style={{ ...S.input, paddingRight: 46, ...(errors.password ? { borderColor: 'rgba(248,113,113,0.5)' } : {}) }}
-              {...register('password')}
+              aria-invalid={erroSenha ? true : undefined}
+              aria-describedby={errors.password ? 'senha-erro' : credenciaisInvalidas ? 'credenciais-erro' : undefined}
+              style={{ ...S.input, paddingRight: 46, ...(erroSenha ? S.inputErro : {}) }}
+              {...aoDigitar(register('password'))}
             />
             <button type="button" onClick={() => setShowPassword(v => !v)} style={S.eyeBtn}
               aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
               {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
             </button>
           </div>
-          {errors.password && <span id="senha-erro" role="alert" style={{ fontSize: 12, color: T.danger }}>{errors.password.message}</span>}
+          {errors.password && <span id="senha-erro" role="alert" style={S.erro}>{errors.password.message}</span>}
+          {/* Sob a senha, e não sob o e-mail: é o último campo, e daqui a
+              pessoa cai direto no "Esqueci minha senha" logo abaixo — que é a
+              saída de quem viu esta linha e não sabe o que corrigir. */}
+          {credenciaisInvalidas && !errors.password && (
+            <span id="credenciais-erro" role="alert" style={S.erro}>{MSG_CREDENCIAIS}</span>
+          )}
           {/*
             O link mora colado ao campo, e não no rodapé com os de cadastro.
             Quem esquece a senha descobre isso olhando para a caixa da senha —
@@ -195,7 +250,12 @@ export default function LoginPage() {
             </button>
           </div>
         ) : (
-          apiError && <div role="alert" style={S.errBox}><p style={{ color: T.danger, fontSize: 14 }}>{apiError}</p></div>
+          // A caixa fica para o que não é de campo nenhum: rede fora, teto de
+          // tentativas, servidor que caiu. Esses a pessoa não corrige digitando
+          // de novo, e marcar os campos de vermelho mentiria sobre o que houve.
+          apiError && !credenciaisInvalidas && (
+            <div role="alert" style={S.errBox}><p style={{ color: T.danger, fontSize: 14 }}>{apiError}</p></div>
+          )
         )}
         <button type="submit" disabled={isPending} style={{ ...S.btn, opacity: isPending ? 0.6 : 1 }}>
           {isPending ? 'Entrando...' : 'Entrar'}
