@@ -49,6 +49,8 @@
   --card-ring: 0 0 0 0 transparent;
   --color-hover: #2A2A2A;
   --color-hover-raised: #1F1F1F;
+  /* Contorno do cartao escolhido na fila de triagem — ver .fila-card.is-ativa. */
+  --fila-ring: rgba(255, 255, 255, 0.26);
   --color-hover-strong: #2E2E2E;
   --backdrop: rgba(0, 0, 0, 0.6);
   --scroll-thumb: rgba(255, 255, 255, 0.1);
@@ -127,6 +129,7 @@ html[data-theme='light'] {
   --card-ring: 0 0 0 1px rgba(16, 19, 23, 0.08);
   --color-hover: #E4E7EC;
   --color-hover-raised: #F2F4F7;
+  --fila-ring: rgba(16, 19, 23, 0.26);
   --color-hover-strong: #DDE1E7;
   --backdrop: rgba(16, 19, 23, 0.35);
   --scroll-thumb: rgba(16, 19, 23, 0.18);
@@ -514,8 +517,13 @@ input:-webkit-autofill:focus {
  * deixa o estado grudado, e a cor de volta acaba sendo adivinhada. Aqui o
  * cartão escolhido é exceção de uma regra só, e não um segundo par de handlers.
  *
- * O escolhido não muda de tamanho: o filete dourado é `inset` na sombra, e não
- * uma borda. Com borda, escolher um cartão empurraria a grade inteira em 3px.
+ * O escolhido não muda de tamanho: o contorno é `inset` na sombra, e não uma
+ * borda. Com borda, escolher um cartão empurraria a grade inteira em 1px.
+ *
+ * O contorno não é dourado. Ele marca onde a pessoa está, e não o que ela deve
+ * fazer — nesta tela o dourado tem um dono só, que é o botão de encaminhar. Um
+ * anel apagado na cor da tinta, sobre o fundo que já sobe um nível, separa o
+ * cartão escolhido dos outros sem disputar com o único gesto da tela.
  */
 .fila-card { transition: background-color 0.15s ease, box-shadow 0.15s ease; }
 
@@ -523,7 +531,7 @@ input:-webkit-autofill:focus {
   .fila-card:not(.is-ativa):hover { background-color: var(--color-hover-raised); }
 }
 
-.fila-card.is-ativa { box-shadow: inset 3px 0 0 var(--color-accent); }
+.fila-card.is-ativa { box-shadow: inset 0 0 0 1px var(--fila-ring); }
 
 .fila-card:focus-visible {
   outline: 2px solid rgba(245, 197, 24, 0.6);

@@ -63,7 +63,7 @@ function NoBuilding() {
  * quem passa de uma para a outra não deveria ter de reaprender onde as coisas
  * ficam.
  */
-export function ModeradorShell({ building, isLoading, title, subtitle, actions, children }) {
+export function ModeradorShell({ building, isLoading, title, subtitle, actions, ownHeader = false, children }) {
   return (
     <RouteGuard roles={['MODERADOR', 'GESTOR', 'ADMIN']}>
       <div className="hidden lg:flex" style={{ minHeight: '100vh', background: T.bg }}>
@@ -72,14 +72,23 @@ export function ModeradorShell({ building, isLoading, title, subtitle, actions, 
         <main id={CONTENT_ID} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: '100vh', overflow: 'hidden' }}>
           {/* A barra lateral não anima: ela remonta a cada navegação entre as
               telas do moderador, e piscar o menu inteiro a cada clique seria
-              ruído. Quem entra é o conteúdo, que é o que mudou. */}
-          <header className="anim-fade-down" style={{ padding: '28px 32px 20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
-            <div>
-              <h1 style={{ color: T.text, fontSize: 22, fontWeight: W.title }}>{title}</h1>
-              {subtitle && <p style={{ color: T.mute, fontSize: 14, marginTop: 4 }}>{subtitle}</p>}
-            </div>
-            {actions}
-          </header>
+              ruído. Quem entra é o conteúdo, que é o que mudou.
+
+              `ownHeader` é a tela dizendo que desenha o próprio cabeçalho. Existe
+              por causa da triagem: lá a ficha da ocorrência vai do topo da janela
+              ao pé dela, e um cabeçalho da casca atravessando a largura toda
+              cortaria essa coluna ao meio. Só quem pede fica sem — as demais
+              telas continuam recebendo o cabeçalho daqui, e é o que mantém as
+              duas mesas parecidas. */}
+          {!ownHeader && (
+            <header className="anim-fade-down" style={{ padding: '28px 32px 20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
+              <div>
+                <h1 style={{ color: T.text, fontSize: 22, fontWeight: W.title }}>{title}</h1>
+                {subtitle && <p style={{ color: T.mute, fontSize: 14, marginTop: 4 }}>{subtitle}</p>}
+              </div>
+              {actions}
+            </header>
+          )}
 
           {isLoading ? (
             <div style={{ padding: '0 32px 32px' }}>

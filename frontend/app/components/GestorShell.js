@@ -51,7 +51,7 @@ function DesktopOnly() {
  * diz outra coisa — é o que o painel quer, e é o que a tela sem nome nenhum
  * deveria mostrar.
  */
-export function GestorShell({ buildingId, title, subtitle, actions, children }) {
+export function GestorShell({ buildingId, title, subtitle, actions, ownHeader = false, children }) {
   const { building, isLoading } = useManagedBuilding(buildingId);
 
   const heading = title ?? building?.name;
@@ -65,18 +65,25 @@ export function GestorShell({ buildingId, title, subtitle, actions, children }) 
         <main id={CONTENT_ID} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: '100vh', overflow: 'hidden' }}>
           {/* A barra lateral não anima na entrada: ela remonta a cada troca de
               aba, e piscar o menu inteiro a cada clique seria ruído. Quem entra
-              é o conteúdo, que é o que mudou. */}
-          <header className="anim-fade-down" style={{ padding: '28px 32px 20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
-            <div style={{ minWidth: 0 }}>
-              {heading ? (
-                <h1 style={{ color: T.text, fontSize: 22, fontWeight: W.title }}>{heading}</h1>
-              ) : isLoading ? (
-                <div style={{ height: 26, width: 200, background: T.chip, borderRadius: 8 }} className="animate-pulse" />
-              ) : null}
-              {support && <p style={{ color: T.mute, fontSize: 14, marginTop: 4 }}>{support}</p>}
-            </div>
-            {actions}
-          </header>
+              é o conteúdo, que é o que mudou.
+
+              `ownHeader` é a tela dizendo que desenha o próprio cabeçalho, e vale
+              o mesmo que na casca do moderador: a triagem põe a ficha da
+              ocorrência do topo da janela ao pé dela, e um cabeçalho ocupando a
+              largura toda cortaria essa coluna ao meio. */}
+          {!ownHeader && (
+            <header className="anim-fade-down" style={{ padding: '28px 32px 20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
+              <div style={{ minWidth: 0 }}>
+                {heading ? (
+                  <h1 style={{ color: T.text, fontSize: 22, fontWeight: W.title }}>{heading}</h1>
+                ) : isLoading ? (
+                  <div style={{ height: 26, width: 200, background: T.chip, borderRadius: 8 }} className="animate-pulse" />
+                ) : null}
+                {support && <p style={{ color: T.mute, fontSize: 14, marginTop: 4 }}>{support}</p>}
+              </div>
+              {actions}
+            </header>
+          )}
 
           {children}
         </main>

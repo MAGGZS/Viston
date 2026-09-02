@@ -313,7 +313,36 @@ function CartaoDaFila({ ticket, ativa, mostrarAndar, onClick, onKeyDown, classNa
  * rolar e descobrir, mas descobrir custa. As frases respondem as três perguntas
  * de quem abre a tela — quanto tem, quanto é urgente, e o que já esperou demais.
  */
-function FaixaDaFila({ tickets, eixo, onEixo }) {
+/**
+ * Por qual eixo ler a fila.
+ *
+ * Logo abaixo do título, e antes da contagem: escolher o eixo é a primeira
+ * decisão de quem chega — "o que faço agora" ou "vou limpar um andar" —, e a
+ * contagem que vem depois já é a leitura daquele recorte. No fim da faixa, à
+ * direita, ele ficava do outro lado da tela do assunto que governa.
+ */
+function SeletorDeEixo({ eixo, onEixo }) {
+  return (
+    <div role="group" aria-label="Como ordenar a fila" className="seg">
+      {[
+        { valor: 'URGENCIA', label: 'Por urgência' },
+        { valor: 'ANDAR', label: 'Por andar' },
+      ].map((opcao) => (
+        <button
+          key={opcao.valor}
+          type="button"
+          onClick={() => onEixo(opcao.valor)}
+          aria-pressed={eixo === opcao.valor}
+          className={`seg__btn ${eixo === opcao.valor ? 'is-on' : ''}`}
+        >
+          {opcao.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function FaixaDaFila({ tickets }) {
   const altas = tickets.filter((t) => t.priority === 'ALTA').length;
   const atrasados = tickets.filter((t) => prazo(t).atrasado).length;
 
@@ -340,25 +369,6 @@ function FaixaDaFila({ tickets, eixo, onEixo }) {
           {atrasados === 1 ? '1 esperando demais' : `${atrasados} esperando demais`}
         </span>
       )}
-
-      {/* À direita, longe da contagem: mudar o eixo não muda o que há na fila,
-          só a ordem em que ela é lida. */}
-      <div role="group" aria-label="Como ordenar a fila" className="seg" style={{ marginLeft: 'auto' }}>
-        {[
-          { valor: 'URGENCIA', label: 'Por urgência' },
-          { valor: 'ANDAR', label: 'Por andar' },
-        ].map((opcao) => (
-          <button
-            key={opcao.valor}
-            type="button"
-            onClick={() => onEixo(opcao.valor)}
-            aria-pressed={eixo === opcao.valor}
-            className={`seg__btn ${eixo === opcao.valor ? 'is-on' : ''}`}
-          >
-            {opcao.label}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
@@ -498,8 +508,9 @@ function BarraDeDecisao({ ticket, buildingId }) {
         // ficha de cada lado, e o conteúdo apareceria rolando por ela.
         //
         // Numa propriedade só: `marginTop` seguido do atalho `margin` seria
-        // apagado por ele, e a barra subiria para o meio da ficha vazia.
-        margin: 'auto -22px -22px', padding: '16px 22px',
+        // apagado por ele, e a barra subiria para o meio da ficha vazia. Os
+        // valores acompanham o recuo da ficha (FICHA_PAD).
+        margin: 'auto -24px -24px', padding: '16px 24px',
         background: T.card, borderTop: `1px solid ${T.line}`,
         display: 'flex', flexDirection: 'column', gap: 10,
       }}
@@ -644,16 +655,29 @@ function Grade({ children }) {
   );
 }
 
+/**
+ * As medidas do desenho da tela, num lugar só.
+ *
+ * `FICHA` é a largura da coluna da direita, e ela é o que decide se
+ * "Emergencial" cabe em meio campo do enquadramento. `LADO` é o recuo da coluna
+ * dos cartões, que continua sendo o da casca — a fila tem de nascer alinhada com
+ * o título acima dela. `FICHA_PAD` é repetido pela barra de decisão em recuo
+ * negativo, e por isso não pode ser escrito duas vezes.
+ */
+const FICHA = 'minmax(340px, 400px)';
+const FICHA_PAD = 24;
+const LADO = 32;
+
 /** O esqueleto da fila enquanto ela chega. */
 function Esqueleto() {
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(340px, 400px)', gap: 20, padding: '0 32px 28px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(258px, 1fr))', gap: 12, alignContent: 'start' }}>
+    <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: `minmax(0, 1fr) ${FICHA}` }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(258px, 1fr))', gap: 12, alignContent: 'start', padding: `0 20px 28px ${LADO}px` }}>
         {[1, 2, 3, 4, 5, 6].map((i) => (
           <Skeleton key={i} className="anim-fade-in" style={{ height: 138, borderRadius: R.card }} />
         ))}
       </div>
-      <Skeleton className="anim-fade-in" style={{ borderRadius: R.card }} />
+      <Skeleton className="anim-fade-in" style={{ borderRadius: 0 }} />
     </div>
   );
 }
@@ -688,7 +712,27 @@ function FilaVazia() {
   );
 }
 
-export function ChamadosBoard({ buildingId }) {
+/**
+ * O cabeçalho da tela, desenhado aqui e não pela casca.
+ *
+ * A ficha da ocorrência vai do topo da janela ao pé dela, e um cabeçalho da
+ * casca atravessando a largura toda cortaria essa coluna ao meio. Então a
+ * triagem pede `ownHeader` à casca e desenha o próprio — com a mesma medida e o
+ * mesmo peso de lá, para as duas telas não parecerem de produtos diferentes.
+ */
+function Cabecalho({ title, subtitle, children }) {
+  if (!title && !subtitle && !children) return null;
+
+  return (
+    <header className="anim-fade-down" style={{ padding: `28px ${LADO}px 0`, flexShrink: 0 }}>
+      {title && <h1 style={{ color: T.text, fontSize: 22, fontWeight: W.title }}>{title}</h1>}
+      {subtitle && <p style={{ color: T.mute, fontSize: 14, marginTop: 4 }}>{subtitle}</p>}
+      {children && <div style={{ marginTop: 14 }}>{children}</div>}
+    </header>
+  );
+}
+
+export function ChamadosBoard({ buildingId, title, subtitle }) {
   const { data, isLoading } = useTickets(buildingId, 'NOVOS');
   // A lista vazia é memorizada junto: `data?.tickets ?? []` nasce um array novo
   // a cada render enquanto a consulta não chegou, e um array novo invalidaria as
@@ -756,8 +800,18 @@ export function ChamadosBoard({ buildingId }) {
     gradeRef.current?.querySelector(`[data-id="${proximo.id}"]`)?.focus();
   }
 
-  if (isLoading) return <Esqueleto />;
-  if (tickets.length === 0) return <FilaVazia />;
+  // Antes do conteúdo, e não junto dele: enquanto a fila carrega e quando ela
+  // está vazia não há ficha nenhuma, e a tela volta a ser de uma coluna só — mas
+  // o título tem de continuar dizendo onde a pessoa está.
+  const semFila = (miolo) => (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <Cabecalho title={title} subtitle={subtitle} />
+      {miolo}
+    </div>
+  );
+
+  if (isLoading) return semFila(<Esqueleto />);
+  if (tickets.length === 0) return semFila(<FilaVazia />);
 
   const cartao = (ticket, idx) => (
     <CartaoDaFila
@@ -772,10 +826,20 @@ export function ChamadosBoard({ buildingId }) {
   );
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 14, padding: '0 32px 28px' }}>
-      <FaixaDaFila tickets={tickets} eixo={eixo} onEixo={setEixo} />
+    // Duas colunas do topo da janela ao pé dela. A da esquerda carrega o
+    // cabeçalho, o seletor de eixo, a contagem e a grade; a da direita é só a
+    // ficha, e é por isso que ela chega ao topo: não há nada acima dela para
+    // empurrá-la para baixo.
+    <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: `minmax(0, 1fr) ${FICHA}` }}>
+      <div style={{ minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <Cabecalho title={title} subtitle={subtitle}>
+          <SeletorDeEixo eixo={eixo} onEixo={setEixo} />
+        </Cabecalho>
 
-      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(340px, 400px)', gap: 20 }}>
+        <div style={{ padding: `14px ${LADO}px 12px`, flexShrink: 0 }}>
+          <FaixaDaFila tickets={tickets} />
+        </div>
+
         <div
           ref={gradeRef}
           // `group`, e não `listbox`: numa listbox os filhos têm de ser
@@ -783,7 +847,14 @@ export function ChamadosBoard({ buildingId }) {
           // Espaço que o elemento nativo já dá de graça.
           role="group"
           aria-label="Ocorrências esperando encaminhamento"
-          style={{ overflowY: 'auto', paddingRight: 4, display: 'flex', flexDirection: 'column', gap: 18 }}
+          style={{
+            flex: 1, minHeight: 0, overflowY: 'auto',
+            // À direita sobra menos que à esquerda: a ficha encostada já é a
+            // parede daquele lado, e o recuo cheio abriria uma vala entre a
+            // última coluna de cartões e ela.
+            padding: `0 20px 28px ${LADO}px`,
+            display: 'flex', flexDirection: 'column', gap: 18,
+          }}
         >
           {eixo === 'ANDAR' ? (
             grupos.map((grupo) => (
@@ -796,22 +867,30 @@ export function ChamadosBoard({ buildingId }) {
             <Grade>{filaOrdenada.map(cartao)}</Grade>
           )}
         </div>
-
-        <div style={{ overflowY: 'auto', background: T.card, boxShadow: T.cardRing, borderRadius: R.card, padding: 22 }}>
-          {/* `key` no chamado: o responsável escolhido nasce vazio a cada
-              ocorrência, e trocar de cartão tem de limpá-lo — não carregar para
-              a seguinte a escolha feita para a anterior. */}
-          {aberta ? (
-            <UnsavedScope report={report}>
-              <Ficha key={aberta.id} ticket={aberta} buildingId={buildingId} />
-            </UnsavedScope>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.mute, fontSize: 14, gap: 8 }}>
-              <Inbox size={16} /> Escolha uma ocorrência ao lado
-            </div>
-          )}
-        </div>
       </div>
+
+      {/* Encostada nas três bordas e sem canto arredondado: à direita ela é
+          parede, como a barra de navegação é do outro lado, e não um cartão
+          flutuando. O fio à esquerda é o que a separa da página — sem ele, no
+          escuro, a coluna e o fundo se encontram sem linha nenhuma. */}
+      <aside style={{
+        overflowY: 'auto', background: T.card,
+        borderLeft: `1px solid ${T.line}`,
+        padding: `26px ${FICHA_PAD}px ${FICHA_PAD}px`,
+      }}>
+        {/* `key` no chamado: o responsável escolhido nasce vazio a cada
+            ocorrência, e trocar de cartão tem de limpá-lo — não carregar para
+            a seguinte a escolha feita para a anterior. */}
+        {aberta ? (
+          <UnsavedScope report={report}>
+            <Ficha key={aberta.id} ticket={aberta} buildingId={buildingId} />
+          </UnsavedScope>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.mute, fontSize: 14, gap: 8 }}>
+            <Inbox size={16} /> Escolha uma ocorrência ao lado
+          </div>
+        )}
+      </aside>
 
       <UnsavedChangesModal open={saida.asking} onConfirm={saida.confirm} onCancel={saida.cancel} />
     </div>
