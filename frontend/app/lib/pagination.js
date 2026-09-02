@@ -9,6 +9,16 @@
 export const HISTORY_PAGE_SIZE = 8;
 
 /**
+ * Quantas contas a lista de usuários do admin mostra por vez.
+ *
+ * Ela vinha em vinte, e vinte não é um teto de cartão: é o número que fazia a
+ * tela inteira rolar quando o produto passou de algumas dezenas de contas — e
+ * quem administra usuários procura uma pessoa, não percorre a lista. Doze é o
+ * que cabe na altura da janela junto do cabeçalho e do rodapé de páginas.
+ */
+export const USERS_PAGE_SIZE = 12;
+
+/**
  * A faixa que a página corrente mostra: "9–16 de 24".
  *
  * Só o número da página não diz o tamanho do que se está percorrendo — e é

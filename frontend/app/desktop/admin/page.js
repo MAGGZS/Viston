@@ -11,6 +11,7 @@ import { Button, Input, Modal, Badge, Skeleton } from '@/app/components/ui';
 import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
 import { useUnsavedGuard } from '@/app/hooks/useUnsavedGuard';
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/app/hooks/useApi';
+import { USERS_PAGE_SIZE } from '@/app/lib/pagination';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { rolesLabel } from '@/app/lib/roles';
 import { useToastStore } from '@/app/store/toast';
@@ -197,31 +198,31 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {isLoading && [1,2,3,4].map(i => (
+                {isLoading && Array.from({ length: USERS_PAGE_SIZE }, (_, i) => i).map(i => (
                   <tr key={i} className="border-b border-line">
                     {[1,2,3,4,5].map(j => (
-                      <td key={j} className="px-6 py-4"><Skeleton className="h-4 w-full" /></td>
+                      <td key={j} className="px-6 cell-y"><Skeleton className="h-4 w-full" /></td>
                     ))}
                   </tr>
                 ))}
                 {data?.users?.map((u, idx) => (
                   <tr key={u.id} className={`anim-fade-in anim-d${Math.min(idx + 1, 6)} border-b border-line hover:bg-chip transition-colors`}>
-                    <td className="px-6 py-4">
+                    <td className="px-6 cell-y">
                       <div className="flex items-center gap-3">
                         <Avatar user={u} size={32} />
                         <span className="text-ink text-sm">{u.name}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-mute text-sm">{u.email}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 cell-y text-mute text-sm">{u.email}</td>
+                    <td className="px-6 cell-y">
                       <RoleCell user={u} />
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 cell-y">
                       <Badge variant={u.status === 'ACTIVE' ? 'success' : 'danger'}>
                         {STATUS_LABELS[u.status]}
                       </Badge>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 cell-y">
                       <div className="flex gap-2">
                         <button
                           onClick={() => setRenameTarget(u)}

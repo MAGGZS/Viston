@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import api from '@/app/lib/api';
-import { HISTORY_PAGE_SIZE } from '@/app/lib/pagination';
+import { HISTORY_PAGE_SIZE, USERS_PAGE_SIZE } from '@/app/lib/pagination';
 import { useAuthStore } from '@/app/store/auth';
 
 /**
@@ -187,10 +187,19 @@ export function useMe() {
   });
 }
 
+/**
+ * As contas do produto, uma página por vez.
+ *
+ * `placeholderData` segura a página anterior enquanto a próxima chega, como nas
+ * listagens de histórico: sem isso cada clique pisca uma tabela vazia e o cartão
+ * sanfona de altura — que é justamente o que a paginação existe para evitar.
+ */
 export function useUsers(page = 1) {
   return useQuery({
     queryKey: ['users', page],
-    queryFn: () => api.get('/users', { params: { page, limit: 20 } }).then((r) => r.data),
+    queryFn: () =>
+      api.get('/users', { params: { page, limit: USERS_PAGE_SIZE } }).then((r) => r.data),
+    placeholderData: keepPreviousData,
   });
 }
 
