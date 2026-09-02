@@ -407,7 +407,7 @@ export function Modal({ open, onClose, title, children, maxWidth = 400 }) {
         }}
       >
         {shownTitle && (
-          <h2 id={titleId} style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text, padding: '22px 22px 0', marginBottom: 16, flexShrink: 0 }}>
+          <h2 id={titleId} style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text, padding: '22px 22px 0', flexShrink: 0 }}>
             {shownTitle}
           </h2>
         )}
@@ -417,9 +417,15 @@ export function Modal({ open, onClose, title, children, maxWidth = 400 }) {
           Contêiner de rolagem recorta no limite do próprio recuo — e recorta
           tudo, inclusive sombra que vive fora da borda do filho. Com o recuo na
           caixa e o miolo colado nas beiradas, o anel dourado de 2px que marca o
-          tema escolhido na caixa de Aparência saía cortado dos dois lados; o
-          mesmo valia para o fio do `cardRing` de qualquer filho encostado na
-          borda. Movido para cá, há 22px de folga antes do corte.
+          tema escolhido na caixa de Aparência saía cortado; o mesmo valia para
+          o fio do `cardRing` de qualquer filho encostado na borda. Movido para
+          cá, há folga dos quatro lados antes do corte.
+
+          Os quatro, e este é o detalhe que custou uma segunda passada: a folga
+          de cima era `marginBottom` no título, e margem do vizinho não conta —
+          o corte acontece na borda do miolo, que ficava colada no conteúdo. O
+          anel continuava decepado em cima. Agora o espaço entre título e miolo
+          é recuo do próprio miolo, e ele afasta a borda do corte junto.
 
           De quebra, a barra de rolagem passa a correr rente à borda da caixa,
           que é onde se espera encontrá-la — e não afundada 22px para dentro.
@@ -428,7 +434,7 @@ export function Modal({ open, onClose, title, children, maxWidth = 400 }) {
           próprio conteúdo. Sem ele o miolo empurra a caixa para fora da tela e
           a rolagem nunca chega a acontecer.
         */}
-        <div style={{ overflowY: 'auto', minHeight: 0, padding: shownTitle ? '0 22px 22px' : 22 }}>
+        <div style={{ overflowY: 'auto', minHeight: 0, padding: shownTitle ? '16px 22px 22px' : 22 }}>
           {shownChildren}
         </div>
       </div>

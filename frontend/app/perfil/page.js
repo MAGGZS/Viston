@@ -10,7 +10,7 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { SenhaChecklist, senhaValida, useFocoSenha } from '@/app/components/SenhaChecklist';
 import { Avatar } from '@/app/components/Avatar';
 import { AvatarEditorModal } from '@/app/components/AvatarEditorModal';
-import { AparenciaModal } from '@/app/components/AparenciaModal';
+import { SeletorDeTema } from '@/app/components/SeletorDeTema';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { Logo } from '@/app/components/Logo';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
@@ -321,10 +321,12 @@ function PainelDaConta({ secao, user, theme, buildingLabel, onEditarFoto, onAbri
 
   if (secao === 'aparencia') {
     return (
-      <Bloco titulo="Tema" acao={<BotaoEditar label="Trocar" onClick={() => onAbrir('appearance')} />}>
-        <Campos>
-          <Campo label="Em uso" value={theme === 'light' ? 'Claro' : 'Escuro'} />
-        </Campos>
+      // As duas opções à vista, e não atrás de um "Trocar" que abriria uma
+      // caixa: o tema é a única configuração cujo resultado aparece na própria
+      // tela em que se escolhe. Esconder isso num modal fazia a pessoa ver a
+      // mudança pela fresta do que estava por cima.
+      <Bloco titulo="Tema">
+        <SeletorDeTema />
       </Bloco>
     );
   }
@@ -567,7 +569,7 @@ export default function PerfilPage() {
   const theme = useTheme();
   const router = useRouter();
   const [deleteModal, setDeleteModal] = useState(false);
-  // Qual caixa está aberta: 'identity' | 'password' | 'building' | 'feedback' | 'appearance'
+  // Qual caixa está aberta: 'identity' | 'password' | 'building' | 'feedback'
   const [sheet, setSheet] = useState(null);
   const [avatarModal, setAvatarModal] = useState(false);
 
@@ -820,12 +822,10 @@ export default function PerfilPage() {
           <Row icon={KeyRound} label="Alterar senha" onClick={() => setSheet('password')} />
 
           <Group title="Aparência" />
-          <Row
-            icon={Palette}
-            label="Tema"
-            hint={theme === 'light' ? 'Claro' : 'Escuro'}
-            onClick={() => setSheet('appearance')}
-          />
+          {/* As opções à vista, como no desktop: a caixa que as guardava deixou
+              de existir, e o tema é justamente a escolha cujo resultado aparece
+              atrás dela. */}
+          <SeletorDeTema />
 
           <Group title="Feedback" />
           <Row
@@ -877,7 +877,6 @@ export default function PerfilPage() {
 
       <UnsavedChangesModal open={saida.asking} onConfirm={saida.confirm} onCancel={saida.cancel} />
 
-      <AparenciaModal open={sheet === 'appearance'} onClose={() => setSheet(null)} />
 
       {/* Chamada como função, não como <BuildingSection />: declarada dentro da
           página, ela seria um tipo novo a cada render e o campo da chave perderia

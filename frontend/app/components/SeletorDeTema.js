@@ -1,6 +1,5 @@
 'use client';
 import { Check, Moon, Sun } from 'lucide-react';
-import { Modal } from '@/app/components/ui';
 import { setTheme, useTheme } from '@/app/lib/tema';
 import { T, R, W } from '@/app/lib/theme';
 
@@ -52,7 +51,7 @@ function Option({ tone, label, icon: Icon, selected, onSelect }) {
       aria-checked={selected}
       onClick={onSelect}
       style={{
-        background: T.chip, border: 'none', borderRadius: R.control, padding: 10,
+        background: T.card, border: 'none', borderRadius: R.control, padding: 10,
         cursor: 'pointer', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10,
         // O fio dourado é o que diz qual está valendo; o resto da caixa é igual.
         boxShadow: selected ? `0 0 0 2px ${T.accent}` : T.cardRing,
@@ -70,16 +69,25 @@ function Option({ tone, label, icon: Icon, selected, onSelect }) {
 }
 
 /**
- * Aparência.
+ * A escolha do tema, onde quer que ela precise aparecer.
+ *
+ * Morava numa caixa que abria por cima da tela. Caixa é interrupção, e trocar o
+ * tema não interrompe nada: o resultado aparece atrás dela, no próprio app, e a
+ * pessoa fica olhando a mudança pela fresta. Agora as duas opções ficam na
+ * seção de aparência, à vista, e a tela inteira responde ao toque.
  *
  * Sem botão de salvar: a troca acontece no toque e a tela por trás já responde,
  * então confirmar seria pedir para a pessoa aprovar o que ela acabou de ver.
+ *
+ * O fundo das opções é `T.card` porque elas vivem dentro de um bloco de
+ * `T.chip` — a miniatura precisa de uma moldura que se distinga do que está
+ * atrás dela, senão as duas prévias flutuam soltas no mesmo cinza.
  */
-export function AparenciaModal({ open, onClose }) {
+export function SeletorDeTema() {
   const theme = useTheme();
 
   return (
-    <Modal open={open} onClose={onClose} title="Aparência" maxWidth={440}>
+    <div>
       <div role="radiogroup" aria-label="Tema" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <Option
           tone="dark"
@@ -97,9 +105,9 @@ export function AparenciaModal({ open, onClose }) {
         />
       </div>
 
-      <p style={{ color: T.mute, fontSize: 13, marginTop: 14, lineHeight: 1.45 }}>
+      <p style={{ color: T.mute, fontSize: 13, marginTop: 12, lineHeight: 1.45 }}>
         A escolha vale neste aparelho. Entrando de outro, o tema começa no escuro de novo.
       </p>
-    </Modal>
+    </div>
   );
 }

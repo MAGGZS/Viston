@@ -1,9 +1,8 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, LogOut, Palette, UserRound } from 'lucide-react';
+import { ChevronDown, LogOut, UserRound } from 'lucide-react';
 import { Avatar } from '@/app/components/Avatar';
-import { AparenciaModal } from '@/app/components/AparenciaModal';
 import { useAuthStore } from '@/app/store/auth';
 import { T, R, W } from '@/app/lib/theme';
 
@@ -13,21 +12,16 @@ import { T, R, W } from '@/app/lib/theme';
  * Onde existe barra, o rodapé dela já carrega "Perfil" e "Sair" — são duas
  * linhas sempre visíveis, e um menu ali seria esconder o que já estava à mão.
  * Onde não existe, a foto no canto era um link solto para o perfil: sair exigia
- * abrir outra tela para achar o botão, e trocar o tema exigia o mesmo desvio.
+ * abrir outra tela para achar o botão.
  *
- * Três itens, e não mais: perfil, aparência e sair. Menu de conta cresce
- * sozinho se deixarem — cada tela nova quer pendurar a sua opção ali — e o que
- * o mantém útil é ele responder só "quem sou eu" e "como saio daqui".
- *
- * A aparência abre a mesma caixa do perfil em vez de levar para lá: trocar o
- * tema é um gesto de dois segundos, e mandar a pessoa mudar de tela para isso é
- * cobrar caro por pouco.
+ * Dois itens, e não mais: perfil e sair. Menu de conta cresce sozinho se
+ * deixarem — cada tela nova quer pendurar a sua opção ali — e o que o mantém
+ * útil é ele responder só "quem sou eu" e "como saio daqui".
  */
 export function MenuDaConta({ user }) {
   const router = useRouter();
   const { logout } = useAuthStore();
   const [aberto, setAberto] = useState(false);
-  const [aparencia, setAparencia] = useState(false);
   const casaRef = useRef(null);
   const gatilhoRef = useRef(null);
   const menuId = useId();
@@ -137,8 +131,11 @@ export function MenuDaConta({ user }) {
             </p>
           </div>
 
+          {/* O tema saiu daqui: ele mora na aba de Aparência das configurações
+              da conta, e a caixa que o menu abria deixou de existir. Item de
+              menu que abre outra coisa por cima é o desvio que este menu
+              existe para evitar. */}
           <ItemDoMenu icon={UserRound} label="Perfil" onClick={() => ir('/perfil')} />
-          <ItemDoMenu icon={Palette} label="Aparência" onClick={() => { setAberto(false); setAparencia(true); }} />
 
           <div style={{ height: 1, background: T.line, margin: '6px 0' }} />
 
@@ -146,7 +143,6 @@ export function MenuDaConta({ user }) {
         </div>
       )}
 
-      <AparenciaModal open={aparencia} onClose={() => setAparencia(false)} />
     </div>
   );
 }

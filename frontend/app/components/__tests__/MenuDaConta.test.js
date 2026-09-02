@@ -31,7 +31,7 @@ beforeEach(() => {
  * O menu da conta das telas sem barra lateral.
  *
  * A foto no canto era um link solto para o perfil: sair exigia abrir outra tela
- * para achar o botão, e trocar o tema exigia o mesmo desvio.
+ * para achar o botão.
  */
 describe('MenuDaConta', () => {
   it('nasce fechado, e o gatilho diz isso', () => {
@@ -41,7 +41,7 @@ describe('MenuDaConta', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
-  it('abre com as três opções, e diz de quem é a conta', async () => {
+  it('abre com as duas opções, e diz de quem é a conta', async () => {
     const user = userEvent.setup();
     render(<MenuDaConta user={USUARIO} />);
 
@@ -54,7 +54,6 @@ describe('MenuDaConta', () => {
     expect(screen.getByText('marina@viston.com')).toBeInTheDocument();
 
     expect(screen.getByRole('menuitem', { name: /Perfil/ })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /Aparência/ })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Sair/ })).toBeInTheDocument();
   });
 
@@ -78,18 +77,6 @@ describe('MenuDaConta', () => {
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'));
     expect(useAuthStore.getState().user).toBeNull();
-  });
-
-  it('"Aparência" abre a caixa de tema sem trocar de tela', async () => {
-    const user = userEvent.setup();
-    render(<MenuDaConta user={USUARIO} />);
-
-    await user.click(gatilho());
-    await user.click(screen.getByRole('menuitem', { name: /Aparência/ }));
-
-    // Trocar o tema é gesto de dois segundos; mandar mudar de tela cobra caro.
-    expect(await screen.findByRole('heading', { name: 'Aparência' })).toBeInTheDocument();
-    expect(push).not.toHaveBeenCalled();
   });
 
   it('o Escape fecha e devolve o foco a quem abriu', async () => {
