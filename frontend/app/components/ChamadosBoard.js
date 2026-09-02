@@ -210,18 +210,21 @@ function BarraDePrazo({ consumo, atrasado }) {
     <span
       aria-hidden="true"
       style={{
-        position: 'absolute', left: 0, right: 0, bottom: 0, height: 3,
-        background: T.chip,
+        position: 'relative', display: 'block', height: 3,
+        // O trilho e o preenchimento saem da mesma tinta, um rebaixado: o cartão
+        // escolhido tem outro fundo, e uma cor fixa de trilho sumiria num dos
+        // dois. Mesmo arranjo do medidor, logo acima.
+        color: atrasado ? T.danger : T.mute,
       }}
     >
+      {/* Irmãos, e não um dentro do outro: `opacity` no pai rebaixaria o filho
+          junto, e o preenchimento ficaria tão apagado quanto o trilho. */}
+      <span style={{ position: 'absolute', inset: 0, borderRadius: 999, background: 'currentColor', opacity: 0.18 }} />
       <span
         style={{
-          display: 'block', height: '100%',
+          position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 999,
           width: `${Math.min(1, consumo) * 100}%`,
-          // `mute` e não `faint`: em três pixels de altura o nível mais apagado
-          // do produto some contra o trilho, e o fio deixa de ser lido de longe
-          // — que é a única coisa que ele existe para ser.
-          background: atrasado ? T.danger : T.mute,
+          background: 'currentColor',
           transition: 'width 240ms ease',
         }}
       />
@@ -241,6 +244,12 @@ function BarraDePrazo({ consumo, atrasado }) {
  * O realce do cursor e do teclado mora no CSS (`.fila-card`, no globals.css).
  * Em JS ele custaria o realce do teclado inteiro e deixaria o estado grudado
  * depois do toque no telefone — a mesma razão do `.btn`.
+ *
+ * Superfície chapada, como todo cartão deste produto: sem borda, sem anel, sem
+ * sombra. Os três níveis de cor já separam o conteúdo (ver app/lib/theme.js), e
+ * é o que diz qual está escolhido — o chip contra o cartão. O contorno que
+ * estava aqui era a única peça da tela que contrariava essa regra, e numa grade
+ * de doze ele virava doze molduras.
  */
 function CartaoDaFila({ ticket, ativa, mostrarAndar, onClick, onKeyDown, className = '' }) {
   const { texto, consumo, atrasado } = prazo(ticket);
@@ -256,12 +265,12 @@ function CartaoDaFila({ ticket, ativa, mostrarAndar, onClick, onKeyDown, classNa
       aria-label={`${ticket.floor?.label ?? 'Sem andar'} · ${tipo} · prioridade ${labelOf(PRIORITIES, ticket.priority)} · esperando ${texto}`}
       className={`fila-card ${ativa ? 'is-ativa' : ''} ${className}`}
       style={{
-        position: 'relative', overflow: 'hidden',
         width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
         background: ativa ? T.chip : T.card,
-        borderRadius: R.card,
-        boxShadow: ativa ? undefined : T.cardRing,
-        padding: '13px 15px 15px',
+        // `R.control`, e não `R.card`: é o canto dos cartões de chamado da mesa
+        // de processamento, que são a mesma peça vista noutra tela.
+        borderRadius: R.control,
+        padding: '13px 15px 14px',
         display: 'flex', flexDirection: 'column', gap: 8,
       }}
     >
@@ -279,8 +288,11 @@ function CartaoDaFila({ ticket, ativa, mostrarAndar, onClick, onKeyDown, classNa
         </span>
       </div>
 
+      {/* 14px e `W.title`, a medida do título de cartão de chamado no resto do
+          produto. A 15 ele destoava dos cartões da mesa de processamento, que
+          são a mesma coisa numa tela ao lado. */}
       <span style={{
-        color: T.text, fontSize: 15, fontWeight: W.title, letterSpacing: '-0.01em',
+        color: T.text, fontSize: 14, fontWeight: W.title,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
         {tipo}
@@ -288,12 +300,12 @@ function CartaoDaFila({ ticket, ativa, mostrarAndar, onClick, onKeyDown, classNa
 
       {/* `minHeight` de duas linhas: sem ele, a ocorrência descrita em uma linha
           encolhe o cartão e a fileira fica com degraus. */}
-      <p className="clamp-2" style={{ color: T.mute, fontSize: 12, lineHeight: 1.55, minHeight: 37 }}>
+      <p className="clamp-2" style={{ color: T.mute, fontSize: 12, lineHeight: 1.5, minHeight: 36 }}>
         {ticket.description}
       </p>
 
       <p style={{
-        color: T.faint, fontSize: 11,
+        color: T.faint, fontSize: 12,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
         {[mostrarAndar && ticket.floor?.label, labelOf(CATEGORIES, ticket.category), ticket.report?.inspector?.name]
