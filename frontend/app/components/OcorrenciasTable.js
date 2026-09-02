@@ -4,7 +4,7 @@ import { Badge, Skeleton } from '@/app/components/ui';
 import { OcorrenciaModal, shortDay } from '@/app/components/OcorrenciaModal';
 import { Paginator } from '@/app/components/Paginator';
 import { useBuildingOccurrences } from '@/app/hooks/useApi';
-import { placeholderCellHeight } from '@/app/lib/pagination';
+import { CELL_PAD_Y, placeholderCellHeight } from '@/app/lib/pagination';
 import {
   MAINTENANCE_TYPES,
   OCCURRENCE_STATUS_LABEL,
@@ -14,12 +14,12 @@ import {
 } from '@/app/lib/maintenanceOptions';
 import { T, W } from '@/app/lib/theme';
 
-const CELL = { padding: '11px 22px', fontSize: 14 };
+const CELL = { padding: `${CELL_PAD_Y}px 22px`, fontSize: 14 };
 
 // A célula de espera tem a altura da de verdade — o `Badge` da coluna de status
 // entre os 11px de recuo. Conferido no navegador: a tabela mede os mesmos 431px
 // antes, durante e depois da troca de página.
-const PLACEHOLDER_CELL = { ...CELL, height: placeholderCellHeight({ padY: 11 }) };
+const PLACEHOLDER_CELL = { ...CELL, height: placeholderCellHeight({ padY: CELL_PAD_Y }) };
 
 /**
  * As colunas de cada leitura.

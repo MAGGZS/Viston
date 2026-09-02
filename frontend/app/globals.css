@@ -608,6 +608,17 @@ input:-webkit-autofill:focus {
 .num { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
 
 /**
+ * O recuo de cima e de baixo da célula das listagens, para as tabelas escritas
+ * em classe do Tailwind em vez de `style`.
+ *
+ * É o gêmeo de `CELL_PAD_Y`, em app/lib/pagination.js, onde está o porquê do
+ * valor — e onde ele entra na conta da altura da célula de espera. Os dois têm
+ * de andar juntos: um cartão que alterna entre uma tabela de cada lado mudaria
+ * de altura de linha ao trocar de aba.
+ */
+.cell-y { padding-block: 7px; }
+
+/**
  * O nome da aba ao lado do ícone, com a barra recolhida.
  *
  * No trilho o rótulo sai da tela e sobram oito ícones parecidos; o `title` do

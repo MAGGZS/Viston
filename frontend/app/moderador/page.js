@@ -15,12 +15,12 @@ import { Paginator } from '@/app/components/Paginator';
 import { useBuildingHistory, useTicketStats } from '@/app/hooks/useApi';
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { parseReportDate } from '@/app/lib/date';
-import { placeholderCellHeight } from '@/app/lib/pagination';
+import { CELL_PAD_Y, placeholderCellHeight } from '@/app/lib/pagination';
 import { T, R, W } from '@/app/lib/theme';
 
 // A célula de espera tem a altura da de verdade — o `Badge` da coluna de status
 // entre os 11px de recuo —, para o cartão não encolher a cada seta.
-const PLACEHOLDER_CELL = { padding: '11px 22px', height: placeholderCellHeight({ padY: 11 }) };
+const PLACEHOLDER_CELL = { padding: `${CELL_PAD_Y}px 22px`, height: placeholderCellHeight({ padY: CELL_PAD_Y }) };
 
 const STATUS_LABEL = { IN_PROGRESS: 'Em andamento', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { IN_PROGRESS: 'accent', COMPLETED: 'success' };
@@ -35,11 +35,11 @@ const STATUS_VARIANT = { IN_PROGRESS: 'accent', COMPLETED: 'success' };
  *
  * A pizza cabe em 534 com a rosca de 220, e 540 é o teto redondo disso. O
  * histórico sai da conta das dez linhas: cabeçalho 134 + topo da tabela 39 +
- * 10 linhas de 50 + rodapé 59. Os dois números são diferentes porque o que
- * cada cartão tem para mostrar é diferente.
+ * 10 linhas de 42 (ver `CELL_PAD_Y`) + rodapé 59. Os dois números são
+ * diferentes porque o que cada cartão tem para mostrar é diferente.
  */
 const ALTURA_PIZZA = 540;
-const ALTURA_HISTORICO = 732;
+const ALTURA_HISTORICO = 652;
 
 /**
  * Quantas vistorias e ocorrências o cartão mostra antes das setas.
@@ -127,15 +127,15 @@ export default function ModeradorPage() {
               onMouseEnter={(e) => { e.currentTarget.style.background = T.chip; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
             >
-              <td style={{ padding: '11px 22px', color: T.text, fontSize: 14 }}>{r.inspector?.name ?? '—'}</td>
-              <td style={{ padding: '11px 22px' }}>
+              <td style={{ padding: `${CELL_PAD_Y}px 22px`, color: T.text, fontSize: 14 }}>{r.inspector?.name ?? '—'}</td>
+              <td style={{ padding: `${CELL_PAD_Y}px 22px` }}>
                 <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
               </td>
               {/* Só o dia: a planilha e o relatório passaram a ser do dia */}
-              <td style={{ padding: '11px 22px', color: T.mute, fontSize: 14 }}>
+              <td style={{ padding: `${CELL_PAD_Y}px 22px`, color: T.mute, fontSize: 14 }}>
                 {format(parseReportDate(r.date), 'dd/MM/yyyy', { locale: ptBR })}
               </td>
-              <td style={{ padding: '11px 22px' }}>
+              <td style={{ padding: `${CELL_PAD_Y}px 22px` }}>
                 {r.has_excel ? (
                   <button
                     type="button"

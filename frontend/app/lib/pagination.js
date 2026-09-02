@@ -30,6 +30,22 @@ export function pageRangeLabel({ page, pageSize, total, count }) {
 export const BADGE_HEIGHT = 26;
 
 /**
+ * O recuo de cima e de baixo da célula, em todas as listagens do produto.
+ *
+ * Era 11px em umas e 12px noutras, escrito à mão em cada tabela. Num lugar só
+ * porque o cartão de histórico alterna entre duas tabelas diferentes — a de
+ * vistorias, que mora na tela, e a de ocorrências, que é componente — e com
+ * números separados a linha mudava de altura ao trocar de aba, num cartão que
+ * não muda de tamanho. Um valor divergente aqui é um defeito visível, não uma
+ * preferência.
+ *
+ * Sete, e não onze: a linha fica em 41px em vez de 50, e o cartão mostra as dez
+ * vistorias em menos tela. Abaixo disto o `Badge` de 26px encosta nas bordas da
+ * célula e a linha deixa de ter respiro.
+ */
+export const CELL_PAD_Y = 7;
+
+/**
  * Altura da célula de espera, para o esqueleto ocupar o mesmo lugar da linha
  * que ele substitui.
  *

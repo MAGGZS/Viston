@@ -25,6 +25,7 @@ import {
   RECORD_STATUS,
   worstFloorStatus,
 } from '@/app/lib/maintenanceOptions';
+import { CELL_PAD_Y } from '@/app/lib/pagination';
 import { T, R, W } from '@/app/lib/theme';
 
 /**
@@ -283,7 +284,7 @@ function VistoriasTable({ lista, onAbrir }) {
         {lista.placeholders.map((i) => (
           <tr key={i} style={{ borderBottom: `1px solid ${T.line}` }}>
             {colunas.map((c) => (
-              <td key={c} style={{ padding: '11px 22px' }}><Skeleton style={{ height: 14 }} /></td>
+              <td key={c} style={{ padding: `${CELL_PAD_Y}px 22px` }}><Skeleton style={{ height: 14 }} /></td>
             ))}
           </tr>
         ))}
@@ -297,13 +298,13 @@ function VistoriasTable({ lista, onAbrir }) {
             onMouseEnter={(e) => { e.currentTarget.style.background = T.chip; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           >
-            <td style={{ padding: '11px 22px', color: T.text, fontSize: 14 }}>{r.inspector?.name ?? '—'}</td>
-            <td style={{ padding: '11px 22px' }}><StatusDaVistoria report={r} /></td>
-            <td style={{ padding: '11px 22px', color: T.mute, fontSize: 14 }}>
+            <td style={{ padding: `${CELL_PAD_Y}px 22px`, color: T.text, fontSize: 14 }}>{r.inspector?.name ?? '—'}</td>
+            <td style={{ padding: `${CELL_PAD_Y}px 22px` }}><StatusDaVistoria report={r} /></td>
+            <td style={{ padding: `${CELL_PAD_Y}px 22px`, color: T.mute, fontSize: 14 }}>
               {format(parseReportDate(r.date), 'dd/MM/yyyy', { locale: ptBR })}
             </td>
-            <td style={{ padding: '11px 22px', color: T.mute, fontSize: 14 }}>{contarOcorrencias(r)}</td>
-            <td style={{ padding: '11px 22px' }}>
+            <td style={{ padding: `${CELL_PAD_Y}px 22px`, color: T.mute, fontSize: 14 }}>{contarOcorrencias(r)}</td>
+            <td style={{ padding: `${CELL_PAD_Y}px 22px` }}>
               {r.has_excel ? (
                 <button
                   type="button"
