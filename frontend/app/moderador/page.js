@@ -26,6 +26,30 @@ const STATUS_LABEL = { IN_PROGRESS: 'Em andamento', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { IN_PROGRESS: 'accent', COMPLETED: 'success' };
 
 /**
+ * A altura dos dois cartões da fileira do meio.
+ *
+ * Escrita, e não herdada: com `alignItems: 'stretch'`, o mais alto dos dois
+ * mandaria no outro, e a pizza passaria a crescer porque chegou mais uma
+ * vistoria ao histórico — coisas que não têm nada a ver uma com a outra. Aqui
+ * cada cartão tem a sua, e as duas são o mesmo número por escolha de desenho.
+ *
+ * O número sai da conta dos dois: o histórico cabe em 532 com seis linhas
+ * (cabeçalho 134 + topo da tabela 39 + 6 linhas de 50 + rodapé 59) e a pizza em
+ * 534 com a rosca de 220. 540 é o teto redondo dos dois, com folga de alguns
+ * pixels para o cartão não ficar apertado no que ele carrega.
+ */
+const ALTURA_CARTAO = 540;
+
+/**
+ * Quantas linhas cabem no cartão do histórico nesta altura.
+ *
+ * Seis, e não as oito de `HISTORY_PAGE_SIZE`: oito é o teto de um cartão que
+ * cresce com o conteúdo, e este não cresce mais. O resto continua alcançável
+ * pelas setas do rodapé, que é para isso que elas existem.
+ */
+const LINHAS_DO_HISTORICO = 6;
+
+/**
  * O painel do moderador.
  *
  * É onde ele cai ao entrar, antes das telas de chamado: quantos chamados estão
@@ -56,8 +80,9 @@ export default function ModeradorPage() {
   const [reportId, setReportId] = useState(null);
 
   const { data: stats, isLoading: statsLoading } = useTicketStats(buildingId);
-  // Oito por página: quem anda pelo resto é o rodapé de setas do cartão.
-  const vistorias = useBuildingHistory(buildingId);
+  // Seis por página, o que cabe na altura do cartão: quem anda pelo resto é o
+  // rodapé de setas.
+  const vistorias = useBuildingHistory(buildingId, {}, { pageSize: LINHAS_DO_HISTORICO });
   // Enquanto a próxima página não chega, a que está saindo deixa a tela: o que
   // se vê é esqueleto, e não uma lista velha passando por nova (ver
   // `usePagedList`).
@@ -175,12 +200,22 @@ export default function ModeradorPage() {
               vistoriou, que é a pergunta de quem monta escala, e esta é a mesa
               de quem despacha chamado. O calendário continua onde ele responde
               alguma coisa — a tela inicial, o histórico e o painel do gestor. */}
-          <OcorrenciasPorStatus buildingId={buildingId} className="anim-fade-up anim-d5" />
+          <OcorrenciasPorStatus
+            buildingId={buildingId}
+            className="anim-fade-up anim-d5"
+            style={{ height: ALTURA_CARTAO }}
+          />
 
           {/* Histórico — a mesma leitura das outras telas, e as mesmas duas
               visões: vistorias e ocorrências, alternadas pelos botões. */}
-          <div className="anim-fade-up anim-d6" style={{ background: T.card, borderRadius: R.card, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 22px', borderBottom: `1px solid ${T.line}` }}>
+          <div
+            className="anim-fade-up anim-d6"
+            style={{
+              background: T.card, borderRadius: R.card, overflow: 'hidden',
+              height: ALTURA_CARTAO, display: 'flex', flexDirection: 'column',
+            }}
+          >
+            <div style={{ padding: '16px 22px', borderBottom: `1px solid ${T.line}`, flexShrink: 0 }}>
               <HistoricoSwitcher
                 view={historico.view}
                 onSelect={historico.select}
@@ -201,9 +236,27 @@ export default function ModeradorPage() {
             </div>
 
             {/* `key` na visão: só o conteúdo do cartão troca — os contadores e
-                a pizza ao lado ficam onde estão. */}
-            <div key={historico.view} className="anim-fade-up">
-              {historico.isVistorias ? relatoriosPanel : <OcorrenciasTable buildingId={buildingId} />}
+                a pizza ao lado ficam onde estão.
+
+                `overflowY: auto` é válvula, e não como se anda pela lista: com
+                seis linhas nada rola aqui, e quem passa de página é o rodapé de
+                setas. Ele existe para a visão que sair um ou dois pixels mais
+                alta ficar alcançável em vez de aparada. */}
+            <div
+              key={historico.view}
+              className="anim-fade-up"
+              style={{
+                flex: 1, minHeight: 0, overflowY: 'auto',
+                // A tabela em cima e o rodapé de setas embaixo, com a folga da
+                // altura entre os dois. Sem isto, uma página com menos linhas
+                // que o normal — a última — traria o rodapé para o meio do
+                // cartão, e o pé dele ficaria vazio.
+                display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+              }}
+            >
+              {historico.isVistorias
+                ? relatoriosPanel
+                : <OcorrenciasTable buildingId={buildingId} pageSize={LINHAS_DO_HISTORICO} />}
             </div>
           </div>
         </div>

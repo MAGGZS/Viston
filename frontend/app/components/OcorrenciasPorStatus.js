@@ -45,9 +45,17 @@ const FATIAS = [
   { key: 'CONCLUIDO', label: 'Finalizado', de: ['CONCLUIDO'] },
 ];
 
-const TAMANHO = 168;
-const RAIO = 68;
-const GROSSURA = 20;
+/**
+ * A medida da rosca.
+ *
+ * Cresceu de 168 para 220 quando o cartão ganhou altura própria no painel (ver
+ * `ALTURA_CARTAO`, em app/moderador/page.js): sobrava vão embaixo, e vão embaixo
+ * de um gráfico é gráfico pequeno demais, não cartão grande demais. O raio e a
+ * grossura acompanham na mesma proporção — a rosca é a mesma peça, maior.
+ */
+const TAMANHO = 220;
+const RAIO = 89;
+const GROSSURA = 26;
 const CIRCUNFERENCIA = 2 * Math.PI * RAIO;
 
 /**
@@ -83,7 +91,7 @@ function Fatia({ cor, fracao, offset, apagada, onFoco }) {
   );
 }
 
-export function OcorrenciasPorStatus({ buildingId, className = '' }) {
+export function OcorrenciasPorStatus({ buildingId, className = '', style = {} }) {
   const periodo = usePeriodo();
   const { data, isLoading } = useTicketSummary(buildingId, periodo.params);
   const [emFoco, setEmFoco] = useState(null);
@@ -117,7 +125,7 @@ export function OcorrenciasPorStatus({ buildingId, className = '' }) {
   return (
     <div
       className={className}
-      style={{ background: T.card, borderRadius: R.card, boxShadow: T.cardRing, padding: 20 }}
+      style={{ background: T.card, borderRadius: R.card, boxShadow: T.cardRing, padding: 20, ...style }}
     >
       <h2 style={{ color: T.text, fontSize: 14, fontWeight: W.title }}>Ocorrências por status</h2>
       <p style={{ color: T.mute, fontSize: 12, marginTop: 3 }}>Onde está cada chamado do período</p>
@@ -172,10 +180,10 @@ export function OcorrenciasPorStatus({ buildingId, className = '' }) {
                 alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
               }}
             >
-              <span style={{ color: T.text, fontFamily: T.display, fontSize: 26, fontWeight: W.title, ...NUM }}>
+              <span style={{ color: T.text, fontFamily: T.display, fontSize: 30, fontWeight: W.title, ...NUM }}>
                 {total}
               </span>
-              <span style={{ color: T.mute, fontSize: 11 }}>
+              <span style={{ color: T.mute, fontSize: 12 }}>
                 {total === 1 ? 'ocorrência' : 'ocorrências'}
               </span>
             </div>
