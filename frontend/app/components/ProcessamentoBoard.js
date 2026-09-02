@@ -51,10 +51,10 @@ function TicketCard({ ticket, onClick, carimbo }) {
         </Badge>
       </div>
 
-      <p style={{
-        color: T.mute, fontSize: 12, lineHeight: 1.5,
-        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-      }}>
+      {/* O corte em duas linhas mora no CSS (`.clamp-2`): inline ele não vale,
+          porque o React não serializa `WebkitBoxOrient` e sem essa propriedade o
+          `-webkit-line-clamp` não recorta nada. */}
+      <p className="clamp-2" style={{ color: T.mute, fontSize: 12, lineHeight: 1.5 }}>
         {ticket.description}
       </p>
 

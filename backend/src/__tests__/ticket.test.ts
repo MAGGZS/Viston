@@ -741,6 +741,52 @@ describe('ticketService.update', () => {
       ticketService.update(TICKET_ID, responsavel, { maintenance_cost: 10 })
     ).rejects.toThrow(ForbiddenError);
   });
+
+  /**
+   * Reclassificar é decisão de triagem: quem vistoria enquadra no corredor, com
+   * o que vê; quem tria enquadra com o prédio inteiro à frente.
+   */
+  it('o moderador reenquadra a ocorrência ainda em aberto', async () => {
+    comPapel('MODERADOR');
+
+    await ticketService.update(TICKET_ID, moderador, {
+      priority: 'BAIXA',
+      category: 'PREVENTIVA',
+    });
+
+    const [, patch] = mockTicketRepo.update.mock.calls[0];
+    expect(patch.priority).toBe('BAIXA');
+    expect(patch.category).toBe('PREVENTIVA');
+  });
+
+  // Enquadramento é o que a ocorrência é; status é onde ela está. Trocar um não
+  // pode mexer no outro — a ocorrência reclassificada continua na mesma fila.
+  it('reenquadrar não move o chamado de fila', async () => {
+    comPapel('MODERADOR');
+
+    await ticketService.update(TICKET_ID, moderador, { priority: 'ALTA' });
+
+    const [, patch] = mockTicketRepo.update.mock.calls[0];
+    expect(patch.status).toBeUndefined();
+  });
+
+  it('recusa reenquadrar quem não trata os chamados do prédio', async () => {
+    comPapel('RESPONSAVEL');
+    await expect(
+      ticketService.update(TICKET_ID, responsavel, { priority: 'BAIXA' })
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  // Chamado fechado é registro, não trabalho: reescrever a prioridade de algo
+  // já encerrado mudaria um histórico que outras telas já contaram.
+  it('recusa reenquadrar chamado já fechado', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findById.mockResolvedValue(makeTicket({ status: 'CONCLUIDO' }));
+
+    await expect(
+      ticketService.update(TICKET_ID, moderador, { priority: 'BAIXA' })
+    ).rejects.toThrow(ConflictError);
+  });
 });
 
 // ── Contadores do painel ──────────────────────────────────────────────────────

@@ -8,7 +8,7 @@ import { useUnsavedStore } from '@/app/store/unsaved';
 // imports, e nesse ponto o mapeamento de alias do next/jest ainda não vale.
 jest.mock('../../lib/api', () => ({
   __esModule: true,
-  default: { get: jest.fn(), post: jest.fn() },
+  default: { get: jest.fn(), post: jest.fn(), patch: jest.fn() },
 }));
 import api from '../../lib/api';
 
@@ -21,17 +21,24 @@ function diasAtras(n) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function ocorrencia(id, { prioridade = 'MEDIA', dias = 0, descricao = 'Lâmpada do corredor', andar = '3º andar' } = {}) {
+function ocorrencia(id, {
+  prioridade = 'MEDIA',
+  categoria = 'CORRETIVA',
+  dias = 0,
+  descricao = 'Lâmpada do corredor',
+  andar = '3º andar',
+  andarId,
+} = {}) {
   return {
     id,
     maintenance_type: 'ELETRICA',
-    category: 'CORRETIVA',
+    category: categoria,
     priority: prioridade,
     description: descricao,
     status: 'ABERTO',
     responsible: null,
     responsible_id: null,
-    floor: { id: 'f1', label: andar },
+    floor: { id: andarId ?? `f-${andar}`, label: andar },
     report: {
       id: 'r1',
       date: diasAtras(dias),
@@ -62,21 +69,22 @@ function Tela(tickets) {
   );
 }
 
-/** As linhas da fila, na ordem em que aparecem. */
-const linhas = () => screen.getAllByRole('button', { name: /andar ·/ });
+/** Os cartões da fila, na ordem em que aparecem. */
+const cartoes = () => screen.getAllByRole('button', { name: /andar ·/ });
 
 beforeEach(() => {
   api.get.mockReset();
   api.post.mockReset();
+  api.patch.mockReset();
   useUnsavedStore.setState({ dirty: [], pending: null });
 });
 
 /**
- * A fila de triagem do moderador.
+ * A mesa de triagem do moderador.
  *
- * A tela tem um trabalho só — decidir quem atende e mandar. O que se cobre aqui
- * são as três perguntas que ela passou a responder e que a versão anterior não
- * respondia: quanto tem na fila, o que é urgente, e o que já esperou demais.
+ * A tela tem um trabalho só — ler a ocorrência, conferir o enquadramento e
+ * mandar para quem atende. O que se cobre aqui é o que ela promete: o tamanho e
+ * a saúde da fila, a ordem em que ela se lê, a reclassificação e o despacho.
  */
 describe('ChamadosBoard', () => {
   it('diz o tamanho da fila e quanto dela é urgente', async () => {
@@ -119,7 +127,7 @@ describe('ChamadosBoard', () => {
     expect(screen.queryByText(/esperando demais/)).not.toBeInTheDocument();
   });
 
-  it('cada linha diz há quanto tempo espera, em português de gente', async () => {
+  it('cada cartão diz há quanto tempo espera, em português de gente', async () => {
     Tela([
       ocorrencia('hoje', { dias: 0, andar: '1º andar' }),
       ocorrencia('ontem', { dias: 1, andar: '2º andar' }),
@@ -131,37 +139,129 @@ describe('ChamadosBoard', () => {
     expect(screen.getByText('há 4 dias')).toBeInTheDocument();
   });
 
+  /**
+   * O que apodreceu vem primeiro, seja qual for a prioridade — é a única coisa
+   * que uma fila de triagem existe para não deixar acontecer. Depois a
+   * gravidade, e só então o desempate entre iguais.
+   */
+  it('a fila abre pelo que passou do prazo, mesmo sendo de prioridade menor', async () => {
+    Tela([
+      ocorrencia('alta-nova', { prioridade: 'ALTA', dias: 0, andar: '1º andar' }),
+      ocorrencia('baixa-podre', { prioridade: 'BAIXA', dias: 40, andar: '2º andar' }),
+    ]);
+
+    await waitFor(() => expect(cartoes()).toHaveLength(2));
+    expect(cartoes()[0]).toHaveAttribute('data-id', 'baixa-podre');
+    expect(cartoes()[1]).toHaveAttribute('data-id', 'alta-nova');
+  });
+
+  it('entre duas no prazo, decide a gravidade', async () => {
+    Tela([
+      ocorrencia('baixa', { prioridade: 'BAIXA', dias: 0, andar: '1º andar' }),
+      ocorrencia('alta', { prioridade: 'ALTA', dias: 0, andar: '2º andar' }),
+    ]);
+
+    await waitFor(() => expect(cartoes()).toHaveLength(2));
+    expect(cartoes()[0]).toHaveAttribute('data-id', 'alta');
+  });
+
   it('abre na primeira ocorrência, sem ninguém escolher', async () => {
     Tela([ocorrencia('a', { descricao: 'Infiltração no forro' }), ocorrencia('b')]);
 
-    // A descrição inteira só existe no painel; na linha ela vem cortada.
+    // A ficha ao lado é a única coisa que tem seções nomeadas.
     expect(await screen.findByText('O que está acontecendo')).toBeInTheDocument();
-    expect(linhas()[0]).toHaveAttribute('aria-current', 'true');
+    expect(cartoes()[0]).toHaveAttribute('aria-current', 'true');
   });
 
   it('as setas andam pela fila sem tirar a mão do teclado', async () => {
     const user = userEvent.setup();
     Tela([
-      ocorrencia('a', { andar: '1º andar' }),
-      ocorrencia('b', { andar: '2º andar' }),
-      ocorrencia('c', { andar: '3º andar' }),
+      ocorrencia('a', { prioridade: 'ALTA', andar: '1º andar' }),
+      ocorrencia('b', { prioridade: 'MEDIA', andar: '2º andar' }),
+      ocorrencia('c', { prioridade: 'BAIXA', andar: '3º andar' }),
     ]);
 
     await screen.findByText('O que está acontecendo');
-    linhas()[0].focus();
+    cartoes()[0].focus();
 
     await user.keyboard('{ArrowDown}');
-    await waitFor(() => expect(linhas()[1]).toHaveAttribute('aria-current', 'true'));
+    await waitFor(() => expect(cartoes()[1]).toHaveAttribute('aria-current', 'true'));
 
-    await user.keyboard('{ArrowDown}');
-    await waitFor(() => expect(linhas()[2]).toHaveAttribute('aria-current', 'true'));
+    // A grade tem quantas colunas couberem, então direita e baixo andam o mesmo
+    // passo: um cartão na ordem da leitura.
+    await user.keyboard('{ArrowRight}');
+    await waitFor(() => expect(cartoes()[2]).toHaveAttribute('aria-current', 'true'));
 
     // No fim da fila a seta não faz nada — não dá a volta.
     await user.keyboard('{ArrowDown}');
-    expect(linhas()[2]).toHaveAttribute('aria-current', 'true');
+    expect(cartoes()[2]).toHaveAttribute('aria-current', 'true');
 
     await user.keyboard('{ArrowUp}');
-    await waitFor(() => expect(linhas()[1]).toHaveAttribute('aria-current', 'true'));
+    await waitFor(() => expect(cartoes()[1]).toHaveAttribute('aria-current', 'true'));
+  });
+
+  /**
+   * O outro eixo de leitura: despachar um andar inteiro de uma vez é como o
+   * trabalho acontece, e por urgência as ocorrências do mesmo andar ficam
+   * espalhadas pela grade.
+   */
+  it('a fila também se lê por andar, do mais alto para o mais baixo', async () => {
+    const user = userEvent.setup();
+    Tela([
+      ocorrencia('t', { andar: 'Térreo', andarId: 'f0' }),
+      ocorrencia('s', { andar: '6º andar', andarId: 'f6' }),
+      ocorrencia('o', { andar: '2º andar', andarId: 'f2' }),
+    ]);
+
+    await screen.findByText('O que está acontecendo');
+    await user.click(screen.getByRole('button', { name: 'Por andar' }));
+
+    const titulos = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+    expect(titulos).toEqual(['6º andar', '2º andar', 'Térreo']);
+  });
+
+  /**
+   * Quem vistoria enquadra no corredor; quem tria enquadra com o prédio inteiro
+   * à frente. Sem isto, corrigir um enquadramento errado exigia refazer a
+   * vistoria.
+   */
+  it('o moderador corrige a prioridade da ocorrência aberta', async () => {
+    const user = userEvent.setup();
+    api.patch.mockResolvedValue({ data: {} });
+    Tela([ocorrencia('a', { prioridade: 'MEDIA' })]);
+
+    await screen.findByText('Enquadramento');
+    await user.click(screen.getByRole('combobox', { name: 'Prioridade' }));
+    await user.click(await screen.findByRole('option', { name: 'Alta' }));
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/tickets/a', { priority: 'ALTA' }));
+  });
+
+  it('e corrige também a categoria', async () => {
+    const user = userEvent.setup();
+    api.patch.mockResolvedValue({ data: {} });
+    Tela([ocorrencia('a', { categoria: 'CORRETIVA' })]);
+
+    await screen.findByText('Enquadramento');
+    await user.click(screen.getByRole('combobox', { name: 'Categoria' }));
+    await user.click(await screen.findByRole('option', { name: 'Emergencial' }));
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/tickets/a', { category: 'EMERGENCIAL' }));
+  });
+
+  // Recusado pelo servidor, o droplist não pode continuar mostrando uma
+  // classificação que não existe.
+  it('reclassificação recusada volta ao que estava', async () => {
+    const user = userEvent.setup();
+    api.patch.mockRejectedValue({ response: { data: { error: { message: 'Não pode' } } } });
+    Tela([ocorrencia('a', { prioridade: 'MEDIA' })]);
+
+    await screen.findByText('Enquadramento');
+    const gatilho = screen.getByRole('combobox', { name: 'Prioridade' });
+    await user.click(gatilho);
+    await user.click(await screen.findByRole('option', { name: 'Baixa' }));
+
+    await waitFor(() => expect(gatilho).toHaveTextContent('Média'));
   });
 
   it('encaminhar é o gesto da tela, e só vale com alguém escolhido', async () => {
@@ -169,7 +269,7 @@ describe('ChamadosBoard', () => {
     api.post.mockResolvedValue({ data: {} });
     Tela([ocorrencia('a')]);
 
-    const enviar = await screen.findByRole('button', { name: /Encaminhar/ });
+    const enviar = await screen.findByRole('button', { name: /Encaminhar$/ });
     expect(enviar).toBeDisabled();
 
     await user.click(screen.getByRole('combobox', { name: 'Encaminhar para' }));
@@ -183,13 +283,13 @@ describe('ChamadosBoard', () => {
 
   it('escolher e trocar de ocorrência pergunta antes de perder a escolha', async () => {
     const user = userEvent.setup();
-    Tela([ocorrencia('a'), ocorrencia('b')]);
+    Tela([ocorrencia('a', { andar: '1º andar' }), ocorrencia('b', { andar: '2º andar' })]);
 
     await screen.findByText('O que está acontecendo');
     await user.click(screen.getByRole('combobox', { name: 'Encaminhar para' }));
     await user.click(await screen.findByRole('option', { name: 'Rui' }));
 
-    await user.click(linhas()[1]);
+    await user.click(cartoes()[1]);
 
     expect(await screen.findByText('Descartar alterações?')).toBeInTheDocument();
   });
@@ -219,11 +319,14 @@ describe('ChamadosBoard', () => {
     expect(screen.getByText(/já tem um responsável/)).toBeInTheDocument();
   });
 
-  it('a linha traz o contexto mínimo para escolher qual abrir', async () => {
+  it('o cartão traz o contexto mínimo para escolher qual abrir', async () => {
     Tela([ocorrencia('a', { prioridade: 'ALTA', andar: '6º andar' })]);
 
-    const linha = (await screen.findAllByRole('button', { name: /andar ·/ }))[0];
-    expect(within(linha).getByText('6º andar · Elétrica')).toBeInTheDocument();
-    expect(within(linha).getByText('Alta · Corretiva')).toBeInTheDocument();
+    const cartao = (await screen.findAllByRole('button', { name: /andar ·/ }))[0];
+    expect(within(cartao).getByText('Elétrica')).toBeInTheDocument();
+    expect(within(cartao).getByText('6º andar · Corretiva · Carlos')).toBeInTheDocument();
+    // A prioridade é desenhada e escrita: o medidor é `aria-hidden`, e a palavra
+    // ao lado é o que sobra para quem ouve a tela.
+    expect(within(cartao).getByText('Alta')).toBeInTheDocument();
   });
 });

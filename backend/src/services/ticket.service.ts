@@ -392,7 +392,14 @@ export const ticketService = {
 
   /**
    * O que o moderador acrescenta enquanto o chamado corre: a manutenção
-   * necessária, o valor dela, e o estado intermediário.
+   * necessária, o valor dela, o estado intermediário — e o enquadramento da
+   * ocorrência, que é decisão de triagem e não de vistoria.
+   *
+   * Reclassificar não move o chamado de fila: `priority` e `category` são o que
+   * a ocorrência é, e `status` é onde ela está. Trocar a prioridade de uma alta
+   * parada há uma semana continua deixando-a em novos chamados — só muda a
+   * ordem em que a fila a mostra, e o estado que o andar dela reporta na
+   * vistoria (ver `deriveFloorStatus`).
    */
   async update(
     id: string,
@@ -401,6 +408,8 @@ export const ticketService = {
       responsible_id?: string | null;
       maintenance_note?: string | null;
       maintenance_cost?: number | null;
+      category?: 'PREVENTIVA' | 'CORRETIVA' | 'EMERGENCIAL' | 'EVENTOS' | 'PROJETOS';
+      priority?: 'ALTA' | 'MEDIA' | 'BAIXA';
       status?: 'EM_ANDAMENTO' | 'AGUARDANDO_TERCEIRO';
     }
   ) {
@@ -427,6 +436,8 @@ export const ticketService = {
       patch.maintenance_cost =
         data.maintenance_cost === null ? null : new Prisma.Decimal(data.maintenance_cost);
     }
+    if (data.category !== undefined) patch.category = data.category;
+    if (data.priority !== undefined) patch.priority = data.priority;
     if (data.status !== undefined) patch.status = data.status;
 
     const updated = await ticketRepository.update(id, patch);

@@ -491,6 +491,90 @@ input:-webkit-autofill:focus {
 .select-option.is-selected { color: var(--color-accent-ink); }
 
 /**
+ * Descrição cortada em duas linhas, nos cartões de ocorrência.
+ *
+ * Em CSS porque em `style` inline ela não funciona: o React não serializa
+ * `WebkitBoxOrient` — a propriedade some do atributo, e sem `-webkit-box-orient`
+ * o `-webkit-line-clamp` não recorta nada. O resultado era um cartão que crescia
+ * com o tamanho do texto e desalinhava a fileira inteira, nas duas telas que
+ * usavam o mesmo bloco inline.
+ */
+.clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/**
+ * O cartão da fila de triagem (ver components/ChamadosBoard.js).
+ *
+ * Hover e foco em CSS pelo mesmo motivo do `.btn`: em JS o teclado não ganha
+ * realce nenhum — não existe `:focus-visible` em JS —, o toque no telefone
+ * deixa o estado grudado, e a cor de volta acaba sendo adivinhada. Aqui o
+ * cartão escolhido é exceção de uma regra só, e não um segundo par de handlers.
+ *
+ * O escolhido não muda de tamanho: o filete dourado é `inset` na sombra, e não
+ * uma borda. Com borda, escolher um cartão empurraria a grade inteira em 3px.
+ */
+.fila-card { transition: background-color 0.15s ease, box-shadow 0.15s ease; }
+
+@media (hover: hover) {
+  .fila-card:not(.is-ativa):hover { background-color: var(--color-hover-raised); }
+}
+
+.fila-card.is-ativa { box-shadow: inset 3px 0 0 var(--color-accent); }
+
+.fila-card:focus-visible {
+  outline: 2px solid rgba(245, 197, 24, 0.6);
+  outline-offset: 2px;
+}
+
+/**
+ * O seletor de dois eixos — a fila por urgência ou por andar.
+ *
+ * Dourado no aceso porque isto é estado ativo, que é o outro uso reservado da
+ * cor (ver app/lib/theme.js). A pastilha acesa não podia ser `--color-card`: no
+ * escuro o cartão é mais *escuro* que o chip, e a peça escolhida pareceria a
+ * apagada das duas.
+ */
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-chip);
+  border-radius: var(--radius-control);
+}
+
+.seg__btn {
+  padding: 5px 12px;
+  border: none;
+  border-radius: calc(var(--radius-control) - 4px);
+  background: transparent;
+  color: var(--color-mute);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 17px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+@media (hover: hover) {
+  .seg__btn:not(.is-on):hover { color: var(--color-ink); }
+}
+
+.seg__btn.is-on {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-ink);
+  font-weight: 500;
+}
+
+.seg__btn:focus-visible {
+  outline: 2px solid rgba(245, 197, 24, 0.6);
+  outline-offset: 1px;
+}
+
+/**
  * Seta de paginação (ver components/Paginator.js).
  *
  * Hover e foco em CSS pelo mesmo motivo do `.btn`: em JS o teclado não ganharia

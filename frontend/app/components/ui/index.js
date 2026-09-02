@@ -222,10 +222,20 @@ export function Spinner({ size = 'md' }) {
   );
 }
 
+/**
+ * A etiqueta de estado.
+ *
+ * `success` era cópia exata de `default` — mesmo fundo, mesma letra. Seis
+ * lugares pediam a variante ("Concluído", "Andar OK", "Inspetor", vistoria
+ * finalizada) e os seis recebiam a etiqueta neutra: o código dizia que aquilo
+ * era boa notícia e a tela não dizia nada. Agora ela usa o verde do produto, na
+ * mesma forma de `danger`, que é a outra etiqueta que fala por cor sobre o fundo
+ * de chip.
+ */
 export function Badge({ children, variant = 'default', className = '' }) {
   const colors = {
     default: { background: T.chip, color: T.text },
-    success: { background: T.chip, color: T.text },
+    success: { background: T.chip, color: T.success },
     warning: { background: T.accentSoft, color: T.accentInk },
     danger: { background: T.chip, color: T.danger },
     accent: { background: T.accentSoft, color: T.accentInk },

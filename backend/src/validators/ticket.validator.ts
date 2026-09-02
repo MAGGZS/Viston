@@ -216,10 +216,22 @@ export const editTicketUpdateSchema = z
  *
  * `maintenance_cost` chega como número e é gravado em DECIMAL: dinheiro não
  * mora em ponto flutuante. Nulo apaga o valor lançado antes.
+ *
+ * `priority` e `category` são a reclassificação da ocorrência. Quem vistoria
+ * decide no corredor, com o que vê; quem tria decide com o prédio inteiro à
+ * frente, e é ele que sabe que a mesma infiltração é emergencial neste andar e
+ * preventiva no outro. Sem isso, corrigir um enquadramento errado exigia
+ * refazer a vistoria — e a prioridade é o que ordena a fila de triagem e o que
+ * o andar usa para dizer se está em problema ou em atenção.
+ *
+ * Não são anuláveis: toda ocorrência nasce com os dois, e apagá-los deixaria a
+ * fila sem o que ordenar.
  */
 export const updateTicketSchema = z
   .object({
     responsible_id: z.string().uuid().nullable().optional(),
+    category: z.enum(['PREVENTIVA', 'CORRETIVA', 'EMERGENCIAL', 'EVENTOS', 'PROJETOS']).optional(),
+    priority: z.enum(['ALTA', 'MEDIA', 'BAIXA']).optional(),
     maintenance_note: z.string().trim().max(2000).nullable().optional(),
     maintenance_cost: z
       .number()
