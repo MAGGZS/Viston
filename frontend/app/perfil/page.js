@@ -265,12 +265,32 @@ function Campo({ label, value }) {
   );
 }
 
-/** Dois campos por linha, como na folha de cadastro que a tela imita. */
+/**
+ * Dois campos por linha, como na folha de cadastro que a tela imita.
+ *
+ * Duas colunas fixas, e não `auto-fit`: o painel é largo, e `auto-fit` punha
+ * quatro campos numa fileira só — a leitura deixava de ser de cima para baixo e
+ * virava uma tabela, que é outra coisa. Duas é o que faz cada par rótulo/valor
+ * ainda parecer um campo de formulário.
+ */
 function Campos({ children }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 24px' }}>
       {children}
     </div>
+  );
+}
+
+/**
+ * O título da seção, acima dos cartões dela.
+ *
+ * Fora dos cartões de propósito: ele nomeia o conjunto, e dentro do primeiro
+ * cartão pareceria nomear só aquele. É o que a coluna da esquerda já diz — e
+ * repetido aqui em cima, é o que confirma onde o clique levou.
+ */
+function TituloDaSecao({ children }) {
+  return (
+    <h2 style={{ color: T.text, fontSize: 15, fontWeight: W.title, marginBottom: 2 }}>{children}</h2>
   );
 }
 
@@ -285,16 +305,22 @@ function PainelDaConta({ secao, user, theme, buildingLabel, onEditarFoto, onAbri
   if (secao === 'perfil') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '4px 2px 14px' }}>
-          <EditableAvatar user={user} size={64} onEdit={onEditarFoto} />
-          <div style={{ minWidth: 0 }}>
-            <p style={{ fontFamily: T.display, fontWeight: W.title, fontSize: 17, color: T.text }}>{user?.name}</p>
+        <TituloDaSecao>Meu perfil</TituloDaSecao>
+
+        {/* Quem a pessoa é, no primeiro cartão e sem rótulo de bloco: o rosto e
+            o nome dispensam alguém dizendo que ali está o rosto e o nome. O
+            editar deste cartão é o da foto — cada cartão edita o que mostra. */}
+        <section style={{ background: T.chip, borderRadius: R.control, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 16 }}>
+          <EditableAvatar user={user} size={56} onEdit={onEditarFoto} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontFamily: T.display, fontWeight: W.title, fontSize: 16, color: T.text }}>{user?.name}</p>
             <p style={{ color: T.mute, fontSize: 13, marginTop: 2 }}>{roleLabel(user)}</p>
             <p style={{ color: T.faint, fontSize: 12, marginTop: 2 }}>
               {isManager(user) ? 'Todos os seus prédios' : buildingLabel}
             </p>
           </div>
-        </div>
+          <BotaoEditar label="Trocar foto" onClick={onEditarFoto} />
+        </section>
 
         <Bloco titulo="Informações pessoais" acao={<BotaoEditar onClick={() => onAbrir('identity')} />}>
           <Campos>
@@ -310,54 +336,71 @@ function PainelDaConta({ secao, user, theme, buildingLabel, onEditarFoto, onAbri
 
   if (secao === 'seguranca') {
     return (
-      <Bloco titulo="Senha" acao={<BotaoEditar label="Alterar" onClick={() => onAbrir('password')} />}>
-        <p style={{ color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
-          Trocar a senha encerra as sessões abertas nos outros aparelhos. Você
-          continua conectado aqui.
-        </p>
-      </Bloco>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <TituloDaSecao>Segurança</TituloDaSecao>
+        <Bloco titulo="Senha" acao={<BotaoEditar label="Alterar" onClick={() => onAbrir('password')} />}>
+          <p style={{ color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
+            Trocar a senha encerra as sessões abertas nos outros aparelhos. Você
+            continua conectado aqui.
+          </p>
+        </Bloco>
+      </div>
     );
   }
 
   if (secao === 'aparencia') {
     return (
-      // As duas opções à vista, e não atrás de um "Trocar" que abriria uma
-      // caixa: o tema é a única configuração cujo resultado aparece na própria
-      // tela em que se escolhe. Esconder isso num modal fazia a pessoa ver a
-      // mudança pela fresta do que estava por cima.
-      <Bloco titulo="Tema">
-        <SeletorDeTema />
-      </Bloco>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <TituloDaSecao>Aparência</TituloDaSecao>
+
+        {/* As duas opções à vista, e não atrás de um botão que abriria uma
+            caixa: o tema é a única configuração cujo resultado aparece na
+            própria tela em que se escolhe. Escondê-lo num modal fazia a pessoa
+            ver a mudança pela fresta do que estava por cima. */}
+        <Bloco titulo="Tema">
+          <SeletorDeTema />
+        </Bloco>
+      </div>
     );
   }
 
   if (secao === 'predio') {
     return (
-      <Bloco titulo="Prédio vinculado">
-        <BuildingSection />
-      </Bloco>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <TituloDaSecao>Prédio</TituloDaSecao>
+        <Bloco titulo="Prédio vinculado">
+          <BuildingSection />
+        </Bloco>
+      </div>
     );
   }
 
   if (secao === 'feedback') {
     return (
-      <Bloco titulo="Enviar feedback" acao={<BotaoEditar label="Escrever" onClick={() => onAbrir('feedback')} />}>
-        <p style={{ color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
-          O que faltou, o que atrapalhou, o que daria para melhorar. Vai direto
-          para quem administra o sistema.
-        </p>
-      </Bloco>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <TituloDaSecao>Feedback</TituloDaSecao>
+        <Bloco titulo="Enviar feedback" acao={<BotaoEditar label="Escrever" onClick={() => onAbrir('feedback')} />}>
+          <p style={{ color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
+            O que faltou, o que atrapalhou, o que daria para melhorar. Vai direto
+            para quem administra o sistema.
+          </p>
+        </Bloco>
+      </div>
     );
   }
 
   return (
-    <Bloco titulo="Excluir conta" acao={<BotaoEditar label="Excluir" tone="danger" onClick={onExcluir} />}>
-      <p style={{ color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
-        Sua conta e os vínculos com os prédios são apagados. As vistorias que
-        você enviou continuam no histórico do prédio — elas são do prédio, e não
-        da conta. Isto não tem volta.
-      </p>
-    </Bloco>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <TituloDaSecao>Excluir conta</TituloDaSecao>
+
+      <Bloco titulo="Excluir conta" acao={<BotaoEditar label="Excluir" tone="danger" onClick={onExcluir} />}>
+        <p style={{ color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
+          Sua conta e os vínculos com os prédios são apagados. As vistorias que
+          você enviou continuam no histórico do prédio — elas são do prédio, e não
+          da conta. Isto não tem volta.
+        </p>
+      </Bloco>
+    </div>
   );
 }
 
