@@ -13,7 +13,10 @@ import { AvatarEditorModal } from '@/app/components/AvatarEditorModal';
 import { AparenciaModal } from '@/app/components/AparenciaModal';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { Logo } from '@/app/components/Logo';
-import { M, MPage, MRound, MField, MButton, RESPIRO_TOPO } from '@/app/components/mobile/kit';
+import { AdminSidebar } from '@/app/components/AdminSidebar';
+import { GestorSidebar } from '@/app/components/GestorSidebar';
+import { ModeradorSidebar } from '@/app/components/ModeradorSidebar';
+import { M, MPage, MRound, MField, MButton, RESPIRO_TOPO, CONTENT_ID } from '@/app/components/mobile/kit';
 import { BottomNav } from '@/app/components/BottomNav';
 import { Button, Modal, Textarea } from '@/app/components/ui';
 import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
@@ -29,7 +32,7 @@ import {
   useSendFeedback,
   useMyFeedbacks,
 } from '@/app/hooks/useApi';
-import { isManager, isManagerAccount, roleLabel } from '@/app/lib/roles';
+import { isAdmin, isManager, isManagerAccount, managedBuildings, moderatedBuilding, roleLabel } from '@/app/lib/roles';
 import { useTheme } from '@/app/lib/tema';
 import { T, R, W, NUM, HERO_SURFACE } from '@/app/lib/theme';
 
@@ -142,6 +145,217 @@ function Row({ icon: Icon, label, hint, tone, onClick, className = '' }) {
       )}
       <ChevronRight size={18} color={T.faint} className="profile-row__chevron" style={{ flexShrink: 0 }} />
     </button>
+  );
+}
+
+/**
+ * A barra lateral da conta, escolhida pelo papel de quem entrou.
+ *
+ * O perfil é a única tela que todo mundo alcança, e até aqui ela saía de dentro
+ * do lugar onde a pessoa estava: o moderador clicava em "Perfil" no rodapé do
+ * menu e o menu sumia. Sair da área para mexer na conta é o tipo de troca que
+ * faz a pessoa perder o fio de onde estava.
+ *
+ * Quem não tem barra — inspetor, quem só acompanha, conta sem vínculo — não
+ * ganha uma: a área dessas contas não tem menu lateral em lugar nenhum, e
+ * inventar um só aqui seria mostrar um caminho que não existe nas outras telas.
+ */
+function BarraLateralDaConta({ user }) {
+  const predioModerado = moderatedBuilding(user);
+  const predioGerido = managedBuildings(user)[0];
+
+  if (isAdmin(user)) return <AdminSidebar />;
+  if (isManagerAccount(user)) {
+    return <GestorSidebar buildingId={predioGerido?.building_id} buildingName={predioGerido?.name} />;
+  }
+  if (predioModerado) {
+    return <ModeradorSidebar buildingId={predioModerado.building_id} buildingName={predioModerado.name} />;
+  }
+  return null;
+}
+
+/** Se esta conta tem barra lateral — a mesma pergunta que `BarraLateralDaConta` responde. */
+function contaTemBarra(user) {
+  return isAdmin(user) || isManagerAccount(user) || !!moderatedBuilding(user);
+}
+
+/**
+ * Uma seção na coluna da esquerda.
+ *
+ * Pílula preenchida quando aberta, e não um filete na borda: a coluna é curta e
+ * o preenchimento é o que se enxerga sem procurar. "Excluir conta" é a única
+ * vermelha, e fica separada do resto por um respiro — no fim da lista, longe do
+ * dedo que só queria trocar de seção.
+ */
+function AbaDaConta({ label, ativa, tone, onClick }) {
+  const cor = tone === 'danger' ? T.danger : ativa ? T.accentInk : T.mute;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={ativa ? 'page' : undefined}
+      className="btn"
+      style={{
+        display: 'flex', alignItems: 'center', width: '100%',
+        background: ativa ? T.accentSoft : 'transparent',
+        border: 'none', cursor: 'pointer', textAlign: 'left',
+        padding: '9px 12px', borderRadius: R.control,
+        color: cor, fontFamily: T.display, fontSize: 13,
+        fontWeight: ativa ? W.title : W.body,
+        marginTop: tone === 'danger' ? 10 : 0,
+        '--btn-hover': tone === 'danger' ? T.dangerSoft : T.chip,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+/**
+ * Um bloco de informação do painel, com a ação que o edita no canto.
+ *
+ * É a forma que a tela de configurações do produto passou a ter: o valor à
+ * vista, e editar como um gesto à parte. Antes cada linha era um botão que
+ * abria uma caixa — para conferir o próprio e-mail era preciso abrir o
+ * formulário que o altera, e sair dele sem mexer em nada.
+ */
+function Bloco({ titulo, acao, children }) {
+  return (
+    <section style={{ background: T.chip, borderRadius: R.control, padding: '16px 18px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: children ? 14 : 0 }}>
+        <h3 style={{ color: T.text, fontSize: 14, fontWeight: W.title }}>{titulo}</h3>
+        {acao}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** O botão de editar de um bloco — discreto, porque ler é o que se faz mais. */
+function BotaoEditar({ label = 'Editar', onClick, tone = 'neutral' }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="btn"
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+        background: 'transparent', border: `1px solid ${T.line}`, cursor: 'pointer',
+        padding: '6px 12px', borderRadius: R.pill,
+        color: tone === 'danger' ? T.danger : T.text,
+        fontFamily: T.display, fontSize: 12, fontWeight: W.strong,
+        '--btn-hover': tone === 'danger' ? T.dangerSoft : T.hover,
+      }}
+    >
+      {label} <Pencil size={12} />
+    </button>
+  );
+}
+
+/** Um par rótulo/valor dentro de um bloco. */
+function Campo({ label, value }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <p style={{ color: T.mute, fontSize: 12 }}>{label}</p>
+      <p style={{ color: T.text, fontSize: 14, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+/** Dois campos por linha, como na folha de cadastro que a tela imita. */
+function Campos({ children }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * O conteúdo de cada seção da conta.
+ *
+ * Os formulários continuam nas caixas que já existiam: elas são as mesmas do
+ * telefone, e duplicá-las aqui criaria duas versões do mesmo formulário para
+ * divergirem com o tempo. O que mudou é que agora se lê antes de abrir.
+ */
+function PainelDaConta({ secao, user, theme, buildingLabel, onEditarFoto, onAbrir, onExcluir, BuildingSection }) {
+  if (secao === 'perfil') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '4px 2px 14px' }}>
+          <EditableAvatar user={user} size={64} onEdit={onEditarFoto} />
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontFamily: T.display, fontWeight: W.title, fontSize: 17, color: T.text }}>{user?.name}</p>
+            <p style={{ color: T.mute, fontSize: 13, marginTop: 2 }}>{roleLabel(user)}</p>
+            <p style={{ color: T.faint, fontSize: 12, marginTop: 2 }}>
+              {isManager(user) ? 'Todos os seus prédios' : buildingLabel}
+            </p>
+          </div>
+        </div>
+
+        <Bloco titulo="Informações pessoais" acao={<BotaoEditar onClick={() => onAbrir('identity')} />}>
+          <Campos>
+            <Campo label="Nome" value={user?.name ?? '—'} />
+            <Campo label="E-mail" value={user?.email ?? '—'} />
+            <Campo label="Função" value={roleLabel(user)} />
+            <Campo label="Prédio" value={isManager(user) ? 'Todos os seus' : buildingLabel} />
+          </Campos>
+        </Bloco>
+      </div>
+    );
+  }
+
+  if (secao === 'seguranca') {
+    return (
+      <Bloco titulo="Senha" acao={<BotaoEditar label="Alterar" onClick={() => onAbrir('password')} />}>
+        <p style={{ color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
+          Trocar a senha encerra as sessões abertas nos outros aparelhos. Você
+          continua conectado aqui.
+        </p>
+      </Bloco>
+    );
+  }
+
+  if (secao === 'aparencia') {
+    return (
+      <Bloco titulo="Tema" acao={<BotaoEditar label="Trocar" onClick={() => onAbrir('appearance')} />}>
+        <Campos>
+          <Campo label="Em uso" value={theme === 'light' ? 'Claro' : 'Escuro'} />
+        </Campos>
+      </Bloco>
+    );
+  }
+
+  if (secao === 'predio') {
+    return (
+      <Bloco titulo="Prédio vinculado">
+        <BuildingSection />
+      </Bloco>
+    );
+  }
+
+  if (secao === 'feedback') {
+    return (
+      <Bloco titulo="Enviar feedback" acao={<BotaoEditar label="Escrever" onClick={() => onAbrir('feedback')} />}>
+        <p style={{ color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
+          O que faltou, o que atrapalhou, o que daria para melhorar. Vai direto
+          para quem administra o sistema.
+        </p>
+      </Bloco>
+    );
+  }
+
+  return (
+    <Bloco titulo="Excluir conta" acao={<BotaoEditar label="Excluir" tone="danger" onClick={onExcluir} />}>
+      <p style={{ color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
+        Sua conta e os vínculos com os prédios são apagados. As vistorias que
+        você enviou continuam no histórico do prédio — elas são do prédio, e não
+        da conta. Isto não tem volta.
+      </p>
+    </Bloco>
   );
 }
 
@@ -368,6 +582,32 @@ export default function PerfilPage() {
   const saida = useUnsavedGuard(dirty);
   const fecharSheet = () => saida.guard(() => setSheet(null));
 
+  /**
+   * As seções da conta, na coluna da esquerda do desktop.
+   *
+   * A ordem é a de quem chega: primeiro quem eu sou, depois como entro, depois
+   * como a tela me parece. "Prédio" só existe para quem tem um — o gestor
+   * administra vários e não se desvincula de nenhum por aqui. Excluir fecha a
+   * lista, separada e em vermelho, longe do dedo que só queria trocar de aba.
+   */
+  const secoes = [
+    { id: 'perfil', label: 'Meu perfil' },
+    { id: 'seguranca', label: 'Segurança' },
+    { id: 'aparencia', label: 'Aparência' },
+    !isManager(user) && { id: 'predio', label: 'Prédio' },
+    { id: 'feedback', label: 'Feedback' },
+    { id: 'excluir', label: 'Excluir conta', tone: 'danger' },
+  ].filter(Boolean);
+
+  const [secao, setSecao] = useState('perfil');
+  const secaoAtual = secoes.find((s) => s.id === secao) ?? secoes[0];
+  const temBarra = contaTemBarra(user);
+
+  // Trocar de seção remonta o painel, e um formulário aberto numa caixa vive
+  // fora dele — mas o que estiver escrito na caixa se perde ao fechá-la, e é a
+  // mesma pergunta.
+  const trocarSecao = (id) => id !== secao && saida.guard(() => setSecao(id));
+
   const deleteMe = useDeleteMe();
   const leaveBuilding = useLeaveBuilding();
 
@@ -449,75 +689,89 @@ export default function PerfilPage() {
   return (
     <RouteGuard>
       {/* ── DESKTOP ── */}
-      <div className="hidden lg:block min-h-screen" style={{ background: T.bg }}>
-        <header
-          className="anim-fade-down"
-          style={{ position: 'sticky', top: 0, height: 60, background: 'var(--surface-blur)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', zIndex: 10 }}
-        >
-          <button onClick={() => router.back()} className="transition-colors duration-150" style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', color: T.mute, fontSize: 14 }}
-            onMouseEnter={e => e.currentTarget.style.color = T.text}
-            onMouseLeave={e => e.currentTarget.style.color = T.mute}>
-            <ArrowLeft size={18} /> Voltar
-          </button>
-          <Logo size={16} variant="horizontal" />
-          <button onClick={async () => { await logout(); router.replace('/login'); }}
-            className="transition-colors duration-150"
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: T.mute, fontSize: 14 }}
-            onMouseEnter={e => e.currentTarget.style.color = T.danger}
-            onMouseLeave={e => e.currentTarget.style.color = T.mute}>
-            <LogOut size={16} /> Sair
-          </button>
-        </header>
+      <div className="hidden lg:flex" style={{ minHeight: '100vh', background: T.bg }}>
+        <BarraLateralDaConta user={user} />
 
-        {/* Coluna estreita de propósito: a leitura é a mesma do telefone, e uma
-            lista de linhas esticada por 1000px perde o alvo do clique. */}
-        <div style={{ maxWidth: 620, margin: '0 auto', padding: '44px 24px 88px' }}>
-          <Credential user={user} onEditAvatar={() => setAvatarModal(true)} />
-
-          <div className="anim-fade-up anim-d3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
-            <Tile label="Função" value={roleLabel(user)} />
-            <Tile
-              label="Prédio"
-              value={isManager(user) ? 'Todos os seus' : buildingLabel}
-            />
-          </div>
-
-          <Group title="Conta" className="anim-fade-up anim-d3" />
-          <Row className="anim-fade-up anim-d4" icon={UserRound} label="Identificação" hint={user?.email} onClick={() => setSheet('identity')} />
-          {!isManager(user) && (
-            <Row
-              className="anim-fade-up anim-d4"
-              icon={Building2}
-              label="Prédio"
-              hint={buildingLabel}
-              onClick={() => setSheet('building')}
-            />
+        <main id={CONTENT_ID} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: '100vh', overflow: 'hidden' }}>
+          {/* Sem barra lateral não há como sair nem como voltar: o cabeçalho
+              carrega os dois. Com barra, o rodapé dela já faz esse trabalho, e
+              repeti-lo aqui seria pôr "Sair" duas vezes na mesma tela. */}
+          {!temBarra && (
+            <header
+              className="anim-fade-down"
+              style={{
+                height: 60, flexShrink: 0, borderBottom: `1px solid ${T.line}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px',
+              }}
+            >
+              <button
+                onClick={() => router.back()}
+                className="btn"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 'none', cursor: 'pointer', color: T.mute, fontSize: 14, padding: '6px 10px', borderRadius: R.control, '--btn-hover': T.chip }}
+              >
+                <ArrowLeft size={18} /> Voltar
+              </button>
+              <Logo size={16} variant="horizontal" />
+              <button
+                onClick={async () => { await logout(); router.replace('/login'); }}
+                className="btn"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', cursor: 'pointer', color: T.mute, fontSize: 14, padding: '6px 10px', borderRadius: R.control, '--btn-hover': T.chip }}
+              >
+                <LogOut size={16} /> Sair
+              </button>
+            </header>
           )}
 
-          <Group title="Segurança" className="anim-fade-up anim-d5" />
-          <Row className="anim-fade-up anim-d5" icon={KeyRound} label="Alterar senha" onClick={() => setSheet('password')} />
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '28px 32px 40px' }}>
+            <h1 className="anim-fade-down" style={{ color: T.text, fontSize: 22, fontWeight: W.title, marginBottom: 20 }}>
+              Configurações da conta
+            </h1>
 
-          <Group title="Aparência" className="anim-fade-up anim-d5" />
-          <Row
-            className="anim-fade-up anim-d5"
-            icon={Palette}
-            label="Tema"
-            hint={theme === 'light' ? 'Claro' : 'Escuro'}
-            onClick={() => setSheet('appearance')}
-          />
+            {/*
+              Duas colunas dentro de uma superfície só.
 
-          <Group title="Feedback" className="anim-fade-up anim-d5" />
-          <Row
-            className="anim-fade-up anim-d5"
-            icon={MessageSquarePlus}
-            label="Enviar feedback"
-            hint="Para o administrador"
-            onClick={() => setSheet('feedback')}
-          />
+              A largura fixa da esquerda é o que mantém o painel parado ao trocar
+              de seção: com `auto`, "Excluir conta" alargaria a coluna e o
+              conteúdo inteiro daria um salto lateral a cada clique.
+            */}
+            <div
+              className="anim-fade-up anim-d1"
+              style={{
+                display: 'grid', gridTemplateColumns: '186px 1fr', gap: 8,
+                background: T.card, borderRadius: R.card, boxShadow: T.cardRing,
+                padding: 14, maxWidth: 1080,
+              }}
+            >
+              <nav aria-label="Seções da conta" style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingRight: 8, borderRight: `1px solid ${T.line}` }}>
+                {secoes.map((s) => (
+                  <AbaDaConta
+                    key={s.id}
+                    label={s.label}
+                    tone={s.tone}
+                    ativa={s.id === secaoAtual.id}
+                    onClick={() => trocarSecao(s.id)}
+                  />
+                ))}
+              </nav>
 
-          <Group title="Zona de risco" className="anim-fade-up anim-d6" />
-          <Row className="anim-fade-up anim-d6" icon={Trash2} label="Excluir conta" tone="danger" onClick={() => setDeleteModal(true)} />
-        </div>
+              {/* `key` na seção: cada painel tem os seus campos, e sem isto o
+                  React reaproveitaria o de antes — a senha digitada e não salva
+                  reapareceria dentro de outra seção. */}
+              <div key={secaoAtual.id} className="anim-fade-in" style={{ minWidth: 0, padding: '4px 8px 8px 18px' }}>
+                <PainelDaConta
+                  secao={secaoAtual.id}
+                  user={user}
+                  theme={theme}
+                  buildingLabel={buildingLabel}
+                  onEditarFoto={() => setAvatarModal(true)}
+                  onAbrir={setSheet}
+                  onExcluir={() => setDeleteModal(true)}
+                  BuildingSection={BuildingSection}
+                />
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
 
       {/* ── MOBILE ── */}

@@ -18,7 +18,7 @@ export default function GestorNovosChamadosPage() {
       title="Novos chamados"
       subtitle="Ocorrências que ainda não foram encaminhadas a nenhum responsável"
     >
-      <ChamadosBoard buildingId={id} group="NOVOS" />
+      <ChamadosBoard buildingId={id} />
     </GestorShell>
   );
 }

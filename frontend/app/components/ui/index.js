@@ -592,6 +592,16 @@ export function Select({
     <div className={wrapperClassName} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, ...wrapperStyle }}>
       {label && <label style={G.label}>{label}</label>}
 
+      {/*
+        O rótulo visível nomeia o gatilho por `aria-label`.
+
+        O `<label>` acima não aponta para nada: não há `htmlFor`, e envolver o
+        botão com ele faria clicar no texto abrir a lista. Sem o `aria-label`,
+        quem só ouve a tela chegava a "caixa de combinação" sem nome nenhum —
+        justamente o cuidado que o `Input` e o `Textarea` deste arquivo já tomam.
+        `aria-label` explícito continua vencendo, para quem quer um nome falado
+        diferente do escrito.
+      */}
       <button
         type="button"
         id={triggerId}
@@ -601,7 +611,8 @@ export function Select({
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         aria-activedescendant={open && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
-        aria-label={ariaLabel}
+        // O rótulo visível também nomeia o gatilho — ver a nota acima do <button>.
+        aria-label={ariaLabel ?? label}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
         disabled={disabled}

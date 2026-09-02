@@ -13,7 +13,7 @@ export default function NovosChamadosPage() {
       title="Novos chamados"
       subtitle="Ocorrências que ainda não foram encaminhadas a nenhum responsável"
     >
-      <ChamadosBoard buildingId={building?.building_id} group="NOVOS" />
+      <ChamadosBoard buildingId={building?.building_id} />
     </ModeradorShell>
   );
 }
