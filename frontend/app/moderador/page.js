@@ -26,28 +26,31 @@ const STATUS_LABEL = { IN_PROGRESS: 'Em andamento', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { IN_PROGRESS: 'accent', COMPLETED: 'success' };
 
 /**
- * A altura dos dois cartões da fileira do meio.
+ * A altura de cada cartão da fileira do meio — uma por cartão, e é o ponto.
  *
- * Escrita, e não herdada: com `alignItems: 'stretch'`, o mais alto dos dois
+ * Escritas, e não herdadas: com `alignItems: 'stretch'`, o mais alto dos dois
  * mandaria no outro, e a pizza passaria a crescer porque chegou mais uma
- * vistoria ao histórico — coisas que não têm nada a ver uma com a outra. Aqui
- * cada cartão tem a sua, e as duas são o mesmo número por escolha de desenho.
+ * vistoria ao histórico — coisas que não têm nada a ver uma com a outra. Cada
+ * um se mede pelo que carrega, e mudar um não mexe no outro.
  *
- * O número sai da conta dos dois: o histórico cabe em 532 com seis linhas
- * (cabeçalho 134 + topo da tabela 39 + 6 linhas de 50 + rodapé 59) e a pizza em
- * 534 com a rosca de 220. 540 é o teto redondo dos dois, com folga de alguns
- * pixels para o cartão não ficar apertado no que ele carrega.
+ * A pizza cabe em 534 com a rosca de 220, e 540 é o teto redondo disso. O
+ * histórico sai da conta das dez linhas: cabeçalho 134 + topo da tabela 39 +
+ * 10 linhas de 50 + rodapé 59. Os dois números são diferentes porque o que
+ * cada cartão tem para mostrar é diferente.
  */
-const ALTURA_CARTAO = 540;
+const ALTURA_PIZZA = 540;
+const ALTURA_HISTORICO = 732;
 
 /**
- * Quantas linhas cabem no cartão do histórico nesta altura.
+ * Quantas vistorias e ocorrências o cartão mostra antes das setas.
  *
- * Seis, e não as oito de `HISTORY_PAGE_SIZE`: oito é o teto de um cartão que
- * cresce com o conteúdo, e este não cresce mais. O resto continua alcançável
- * pelas setas do rodapé, que é para isso que elas existem.
+ * Dez, acima das oito de `HISTORY_PAGE_SIZE`. O padrão é o teto de um cartão
+ * que cresce com o conteúdo e divide a fileira com outro; este tem altura
+ * própria, então quem manda no número é quanto se quer ler antes de mudar de
+ * página. Vale para as duas visões — vistorias e ocorrências —, que dividem o
+ * mesmo cartão e não podiam trocar de tamanho ao alternar.
  */
-const LINHAS_DO_HISTORICO = 6;
+const LINHAS_DO_HISTORICO = 10;
 
 /**
  * O painel do moderador.
@@ -80,7 +83,7 @@ export default function ModeradorPage() {
   const [reportId, setReportId] = useState(null);
 
   const { data: stats, isLoading: statsLoading } = useTicketStats(buildingId);
-  // Seis por página, o que cabe na altura do cartão: quem anda pelo resto é o
+  // Dez por página, o que cabe na altura do cartão: quem anda pelo resto é o
   // rodapé de setas.
   const vistorias = useBuildingHistory(buildingId, {}, { pageSize: LINHAS_DO_HISTORICO });
   // Enquanto a próxima página não chega, a que está saindo deixa a tela: o que
@@ -203,7 +206,7 @@ export default function ModeradorPage() {
           <OcorrenciasPorStatus
             buildingId={buildingId}
             className="anim-fade-up anim-d5"
-            style={{ height: ALTURA_CARTAO }}
+            style={{ height: ALTURA_PIZZA }}
           />
 
           {/* Histórico — a mesma leitura das outras telas, e as mesmas duas
@@ -212,7 +215,7 @@ export default function ModeradorPage() {
             className="anim-fade-up anim-d6"
             style={{
               background: T.card, borderRadius: R.card, overflow: 'hidden',
-              height: ALTURA_CARTAO, display: 'flex', flexDirection: 'column',
+              height: ALTURA_HISTORICO, display: 'flex', flexDirection: 'column',
             }}
           >
             <div style={{ padding: '16px 22px', borderBottom: `1px solid ${T.line}`, flexShrink: 0 }}>
