@@ -402,19 +402,35 @@ export function Modal({ open, onClose, title, children, maxWidth = 400 }) {
       <div
         className={closing ? 'anim-scale-out' : 'anim-scale-in'}
         style={{
-          background: T.card, borderRadius: R.card, boxShadow: T.cardRing, padding: 22,
+          background: T.card, borderRadius: R.card, boxShadow: T.cardRing,
           maxHeight: 'inherit', display: 'flex', flexDirection: 'column',
         }}
       >
         {shownTitle && (
-          <h2 id={titleId} style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text, marginBottom: 16, flexShrink: 0 }}>
+          <h2 id={titleId} style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text, padding: '22px 22px 0', marginBottom: 16, flexShrink: 0 }}>
             {shownTitle}
           </h2>
         )}
-        {/* `minHeight: 0` é o que deixa o filho de um flex encolher abaixo do
-            próprio conteúdo. Sem ele o miolo empurra a caixa para fora da tela
-            e a rolagem nunca chega a acontecer. */}
-        <div style={{ overflowY: 'auto', minHeight: 0 }}>{shownChildren}</div>
+        {/*
+          O recuo é do miolo que rola, e não da caixa em volta dele.
+
+          Contêiner de rolagem recorta no limite do próprio recuo — e recorta
+          tudo, inclusive sombra que vive fora da borda do filho. Com o recuo na
+          caixa e o miolo colado nas beiradas, o anel dourado de 2px que marca o
+          tema escolhido na caixa de Aparência saía cortado dos dois lados; o
+          mesmo valia para o fio do `cardRing` de qualquer filho encostado na
+          borda. Movido para cá, há 22px de folga antes do corte.
+
+          De quebra, a barra de rolagem passa a correr rente à borda da caixa,
+          que é onde se espera encontrá-la — e não afundada 22px para dentro.
+
+          `minHeight: 0` é o que deixa o filho de um flex encolher abaixo do
+          próprio conteúdo. Sem ele o miolo empurra a caixa para fora da tela e
+          a rolagem nunca chega a acontecer.
+        */}
+        <div style={{ overflowY: 'auto', minHeight: 0, padding: shownTitle ? '0 22px 22px' : 22 }}>
+          {shownChildren}
+        </div>
       </div>
     </Dialog>
   );

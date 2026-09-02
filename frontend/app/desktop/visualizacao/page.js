@@ -88,7 +88,21 @@ export default function VisualizacaoPage() {
     <RouteGuard roles={['INSPECTOR', 'VIEWER', 'NONE']}>
       <div className="hidden lg:flex flex-col min-h-screen bg-page">
         {/* Header */}
-        <header className="anim-fade-down" style={{ height: 60, background: T.bg, borderBottom: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', flexShrink: 0 }}>
+        {/*
+          `position: relative` e `zIndex` para o menu da conta poder sair daqui.
+
+          O `anim-fade-down` termina em `transform: translateY(0)` com
+          `animation-fill-mode: both` — e transform, mesmo o identidade, cria
+          contexto de empilhamento. O `z-index: 60` do menu passava a valer só
+          dentro do cabeçalho, e o cabeçalho, sem posição, disputava com o
+          `<main>` em pé de igualdade: os cartões do miolo vêm depois no
+          documento e ganhavam o desempate. O menu abria atrás da lista de
+          vistorias.
+
+          Posicionado e com z-index próprio, o cabeçalho inteiro sobe — e o que
+          ele abrir sobe junto.
+        */}
+        <header className="anim-fade-down" style={{ position: 'relative', zIndex: 30, height: 60, background: T.bg, borderBottom: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', flexShrink: 0 }}>
           <Logo size={18} variant="horizontal" />
           {/* A foto era um atalho para o perfil, e só. Nesta tela não há barra
               lateral, então sair exigia abrir o perfil para achar o botão lá

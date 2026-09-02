@@ -57,11 +57,23 @@ export function BottomNav() {
   if (!noNavegador) return null;
 
   return createPortal(
-    <nav aria-label="Navegação principal" style={{
+    /*
+      `lg:hidden` aqui, e não só no bloco de quem chama.
+
+      A barra é portada para o `<body>`, e portal não herda a folha de estilo do
+      lugar de onde saiu: as telas que têm as duas larguras envolvem a versão de
+      telefone num `lg:hidden`, e a barra escapava por baixo dele — no desktop
+      ela aparecia colada no rodapé de telas que não a têm, como a de perfil.
+
+      O `display` saiu do `style` e virou classe junto: inline vence folha de
+      estilo, e um `display: flex` inline apagaria o `display: none` que o
+      `lg:hidden` traz — a barra continuaria aparecendo, agora com uma classe
+      que promete o contrário.
+    */
+    <nav aria-label="Navegação principal" className="flex lg:hidden" style={{
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
       background: M.bg, borderTop: `1px solid ${M.line}`,
       padding: '10px 8px calc(14px + env(safe-area-inset-bottom))',
-      display: 'flex',
     }}>
       {navItems.map(({ href, icon: Icon, label }) => {
         const active = pathname === href;
