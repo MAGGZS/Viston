@@ -87,7 +87,11 @@ export function SeletorDeTema() {
   const theme = useTheme();
 
   return (
-    <div>
+    // A mesma medida que as opções tinham dentro da caixa: 440 de largura menos
+    // os 22 de recuo de cada lado. Fora dela o painel de configurações é muito
+    // mais largo, e duas miniaturas esticadas por ele viram dois retângulos
+    // compridos que não se parecem mais com a tela que prometem mostrar.
+    <div style={{ maxWidth: 396 }}>
       <div role="radiogroup" aria-label="Tema" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <Option
           tone="dark"
