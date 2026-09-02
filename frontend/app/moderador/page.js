@@ -19,7 +19,7 @@ import { CELL_PAD_Y, placeholderCellHeight } from '@/app/lib/pagination';
 import { T, R, W } from '@/app/lib/theme';
 
 // A célula de espera tem a altura da de verdade — o `Badge` da coluna de status
-// entre os 11px de recuo —, para o cartão não encolher a cada seta.
+// entre os recuos de `CELL_PAD_Y` —, para o cartão não encolher a cada seta.
 const PLACEHOLDER_CELL = { padding: `${CELL_PAD_Y}px 22px`, height: placeholderCellHeight({ padY: CELL_PAD_Y }) };
 
 const STATUS_LABEL = { IN_PROGRESS: 'Em andamento', COMPLETED: 'Finalizada' };
@@ -34,23 +34,15 @@ const STATUS_VARIANT = { IN_PROGRESS: 'accent', COMPLETED: 'success' };
  * um se mede pelo que carrega, e mudar um não mexe no outro.
  *
  * A pizza cabe em 534 com a rosca de 220, e 540 é o teto redondo disso. O
- * histórico sai da conta das dez linhas: cabeçalho 134 + topo da tabela 39 +
- * 10 linhas de 42 (ver `CELL_PAD_Y`) + rodapé 59. Os dois números são
- * diferentes porque o que cada cartão tem para mostrar é diferente.
+ * histórico sai da conta das oito linhas de `HISTORY_PAGE_SIZE`: cabeçalho 134
+ * + topo da tabela 39 + 8 linhas de 42 (ver `CELL_PAD_Y`) + rodapé 59. Os dois
+ * números são diferentes porque o que cada cartão tem para mostrar é diferente.
+ *
+ * O tamanho de página não é mais escrito aqui: as duas visões do cartão caem no
+ * padrão do produto, e o que este arquivo precisa saber é só quanto isso mede.
  */
 const ALTURA_PIZZA = 540;
-const ALTURA_HISTORICO = 652;
-
-/**
- * Quantas vistorias e ocorrências o cartão mostra antes das setas.
- *
- * Dez, acima das oito de `HISTORY_PAGE_SIZE`. O padrão é o teto de um cartão
- * que cresce com o conteúdo e divide a fileira com outro; este tem altura
- * própria, então quem manda no número é quanto se quer ler antes de mudar de
- * página. Vale para as duas visões — vistorias e ocorrências —, que dividem o
- * mesmo cartão e não podiam trocar de tamanho ao alternar.
- */
-const LINHAS_DO_HISTORICO = 10;
+const ALTURA_HISTORICO = 568;
 
 /**
  * O painel do moderador.
@@ -83,9 +75,9 @@ export default function ModeradorPage() {
   const [reportId, setReportId] = useState(null);
 
   const { data: stats, isLoading: statsLoading } = useTicketStats(buildingId);
-  // Dez por página, o que cabe na altura do cartão: quem anda pelo resto é o
-  // rodapé de setas.
-  const vistorias = useBuildingHistory(buildingId, {}, { pageSize: LINHAS_DO_HISTORICO });
+  // Oito por página, o padrão do produto: quem anda pelo resto é o rodapé de
+  // setas do cartão.
+  const vistorias = useBuildingHistory(buildingId);
   // Enquanto a próxima página não chega, a que está saindo deixa a tela: o que
   // se vê é esqueleto, e não uma lista velha passando por nova (ver
   // `usePagedList`).
@@ -259,7 +251,7 @@ export default function ModeradorPage() {
             >
               {historico.isVistorias
                 ? relatoriosPanel
-                : <OcorrenciasTable buildingId={buildingId} pageSize={LINHAS_DO_HISTORICO} />}
+                : <OcorrenciasTable buildingId={buildingId} />}
             </div>
           </div>
         </div>
