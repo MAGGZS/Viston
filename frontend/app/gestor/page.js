@@ -13,7 +13,7 @@ import { formatShareKey } from '@/app/lib/shareKey';
 import { T, R, W } from '@/app/lib/theme';
 import { CONTENT_ID } from '@/app/components/mobile/kit';
 
-const CARD_WIDTH = 300;
+const CARD_WIDTH = 320;
 
 /**
  * Botão de criar prédio.

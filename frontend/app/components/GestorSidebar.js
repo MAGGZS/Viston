@@ -65,7 +65,7 @@ export function GestorSidebar({ buildingId, buildingName }) {
 
       <SidebarFooter>
         <SidebarItem href="/gestor" icon={Building2} label="Meus prédios" collapsed={collapsed} animated={animated} />
-        <SidebarItem href="/perfil" icon={User} label="Perfil" collapsed={collapsed} animated={animated} />
+        <SidebarItem href={buildingId ? `/perfil?buildingId=${buildingId}` : '/perfil'} icon={User} label="Perfil" collapsed={collapsed} animated={animated} />
         <SidebarItem
           icon={LogOut}
           label="Sair"

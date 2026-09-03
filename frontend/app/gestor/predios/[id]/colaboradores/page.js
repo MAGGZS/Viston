@@ -282,8 +282,8 @@ export default function GestorColaboradoresPage() {
         </button>
       }
     >
-      <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8">
-        <div style={{ maxWidth: 780, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-8">
+        <div style={{ maxWidth: 860, display: 'flex', flexDirection: 'column', gap: 20 }}>
           <Section
             className="anim-fade-up"
             title="Gestão"

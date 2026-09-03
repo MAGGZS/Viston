@@ -678,7 +678,7 @@ function Grade({ children }) {
  */
 const FICHA = 'minmax(340px, 400px)';
 const FICHA_PAD = 24;
-const LADO = 32;
+const LADO = 24;
 
 /** O esqueleto da fila enquanto ela chega. */
 function Esqueleto() {

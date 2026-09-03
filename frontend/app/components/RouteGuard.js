@@ -50,7 +50,7 @@ export function RouteGuard({ children, roles = [], manages }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: T.bg }}>
+      <div className="min-h-screen flex items-center justify-center bg-page" suppressHydrationWarning>
         <Spinner size="lg" />
       </div>
     );

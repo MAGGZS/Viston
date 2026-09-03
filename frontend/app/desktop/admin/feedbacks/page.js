@@ -301,7 +301,7 @@ export default function AdminFeedbacksPage() {
     <RouteGuard roles={['ADMIN']}>
       <div className="hidden lg:flex min-h-screen bg-page">
         <AdminSidebar />
-        <main id={CONTENT_ID} className="flex-1 p-8 overflow-auto">
+        <main id={CONTENT_ID} className="flex-1 px-6 py-8 overflow-auto">
           <div className="anim-fade-down flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-semibold text-ink">Feedbacks</h1>
@@ -349,7 +349,7 @@ export default function AdminFeedbacksPage() {
             })}
           </div>
 
-          <div className="flex flex-col gap-3 max-w-3xl">
+          <div className="flex flex-col gap-3 max-w-4xl">
             {isLoading && [1, 2, 3].map((i) => (
               <div key={i} className="bg-card rounded-card p-5">
                 <Skeleton style={{ height: 32, width: 200 }} />

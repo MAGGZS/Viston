@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
   usePathname: () => '/perfil',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 // Caminho relativo, e não o alias `@/`: o `jest.mock` é içado para antes dos

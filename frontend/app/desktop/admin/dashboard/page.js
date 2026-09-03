@@ -105,7 +105,7 @@ export default function AdminDashboardPage() {
     <RouteGuard roles={['ADMIN']}>
       <div className="hidden lg:flex min-h-screen bg-page">
         <AdminSidebar />
-        <main id={CONTENT_ID} className="flex-1 p-8 overflow-auto">
+        <main id={CONTENT_ID} className="flex-1 px-6 py-8 overflow-auto">
           <div className="anim-fade-down flex items-center justify-between mb-8">
             <div>
               <h1 className="text-2xl font-semibold text-ink">Visão geral</h1>

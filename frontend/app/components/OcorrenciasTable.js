@@ -14,12 +14,9 @@ import {
 } from '@/app/lib/maintenanceOptions';
 import { T, W } from '@/app/lib/theme';
 
-const CELL = { padding: `${CELL_PAD_Y}px 22px`, fontSize: 14 };
-
-// A célula de espera tem a altura da de verdade — o `Badge` da coluna de status
-// entre os 11px de recuo. Conferido no navegador: a tabela mede os mesmos 431px
-// antes, durante e depois da troca de página.
-const PLACEHOLDER_CELL = { ...CELL, height: placeholderCellHeight({ padY: CELL_PAD_Y }) };
+// No histórico (painel), as linhas usam CELL_PAD_Y (7px) para caber no cartão.
+// Nas demais tabelas (como Finalizados), o recuo é maior para não ficarem compactas.
+const PAD_Y_AMPLO = 13;
 
 /**
  * As colunas de cada leitura.
@@ -60,7 +57,7 @@ const COLUMN_SETS = {
  * numa caixa que abre. Nada de descrição aqui: um parágrafo por linha faz a
  * lista deixar de ser lista.
  */
-export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTORICO', empty, filters, pageSize }) {
+export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTORICO', empty, filters, pageSize, padX = 22 }) {
   const { rows, isLoading: loading, ...pager } = useBuildingOccurrences(buildingId, group, filters, pageSize);
   // A lista da página que está saindo não fica na tela esperando a próxima: até
   // a resposta chegar, o que se vê é esqueleto (ver `usePagedList`).
@@ -80,13 +77,28 @@ export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTO
       ? 'Nenhuma ocorrência com esses filtros'
       : empty ?? 'Nenhuma ocorrência neste prédio ainda';
 
+  const isHistorico = columns === 'HISTORICO';
+  const padY = isHistorico ? CELL_PAD_Y : PAD_Y_AMPLO;
+  const rowHeight = isHistorico ? 42 : undefined;
+  const cell = {
+    padding: `${padY}px ${padX}px`,
+    fontSize: 14,
+    whiteSpace: 'nowrap',
+    height: rowHeight,
+    boxSizing: 'border-box',
+  };
+  const placeholderCell = {
+    ...cell,
+    height: isHistorico ? 42 : placeholderCellHeight({ content: 20, padY }),
+  };
+
   return (
     <>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ borderBottom: `1px solid ${T.line}` }}>
             {cols.map((c) => (
-              <th key={c.label} style={{ textAlign: 'left', padding: '10px 22px', color: T.mute, fontSize: 12, fontWeight: W.body }}>
+              <th key={c.label} style={{ textAlign: 'left', padding: `${isHistorico ? 10 : 12}px ${padX}px`, color: T.mute, fontSize: 12, fontWeight: W.body }}>
                 {c.label}
               </th>
             ))}
@@ -96,9 +108,9 @@ export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTO
             texto troca no lugar e nada diz que a página andou. */}
         <tbody key={pager.page}>
           {pager.placeholders.map((i) => (
-            <tr key={i} style={{ borderBottom: `1px solid ${T.line}` }}>
+            <tr key={i} style={{ borderBottom: `1px solid ${T.line}`, height: rowHeight }}>
               {cols.map((c) => (
-                <td key={c.label} style={PLACEHOLDER_CELL}>
+                <td key={c.label} style={placeholderCell}>
                   <Skeleton style={{ height: 14 }} />
                 </td>
               ))}
@@ -110,12 +122,12 @@ export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTO
               key={o.id}
               onClick={() => setPicked(o)}
               className={`anim-fade-in anim-d${Math.min(idx + 1, 6)}`}
-              style={{ borderBottom: `1px solid ${T.line}`, cursor: 'pointer' }}
+              style={{ borderBottom: `1px solid ${T.line}`, cursor: 'pointer', height: rowHeight }}
               onMouseEnter={(e) => { e.currentTarget.style.background = T.chip; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
             >
               {cols.map((c) => (
-                <td key={c.label} style={{ ...CELL, color: c.muted ? T.mute : T.text }}>
+                <td key={c.label} style={{ ...cell, color: c.muted ? T.mute : T.text }}>
                   {c.render(o)}
                 </td>
               ))}
@@ -136,12 +148,12 @@ export function OcorrenciasTable({ buildingId, group = 'TODOS', columns = 'HISTO
         page={pager.page}
         pages={pager.pages}
         total={pager.total}
-        count={rows.length}
+        count={shown.length}
         pageSize={pager.pageSize}
         onPrev={pager.prev}
         onNext={pager.next}
         isFetching={pager.isFetching}
-        style={{ borderTop: `1px solid ${T.line}`, padding: '12px 22px' }}
+        style={{ padding: `12px ${padX}px`, borderTop: `1px solid ${T.line}` }}
       />
 
       <OcorrenciaModal open={!!picked} occurrence={picked} onClose={() => setPicked(null)} />

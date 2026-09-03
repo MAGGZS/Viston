@@ -103,7 +103,7 @@ export default function VisualizacaoPage() {
           Posicionado e com z-index próprio, o cabeçalho inteiro sobe — e o que
           ele abrir sobe junto.
         */}
-        <header className="anim-fade-down" style={{ position: 'relative', zIndex: 30, height: 60, background: T.bg, borderBottom: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', flexShrink: 0 }}>
+        <header className="anim-fade-down" style={{ position: 'relative', zIndex: 30, height: 60, background: T.bg, borderBottom: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', flexShrink: 0 }}>
           <Logo size={18} variant="horizontal" />
           {/* A foto era um atalho para o perfil, e só. Nesta tela não há barra
               lateral, então sair exigia abrir o perfil para achar o botão lá
@@ -113,7 +113,7 @@ export default function VisualizacaoPage() {
         </header>
 
         {/* Main */}
-        <main id={CONTENT_ID} className="flex-1 p-8 overflow-auto flex flex-col">
+        <main id={CONTENT_ID} className="flex-1 px-6 py-8 overflow-auto flex flex-col">
           <div className="anim-fade-up mb-8">
             <h1 className="text-2xl font-semibold text-ink">
               Olá, <span style={{ color: T.accentInk }}>{user?.name ?? ''}</span>

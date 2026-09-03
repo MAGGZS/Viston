@@ -215,10 +215,14 @@ export function StatCard({ icon: Icon, label, value, hint, loading = false, clas
   );
 }
 
-export function Spinner({ size = 'md' }) {
+export function Spinner({ size = 'md', className = '' }) {
   const s = { sm: 16, md: 24, lg: 40 }[size];
   return (
-    <div style={{ width: s, height: s, border: `2px solid ${T.accentSoft}`, borderTopColor: T.accent, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+    <div
+      suppressHydrationWarning
+      className={className}
+      style={{ width: s, height: s, border: `2px solid ${T.accentSoft}`, borderTopColor: T.accent, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }}
+    />
   );
 }
 

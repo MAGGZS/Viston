@@ -23,10 +23,7 @@ import { parseReportDate } from '@/app/lib/date';
 import { CELL_PAD_Y, placeholderCellHeight } from '@/app/lib/pagination';
 import { useToastStore } from '@/app/store/toast';
 
-// A célula de espera tem a altura da de verdade. Aqui o mais alto não é o
-// `Badge`, e sim o `Avatar` de 28px da coluna de inspetor; o recuo é o da
-// `.cell-y`, gêmea de `CELL_PAD_Y` (ver app/lib/pagination.js).
-const PLACEHOLDER_CELL_H = placeholderCellHeight({ content: 28, padY: CELL_PAD_Y });
+const PLACEHOLDER_CELL_H = 42;
 
 const STATUS_LABEL = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', FINISHED: 'Finalizada', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { PENDING: 'default', IN_PROGRESS: 'accent', FINISHED: 'success', COMPLETED: 'success' };
@@ -117,16 +114,16 @@ export default function GestorBuildingPage() {
         <thead>
           <tr className="border-b border-line">
             {['Inspetor', 'Status', 'Dia', 'Planilha', ''].map((h, i) => (
-              <th key={i} className="text-left px-6 py-3 text-mute text-xs font-medium">{h}</th>
+              <th key={i} className="text-left px-6 py-2.5 text-mute text-xs font-medium">{h}</th>
             ))}
           </tr>
         </thead>
         {/* `key` na página: as linhas entram de novo a cada seta. */}
         <tbody key={vistorias.page}>
           {vistorias.placeholders.map(i => (
-            <tr key={i} className="border-b border-line">
+            <tr key={i} className="border-b border-line" style={{ height: 42 }}>
               {[1,2,3,4,5].map(j => (
-                <td key={j} className="px-6 cell-y" style={{ height: PLACEHOLDER_CELL_H }}>
+                <td key={j} className="px-6 cell-y" style={{ height: 42, boxSizing: 'border-box' }}>
                   <Skeleton className="h-4 w-full" />
                 </td>
               ))}
@@ -134,21 +131,22 @@ export default function GestorBuildingPage() {
           ))}
           {rows.map((r, idx) => (
             <tr key={r.id} onClick={() => setReportId(r.id)}
+              style={{ height: 42 }}
               className={`anim-fade-in anim-d${Math.min(idx + 1, 6)} border-b border-line hover:bg-chip transition-colors cursor-pointer`}>
-              <td className="px-6 cell-y">
+              <td className="px-6 cell-y" style={{ height: 42, boxSizing: 'border-box', whiteSpace: 'nowrap' }}>
                 <div className="flex items-center gap-2">
-                  <Avatar user={r.inspector} size={28} />
+                  <Avatar user={r.inspector} size={26} />
                   <span className="text-ink text-sm">{r.inspector?.name}</span>
                 </div>
               </td>
-              <td className="px-6 cell-y">
+              <td className="px-6 cell-y" style={{ height: 42, boxSizing: 'border-box', whiteSpace: 'nowrap' }}>
                 <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
               </td>
               {/* Só o dia: o relatório completo e a planilha são do dia */}
-              <td className="px-6 cell-y text-mute text-sm">
+              <td className="px-6 cell-y text-mute text-sm" style={{ height: 42, boxSizing: 'border-box', whiteSpace: 'nowrap' }}>
                 {format(parseReportDate(r.date), 'dd/MM/yyyy', { locale: ptBR })}
               </td>
-              <td className="px-6 cell-y">
+              <td className="px-6 cell-y" style={{ height: 42, boxSizing: 'border-box', whiteSpace: 'nowrap' }}>
                 <div className="flex items-center gap-4">
                   {r.has_excel ? (
                     <button type="button" onClick={e => { e.stopPropagation(); download(r.id); }} disabled={pendingId === r.id}
@@ -162,7 +160,7 @@ export default function GestorBuildingPage() {
                   </button>
                 </div>
               </td>
-              <td className="px-6 cell-y text-right">
+              <td className="px-6 cell-y text-right" style={{ height: 42, boxSizing: 'border-box' }}>
                 <button
                   onClick={e => { e.stopPropagation(); setConfirmDiscard(r); }}
                   disabled={deleteInspection.isPending}
@@ -265,7 +263,7 @@ export default function GestorBuildingPage() {
             {/* `key` na visão: só o miolo do cartão troca — o calendário ao
                 lado e o resto da tela do prédio ficam onde estão. */}
             <div key={historico.view} className="anim-fade-up">
-              {historico.isVistorias ? inspecoesPanel : <OcorrenciasTable buildingId={id} />}
+              {historico.isVistorias ? inspecoesPanel : <OcorrenciasTable buildingId={id} padX={24} />}
             </div>
           </div>
         </div>

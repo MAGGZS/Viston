@@ -196,7 +196,7 @@ export function ProcessamentoBoard({ buildingId }) {
   const listaAguardando = aguardando.data?.tickets ?? [];
 
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 32px 28px', display: 'flex', flexDirection: 'column', gap: 26 }}>
+    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 24px 28px', display: 'flex', flexDirection: 'column', gap: 26 }}>
       <div className="anim-fade-up" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 22 }}>
         <Coluna
           icon={Send}

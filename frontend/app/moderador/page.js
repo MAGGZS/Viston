@@ -20,7 +20,7 @@ import { T, R, W } from '@/app/lib/theme';
 
 // A célula de espera tem a altura da de verdade — o `Badge` da coluna de status
 // entre os recuos de `CELL_PAD_Y` —, para o cartão não encolher a cada seta.
-const PLACEHOLDER_CELL = { padding: `${CELL_PAD_Y}px 22px`, height: placeholderCellHeight({ padY: CELL_PAD_Y }) };
+const PLACEHOLDER_CELL = { padding: `${CELL_PAD_Y}px 22px`, height: 42, boxSizing: 'border-box' };
 
 const STATUS_LABEL = { IN_PROGRESS: 'Em andamento', COMPLETED: 'Finalizada' };
 const STATUS_VARIANT = { IN_PROGRESS: 'accent', COMPLETED: 'success' };
@@ -103,7 +103,7 @@ export default function ModeradorPage() {
         {/* `key` na página: as linhas entram de novo a cada seta. */}
         <tbody key={vistorias.page}>
           {vistorias.placeholders.map((i) => (
-            <tr key={i} style={{ borderBottom: `1px solid ${T.line}` }}>
+            <tr key={i} style={{ borderBottom: `1px solid ${T.line}`, height: 42 }}>
               {[1, 2, 3, 4].map((j) => (
                 <td key={j} style={PLACEHOLDER_CELL}><Skeleton style={{ height: 14 }} /></td>
               ))}
@@ -115,19 +115,19 @@ export default function ModeradorPage() {
               key={r.id}
               onClick={() => setReportId(r.id)}
               className={`anim-fade-in anim-d${Math.min(idx + 1, 6)}`}
-              style={{ borderBottom: `1px solid ${T.line}`, cursor: 'pointer' }}
+              style={{ borderBottom: `1px solid ${T.line}`, cursor: 'pointer', height: 42 }}
               onMouseEnter={(e) => { e.currentTarget.style.background = T.chip; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
             >
-              <td style={{ padding: `${CELL_PAD_Y}px 22px`, color: T.text, fontSize: 14 }}>{r.inspector?.name ?? '—'}</td>
-              <td style={{ padding: `${CELL_PAD_Y}px 22px` }}>
+              <td style={{ padding: `${CELL_PAD_Y}px 22px`, color: T.text, fontSize: 14, height: 42, boxSizing: 'border-box', whiteSpace: 'nowrap' }}>{r.inspector?.name ?? '—'}</td>
+              <td style={{ padding: `${CELL_PAD_Y}px 22px`, height: 42, boxSizing: 'border-box', whiteSpace: 'nowrap' }}>
                 <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
               </td>
               {/* Só o dia: a planilha e o relatório passaram a ser do dia */}
-              <td style={{ padding: `${CELL_PAD_Y}px 22px`, color: T.mute, fontSize: 14 }}>
+              <td style={{ padding: `${CELL_PAD_Y}px 22px`, color: T.mute, fontSize: 14, height: 42, boxSizing: 'border-box', whiteSpace: 'nowrap' }}>
                 {format(parseReportDate(r.date), 'dd/MM/yyyy', { locale: ptBR })}
               </td>
-              <td style={{ padding: `${CELL_PAD_Y}px 22px` }}>
+              <td style={{ padding: `${CELL_PAD_Y}px 22px`, height: 42, boxSizing: 'border-box', whiteSpace: 'nowrap' }}>
                 {r.has_excel ? (
                   <button
                     type="button"

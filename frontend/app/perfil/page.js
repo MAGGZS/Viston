@@ -1,6 +1,6 @@
 'use client';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -160,13 +160,19 @@ function Row({ icon: Icon, label, hint, tone, onClick, className = '' }) {
  * ganha uma: a área dessas contas não tem menu lateral em lugar nenhum, e
  * inventar um só aqui seria mostrar um caminho que não existe nas outras telas.
  */
-function BarraLateralDaConta({ user }) {
+function BarraLateralDaConta({ user, buildingId }) {
   const predioModerado = moderatedBuilding(user);
-  const predioGerido = managedBuildings(user)[0];
+  const prediosGeridos = managedBuildings(user);
+  const predioGerido = buildingId
+    ? prediosGeridos.find((b) => b.building_id === buildingId)
+    : null;
 
   if (isAdmin(user)) return <AdminSidebar />;
   if (isManagerAccount(user)) {
-    return <GestorSidebar buildingId={predioGerido?.building_id} buildingName={predioGerido?.name} />;
+    if (predioGerido) {
+      return <GestorSidebar buildingId={predioGerido.building_id} buildingName={predioGerido.name} />;
+    }
+    return null;
   }
   if (predioModerado) {
     return <ModeradorSidebar buildingId={predioModerado.building_id} buildingName={predioModerado.name} />;
@@ -175,8 +181,12 @@ function BarraLateralDaConta({ user }) {
 }
 
 /** Se esta conta tem barra lateral — a mesma pergunta que `BarraLateralDaConta` responde. */
-function contaTemBarra(user) {
-  return isAdmin(user) || isManagerAccount(user) || !!moderatedBuilding(user);
+function contaTemBarra(user, buildingId) {
+  if (isAdmin(user)) return true;
+  if (isManagerAccount(user)) {
+    return Boolean(buildingId && managedBuildings(user).some((b) => b.building_id === buildingId));
+  }
+  return Boolean(moderatedBuilding(user));
 }
 
 /**
@@ -606,11 +616,13 @@ function FeedbackBox() {
   );
 }
 
-export default function PerfilPage() {
+function PerfilContent() {
   const { user, logout, clearSession } = useAuthStore();
   const { show: toast } = useToastStore();
   const theme = useTheme();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const buildingId = searchParams?.get('buildingId') ?? null;
   const [deleteModal, setDeleteModal] = useState(false);
   // Qual caixa está aberta: 'identity' | 'password' | 'building' | 'feedback'
   const [sheet, setSheet] = useState(null);
@@ -646,7 +658,7 @@ export default function PerfilPage() {
 
   const [secao, setSecao] = useState('perfil');
   const secaoAtual = secoes.find((s) => s.id === secao) ?? secoes[0];
-  const temBarra = contaTemBarra(user);
+  const temBarra = contaTemBarra(user, buildingId);
 
   // Trocar de seção remonta o painel, e um formulário aberto numa caixa vive
   // fora dele — mas o que estiver escrito na caixa se perde ao fechá-la, e é a
@@ -735,7 +747,7 @@ export default function PerfilPage() {
     <RouteGuard>
       {/* ── DESKTOP ── */}
       <div className="hidden lg:flex" style={{ minHeight: '100vh', background: T.bg }}>
-        <BarraLateralDaConta user={user} />
+        <BarraLateralDaConta user={user} buildingId={buildingId} />
 
         <main id={CONTENT_ID} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: '100vh', overflow: 'hidden' }}>
           {/* Sem barra lateral não há como sair nem como voltar: o cabeçalho
@@ -750,7 +762,7 @@ export default function PerfilPage() {
               }}
             >
               <button
-                onClick={() => router.back()}
+                onClick={() => (isManager(user) && !buildingId ? router.push('/gestor') : router.back())}
                 className="btn"
                 style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 'none', cursor: 'pointer', color: T.mute, fontSize: 14, padding: '6px 10px', borderRadius: R.control, '--btn-hover': T.chip }}
               >
@@ -938,5 +950,13 @@ export default function PerfilPage() {
         </div>
       </Modal>
     </RouteGuard>
+  );
+}
+
+export default function PerfilPage() {
+  return (
+    <Suspense fallback={null}>
+      <PerfilContent />
+    </Suspense>
   );
 }
