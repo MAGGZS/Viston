@@ -2,11 +2,17 @@
 
 ## Deploy
 
-apenas quando o proprietáreio permitir o commit
+Todo trabalho é entregue como pull request. Nada vai direto para a `main`,
+seja qual for o tamanho da mudança.
 
-O que eu escrever termina na `main`. A Vercel (frontend) e o Render (backend)
-publicam em produção a partir dela — qualquer outro branch vira só preview, que
-não é o que se quer ao pedir uma mudança.
+A `main` publica em produção sozinha: a Vercel serve o frontend a partir dela e
+o Render sobe o backend. Empurrar direto para a `main` é, na prática, publicar —
+o proprietário veria a mudança já no ar. O PR devolve a ele a janela de olhar
+antes.
 
-Trabalhar num branch antes é permitido, e às vezes é o pedido. Mas o trabalho só
-está entregue quando a `main` o recebe e é empurrada.
+O ciclo, então: branch a partir da `main` atualizada, commits no branch, branch
+empurrado, PR aberto. O merge é do proprietário, e só ele o faz. Qualquer outro
+branch gera preview na Vercel, que é justamente o que se quer para avaliar.
+
+Migração em banco de produção continua exigindo pergunta antes de rodar, PR
+ou não.
