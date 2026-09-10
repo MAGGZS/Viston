@@ -373,4 +373,47 @@ export const ticketRepository = {
   removeUpdate(id: string) {
     return prisma.ticketUpdate.delete({ where: { id } });
   },
+
+  /**
+   * Busca quem fechou os chamados a partir dos logs de auditoria (usado quando quem fechou
+   * foi um gestor, que não fica em `users`, ou quando a conta de usuário foi removida).
+   */
+  async findCloseLogs(ticketIds: string[]): Promise<Map<string, { id: string | null; name: string }>> {
+    if (!ticketIds.length) return new Map();
+
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        entity: 'MaintenanceRecord',
+        entity_id: { in: ticketIds },
+        action: 'UPDATE',
+      },
+      orderBy: { timestamp: 'desc' },
+      select: {
+        entity_id: true,
+        metadata: true,
+        manager: { select: { id: true, name: true } },
+        user: { select: { id: true, name: true } },
+      },
+    });
+
+    const map = new Map<string, { id: string | null; name: string }>();
+    for (const log of logs) {
+      if (!log.entity_id || map.has(log.entity_id)) continue;
+      const meta = log.metadata as Record<string, unknown> | null;
+      if (meta && (meta.closed_by || meta.status === 'CONCLUIDO')) {
+        const name =
+          (meta.closed_by_name as string | undefined) ??
+          log.manager?.name ??
+          log.user?.name;
+        if (name) {
+          map.set(log.entity_id, {
+            id: (meta.closed_by as string | undefined) ?? log.manager?.id ?? log.user?.id ?? null,
+            name,
+          });
+        }
+      }
+    }
+    return map;
+  },
 };
+

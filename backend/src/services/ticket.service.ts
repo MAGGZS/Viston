@@ -24,7 +24,10 @@ type TicketQuery = Omit<TicketFilters, 'group' | 'page' | 'limit'>;
  * `maintenance_cost` sai como número: é DECIMAL no banco, e o Prisma o entrega
  * como objeto — que vira string no JSON e chega ao front como "1200.00".
  */
-export function toTicket(row: TicketRow) {
+export function toTicket(
+  row: TicketRow,
+  closedByOverride?: { id: string | null; name: string } | null
+) {
   const entry = row.floor_form_entry;
   const report = entry.report;
 
@@ -43,7 +46,7 @@ export function toTicket(row: TicketRow) {
     done_at: row.done_at,
     done_report: row.done_report,
     closed_at: row.closed_at,
-    closed_by: row.closed_by,
+    closed_by: row.closed_by ?? closedByOverride ?? null,
     maintenance_note: row.maintenance_note,
     maintenance_cost: row.maintenance_cost === null ? null : Number(row.maintenance_cost),
     created_at: row.created_at,
@@ -58,6 +61,23 @@ export function toTicket(row: TicketRow) {
       inspector: report.inspector,
     },
   };
+}
+
+/**
+ * Converte linhas de chamados em objetos de resposta, resolvendo quem fechou
+ * a partir do log de auditoria quando quem fechou foi gestor (não está em `users`)
+ * ou a conta foi removida.
+ */
+async function toTicketsWithCloser(rows: TicketRow[]) {
+  const closedWithoutUser = rows
+    .filter((r) => r.closed_at && !r.closed_by)
+    .map((r) => r.id);
+
+  const closeLogs = closedWithoutUser.length
+    ? (await ticketRepository.findCloseLogs?.(closedWithoutUser)) ?? new Map()
+    : new Map<string, { id: string | null; name: string }>();
+
+  return rows.map((r) => toTicket(r, closeLogs.get(r.id)));
 }
 
 /** Carrega o chamado e o prédio a que ele pertence, ou 404. */
@@ -236,7 +256,7 @@ export const ticketService = {
     });
 
     return {
-      tickets: rows.map(toTicket),
+      tickets: await toTicketsWithCloser(rows),
       total,
       page: filters.page,
       limit: filters.limit,
@@ -294,7 +314,7 @@ export const ticketService = {
   async listMine(user: Actor, includeClosed = false) {
     if (user.kind !== 'USER') return { tickets: [] };
     const rows = await ticketRepository.findByResponsible(user.id, includeClosed);
-    return { tickets: rows.map(toTicket) };
+    return { tickets: await toTicketsWithCloser(rows) };
   },
 
   /**
@@ -307,7 +327,8 @@ export const ticketService = {
   async getOne(id: string, user: Actor) {
     const { ticket, buildingId } = await loadTicket(id);
     await assertCanRead(ticket, buildingId, user);
-    return toTicket(ticket);
+    const [t] = await toTicketsWithCloser([ticket]);
+    return t;
   },
 
   /**
@@ -615,8 +636,14 @@ export const ticketService = {
       closed_by_id: user.kind === 'USER' ? user.id : null,
     });
 
-    await logTicket(user, buildingId, id, { closed_by: user.id, kind: user.kind });
-    return toTicket(updated);
+    const actorDisplayName = await actorName(user);
+
+    await logTicket(user, buildingId, id, {
+      closed_by: user.id,
+      kind: user.kind,
+      closed_by_name: actorDisplayName,
+    });
+    return toTicket(updated, { id: user.id, name: actorDisplayName });
   },
 
   /**
@@ -642,7 +669,7 @@ export const ticketService = {
     const end = zonedTimeToUtc(ty, tm - 1, td, 23, 59, 59, 999);
 
     const rows = await ticketRepository.findClosedBetween(buildingId, start, end);
-    const tickets = rows.map(toTicket);
+    const tickets = await toTicketsWithCloser(rows);
 
     const building = await buildingRepository.findById(buildingId);
 
