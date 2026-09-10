@@ -114,6 +114,7 @@ beforeEach(() => {
   mockManagerRepo.findById.mockResolvedValue({ id: 'gestor-1', name: 'Dona Célia' } as any);
   mockStorage.uploadTicketPhoto.mockResolvedValue('https://bucket/ticket_foto.jpg');
   mockStorage.removeTicketPhoto.mockResolvedValue(undefined);
+  mockTicketRepo.findCloseLogs.mockResolvedValue(new Map());
 });
 
 // ── Encaminhar ────────────────────────────────────────────────────────────────
@@ -683,16 +684,34 @@ describe('ticketService.close', () => {
     expect(patch.closed_by_id).toBe('user-mod');
   });
 
-  it('quando quem fecha é o gestor, a assinatura fica nula — ele não está em users', async () => {
+  it('quando quem fecha é o gestor, a assinatura fica nula no banco mas o retorno traz o nome do gestor', async () => {
     mockBuildingRepo.findMember.mockResolvedValue(null);
     mockBuildingRepo.findManagerLink.mockResolvedValue({ id: 'bm1' } as any);
     mockTicketRepo.findById.mockResolvedValue(makeTicket({ status: 'EM_ANDAMENTO' }));
 
-    await ticketService.close(TICKET_ID, gestor);
+    const res = await ticketService.close(TICKET_ID, gestor);
 
     const [, patch] = mockTicketRepo.update.mock.calls[0];
     expect(patch.status).toBe('CONCLUIDO');
     expect(patch.closed_by_id).toBeNull();
+    expect(res.closed_by).toEqual({ id: 'gestor-1', name: 'Dona Célia' });
+  });
+
+  it('preenche closed_by a partir do log quando o chamado foi fechado por gestor em consulta posterior', async () => {
+    comPapel('MODERADOR');
+    mockTicketRepo.findById.mockResolvedValue(
+      makeTicket({
+        status: 'CONCLUIDO',
+        closed_at: new Date('2026-08-25T10:00:00Z'),
+        closed_by: null,
+      })
+    );
+    mockTicketRepo.findCloseLogs.mockResolvedValue(
+      new Map([[TICKET_ID, { id: 'gestor-1', name: 'Dona Célia' }]])
+    );
+
+    const res = await ticketService.getOne(TICKET_ID, moderador);
+    expect(res.closed_by).toEqual({ id: 'gestor-1', name: 'Dona Célia' });
   });
 
   it('não fecha duas vezes', async () => {
