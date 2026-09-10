@@ -1,5 +1,7 @@
 # Viston
 
+todas as vezes que for aberto uma nova sessão no terminal do agente, uma verificação e atualizar  pra a versão mias atual do repositório que o projeto esta conectado remotamnte, lembrando de fazer isso antes de realizar qualquer pedido.
+
 ## Deploy
 
 Todo trabalho é entregue como pull request. Nada vai direto para a `main`,

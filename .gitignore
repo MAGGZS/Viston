@@ -22,3 +22,7 @@ coverage/
 # SO / editor
 .DS_Store
 Thumbs.db
+
+iniciar-viston/
+*.bat
+
