@@ -11,5 +11,11 @@ export default defineConfig({
   schema: './prisma/schema.prisma',
   // Migrations e introspecção usam a conexão direta (DIRECT_URL),
   // não o pooler — o pgbouncer não suporta os comandos DDL do migrate.
-  datasource: { url: env('DIRECT_URL') },
+  //
+  // O datasource só é declarado quando DIRECT_URL existe. Gerar o client não
+  // toca no banco, e `prisma generate` agora roda no `postinstall`: exigir a
+  // variável aqui faria o `npm install` falhar na máquina de quem acabou de
+  // clonar e ainda não tem `.env.local`. Quem for rodar migrate sem a variável
+  // recebe o erro do próprio migrate, que é onde ele significa alguma coisa.
+  ...(process.env.DIRECT_URL ? { datasource: { url: env('DIRECT_URL') } } : {}),
 });
