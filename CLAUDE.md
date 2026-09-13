@@ -4,6 +4,8 @@ todas as vezes que for aberto uma nova sessão no terminal do agente, uma verifi
 
 ## Deploy
 
+quando p agnete estiver mexendo no projeto local ele não é commitado, apenas com permissaõ ou pedidos diretos, o deploy a memsa coisa, e os pull request não precisam ser feitos quando o agente estiver trabalhando localmente.
+
 Todo trabalho é entregue como pull request. Nada vai direto para a `main`,
 seja qual for o tamanho da mudança.
 

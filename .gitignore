@@ -26,3 +26,8 @@ Thumbs.db
 iniciar-viston/
 *.bat
 
+
+# Skills de agente instaladas por npx skills (locais, não versionadas)
+.agents/
+.claude/skills/
+skills-lock.json
