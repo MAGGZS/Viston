@@ -1,6 +1,6 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Inbox, Workflow, CheckCheck, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, ChartNoAxesColumn, Inbox, Workflow, CheckCheck, LogOut, User } from 'lucide-react';
 import { SidebarShell, SidebarBrand, SidebarNav, SidebarFooter, SidebarItem } from '@/app/components/Sidebar';
 import { useSidebar } from '@/app/store/sidebar';
 import { useAuthStore } from '@/app/store/auth';
@@ -24,6 +24,11 @@ import { useTicketStats } from '@/app/hooks/useApi';
  */
 const items = [
   { href: '/moderador', icon: LayoutDashboard, label: 'Painel' },
+  // O analítico entra logo abaixo do painel, e não no fim: as duas telas
+  // respondem à mesma pergunta em escalas diferentes — o dia e o mês —, e
+  // separá-las com as três telas de chamado no meio faria parecerem coisas de
+  // famílias distintas.
+  { href: '/moderador/dashboard', icon: ChartNoAxesColumn, label: 'Análise' },
   { href: '/moderador/chamados/novos', icon: Inbox, label: 'Novos chamados', badge: 'abertos' },
   { href: '/moderador/chamados/processamento', icon: Workflow, label: 'Processamento', badge: 'aguardando_fechamento' },
   { href: '/moderador/chamados/finalizados', icon: CheckCheck, label: 'Finalizados' },

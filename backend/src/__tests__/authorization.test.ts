@@ -7,6 +7,7 @@ jest.mock('../repositories/manager.repository');
 jest.mock('../repositories/inspection.repository');
 jest.mock('../repositories/user.repository');
 jest.mock('../repositories/ticket.repository');
+jest.mock('../repositories/analytics.repository');
 // O cadastro emite o código de confirmação. Sem estes dois, ele cairia no Prisma
 // e no provedor de e-mail de verdade a cada teste que posta em /users ou /managers.
 jest.mock('../repositories/emailToken.repository');
@@ -18,6 +19,7 @@ import app from '../app';
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
 import { inspectionRepository } from '../repositories/inspection.repository';
 import { ticketRepository } from '../repositories/ticket.repository';
+import { analyticsRepository } from '../repositories/analytics.repository';
 import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { enviarEmail } from '../lib/mailer';
@@ -27,6 +29,7 @@ import { signAccessToken } from '../utils/jwt';
 const mockBuildingRepo = buildingRepository as jest.Mocked<typeof buildingRepository>;
 const mockInspectionRepo = inspectionRepository as jest.Mocked<typeof inspectionRepository>;
 const mockTicketRepo = ticketRepository as jest.Mocked<typeof ticketRepository>;
+const mockAnalyticsRepo = analyticsRepository as jest.Mocked<typeof analyticsRepository>;
 const mockUserRepo = userRepository as jest.Mocked<typeof userRepository>;
 const mockManagerRepo = managerRepository as jest.Mocked<typeof managerRepository>;
 const mockStorage = storageService as jest.Mocked<typeof storageService>;
@@ -287,6 +290,178 @@ describe('acesso a dados do prédio', () => {
   it('só ADMIN lista todos os prédios', async () => {
     const res = await request(app).get('/buildings').set('Authorization', `Bearer ${tokenViewer}`);
     expect(res.status).toBe(403);
+  });
+});
+
+/**
+ * O painel analítico.
+ *
+ * O escopo sai do `:id` da rota, e o único parâmetro que aponta para gente é
+ * conferido contra o vínculo do prédio antes de virar filtro — é o que impede
+ * que trocar um id na barra de endereços leia a operação de outro prédio.
+ */
+describe('painel analítico', () => {
+  const ANALYTICS = `/buildings/${BUILDING_ID}/analytics/overview`;
+
+  const RESPONSAVEIS = `/buildings/${BUILDING_ID}/analytics/responsibles`;
+
+  beforeEach(() => {
+    mockAnalyticsRepo.overview.mockResolvedValue({ total: 0, parados1: 0 } as any);
+    mockAnalyticsRepo.porPrioridade.mockResolvedValue([]);
+    mockAnalyticsRepo.emRisco.mockResolvedValue([]);
+    mockAnalyticsRepo.saudeDoProcesso.mockResolvedValue({
+      nasceram: 0, fecharam: 0, nasceram_anterior: 0, fecharam_anterior: 0,
+    } as any);
+    mockAnalyticsRepo.porResponsavel.mockResolvedValue([]);
+    mockAnalyticsRepo.atrasadosAbertos.mockResolvedValue([]);
+    mockAnalyticsRepo.evolucaoMensal.mockResolvedValue([]);
+    mockAnalyticsRepo.porInspetor.mockResolvedValue([]);
+    mockAnalyticsRepo.totalDeAndares.mockResolvedValue(12);
+  });
+
+  it('bloqueia quem não tem vínculo com o prédio', async () => {
+    const res = await request(app).get(ANALYTICS).set('Authorization', `Bearer ${tokenViewer}`);
+
+    expect(res.status).toBe(403);
+    expect(mockAnalyticsRepo.overview).not.toHaveBeenCalled();
+  });
+
+  it('bloqueia o membro que não modera — ver a fila não é ver a operação', async () => {
+    comoMembro('INSPECTOR');
+
+    const res = await request(app).get(ANALYTICS).set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(403);
+    expect(mockAnalyticsRepo.overview).not.toHaveBeenCalled();
+  });
+
+  it('libera o moderador do prédio', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'MODERADOR' } as any);
+
+    const res = await request(app).get(ANALYTICS).set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('libera o gestor do prédio', async () => {
+    comoGestorDoPredio();
+
+    const res = await request(app).get(ANALYTICS).set('Authorization', `Bearer ${tokenGestor}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  /**
+   * O filtro por responsável é o único que aponta para uma pessoa, e por isso é
+   * o único que poderia atravessar prédios. Sem vínculo é 404 — devolver lista
+   * vazia confirmaria que aquele id existe em algum lugar.
+   */
+  it('recusa responsável que não é do prédio, sem chegar a consultar', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'MODERADOR' } as any);
+    mockBuildingRepo.findResponsible.mockResolvedValue(null);
+
+    const res = await request(app)
+      .get(`${ANALYTICS}?responsible_id=${RESPONSIBLE_ID}`)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(404);
+    expect(mockAnalyticsRepo.overview).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Inspetores são leitura de gestor.
+   *
+   * O moderador trabalha com o resultado da ronda — a ocorrência que chegou na
+   * fila dele —, não com quem a fez. Avaliar quem vistoria é de quem responde
+   * pelo prédio. E a guarda está na rota, não em esconder a aba: aba escondida
+   * com rota aberta é permissão que existe só no desenho.
+   */
+  it('o moderador do prédio não lê o desempenho dos inspetores', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'MODERADOR' } as any);
+
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/analytics/inspectors`)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(403);
+    expect(mockAnalyticsRepo.porInspetor).not.toHaveBeenCalled();
+  });
+
+  it('o gestor do prédio lê o desempenho dos inspetores', async () => {
+    comoGestorDoPredio();
+
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/analytics/inspectors?year=2026`)
+      .set('Authorization', `Bearer ${tokenGestor}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.total_andares).toBe(12);
+    expect(mockAnalyticsRepo.porInspetor).toHaveBeenCalledWith(
+      { building_id: BUILDING_ID },
+      expect.objectContaining({ from_day: '2026-01-01', to_day: '2026-12-31' })
+    );
+  });
+
+  it('a tabela de responsáveis é do moderador, não de quem só vistoria', async () => {
+    comoMembro('INSPECTOR');
+
+    const res = await request(app).get(RESPONSAVEIS).set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(403);
+    expect(mockAnalyticsRepo.porResponsavel).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A comparação é sempre entre todos, mesmo no modo individual: filtrar a
+   * consulta da tabela pelo responsável escolhido faria a "média da equipe"
+   * virar a média de uma pessoa só — e o número perderia o sentido inteiro.
+   */
+  it('no modo individual a média da equipe continua sendo de todos', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'MODERADOR' } as any);
+    mockBuildingRepo.findResponsible.mockResolvedValue({ id: RESPONSIBLE_ID } as any);
+
+    const res = await request(app)
+      .get(`${RESPONSAVEIS}?responsible_id=${RESPONSIBLE_ID}&year=2026`)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.modo).toBe('INDIVIDUAL');
+    expect(mockAnalyticsRepo.porResponsavel).toHaveBeenCalledWith(
+      expect.objectContaining({ building_id: BUILDING_ID, responsible_id: undefined }),
+      expect.anything()
+    );
+    // Já a lista de atrasados é da pessoa, e essa sim leva o filtro.
+    expect(mockAnalyticsRepo.atrasadosAbertos).toHaveBeenCalledWith(
+      expect.objectContaining({ responsible_id: RESPONSIBLE_ID })
+    );
+  });
+
+  it('recusa responsável de outro prédio também na visão de equipe', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'MODERADOR' } as any);
+    mockBuildingRepo.findResponsible.mockResolvedValue(null);
+
+    const res = await request(app)
+      .get(`${RESPONSAVEIS}?responsible_id=${RESPONSIBLE_ID}`)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(404);
+    expect(mockAnalyticsRepo.atrasadosAbertos).not.toHaveBeenCalled();
+  });
+
+  it('aceita o responsável vinculado e o repassa como filtro', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'MODERADOR' } as any);
+    mockBuildingRepo.findResponsible.mockResolvedValue({ id: RESPONSIBLE_ID } as any);
+
+    const res = await request(app)
+      .get(`${ANALYTICS}?responsible_id=${RESPONSIBLE_ID}&year=2026&month=8`)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(200);
+    expect(mockAnalyticsRepo.overview).toHaveBeenCalledWith(
+      expect.objectContaining({ building_id: BUILDING_ID, responsible_id: RESPONSIBLE_ID }),
+      expect.objectContaining({ from_day: '2026-08-01', to_day: '2026-08-31' }),
+      expect.objectContaining({ from_day: '2026-07-01', to_day: '2026-07-31' })
+    );
   });
 });
 

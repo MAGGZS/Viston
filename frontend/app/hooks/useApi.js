@@ -725,6 +725,74 @@ export function useTicketSummary(buildingId, params) {
   });
 }
 
+/**
+ * A visão geral do painel analítico: indicadores, funil e prazo.
+ *
+ * A chave carrega os filtros inteiros porque cada combinação é uma tela
+ * diferente — trocar o mês e voltar tem de encontrar o que já foi buscado, e
+ * não uma consulta nova.
+ *
+ * `staleTime` de cinco minutos, e não o minuto do padrão: o que move estes
+ * números é alguém encaminhar ou fechar um chamado, e isso não acontece entre
+ * dois piscares. Quem age nos chamados já invalida a chave `analytics` junto
+ * com as outras (ver `invalidateTickets`).
+ */
+export function useAnalyticsOverview(buildingId, filtros) {
+  return useQuery({
+    queryKey: ['analytics', 'overview', buildingId, filtros],
+    queryFn: () =>
+      api.get(`/buildings/${buildingId}/analytics/overview`, { params: filtros }).then((r) => r.data),
+    enabled: !!buildingId,
+    staleTime: 1000 * 60 * 5,
+    // A troca de período mantém a tela anterior no lugar até a nova chegar, em
+    // vez de esvaziar doze blocos a cada clique num chip.
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Os responsáveis do painel analítico: a tabela comparativa ou a análise de um.
+ *
+ * Uma chave só para os dois modos, e o `responsible_id` dentro dela: são a
+ * mesma pergunta com o filtro ligado ou desligado, e duas chaves fariam voltar
+ * para "Todos" buscar de novo o que já estava em memória.
+ *
+ * `enabled` porque a visão de responsáveis é uma aba: enquanto ninguém a abre,
+ * não há o que buscar.
+ */
+export function useAnalyticsResponsibles(buildingId, filtros, enabled = true) {
+  return useQuery({
+    queryKey: ['analytics', 'responsibles', buildingId, filtros],
+    queryFn: () =>
+      api
+        .get(`/buildings/${buildingId}/analytics/responsibles`, { params: filtros })
+        .then((r) => r.data),
+    enabled: !!buildingId && enabled,
+    staleTime: 1000 * 60 * 5,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Os inspetores do painel analítico — rota de gestor.
+ *
+ * `enabled` carrega duas condições: a aba estar aberta e a conta poder ver.
+ * Sem a segunda, a tela do moderador dispararia uma requisição que volta 403 a
+ * cada visita ao painel.
+ */
+export function useAnalyticsInspectors(buildingId, filtros, enabled = true) {
+  return useQuery({
+    queryKey: ['analytics', 'inspectors', buildingId, filtros],
+    queryFn: () =>
+      api
+        .get(`/buildings/${buildingId}/analytics/inspectors`, { params: filtros })
+        .then((r) => r.data),
+    enabled: !!buildingId && enabled,
+    staleTime: 1000 * 60 * 5,
+    placeholderData: keepPreviousData,
+  });
+}
+
 /** Contadores do painel do moderador: aberto, encaminhado, em andamento, concluído. */
 export function useTicketStats(buildingId) {
   return useQuery({
@@ -788,6 +856,9 @@ function invalidateTickets(qc) {
   qc.invalidateQueries({ queryKey: ['ticket-stats'] });
   qc.invalidateQueries({ queryKey: ['my-tickets'] });
   qc.invalidateQueries({ queryKey: ['ticket'] });
+  // O painel analítico conta os mesmos chamados. Sem isto, encaminhar um e
+  // voltar ao painel mostraria o número de antes por mais cinco minutos.
+  qc.invalidateQueries({ queryKey: ['analytics'] });
 }
 
 /** Encaminhar: o chamado ganha dono e passa a esperar o aceite dele. */

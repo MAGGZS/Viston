@@ -13,6 +13,7 @@ import managerRoutes from './routes/manager.routes';
 import feedbackRoutes from './routes/feedback.routes';
 import inspectionRoutes from './routes/inspection.routes';
 import ticketRoutes from './routes/ticket.routes';
+import analyticsRoutes from './routes/analytics.routes';
 import { errorHandler } from './middlewares/errorHandler';
 import { generalLimiter } from './middlewares/rateLimit';
 
@@ -109,6 +110,9 @@ app.use('/', inspectionRoutes);
 // Os chamados moram em dois caminhos — a fila é do prédio, a ação é da
 // ocorrência — e por isso a rota entra na raiz, como a de vistorias.
 app.use('/', ticketRoutes);
+// O painel analítico entra na raiz pelo mesmo motivo: o caminho é do prédio,
+// e `/buildings` já está tomado por rotas que passam por outras guardas.
+app.use('/', analyticsRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((_req, res) => {

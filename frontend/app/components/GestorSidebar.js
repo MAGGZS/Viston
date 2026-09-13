@@ -1,6 +1,6 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Inbox, Workflow, CheckCheck, UserCheck, Building2, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, ChartNoAxesColumn, Inbox, Workflow, CheckCheck, UserCheck, Building2, LogOut, User } from 'lucide-react';
 import { SidebarShell, SidebarBrand, SidebarNav, SidebarFooter, SidebarItem } from '@/app/components/Sidebar';
 import { useSidebar } from '@/app/store/sidebar';
 import { useAuthStore } from '@/app/store/auth';
@@ -23,6 +23,9 @@ function itemsFor(buildingId) {
 
   return [
     { href: base, icon: LayoutDashboard, label: 'Painel', exact: true },
+    // Logo abaixo do painel, e não no fim: as duas telas respondem à mesma
+    // pergunta em escalas diferentes — o dia e o mês.
+    { href: `${base}/dashboard`, icon: ChartNoAxesColumn, label: 'Análise' },
     { href: `${base}/chamados/novos`, icon: Inbox, label: 'Novos chamados', badge: 'abertos' },
     { href: `${base}/chamados/processamento`, icon: Workflow, label: 'Processamento', badge: 'aguardando_fechamento' },
     { href: `${base}/chamados/finalizados`, icon: CheckCheck, label: 'Finalizados' },
