@@ -1,8 +1,8 @@
 'use client';
 import { useMemo, useRef, useState } from 'react';
-import { differenceInCalendarDays, format } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CheckCheck, Inbox, Send } from 'lucide-react';
+import { AlertTriangle, CheckCheck, Inbox, Send } from 'lucide-react';
 import { Button, Select, Skeleton } from '@/app/components/ui';
 import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
 import { UnsavedScope, useUnsavedField, useUnsavedGuard, useUnsavedScope } from '@/app/hooks/useUnsavedGuard';
@@ -34,25 +34,16 @@ import { T, R, W } from '@/app/lib/theme';
  *   neste produto quer dizer "aja aqui" — a mesma tinta dizia duas coisas. Sem
  *   matiz, o dourado volta a ser só do cartão escolhido e do botão de
  *   encaminhar.
- * - **O prazo** (o fio no pé do cartão) é a paciência já gasta. `LIMITE_ESPERA`
- *   existia e ninguém enxergava: era um número usado para pintar um texto de
- *   vermelho depois que já era tarde. Como fio que enche, ele mostra a
- *   ocorrência chegando no limite antes de passar dele.
+ * - **O prazo** (o fio no pé do cartão) é a paciência já gasta. Como fio que
+ *   enche, ele mostra a ocorrência chegando no limite antes de passar dele.
+ *   O prazo em si não se calcula mais aqui: ele desce pronto do servidor, em
+ *   `ticket.sla`, porque o painel analítico precisa contar os mesmos atrasados
+ *   que esta tela pinta, e dois cálculos separados divergem.
  *
  * A fila se lê de dois jeitos, e os dois são trabalho de verdade: por urgência,
  * que responde "o que faço agora", e por andar, que é como se despacha em
  * bloco — a mesma pessoa costuma pegar tudo de um andar de uma vez.
  */
-
-/**
- * Quantos dias uma ocorrência pode esperar antes de a espera virar problema.
- *
- * Não é um prazo do produto, é a leitura da fila: uma alta parada há três dias
- * é pior notícia que uma baixa parada há duas semanas, e uma fila que pinta as
- * duas do mesmo jeito não ajuda a decidir por onde começar. É o único número
- * inventado desta tela, e está aqui para poder ser discutido num lugar só.
- */
-const LIMITE_ESPERA = { ALTA: 2, MEDIA: 7, BAIXA: 15 };
 
 /** Quantas barras do medidor acendem, e o quanto a fila ordena por isso. */
 const NIVEL_PRIORIDADE = { ALTA: 3, MEDIA: 2, BAIXA: 1 };
@@ -66,32 +57,37 @@ const NIVEL_PRIORIDADE = { ALTA: 3, MEDIA: 2, BAIXA: 1 };
  */
 const TINTA_PRIORIDADE = { ALTA: T.danger, MEDIA: T.text, BAIXA: T.faint };
 
-/** O dia em que a ocorrência entrou na fila — o da vistoria que a abriu. */
-function diaDeEntrada(ticket) {
-  return parseReportDate(ticket.report?.date) ?? (ticket.created_at ? new Date(ticket.created_at) : null);
-}
+/** O prazo neutro de um chamado que chegou sem ele — nunca em produção. */
+const SEM_PRAZO = { dias: null, limite: null, consumo: 0, atrasado: false, em_risco: false };
 
 /**
- * Há quanto tempo a ocorrência espera, e quanto do prazo dela já foi.
+ * O prazo da ocorrência, como o servidor o calculou.
  *
  * `consumo` não tem teto de propósito: é ele que ordena a fila, e limitá-lo a 1
  * empataria uma alta parada há três dias com outra parada há um mês. Quem tem
  * teto é a barra, que não pode transbordar do cartão.
  */
 function prazo(ticket) {
-  const limite = LIMITE_ESPERA[ticket.priority] ?? 7;
-  const dia = diaDeEntrada(ticket);
-  if (!dia) return { dias: null, limite, consumo: 0, atrasado: false, texto: '—' };
+  return ticket.sla ?? SEM_PRAZO;
+}
 
-  const dias = Math.max(0, differenceInCalendarDays(new Date(), dia));
+/** "1 dia útil", "4 dias úteis" — a unidade por extenso, que é o que mudou. */
+function diasUteis(n) {
+  return n === 1 ? '1 dia útil' : `${n} dias úteis`;
+}
 
-  return {
-    dias,
-    limite,
-    consumo: dias / limite,
-    atrasado: dias > limite,
-    texto: dias === 0 ? 'hoje' : dias === 1 ? 'ontem' : `há ${dias} dias`,
-  };
+/**
+ * Quanto tempo a ocorrência já consumiu, em palavras.
+ *
+ * O atraso vem escrito, e não só vermelho: quem não distingue a cor precisa
+ * ler a mesma notícia que os outros veem. Por isso a frase troca inteira
+ * quando o prazo estoura, em vez de só mudar de tinta.
+ */
+function textoDoPrazo({ dias, limite, atrasado }) {
+  if (dias === null) return '—';
+  if (atrasado) return `Atrasado há ${diasUteis(dias - limite)}`;
+  if (dias === 0) return 'aberto hoje';
+  return `há ${diasUteis(dias)}`;
 }
 
 /** O dia por extenso, como nas demais telas de ocorrência. */
@@ -252,7 +248,8 @@ function BarraDePrazo({ consumo, atrasado }) {
  * de doze ele virava doze molduras.
  */
 function CartaoDaFila({ ticket, ativa, mostrarAndar, onClick, onKeyDown, className = '' }) {
-  const { texto, consumo, atrasado } = prazo(ticket);
+  const { consumo, atrasado } = prazo(ticket);
+  const texto = textoDoPrazo(prazo(ticket));
   const tipo = labelOf(MAINTENANCE_TYPES, ticket.maintenance_type);
 
   return (
@@ -262,7 +259,7 @@ function CartaoDaFila({ ticket, ativa, mostrarAndar, onClick, onKeyDown, classNa
       onKeyDown={onKeyDown}
       data-id={ticket.id}
       aria-current={ativa ? 'true' : undefined}
-      aria-label={`${ticket.floor?.label ?? 'Sem andar'} · ${tipo} · prioridade ${labelOf(PRIORITIES, ticket.priority)} · esperando ${texto}`}
+      aria-label={`${ticket.floor?.label ?? 'Sem andar'} · ${tipo} · prioridade ${labelOf(PRIORITIES, ticket.priority)} · ${texto}`}
       className={`fila-card ${ativa ? 'is-ativa' : ''} ${className}`}
       style={{
         width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
@@ -277,13 +274,19 @@ function CartaoDaFila({ ticket, ativa, mostrarAndar, onClick, onKeyDown, classNa
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <Gravidade priority={ticket.priority} />
 
-        {/* Números tabulares: sem isso "há 3 dias" e "há 12 dias" desalinham a
-            grade inteira, e a varredura perde o eixo. */}
+        {/* Números tabulares: sem isso "há 3 dias úteis" e "há 12 dias úteis"
+            desalinham a grade inteira, e a varredura perde o eixo.
+
+            O triângulo entra só no atraso, e é o que tira a notícia do canal da
+            cor — a palavra "Atrasado" já veio junto, o ícone é o que faz a
+            varredura de doze cartões parar no certo sem ler nenhum. */}
         <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
           color: atrasado ? T.danger : T.faint, fontSize: 12, flexShrink: 0,
           fontWeight: atrasado ? W.strong : W.body,
           fontVariantNumeric: 'tabular-nums',
         }}>
+          {atrasado && <AlertTriangle size={13} aria-hidden="true" style={{ flexShrink: 0 }} />}
           {texto}
         </span>
       </div>
@@ -377,8 +380,8 @@ function FaixaDaFila({ tickets }) {
             borderRadius: R.badge, padding: '4px 10px', fontSize: 12, fontWeight: W.strong,
           }}
         >
-          <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: T.danger }} />
-          {atrasados === 1 ? '1 esperando demais' : `${atrasados} esperando demais`}
+          <AlertTriangle size={13} aria-hidden="true" style={{ flexShrink: 0 }} />
+          {atrasados === 1 ? '1 atrasado' : `${atrasados} atrasados`}
         </span>
       )}
     </div>
@@ -569,7 +572,8 @@ function BarraDeDecisao({ ticket, buildingId }) {
  * atenta. O que muda de verdade é o conteúdo, e ele muda de uma vez.
  */
 function Ficha({ ticket, buildingId }) {
-  const { texto, atrasado } = prazo(ticket);
+  const { limite, atrasado } = prazo(ticket);
+  const texto = textoDoPrazo(prazo(ticket));
 
   const divisor = { borderTop: `1px solid ${T.line}`, paddingTop: 18 };
 
@@ -581,12 +585,22 @@ function Ficha({ ticket, buildingId }) {
 
           <span aria-hidden="true" style={{ color: T.line }}>|</span>
 
+          {/* O prazo por extenso, com a meta ao lado: na ficha há espaço para
+              dizer de quanto era o prazo, e é o número que explica por que dois
+              chamados abertos no mesmo dia não estão no mesmo estado. */}
           <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
             color: atrasado ? T.danger : T.mute, fontSize: 12,
             fontWeight: atrasado ? W.strong : W.body,
             fontVariantNumeric: 'tabular-nums',
           }}>
-            Esperando encaminhamento {texto}
+            {atrasado && <AlertTriangle size={14} aria-hidden="true" style={{ flexShrink: 0 }} />}
+            {atrasado ? texto : `Esperando encaminhamento ${texto}`}
+            {limite !== null && (
+              <span style={{ color: T.faint, fontWeight: W.body }}>
+                · prazo de {diasUteis(limite)}
+              </span>
+            )}
           </span>
         </div>
 
@@ -644,8 +658,12 @@ function CabecalhoDoAndar({ label, tickets }) {
           relance — o que o cabeçalho precisa dizer, e a lista não, é quanto
           daquele andar já apodreceu. */}
       {atrasados > 0 && (
-        <span style={{ color: T.danger, fontSize: 11, fontWeight: W.strong }}>
-          {atrasados} esperando demais
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          color: T.danger, fontSize: 11, fontWeight: W.strong,
+        }}>
+          <AlertTriangle size={12} aria-hidden="true" style={{ flexShrink: 0 }} />
+          {atrasados === 1 ? '1 atrasado' : `${atrasados} atrasados`}
         </span>
       )}
       <span aria-hidden="true" style={{ flex: 1, height: 1, background: T.line }} />

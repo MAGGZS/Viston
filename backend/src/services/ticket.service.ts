@@ -10,6 +10,7 @@ import { decodeImageDataUrl, MAX_PHOTO_BYTES } from '../utils/image';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { TICKET_GROUPS, TicketFilters, TicketGroup } from '../validators/ticket.validator';
 import { zonedTimeToUtc } from '../utils/timezone';
+import { computeSla } from '../utils/sla';
 
 /** O afunilamento da listagem — tudo o que não é grupo, página nem tamanho. */
 type TicketQuery = Omit<TicketFilters, 'group' | 'page' | 'limit'>;
@@ -23,6 +24,11 @@ type TicketQuery = Omit<TicketFilters, 'group' | 'page' | 'limit'>;
  *
  * `maintenance_cost` sai como número: é DECIMAL no banco, e o Prisma o entrega
  * como objeto — que vira string no JSON e chega ao front como "1200.00".
+ *
+ * `sla` desce calculado. A tela já calculou o prazo por conta própria uma vez,
+ * e o resultado foi um número que só existia na fila de novos e que nenhum
+ * outro lugar do produto sabia reproduzir. Agora sai daqui, de um lugar só,
+ * para o cartão e para o painel lerem sempre o mesmo prazo.
  */
 export function toTicket(
   row: TicketRow,
@@ -50,6 +56,11 @@ export function toTicket(
     maintenance_note: row.maintenance_note,
     maintenance_cost: row.maintenance_cost === null ? null : Number(row.maintenance_cost),
     created_at: row.created_at,
+    sla: computeSla({
+      priority: row.priority,
+      openedOn: report.date,
+      closedAt: row.closed_at,
+    }),
     floor: entry.floor,
     floor_status: entry.status_geral,
     report: {

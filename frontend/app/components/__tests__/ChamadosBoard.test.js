@@ -14,16 +14,41 @@ import api from '../../lib/api';
 
 const PREDIO = 'p1';
 
-/** O dia da vistoria, N dias atrás — é dele que sai a espera da fila. */
+/** O dia da vistoria, N dias atrás — o que a ficha mostra por extenso. */
 function diasAtras(n) {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/**
+ * O prazo como o servidor o manda.
+ *
+ * A tela não calcula mais prazo nenhum — ele desce pronto em `ticket.sla`,
+ * calculado em `backend/src/utils/sla.ts`, que é onde os dias úteis e os
+ * limites por prioridade são testados. O que se cobre aqui é o que a tela faz
+ * com esse número: como ela escreve, como ela ordena e o que ela pinta.
+ */
+const PRAZO_DA_PRIORIDADE = { ALTA: 5, MEDIA: 10, BAIXA: 15 };
+
+function sla(prioridade, dias) {
+  const limite = PRAZO_DA_PRIORIDADE[prioridade];
+  const atrasado = dias > limite;
+  return {
+    limite,
+    dias,
+    consumo: dias / limite,
+    restantes: limite - dias,
+    atrasado,
+    em_risco: !atrasado && dias / limite >= 0.8,
+    congelado: false,
+  };
+}
+
 function ocorrencia(id, {
   prioridade = 'MEDIA',
   categoria = 'CORRETIVA',
+  /** Dias úteis já consumidos do prazo. */
   dias = 0,
   descricao = 'Lâmpada do corredor',
   andar = '3º andar',
@@ -38,6 +63,7 @@ function ocorrencia(id, {
     status: 'ABERTO',
     responsible: null,
     responsible_id: null,
+    sla: sla(prioridade, dias),
     floor: { id: andarId ?? `f-${andar}`, label: andar },
     report: {
       id: 'r1',
@@ -105,38 +131,51 @@ describe('ChamadosBoard', () => {
   });
 
   /**
-   * O limite é por prioridade: uma alta parada há três dias é pior notícia que
-   * uma baixa parada há duas semanas, e uma fila que pinta as duas do mesmo
-   * jeito não ajuda a decidir por onde começar.
+   * O limite é por prioridade: quanto mais grave, menos tempo de espera. Uma
+   * fila que pinta uma alta e uma baixa do mesmo jeito não ajuda a decidir por
+   * onde começar.
    */
   it('só conta como atrasado quem passou do limite da própria prioridade', async () => {
     Tela([
-      // ALTA aguenta 2 dias; esta passou.
-      ocorrencia('atrasada', { prioridade: 'ALTA', dias: 5 }),
+      // ALTA aguenta 5 dias úteis; esta passou.
+      ocorrencia('atrasada', { prioridade: 'ALTA', dias: 6 }),
       // BAIXA aguenta 15; esta ainda não.
-      ocorrencia('no-prazo', { prioridade: 'BAIXA', dias: 5 }),
+      ocorrencia('no-prazo', { prioridade: 'BAIXA', dias: 6 }),
     ]);
 
-    expect(await screen.findByText('1 esperando demais')).toBeInTheDocument();
+    expect(await screen.findByText('1 atrasado')).toBeInTheDocument();
   });
 
   it('sem nada atrasado, o aviso não aparece', async () => {
     Tela([ocorrencia('a', { prioridade: 'ALTA', dias: 1 })]);
 
     await screen.findByText('1 ocorrência esperando · 1 de prioridade alta');
-    expect(screen.queryByText(/esperando demais/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/atrasado/i)).not.toBeInTheDocument();
   });
 
-  it('cada cartão diz há quanto tempo espera, em português de gente', async () => {
+  it('cada cartão diz quanto do prazo já foi, em dias úteis', async () => {
     Tela([
       ocorrencia('hoje', { dias: 0, andar: '1º andar' }),
-      ocorrencia('ontem', { dias: 1, andar: '2º andar' }),
-      ocorrencia('semana', { dias: 4, andar: '4º andar' }),
+      ocorrencia('um', { dias: 1, andar: '2º andar' }),
+      ocorrencia('quatro', { dias: 4, andar: '4º andar' }),
     ]);
 
-    await screen.findByText('hoje');
-    expect(screen.getByText('ontem')).toBeInTheDocument();
-    expect(screen.getByText('há 4 dias')).toBeInTheDocument();
+    await screen.findByText('aberto hoje');
+    expect(screen.getByText('há 1 dia útil')).toBeInTheDocument();
+    expect(screen.getByText('há 4 dias úteis')).toBeInTheDocument();
+  });
+
+  /**
+   * O atraso não pode viajar só na cor: quem não a distingue precisa ler a
+   * mesma notícia. Por isso a frase troca inteira, e não só de tinta.
+   */
+  it('o cartão atrasado diz "atrasado" por escrito, e por quanto', async () => {
+    Tela([ocorrencia('podre', { prioridade: 'ALTA', dias: 8, andar: '1º andar' })]);
+
+    await waitFor(() => expect(cartoes()).toHaveLength(1));
+    expect(within(cartoes()[0]).getByText('Atrasado há 3 dias úteis')).toBeInTheDocument();
+    // E o leitor de tela ouve a mesma coisa que o olho vê.
+    expect(cartoes()[0]).toHaveAccessibleName(/Atrasado há 3 dias úteis/);
   });
 
   /**
