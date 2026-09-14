@@ -1,5 +1,7 @@
 'use client';
 import { T, W, HEAT } from '@/app/lib/theme';
+import { TIPO } from './escala';
+import { GraficoVazio } from './PoucosDados';
 
 /**
  * A matriz de reincidência: andar por tipo de manutenção.
@@ -55,7 +57,7 @@ export function Matriz({
   }
 
   if (valores.length === 0) {
-    return <p style={{ color: T.faint, fontSize: 12 }}>{vazio}</p>;
+    return <GraficoVazio>{vazio}</GraficoVazio>;
   }
 
   const teto = Math.max(...valores);
@@ -95,7 +97,7 @@ export function Matriz({
               key={coluna.id}
               title={coluna.rotuloCompleto ?? coluna.rotulo}
               style={{
-                color: T.faint, fontSize: 9, lineHeight: 1.2,
+                ...TIPO.meta, color: T.faint, lineHeight: 1.2,
                 textAlign: 'center', paddingBottom: 4,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}

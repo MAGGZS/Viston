@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Download, Inbox, Send, Loader, CheckCheck } from 'lucide-react';
+import { CartaoForaDoPrazo } from '@/app/components/CartaoForaDoPrazo';
 import { ModeradorShell, useModeratorBuilding } from '@/app/components/ModeradorShell';
 import { OcorrenciasPorStatus } from '@/app/components/OcorrenciasPorStatus';
 import { OcorrenciasPorCategoria } from '@/app/components/OcorrenciasPorCategoria';
@@ -180,11 +181,20 @@ export default function ModeradorPage() {
             "Encaminhados" é contador próprio, e não parte de "em andamento":
             ninguém aceitou esses ainda, e somá-los ao que está sendo feito
             esconderia a fila que o moderador tem de cobrar. */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+        {/* O quinto cartão não pertence à série.
+
+            Os quatro primeiros contam *onde* os chamados estão, e nenhum deles
+            é boa ou má notícia. "Fora do prazo" conta o que deu errado, e é o
+            único da fileira que muda o que a pessoa vai fazer nos próximos
+            minutos — por isso é o único que acende e o único que leva a algum
+            lugar. A tela que abria com quatro números para olhar passa a abrir
+            com um para resolver. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16 }}>
           <StatCard className="anim-fade-up anim-d1" icon={Inbox} label="Em aberto" value={stats?.abertos} loading={statsLoading} />
           <StatCard className="anim-fade-up anim-d2" icon={Send} label="Encaminhados" value={stats?.encaminhados} loading={statsLoading} />
           <StatCard className="anim-fade-up anim-d3" icon={Loader} label="Em andamento" value={stats?.em_andamento} loading={statsLoading} />
           <StatCard className="anim-fade-up anim-d4" icon={CheckCheck} label="Concluídos" value={stats?.concluidos} loading={statsLoading} />
+          <CartaoForaDoPrazo buildingId={buildingId} href="/moderador/dashboard?motivo=ATRASADOS" />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, alignItems: 'start' }}>

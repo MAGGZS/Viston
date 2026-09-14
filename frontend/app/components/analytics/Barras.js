@@ -1,5 +1,7 @@
 'use client';
 import { T, W, NUM, CHART_MARK } from '@/app/lib/theme';
+import { TIPO } from './escala';
+import { GraficoVazio } from './PoucosDados';
 
 /**
  * O ranking do painel.
@@ -48,7 +50,7 @@ export function Barras({
   const comValor = itens.filter(temValor);
 
   if (comValor.length === 0) {
-    return <p style={{ color: T.faint, fontSize: 12 }}>{vazio}</p>;
+    return <GraficoVazio>{vazio}</GraficoVazio>;
   }
 
   const teto = Math.max(...comValor.map((i) => i.valor), 1);
@@ -125,7 +127,7 @@ export function Barras({
               <span
                 style={{
                   color: temDado ? T.text : T.faint,
-                  fontSize: 12, fontWeight: W.title, display: 'block', lineHeight: 1.2,
+                  ...TIPO.meta, fontWeight: W.title, display: 'block', lineHeight: 1.2,
                   ...NUM,
                 }}
               >

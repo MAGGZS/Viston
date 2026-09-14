@@ -774,6 +774,26 @@ export function useAnalyticsResponsibles(buildingId, filtros, enabled = true) {
 }
 
 /**
+ * Quantos chamados pedem atenção agora — para o cartão do painel inicial.
+ *
+ * Sem filtros na chave porque a pergunta não tem período: a fila é sempre de
+ * agora e do prédio inteiro. Sem `keepPreviousData` pelo mesmo motivo — não há
+ * recorte a trocar.
+ *
+ * `staleTime` curto, e menor que o dos blocos do painel analítico: este número
+ * é a razão de alguém abrir o sistema de manhã, e mostrar o de cinco minutos
+ * atrás como se fosse o de agora é o tipo de defeito que faz perder prazo.
+ */
+export function useAnalyticsQueue(buildingId) {
+  return useQuery({
+    queryKey: ['analytics', 'queue', buildingId],
+    queryFn: () => api.get(`/buildings/${buildingId}/analytics/queue`).then((r) => r.data),
+    enabled: !!buildingId,
+    staleTime: 1000 * 60,
+  });
+}
+
+/**
  * O prédio do painel analítico: custo e reincidência.
  *
  * `enabled` porque é uma aba: as consultas varrem o prédio inteiro, e buscar o

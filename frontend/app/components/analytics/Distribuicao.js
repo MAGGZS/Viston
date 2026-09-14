@@ -1,5 +1,6 @@
 'use client';
 import { T, W, NUM } from '@/app/lib/theme';
+import { GraficoVazio } from './PoucosDados';
 
 /**
  * A distribuição do tempo de resolução.
@@ -43,7 +44,7 @@ export function Distribuicao({
   const total = faixas.reduce((s, f) => s + (f.n ?? 0), 0);
 
   if (total === 0) {
-    return <p style={{ color: T.faint, fontSize: 12 }}>{vazio}</p>;
+    return <GraficoVazio>{vazio}</GraficoVazio>;
   }
 
   const teto = Math.max(...faixas.map((f) => f.n ?? 0), 1);

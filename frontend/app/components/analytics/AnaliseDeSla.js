@@ -2,6 +2,7 @@
 import { AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/app/components/ui';
 import { labelOf, PRIORITIES } from '@/app/lib/maintenanceOptions';
+import { TIPO } from './escala';
 import { T, W, NUM } from '@/app/lib/theme';
 import { Colunas } from './Colunas';
 import { Distribuicao } from './Distribuicao';
@@ -85,8 +86,7 @@ function TempoDeCiclo({ kpis, base }) {
     <div>
       <span
         style={{
-          fontFamily: T.display, fontSize: 26, fontWeight: W.title,
-          color: T.text, lineHeight: 1, letterSpacing: '-0.02em',
+          ...TIPO.figura, color: T.text, lineHeight: 1,
         }}
       >
         {p50 === null ? '—' : `${p50} d`}
@@ -172,20 +172,19 @@ function Cumprimento({ dentro, atrasados, minimo = 5 }) {
       <div>
         <span
           style={{
-            fontFamily: T.display, fontSize: 30, fontWeight: W.title,
-            color: sustenta ? T.text : T.mute, ...NUM,
+            ...TIPO.figura, color: sustenta ? T.text : T.mute,
           }}
         >
           {pct}%
         </span>
-        <p style={{ color: T.mute, fontSize: 12, marginTop: 2 }}>
+        <p style={{ ...TIPO.meta, color: T.mute, marginTop: 2 }}>
           dos {total} concluídos saíram dentro do prazo
         </p>
         {atrasados > 0 && (
           <span
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4,
-              color: sustenta ? T.danger : T.faint, fontSize: 12,
+              color: sustenta ? T.danger : T.faint, ...TIPO.meta,
               fontWeight: sustenta ? W.strong : W.body, ...NUM,
             }}
           >

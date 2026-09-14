@@ -2,6 +2,7 @@
 import { AlertTriangle, Clock, CornerUpLeft, Scale, Send, Wallet } from 'lucide-react';
 import { Skeleton } from '@/app/components/ui';
 import { T, W } from '@/app/lib/theme';
+import { TIPO } from './escala';
 
 /**
  * Os desvios do processo — o que o tempo de cada etapa não conta.
@@ -58,7 +59,7 @@ function Celula({ icon: Icon, rotulo, valor, leitura, alerta = false, sufixo }) 
       >
         {valor}
         {sufixo && (
-          <span style={{ fontSize: 12, fontWeight: W.body, color: T.faint }}> {sufixo}</span>
+          <span style={{ ...TIPO.meta, fontWeight: W.body, color: T.faint }}> {sufixo}</span>
         )}
       </span>
 

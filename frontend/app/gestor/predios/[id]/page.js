@@ -5,6 +5,7 @@ import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Share2, Download, Users, ClipboardList, Eye, Trash2, AlertTriangle } from 'lucide-react';
 import { Avatar } from '@/app/components/Avatar';
+import { CartaoForaDoPrazo } from '@/app/components/CartaoForaDoPrazo';
 import { GestorShell } from '@/app/components/GestorShell';
 import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
@@ -204,8 +205,18 @@ export default function GestorBuildingPage() {
       }
     >
       <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8">
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        {/* Stats.
+
+            Os três primeiros descrevem o prédio — quanto já se vistoriou, quem
+            tem acesso. São números de cadastro: mudam quando alguém entra na
+            equipe, e não pedem nada de ninguém.
+
+            O quarto é de outra natureza, e é por isso que ele acende e leva a
+            algum lugar. O gestor é quem responde pelo prédio, e até aqui a tela
+            de entrada dele não dizia uma palavra sobre prazo — ele precisava
+            abrir o painel analítico para descobrir que havia chamado vencido.
+            Quem responde pelo prédio tem de ver isso ao chegar. */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
           {[
             { icon: ClipboardList, label: 'Total de inspeções', value: data?.totalInspections },
             { icon: Users, label: 'Inspetores', value: data?.inspectorCount },
@@ -218,6 +229,12 @@ export default function GestorBuildingPage() {
               className={`anim-fade-up anim-d${idx + 1}`}
             />
           ))}
+
+          <CartaoForaDoPrazo
+            className="anim-fade-up anim-d4"
+            buildingId={id}
+            href={`/gestor/predios/${id}/dashboard?motivo=ATRASADOS`}
+          />
         </div>
 
         {/* Calendário + Histórico.

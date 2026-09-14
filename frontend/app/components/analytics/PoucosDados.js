@@ -1,5 +1,6 @@
 'use client';
 import { T, W } from '@/app/lib/theme';
+import { TIPO } from './escala';
 
 /**
  * O que o painel diz quando o número não sustenta a leitura.
@@ -37,8 +38,8 @@ export function Ressalva({ n, unidade = 'chamado', unidadePlural = 'chamados', s
   return (
     <span
       style={{
-        color: T.faint, fontSize: 10, fontWeight: W.body,
-        display: 'block', lineHeight: 1.4, ...style,
+        ...TIPO.meta, color: T.faint, fontWeight: W.body,
+        display: 'block', ...style,
       }}
     >
       {n === 0
@@ -63,8 +64,25 @@ export function PoucosDados({ children = 'Sem dados neste recorte.', dica, style
         padding: '12px 0', ...style,
       }}
     >
-      <span style={{ color: T.mute, fontSize: 12, lineHeight: 1.4 }}>{children}</span>
-      {dica && <span style={{ color: T.faint, fontSize: 10, lineHeight: 1.4 }}>{dica}</span>}
+      <span style={{ ...TIPO.corpo, color: T.mute }}>{children}</span>
+      {dica && <span style={{ ...TIPO.meta, color: T.faint }}>{dica}</span>}
     </div>
   );
+}
+
+/**
+ * O estado vazio de um gráfico.
+ *
+ * Estava escrito cinco vezes, idêntico, uma em cada primitiva: `Barras`,
+ * `Colunas`, `Distribuicao`, `Linha` e `Matriz` traziam todas a mesma linha
+ * `<p style={{ color: T.faint, fontSize: 12 }}>{vazio}</p>`. Cinco cópias de uma
+ * decisão de tipografia é como cinco gráficos da mesma tela passam a discordar
+ * sobre o tamanho de "não há o que mostrar" — e foi assim que o 12px, que não é
+ * degrau nenhum da escala, virou o tamanho mais usado do painel.
+ *
+ * Mora aqui, e não em cada primitiva, porque é a mesma frase do mesmo assunto
+ * deste arquivo: o que a tela diz quando não tem o que dizer.
+ */
+export function GraficoVazio({ children }) {
+  return <p style={{ ...TIPO.corpo, color: T.faint }}>{children}</p>;
 }

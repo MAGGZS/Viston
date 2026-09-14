@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { X } from 'lucide-react';
 import { ChipSelect } from '@/app/components/ChipSelect';
 import { CATEGORIES } from '@/app/lib/maintenanceOptions';
+import { TIPO } from './escala';
 import { T, R, W } from '@/app/lib/theme';
 
 /**
@@ -153,8 +154,8 @@ function Ativos({ estado, responsaveis, andares, mostrarResponsavel, onLimpar })
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <p style={{ color: T.mute, fontSize: 12 }}>
-        {partes.length === 1 ? 'Filtrado por' : 'Filtrado por'} {partes.join(' · ')}
+      <p style={{ ...TIPO.meta, color: T.mute }}>
+        Filtrado por {partes.join(' · ')}
       </p>
       <button
         type="button"
@@ -163,7 +164,7 @@ function Ativos({ estado, responsaveis, andares, mostrarResponsavel, onLimpar })
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 4,
           background: 'transparent', border: 'none', cursor: 'pointer',
-          color: T.faint, fontSize: 12, fontWeight: W.strong,
+          ...TIPO.meta, color: T.faint, fontWeight: W.strong,
           borderRadius: R.badge, padding: '2px 6px',
         }}
       >

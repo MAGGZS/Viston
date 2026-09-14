@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import { Check, ChevronDown } from 'lucide-react';
 import { T, R, W, NUM } from '@/app/lib/theme';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
@@ -229,7 +230,9 @@ export function StatCard({
           <span
             aria-hidden="true"
             style={{
-              width: 30, height: 30, borderRadius: R.badge, background: T.accentSoft, color: T.accentInk,
+              width: 30, height: 30, borderRadius: R.badge,
+              background: acende ? T.dangerSoft : T.accentSoft,
+              color: acende ? T.danger : T.accentInk,
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
             }}
           >
@@ -242,13 +245,20 @@ export function StatCard({
         {loading ? (
           <Skeleton style={{ height: 32, width: 76 }} />
         ) : (
-          <p style={{ fontFamily: T.display, fontWeight: W.title, fontSize: 34, lineHeight: 1.05, color: T.text, ...NUM }}>
+          <p
+            style={{
+              fontFamily: T.display, fontWeight: W.title, fontSize: 34, lineHeight: 1.05,
+              color: acende ? T.danger : T.text, ...NUM,
+            }}
+          >
             {value ?? 0}
           </p>
         )}
-        {hint && <p style={{ color: T.faint, fontSize: 11, marginTop: 2 }}>{hint}</p>}
+        {hint && (
+          <p style={{ color: acende ? T.danger : T.faint, fontSize: 11, marginTop: 2 }}>{hint}</p>
+        )}
       </div>
-    </div>
+    </Peca>
   );
 }
 

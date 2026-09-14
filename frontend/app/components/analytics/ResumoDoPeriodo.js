@@ -2,6 +2,7 @@
 import { AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/app/components/ui';
 import { T, R, W, NUM, CHART } from '@/app/lib/theme';
+import { TIPO } from './escala';
 
 /**
  * O que aconteceu no período, numa peça só.
@@ -160,7 +161,7 @@ export function ResumoDoPeriodo({ kpis, periodo, loading }) {
         <p style={{ color: T.text, fontSize: 14, fontWeight: W.title }}>
           Nenhum chamado foi aberto em {periodo?.label ?? 'no período'}.
         </p>
-        <p style={{ color: T.mute, fontSize: 12 }}>
+        <p style={{ ...TIPO.meta, color: T.mute }}>
           Os blocos abaixo continuam mostrando o que está parado hoje e o que fechou neste período.
         </p>
       </div>
@@ -185,7 +186,7 @@ export function ResumoDoPeriodo({ kpis, periodo, loading }) {
               precisam alinhar entre linhas. */}
           <span
             style={{
-              fontFamily: T.display, fontSize: 48, fontWeight: W.title,
+              ...TIPO.heroi,
               color: T.text, lineHeight: 1, letterSpacing: '-0.03em',
             }}
           >

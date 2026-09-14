@@ -3,6 +3,9 @@ import { useMemo, useState } from 'react';
 import { AlertTriangle, ArrowDown, ArrowUp, Clock } from 'lucide-react';
 import { Skeleton } from '@/app/components/ui';
 import { labelOf, MAINTENANCE_TYPES } from '@/app/lib/maintenanceOptions';
+import { nomeDoRecorte } from '@/app/lib/csv';
+import { BaixarCsv } from './BaixarCsv';
+import { TIPO } from './escala';
 import { T, R, W, NUM, CHART } from '@/app/lib/theme';
 
 /**
@@ -50,6 +53,33 @@ const COLUNAS = [
   { chave: 'pct_sla', titulo: 'SLA', formato: pct, bomAlto: true, dica: 'Dos concluídos, quantos saíram dentro do prazo.' },
 ];
 
+/**
+ * O que vai para o arquivo.
+ *
+ * A carga vira três colunas numéricas em vez da micro-barra: "4 alta, 5 média"
+ * é uma frase que a planilha não soma nem ordena, e é justamente por prioridade
+ * que quem abre o arquivo vai querer olhar.
+ */
+const COLUNAS_CSV = [
+  { chave: 'name', titulo: 'Responsável' },
+  { chave: 'recebidos', titulo: 'Recebidos' },
+  { chave: 'concluidos', titulo: 'Concluídos' },
+  { chave: 'em_andamento_agora', titulo: 'Na mão agora' },
+  { chave: 'alta', titulo: 'Concluídos de prioridade alta', valor: (r) => r.carga?.ALTA ?? 0 },
+  { chave: 'media', titulo: 'Concluídos de prioridade média', valor: (r) => r.carga?.MEDIA ?? 0 },
+  { chave: 'baixa', titulo: 'Concluídos de prioridade baixa', valor: (r) => r.carga?.BAIXA ?? 0 },
+  { chave: 'tempo_medio', titulo: 'Tempo médio em dias úteis' },
+  { chave: 'taxa_atraso', titulo: 'Atraso (%)' },
+  { chave: 'pct_sla', titulo: 'Dentro do prazo (%)' },
+  // O piso de amostra vai junto: sem ele a planilha perde a única coisa que
+  // impedia "50% de atraso" sobre dois chamados de virar conclusão.
+  {
+    chave: 'confiavel',
+    titulo: 'Amostra suficiente',
+    valor: (r) => (r.confiavel === false ? 'não' : 'sim'),
+  },
+];
+
 /** A ordem das prioridades na micro-barra, da mais urgente para a menos. */
 const CARGA = [
   { chave: 'ALTA', rotulo: 'alta', cor: 0 },
@@ -73,7 +103,7 @@ function Carga({ carga }) {
   const total = CARGA.reduce((s, p) => s + (carga?.[p.chave] ?? 0), 0);
 
   if (!carga || total === 0) {
-    return <span style={{ color: T.faint, fontSize: 12 }}>—</span>;
+    return <span style={{ ...TIPO.meta, color: T.faint }}>—</span>;
   }
 
   const texto = CARGA.filter((p) => carga[p.chave] > 0)
@@ -103,7 +133,7 @@ function Carga({ carga }) {
       {/* O texto ao lado da barra, e não só no `title`: uma barra de 46px com
           três fatias não se lê, e a coluna existe justamente para desfazer um
           julgamento — não pode depender de passar o mouse. */}
-      <span style={{ color: T.faint, fontSize: 11, whiteSpace: 'nowrap', ...NUM }}>{texto}</span>
+      <span style={{ ...TIPO.meta, color: T.faint, whiteSpace: 'nowrap', ...NUM }}>{texto}</span>
     </span>
   );
 }
@@ -148,7 +178,7 @@ function Cabecalho({ coluna, ordem, onOrdenar }) {
   );
 }
 
-function TabelaComparativa({ linhas, onAbrirPessoa }) {
+function TabelaComparativa({ linhas, periodo, onAbrirPessoa }) {
   // Começa pelo que mais pede atenção: quem tem mais na mão agora.
   const [ordem, setOrdem] = useState({ chave: 'em_andamento_agora', desc: true });
 
@@ -181,6 +211,18 @@ function TabelaComparativa({ linhas, onAbrirPessoa }) {
     // Rolagem horizontal contida: sete colunas não cabem no telefone, e o corpo
     // da página não pode rolar de lado por causa disso.
     <div style={{ overflowX: 'auto' }}>
+      {/* O CSV leva a tabela como ela está ordenada na tela.
+          Quem clicou em "Atraso" para ver quem está pior espera abrir a
+          planilha e encontrar a mesma ordem — reordenar no arquivo seria a
+          exportação desfazendo a pergunta que a pessoa acabou de fazer. */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+        <BaixarCsv
+          nome={nomeDoRecorte('desempenho-responsaveis', periodo)}
+          colunas={COLUNAS_CSV}
+          linhas={ordenadas}
+        />
+      </div>
+
       <table style={{ width: '100%', minWidth: 780, borderCollapse: 'collapse' }}>
         <caption className="so-leitor">
           Comparativo dos responsáveis do prédio no período
@@ -283,7 +325,7 @@ function ContraAEquipe({ rotulo, valor, equipe, bomAlto, sufixo = '', casas = 0,
       </span>
       <span
         style={{
-          fontFamily: T.display, fontSize: 24, fontWeight: W.title, lineHeight: 1.1,
+          ...TIPO.figura, lineHeight: 1.1,
           color: pior ? T.danger : T.text,
         }}
       >
@@ -305,7 +347,7 @@ function AnaliseIndividual({ pessoa, equipe, atrasados, periodo, onVoltar }) {
         <p style={{ color: T.text, fontSize: 14, fontWeight: W.title }}>
           Esta pessoa não teve nenhum chamado em {periodo?.label ?? 'no período'}.
         </p>
-        <p style={{ color: T.mute, fontSize: 12 }}>
+        <p style={{ ...TIPO.meta, color: T.mute }}>
           O vínculo com o prédio existe — o que não há é trabalho dela neste recorte. Troque o
           período ou volte para a comparação da equipe.
         </p>
@@ -318,7 +360,7 @@ function AnaliseIndividual({ pessoa, equipe, atrasados, periodo, onVoltar }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div>
         <h3 style={{ color: T.text, fontSize: 18, fontWeight: W.title }}>{pessoa.name}</h3>
-        <p style={{ color: T.mute, fontSize: 12, marginTop: 2 }}>
+        <p style={{ ...TIPO.meta, color: T.mute, marginTop: 2 }}>
           {periodo?.label} · comparado com a média dos {equipe?.pessoas ?? 0}{' '}
           {equipe?.pessoas === 1 ? 'responsável do prédio' : 'responsáveis do prédio'}
         </p>
@@ -361,16 +403,16 @@ function AnaliseIndividual({ pessoa, equipe, atrasados, periodo, onVoltar }) {
           display: 'flex', gap: 24, flexWrap: 'wrap',
         }}
       >
-        <span style={{ color: T.mute, fontSize: 12, ...NUM }}>
+        <span style={{ ...TIPO.meta, color: T.mute, ...NUM }}>
           <span style={{ color: T.text, fontWeight: W.title }}>{pessoa.recebidos}</span> recebidos
           no período
         </span>
-        <span style={{ color: T.mute, fontSize: 12, ...NUM }}>
+        <span style={{ ...TIPO.meta, color: T.mute, ...NUM }}>
           <span style={{ color: T.text, fontWeight: W.title }}>{pessoa.em_andamento_agora}</span> na
           mão agora
         </span>
         {pessoa.custo !== null && pessoa.custo !== undefined && (
-          <span style={{ color: T.mute, fontSize: 12, ...NUM }}>
+          <span style={{ ...TIPO.meta, color: T.mute, ...NUM }}>
             <span style={{ color: T.text, fontWeight: W.title }}>
               {pessoa.custo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
             </span>{' '}
@@ -390,7 +432,7 @@ function AnaliseIndividual({ pessoa, equipe, atrasados, periodo, onVoltar }) {
         </p>
 
         {atrasados.length === 0 ? (
-          <p style={{ color: T.faint, fontSize: 12 }}>
+          <p style={{ ...TIPO.meta, color: T.faint }}>
             Nenhum chamado dela passou do prazo. Nada a cobrar hoje.
           </p>
         ) : (
@@ -406,7 +448,7 @@ function AnaliseIndividual({ pessoa, equipe, atrasados, periodo, onVoltar }) {
                 <span style={{ minWidth: 0 }}>
                   <span
                     style={{
-                      color: T.text, fontSize: 12, fontWeight: W.title, display: 'block',
+                      ...TIPO.meta, color: T.text, fontWeight: W.title, display: 'block',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}
                   >
@@ -444,7 +486,7 @@ function VoltarParaEquipe({ onVoltar }) {
       style={{
         alignSelf: 'flex-start', border: 'none', background: T.chip, cursor: 'pointer',
         borderRadius: R.control, padding: '7px 12px',
-        color: T.mute, fontSize: 12, fontWeight: W.strong,
+        ...TIPO.meta, color: T.mute, fontWeight: W.strong,
       }}
     >
       Voltar para a equipe
@@ -486,7 +528,7 @@ export function Responsaveis({ dados, loading, onSelecionar }) {
         <p style={{ color: T.text, fontSize: 14, fontWeight: W.title }}>
           Nenhum responsável recebeu chamado em {dados.periodo?.label ?? 'no período'}.
         </p>
-        <p style={{ color: T.mute, fontSize: 12 }}>
+        <p style={{ ...TIPO.meta, color: T.mute }}>
           Ou não houve o que encaminhar, ou o que foi aberto ainda está na triagem do moderador.
         </p>
       </div>
@@ -495,7 +537,7 @@ export function Responsaveis({ dados, loading, onSelecionar }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <TabelaComparativa linhas={linhas} onAbrirPessoa={onSelecionar} />
+      <TabelaComparativa linhas={linhas} periodo={dados.periodo} onAbrirPessoa={onSelecionar} />
       <p style={{ color: T.faint, fontSize: 10, lineHeight: 1.5 }}>
         <Clock size={10} aria-hidden="true" style={{ verticalAlign: -1, marginRight: 4 }} />
         Recebidos, concluídos, tempo médio, atraso e SLA são do período escolhido.{' '}

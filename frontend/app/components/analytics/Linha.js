@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { T, W, NUM } from '@/app/lib/theme';
+import { GraficoVazio } from './PoucosDados';
 
 /**
  * A série no tempo do painel.
@@ -67,7 +68,7 @@ export function Linha({
   const medidos = pontos.filter((p) => !p.futuro && p.valor !== null && p.valor !== undefined);
 
   if (medidos.length === 0) {
-    return <p style={{ color: T.faint, fontSize: 12 }}>{vazio}</p>;
+    return <GraficoVazio>{vazio}</GraficoVazio>;
   }
 
   /**

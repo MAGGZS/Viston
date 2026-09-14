@@ -1,6 +1,7 @@
 'use client';
 import { Skeleton } from '@/app/components/ui';
 import { T, W } from '@/app/lib/theme';
+import { TIPO } from './escala';
 import { Colunas } from './Colunas';
 
 /**
@@ -95,7 +96,7 @@ export function FunilDeEtapas({ funil, periodoLabel, loading }) {
 
   const etapas = funil?.etapas ?? [];
   if (etapas.length === 0) {
-    return <p style={{ color: T.faint, fontSize: 12 }}>Sem etapas a medir neste período.</p>;
+    return <p style={{ ...TIPO.meta, color: T.faint }}>Sem etapas a medir neste período.</p>;
   }
 
   const unidade = escolherUnidade(Math.max(...etapas.map((e) => e.media_horas ?? 0), 0));
@@ -137,7 +138,7 @@ export function FunilDeEtapas({ funil, periodoLabel, loading }) {
           uma linha poupa quem só passou os olhos, e o gráfico fica para quem
           quer conferir de quanto é a diferença. */}
       {gargalo && (
-        <p style={{ color: T.mute, fontSize: 12, lineHeight: 1.5 }}>
+        <p style={{ ...TIPO.corpo, color: T.mute }}>
           A espera mais longa é para{' '}
           <span style={{ color: T.text, fontWeight: W.title }}>{gargalo.rotulo.toLowerCase()}</span>
           , com{' '}

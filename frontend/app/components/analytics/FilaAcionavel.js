@@ -3,6 +3,7 @@ import { AlertTriangle, Clock, Moon } from 'lucide-react';
 import { Skeleton } from '@/app/components/ui';
 import { MAINTENANCE_TYPES, PRIORITIES, labelOf } from '@/app/lib/maintenanceOptions';
 import { T, W, NUM } from '@/app/lib/theme';
+import { BaixarCsv } from './BaixarCsv';
 import { ESPACO, TIPO } from './escala';
 
 /**
@@ -65,6 +66,28 @@ const ESTADO = {
  * teria deixado esta tela chamando as coisas por nomes que nenhuma outra usa.
  */
 const legivel = (tipo) => labelOf(MAINTENANCE_TYPES, tipo);
+
+/**
+ * O que vai para o arquivo.
+ *
+ * Não é a tela: a tela mostra "12 dias úteis além do prazo de 10" numa frase,
+ * e a planilha precisa dos dois números em colunas próprias para ordenar e
+ * somar. `id` entra porque quem leva a lista para uma reunião precisa voltar ao
+ * chamado depois, e é o único campo que faz isso sem ambiguidade.
+ */
+const COLUNAS_CSV = [
+  { chave: 'motivo', titulo: 'Motivo' },
+  { chave: 'maintenance_type', titulo: 'Tipo', valor: (t) => legivel(t.maintenance_type) },
+  { chave: 'floor_label', titulo: 'Andar' },
+  { chave: 'priority', titulo: 'Prioridade', valor: (t) => labelOf(PRIORITIES, t.priority) },
+  { chave: 'status', titulo: 'Situação', valor: (t) => ESTADO[t.status] ?? 'em aberto' },
+  { chave: 'responsible', titulo: 'Responsável', valor: (t) => t.responsible ?? 'sem responsável' },
+  { chave: 'dias', titulo: 'Dias úteis corridos' },
+  { chave: 'limite', titulo: 'Prazo em dias úteis' },
+  { chave: 'dias_parado', titulo: 'Dias úteis sem toque' },
+  { chave: 'description', titulo: 'Descrição' },
+  { chave: 'id', titulo: 'ID do chamado' },
+];
 
 export function FilaAcionavel({ fila, loading, onAbrirChamado, motivo, onTrocarMotivo }) {
   if (loading) return <Skeleton style={{ height: 220 }} />;
@@ -137,7 +160,18 @@ export function FilaAcionavel({ fila, loading, onAbrirChamado, motivo, onTrocarM
       </p>
 
       {/* As três abas, com a contagem de cada uma. A contagem vai no botão e
-          não só na lista: é ela que diz onde olhar antes de clicar. */}
+          não só na lista: é ela que diz onde olhar antes de clicar.
+
+          O CSV leva as três listas juntas, e não só a aba aberta: quem exporta
+          está levando a fila para fora da tela — para uma reunião, para um
+          e-mail —, e exportar um terço dela porque era a aba que estava aberta
+          no momento do clique é a exportação mentindo por omissão. */}
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: ESPACO.sm, flexWrap: 'wrap',
+        }}
+      >
       <div role="tablist" aria-label="Motivos da fila" style={{ display: 'flex', gap: ESPACO.xs, flexWrap: 'wrap' }}>
         {LISTAS.map((lista) => {
           const Icone = lista.icone;
@@ -170,6 +204,15 @@ export function FilaAcionavel({ fila, loading, onAbrirChamado, motivo, onTrocarM
             </button>
           );
         })}
+      </div>
+
+        <BaixarCsv
+          nome="chamados-que-pedem-atencao"
+          colunas={COLUNAS_CSV}
+          linhas={LISTAS.flatMap((l) =>
+            l.itens.map((t) => ({ ...t, motivo: l.rotulo, situacao: situacao(t, l.key, fila.sem_movimento_desde_dias) }))
+          )}
+        />
       </div>
 
       {ativa.itens.length === 0 ? (

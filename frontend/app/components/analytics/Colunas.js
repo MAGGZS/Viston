@@ -1,5 +1,6 @@
 'use client';
 import { T, W, NUM } from '@/app/lib/theme';
+import { GraficoVazio } from './PoucosDados';
 
 /**
  * O gráfico de colunas do painel.
@@ -83,7 +84,7 @@ export function Colunas({
     temValor(i) && i.referencia !== null && i.referencia !== undefined ? i.referencia : null;
 
   if (!itens.some(temValor)) {
-    return <p style={{ color: T.faint, fontSize: 12 }}>{vazio}</p>;
+    return <GraficoVazio>{vazio}</GraficoVazio>;
   }
 
   const teto = Math.max(...itens.map((i) => Math.max(i.valor ?? 0, referenciaDe(i) ?? 0)), 1);

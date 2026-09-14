@@ -305,6 +305,8 @@ describe('painel analítico', () => {
 
   const RESPONSAVEIS = `/buildings/${BUILDING_ID}/analytics/responsibles`;
 
+  const FILA = `/buildings/${BUILDING_ID}/analytics/queue`;
+
   const PREDIO = `/buildings/${BUILDING_ID}/analytics/building`;
 
   beforeEach(() => {
@@ -325,6 +327,9 @@ describe('painel analítico', () => {
     mockAnalyticsRepo.custo.mockResolvedValue({
       total: 0, total_anterior: 0, fechados: 0, n_com_custo: 0,
       n_com_custo_anterior: 0, ticket_medio: null, ticket_p50: null,
+    });
+    mockAnalyticsRepo.contagemDaFila.mockResolvedValue({
+      atrasados: 0, em_risco: 0, parados: 0, em_aberto: 0,
     });
     mockAnalyticsRepo.custoPorDimensao.mockResolvedValue([]);
     mockAnalyticsRepo.perfilMensal.mockResolvedValue([]);
@@ -378,6 +383,66 @@ describe('painel analítico', () => {
 
     expect(res.status).toBe(404);
     expect(mockAnalyticsRepo.overview).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A contagem da fila alimenta o cartão do painel inicial.
+   *
+   * É a rota mais chamada do analytics — toda visita ao painel de entrada a
+   * dispara —, e é a que mais tenta parecer inofensiva: devolve quatro números.
+   * Os quatro dizem quantos chamados o prédio tem vencidos, que é operação.
+   */
+  it('quem não modera não lê a contagem da fila', async () => {
+    comoMembro('INSPECTOR');
+
+    const res = await request(app).get(FILA).set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(403);
+    expect(mockAnalyticsRepo.contagemDaFila).not.toHaveBeenCalled();
+  });
+
+  it('o moderador do prédio lê a contagem da fila', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'MODERADOR' } as any);
+
+    const res = await request(app).get(FILA).set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('o gestor do prédio lê a contagem da fila', async () => {
+    comoGestorDoPredio();
+
+    const res = await request(app).get(FILA).set('Authorization', `Bearer ${tokenGestor}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  /**
+   * A fila não tem período, e o que a URL disser sobre isso é ignorado.
+   *
+   * Um `?year=2020` aceito aqui esconderia o chamado de março que está vencido
+   * hoje — a tela ajudando a perder o prazo. O controller nem lê `req.query`, e
+   * o teste prende esse comportamento: o repositório é chamado do mesmo jeito.
+   */
+  it('ignora recorte de período na contagem da fila', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'MODERADOR' } as any);
+
+    const res = await request(app)
+      .get(`${FILA}?year=2020&month=3`)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(200);
+    // O escopo chega com o prédio e sem recorte nenhum — nem o do `?year`, nem
+    // os de andar, categoria ou responsável que o schema saberia ler.
+    expect(mockAnalyticsRepo.contagemDaFila).toHaveBeenCalledWith(
+      {
+        building_id: BUILDING_ID,
+        floor_id: undefined,
+        category: undefined,
+        responsible_id: undefined,
+      },
+      expect.any(Number)
+    );
   });
 
   /**
