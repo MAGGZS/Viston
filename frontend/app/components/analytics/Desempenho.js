@@ -1,6 +1,7 @@
 'use client';
 import { T } from '@/app/lib/theme';
 import { ESPACO, TIPO } from './escala';
+import { SeletorInterno } from './SeletorDeVisao';
 import { Inspetores } from './Inspetores';
 import { Responsaveis } from './Responsaveis';
 
@@ -19,9 +20,17 @@ import { Responsaveis } from './Responsaveis';
  * (`requireBuildingManager` na rota); a ausência do botão é cortesia, não
  * segurança.
  *
- * O alternador daqui é o `.seg` chapado do produto, e não a pílula dourada do
- * alternador de cima. São dois níveis de escolha — que assunto, e dentro dele
- * que equipe — e dar a mesma peça aos dois faria parecerem irmãos.
+ * O alternador daqui é o mesmo desenho do de cima, um degrau menor
+ * (`SeletorInterno`). Era o `.seg` chapado do produto, escolhido quando o de
+ * cima era uma pílula dourada: duas peças diferentes para não parecerem irmãos.
+ *
+ * A premissa caiu quando o de cima virou aba com fio. Duas formas diferentes
+ * para a mesma interação, na mesma tela, a 40px de distância, não se lêem como
+ * "dois níveis de escolha" — se lêem como inconsistência. A hierarquia agora
+ * vem do tamanho, que é como ela se diz sem inventar um segundo vocabulário.
+ *
+ * O `.seg` também trazia `aria-pressed`, que anuncia botão de alternância a
+ * quem ouve a tela. Isto aqui é aba, e agora diz que é.
  */
 
 const EQUIPES = [
@@ -43,19 +52,12 @@ export function Desempenho({
     <div style={{ display: 'flex', flexDirection: 'column', gap: ESPACO.lg, flex: 1 }}>
       {podeVerInspetores && (
         <div style={{ display: 'flex', alignItems: 'center', gap: ESPACO.md, flexWrap: 'wrap' }}>
-          <div role="group" aria-label="Equipe a analisar" className="seg">
-            {EQUIPES.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => onTrocarEquipe(item.key)}
-                aria-pressed={equipe === item.key}
-                className={`seg__btn ${equipe === item.key ? 'is-on' : ''}`}
-              >
-                {item.rotulo}
-              </button>
-            ))}
-          </div>
+          <SeletorInterno
+            views={EQUIPES}
+            value={equipe}
+            onSelect={onTrocarEquipe}
+            label="Equipe a analisar"
+          />
 
           <span style={{ ...TIPO.meta, color: T.faint }}>
             {emInspetores

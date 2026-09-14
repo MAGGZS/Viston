@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/app/components/ui';
 import { labelOf, PRIORITIES } from '@/app/lib/maintenanceOptions';
@@ -6,6 +7,7 @@ import { TIPO } from './escala';
 import { T, W, NUM } from '@/app/lib/theme';
 import { Colunas } from './Colunas';
 import { Distribuicao } from './Distribuicao';
+import { SeletorInterno } from './SeletorDeVisao';
 
 /**
  * O prazo no período: quanto se cumpriu, onde se perdeu, e quanto cada um levou.
@@ -34,6 +36,28 @@ import { Distribuicao } from './Distribuicao';
  * verde-e-vermelho gastaria duas cores para dizer o que uma diz, e o verde do
  * tema é claro demais para virar preenchimento sobre o cartão escuro.
  */
+
+/**
+ * As duas maneiras de ler o tempo de resolução.
+ *
+ * "Por prioridade" vem primeiro porque é a que aciona alguém: ela nomeia a
+ * prioridade cujo prazo não está sendo cumprido. A distribuição é a segunda
+ * pergunta — a que se faz depois de ver que a média estourou e querer saber se
+ * foi todo mundo ou três chamados.
+ */
+const LEITURAS = [
+  { key: 'PRIORIDADE', rotulo: 'Por prioridade' },
+  { key: 'DISTRIBUICAO', rotulo: 'Distribuição' },
+];
+
+/**
+ * O piso que as duas leituras compartilham.
+ *
+ * É a altura da mais alta das duas (as colunas por prioridade, com rótulo,
+ * sublinha e nota sob cada uma). A distribuição pede menos e sobra espaço — e
+ * sobrar é o preço de a página não se mexer quando alguém troca de aba.
+ */
+const ALTURA_DA_LEITURA = 236;
 
 /** Um dígito decimal com vírgula — a escrita de número deste painel. */
 const umDecimal = (n) => (n === null || n === undefined ? null : n.toFixed(1).replace('.', ','));
@@ -203,6 +227,8 @@ function Cumprimento({ dentro, atrasados, minimo = 5 }) {
 }
 
 export function AnaliseDeSla({ sla, kpis, periodo, loading }) {
+  const [leitura, setLeitura] = useState(LEITURAS[0].key);
+
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -305,55 +331,62 @@ export function AnaliseDeSla({ sla, kpis, periodo, loading }) {
         <TempoDeCiclo kpis={kpis} base={periodo?.anterior?.toLowerCase() ?? 'o período anterior'} />
       </div>
 
+      {/* As duas leituras de "quanto demorou", uma de cada vez.
+
+          Elas estavam empilhadas, e o cartão ficava com 726px — 44% da altura
+          da aba somado ao funil, que esticava junto por causa do `stretch` do
+          grid. Empilhá-las também era discutível antes de ser alto: a quebra
+          por prioridade e a distribuição respondem quase a mesma pergunta por
+          dois ângulos, e ninguém lê as duas de uma vez. Lê-se uma, e a outra
+          quando a primeira levanta a dúvida.
+
+          Alternador em vez de corte porque as duas têm dono: a prioridade diz
+          *para quem* o prazo não está sendo cumprido, e é o que aciona alguém;
+          a distribuição diz a *forma* — se a cauda é grossa ou se são três
+          chamados perdidos lá atrás. Jogar uma fora resolveria a altura e
+          perderia metade da resposta. */}
       <div
         style={{
           borderTop: `1px solid ${T.line}`, paddingTop: 16,
           display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0,
         }}
       >
-        <p
-          style={{
-            color: T.faint, fontSize: 10, fontWeight: W.strong,
-            letterSpacing: '0.14em', textTransform: 'uppercase',
-          }}
-        >
-          Tempo médio de resolução contra a meta
-        </p>
-        {/* Mínimo maior que o padrão: este cartão carrega mais texto em volta
-            (o percentual, o tempo médio, a lista de risco), então sobra menos
-            altura para o desenho. Sem o piso mais alto, três colunas de prazo
-            ficavam com metade da altura das quatro do funil ao lado. */}
-        <Colunas
-          itens={colunas}
-          alturaMinima={168}
-          medida="Tempo médio em dias úteis"
-          rotuloReferencia="Meta da prioridade"
-          vazio="Nenhum chamado concluído no período, então não há tempo de resolução a comparar."
+        <SeletorInterno
+          views={LEITURAS}
+          value={leitura}
+          onSelect={setLeitura}
+          label="Como ler o tempo de resolução"
         />
-      </div>
 
-      {/* A forma da distribuição, no lugar que era da lista "em risco".
-          A lista subiu para o bloco "Pede atenção", com os atrasados e os
-          parados ao lado dela — é trabalho do dia, e o dia não está aqui.
-          No lugar dela entra o que dois percentis não dizem: onde a massa
-          está e quanto a cauda se estende.
+        {/* As duas leituras ocupam a mesma altura, e é obrigatório.
+            Sem o piso comum, o cartão media 491px numa e 425px na outra: cada
+            clique no alternador encolhia o cartão, o funil ao lado encolhia
+            junto (o grid os iguala) e tudo abaixo subia 66px. Trocar de leitura
+            é para olhar o mesmo dado de outro ângulo, não para a página se
+            reorganizar embaixo do cursor.
 
-          Prende no pé do cartão, pelo mesmo motivo do funil ao lado. */}
-      <div style={{ marginTop: 'auto', borderTop: `1px solid ${T.line}`, paddingTop: 14 }}>
-        <p
-          style={{
-            color: T.faint, fontSize: 10, fontWeight: W.strong,
-            letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 8,
-          }}
-        >
-          Quanto cada um demorou
-        </p>
-        <Distribuicao
-          faixas={sla?.distribuicao ?? []}
-          marcas={marcas}
-          medida="Chamados concluídos"
-          vazio="Nada fechou no período, então não há tempo de resolução a distribuir."
-        />
+            `minHeight` no contêiner, e não altura fixa nos dois gráficos: eles
+            têm pisos internos diferentes, e amarrá-los ao mesmo número faria a
+            distribuição esticar suas barras para preencher espaço que ela não
+            pediu. */}
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: ALTURA_DA_LEITURA }}>
+          {leitura === 'DISTRIBUICAO' ? (
+            <Distribuicao
+              faixas={sla?.distribuicao ?? []}
+              marcas={marcas}
+              medida="Chamados concluídos"
+              vazio="Nada fechou no período, então não há tempo de resolução a distribuir."
+            />
+          ) : (
+            <Colunas
+              itens={colunas}
+              alturaMinima={140}
+              medida="Tempo médio em dias úteis"
+              rotuloReferencia="Meta da prioridade"
+              vazio="Nenhum chamado concluído no período, então não há tempo de resolução a comparar."
+            />
+          )}
+        </div>
       </div>
     </div>
   );

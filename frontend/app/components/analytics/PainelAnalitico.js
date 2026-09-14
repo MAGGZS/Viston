@@ -31,23 +31,43 @@ import { SeletorDeVisao } from './SeletorDeVisao';
  * lugar onde dois números diferentes para a mesma pergunta são o pior defeito
  * possível.
  *
- * Duas visões, alternadas em pilha:
+ * Três visões, e cada uma responde sobre uma coisa só:
  *
- * - **Processos** responde sobre o prédio: quanto entrou, como o ano andou,
- *   onde trava, o que está fora do prazo, o que foi esquecido.
- * - **Desempenho** responde sobre gente. É visão separada e não mais um bloco
- *   no fim da rolagem porque comparar uma equipe exige a tela inteira, e quem
- *   abriu o painel para ver o prédio não quer atravessar a equipe até o
- *   gargalo.
+ * - **Processos** é o caminho do chamado: o que pede ação hoje, quanto entrou,
+ *   como o ano andou, onde trava e o que está fora do prazo.
+ * - **Prédio** é sobre o imóvel: quanto custou, o que reincide, e como o
+ *   processo está sendo operado.
+ * - **Desempenho** é sobre gente. É visão separada e não um bloco no fim da
+ *   rolagem porque comparar uma equipe exige a tela inteira, e quem abriu o
+ *   painel para ver o prédio não quer atravessar a equipe até o gargalo.
+ *
+ * A divisão é por assunto, e não por quanto cabe em cada aba — mas as duas
+ * coisas andam juntas. "Desvios do processo" estava em Processos, que tinha 3,3
+ * telas contra 1,2 desta: era o bloco mais fundo da rolagem mais longa, e
+ * ninguém chegava nele. Mudou de aba porque o assunto dele é o prédio, e de
+ * quebra as duas abas ficaram do mesmo tamanho.
  *
  * Os filtros ficam acima do alternador porque valem para as duas: repeti-los
  * dentro de cada uma faria a troca de aba parecer reiniciar o recorte.
  */
 
+/**
+ * A ordem das abas é a ordem das perguntas, da mais concreta à mais abstrata.
+ *
+ * Processos, Prédio, Desempenho. Primeiro o que está acontecendo com os
+ * chamados, depois o imóvel de que eles falam, e só então as pessoas que os
+ * atendem.
+ *
+ * Desempenho ficou por último de propósito. É a única aba sobre gente, e uma
+ * aba sobre gente no meio do caminho faz a tela parecer uma ferramenta de
+ * avaliação com dois anexos — quando ela é uma ferramenta sobre o prédio que
+ * também mede quem trabalha nele. As duas primeiras respondem "como está"; a
+ * terceira responde "quem", e "quem" é a pergunta que se faz depois.
+ */
 const VISOES = [
   { key: 'PROCESSOS', tab: 'Processos' },
-  { key: 'DESEMPENHO', tab: 'Desempenho' },
   { key: 'PREDIO', tab: 'Prédio' },
+  { key: 'DESEMPENHO', tab: 'Desempenho' },
 ];
 
 /**
@@ -219,19 +239,49 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
       />
 
       {emPredio ? (
-        <Bloco
-          titulo="O prédio"
-          relogio={predio.data?.periodo?.label ?? periodo?.label}
-          descricao="Quanto a manutenção custou e o que volta a dar problema no mesmo lugar. É o assunto que nem o processo nem a equipe respondem."
-        >
-          <Predio
-            dados={predio.data}
-            loading={predio.isLoading}
-            mesSelecionado={estado.mes ? Number(estado.mes) : null}
-            onSelecionarMes={(m) => trocar('mes', m)}
-            onFiltrarAndar={(id) => trocar('andar', id)}
-          />
-        </Bloco>
+        <>
+          <Bloco
+            titulo="O prédio"
+            ordem={0}
+            relogio={predio.data?.periodo?.label ?? periodo?.label}
+            descricao="Quanto a manutenção custou e o que volta a dar problema no mesmo lugar. É o assunto que nem o processo nem a equipe respondem."
+          >
+            <Predio
+              dados={predio.data}
+              loading={predio.isLoading}
+              mesSelecionado={estado.mes ? Number(estado.mes) : null}
+              onSelecionarMes={(m) => trocar('mes', m)}
+              onFiltrarAndar={(id) => trocar('andar', id)}
+            />
+          </Bloco>
+
+          {/* Os desvios moraram na aba Processos, e estavam no lugar errado por
+              dois motivos.
+
+              O de peso: eram 494px na terceira dobra de uma aba de 3,3 telas,
+              enquanto esta tinha 1,2 — ninguém rolava até lá, e oito números que
+              custam consulta não eram lidos por ninguém.
+
+              O de assunto, que é o que decide: "a fila cresceu", "o fluxo foi
+              pulado", "o valor não foi preenchido" não falam do caminho que o
+              chamado faz nem de quem o empurra — falam do prédio e de como ele
+              é operado. É a mesma pergunta do custo e da reincidência logo
+              acima, e a cobertura de custo daqui explica a qualidade do registro
+              dali: os dois blocos se lêem melhor um ao lado do outro do que
+              separados por uma aba. */}
+          <Bloco
+            titulo="Desvios do processo"
+            ordem={1}
+            relogio={periodo?.label}
+            descricao="O que o tempo de cada etapa não conta: se a fila cresce, onde o fluxo foi pulado e se o que foi registrado vale alguma coisa."
+          >
+            <SaudeDoProcesso
+              processo={overview.data?.processo}
+              periodo={periodo}
+              loading={overview.isLoading}
+            />
+          </Bloco>
+        </>
       ) : emDesempenho ? (
         <Bloco
           titulo="Desempenho"
@@ -272,7 +322,6 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
               ordem={0}
               relogio="agora"
               agora
-              descricao="Quem estourou o prazo, quem está perto de estourar e quem ninguém tocou. Clique para abrir o chamado."
             >
               <FilaAcionavel
                 fila={overview.data?.fila_acionavel}
@@ -288,7 +337,6 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
               ordem={1}
               relogio="agora"
               agora
-              descricao="O tamanho e a idade do que está em aberto. É o contrapeso do tempo de resolução, que só conta o que fechou."
             >
               <FilaHoje
                 fila={overview.data?.processo?.fila_hoje}
@@ -310,14 +358,18 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
             relogio={periodo?.label}
             descricao={`Chamados abertos em ${doPeriodo} e onde eles estão hoje. O atraso conta do dia da vistoria, e vale também para os que já fecharam.`}
           >
-            <ResumoDoPeriodo kpis={overview.data?.kpis} periodo={periodo} loading={overview.isLoading} />
+            <ResumoDoPeriodo
+              kpis={overview.data?.kpis}
+              evolucao={overview.data?.evolucao}
+              periodo={periodo}
+              loading={overview.isLoading}
+            />
           </Bloco>
 
           <Bloco
             titulo="O ano mês a mês"
             ordem={3}
             relogio={String(overview.data?.evolucao?.year ?? periodo?.year ?? '')}
-            descricao="A fila cresce quando entra mais do que sai. Clique num mês para recortar a tela inteira por ele."
           >
             <EvolucaoMensal
               evolucao={overview.data?.evolucao}
@@ -342,7 +394,6 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
               titulo="Funil e gargalos"
               ordem={4}
               relogio={periodo?.label}
-              descricao="Cada etapa é uma ação que alguém precisa tomar. A coluna mais alta é onde o processo trava."
             >
               <FunilDeEtapas
                 funil={overview.data?.funil}
@@ -366,18 +417,6 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
             </Bloco>
           </div>
 
-          <Bloco
-            titulo="Desvios do processo"
-            ordem={6}
-            relogio={periodo?.label}
-            descricao="O que o tempo de cada etapa não conta: se a fila cresce, onde o fluxo foi pulado e se o que foi registrado vale alguma coisa."
-          >
-            <SaudeDoProcesso
-              processo={overview.data?.processo}
-              periodo={periodo}
-              loading={overview.isLoading}
-            />
-          </Bloco>
         </>
       )}
     </div>

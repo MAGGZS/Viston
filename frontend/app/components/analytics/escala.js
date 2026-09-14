@@ -120,8 +120,13 @@ export function Relogio({ children, agora = false }) {
         // entre os dois estados é de contraste, não de cor.
         background: T.chip,
         color: agora ? T.mute : T.faint,
+        // Anel em vez de só fundo: a etiqueta passa a ter a silhueta de um
+        // controle, que é o que ela ocupa no cabeçalho — canto superior
+        // direito, ao lado do título. Sem o anel ela some no cartão e o
+        // cabeçalho fica com o título flutuando sozinho.
+        boxShadow: `inset 0 0 0 1px ${T.line}`,
         borderRadius: 999,
-        padding: '2px 8px',
+        padding: '3px 9px',
         fontSize: 10,
         fontWeight: W.strong,
         letterSpacing: '0.04em',

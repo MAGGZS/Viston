@@ -87,6 +87,28 @@
      tamanho e pintar cada barra de um jeito gastaria cor com o que a barra
      mostra sozinha. */
   --chart-mark: #D5B01A;
+
+  /**
+   * A matiz de cada bloco do painel analítico.
+   *
+   * Uma por bloco, e o bloco usa só a dela: dela saem a linha, o preenchimento
+   * e o ponto. É o que dá a um painel a aparência de coisa desenhada em vez de
+   * montada — cada cartão tem identidade, e a tela inteira não vira um degradê
+   * dourado de cima a baixo.
+   *
+   * O que estas cores NÃO fazem: significar. Quem significa é `danger`, e por
+   * isso nenhuma delas é vermelha nem chega perto. Num painel em que tudo tem
+   * cor, o vermelho para de gritar — e o vermelho gritar é a única coisa que
+   * esta tela não pode perder.
+   *
+   * São as mesmas quatro matizes nos dois temas, com luminosidade trocada:
+   * sobre o cartão escuro elas precisam ser claras, sobre o branco, escuras.
+   */
+  --serie-ambar: #F5C518;
+  --serie-violeta: #A78BFA;
+  --serie-ciano: #38BDF8;
+  --serie-verde: #34D399;
+
   color-scheme: dark;
 }
 
@@ -153,6 +175,16 @@ html[data-theme='light'] {
   --chart-3: #775400;
   --chart-4: #543A00;
   --chart-mark: #9B7100;
+
+  /* As matizes de bloco, escurecidas para o cartão branco — ver o bloco
+     escuro. O âmbar é o único que não escurece: ele é o dourado da marca, e
+     trocá-lo aqui faria o painel mudar de identidade entre os dois temas. Nos
+     gráficos ele vem sempre com preenchimento, nunca como texto. */
+  --serie-ambar: #B8860B;
+  --serie-violeta: #6D3FC4;
+  --serie-ciano: #0369A1;
+  --serie-verde: #047857;
+
   color-scheme: light;
 }
 

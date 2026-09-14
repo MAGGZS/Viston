@@ -6,7 +6,8 @@ import {
   formatCost,
   labelOf,
 } from '@/app/lib/maintenanceOptions';
-import { T, W, NUM, CHART } from '@/app/lib/theme';
+import { T, W, NUM, CHART, SERIE } from '@/app/lib/theme';
+import { Celula, Figura, PilulaVariacao } from './CartaoMetrica';
 import { Barras } from './Barras';
 import { ESPACO, TIPO } from './escala';
 import { Linha } from './Linha';
@@ -98,47 +99,35 @@ function Custo({ custo, cobertura, periodo }) {
         </p>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: ESPACO.md, flexWrap: 'wrap' }}>
-        <span
-          style={{
-            ...TIPO.heroi, ...NUM, lineHeight: 1,
-            color: confiavel ? T.text : T.mute,
-            opacity: confiavel ? 1 : 0.7,
-          }}
-        >
-          {formatCost(custo.total)}
-        </span>
-
-        {/* A variação só quando os dois lados têm cobertura: comparar a soma de
-            um chamado com a soma de trinta não é comparar períodos. */}
-        {confiavel && delta !== null && delta !== undefined && (
-          <span
-            style={{
-              ...TIPO.corpo, ...NUM,
-              color: delta > 0 ? T.danger : T.mute,
-              fontWeight: delta > 0 ? W.strong : W.body,
-            }}
-          >
-            {delta > 0 ? '▲' : '▼'} {Math.abs(Math.round(delta))}%
-            <span style={{ color: T.faint, fontWeight: W.body }}> vs. {periodo.anterior}</span>
-          </span>
-        )}
-      </div>
+      {/* A variação só quando os dois lados têm cobertura: comparar a soma de
+          um chamado com a soma de trinta não é comparar períodos, e a pílula
+          diria "▲ 300%" sobre nada. */}
+      <Figura
+        valor={formatCost(custo.total)}
+        alerta={false}
+        variacao={
+          confiavel ? <PilulaVariacao valor={delta} bomSubir={false} base={periodo.anterior} /> : null
+        }
+      />
 
       <div style={{ display: 'flex', gap: ESPACO.xl, flexWrap: 'wrap' }}>
-        <Nota
+        <Celula
           rotulo="cobertura"
           valor={`${cobertura.n_com_custo} de ${cobertura.fechados}`}
-          detalhe={`${pct(cobertura.pct)} dos fechados têm valor lançado`}
+          nota={`${pct(cobertura.pct)} dos fechados têm valor lançado`}
           alerta={!confiavel}
+          // A barra é a própria cobertura: é o número que decide se tudo o que
+          // está acima dela vale como leitura ou como amostra.
+          proporcao={cobertura.pct === null ? null : cobertura.pct / 100}
+          cor={SERIE.violeta}
         />
         {/* Mediana ao lado da média, pelo mesmo motivo do tempo de ciclo: uma
             manutenção de vinte mil no meio de dez de trezentos reais faz a
             média dizer dois mil, que não é o preço de nada. */}
-        <Nota
+        <Celula
           rotulo="valor típico"
           valor={custo.ticket_p50 === null ? '—' : formatCost(custo.ticket_p50)}
-          detalhe={
+          nota={
             custo.ticket_medio === null
               ? 'sem valor lançado no período'
               : `mediana · média de ${formatCost(custo.ticket_medio)}`
@@ -149,22 +138,6 @@ function Custo({ custo, cobertura, periodo }) {
   );
 }
 
-function Nota({ rotulo, valor, detalhe, alerta = false }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-      <span style={{ ...TIPO.eyebrow, color: T.faint }}>{rotulo}</span>
-      <span
-        style={{
-          ...TIPO.titulo, ...NUM,
-          color: alerta ? T.danger : T.text, fontWeight: W.title,
-        }}
-      >
-        {valor}
-      </span>
-      <span style={{ ...TIPO.meta, color: alerta ? T.danger : T.faint }}>{detalhe}</span>
-    </div>
-  );
-}
 
 /**
  * Corretiva contra preventiva, mês a mês.

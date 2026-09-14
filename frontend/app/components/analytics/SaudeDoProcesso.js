@@ -2,6 +2,7 @@
 import { AlertTriangle, Clock, CornerUpLeft, Scale, Send, Wallet } from 'lucide-react';
 import { Skeleton } from '@/app/components/ui';
 import { T, W } from '@/app/lib/theme';
+import { Celula } from './CartaoMetrica';
 import { TIPO } from './escala';
 
 /**
@@ -37,50 +38,6 @@ const dias = (n) => (n === 1 ? '1 dia útil' : `${numero(n)} dias úteis`);
  * `alerta` é o que decide a cor. Só quem pede ação recebe tinta; o resto fica na
  * cor do texto. Nenhum deles depende da cor: a leitura vem escrita embaixo.
  */
-function Celula({ icon: Icon, rotulo, valor, leitura, alerta = false, sufixo }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-      <span
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5,
-          color: T.faint, fontSize: 10, fontWeight: W.strong,
-          letterSpacing: '0.08em', textTransform: 'uppercase',
-        }}
-      >
-        <Icon size={12} aria-hidden="true" style={{ flexShrink: 0 }} />
-        {rotulo}
-      </span>
-
-      <span
-        style={{
-          fontFamily: T.display, fontSize: 22, fontWeight: W.title, lineHeight: 1.1,
-          color: alerta ? T.danger : T.text,
-        }}
-      >
-        {valor}
-        {sufixo && (
-          <span style={{ ...TIPO.meta, fontWeight: W.body, color: T.faint }}> {sufixo}</span>
-        )}
-      </span>
-
-      {/* O número recebe a cor; a explicação não.
-          Pintar as duas coisas dobra a área vermelha de cada célula, e numa
-          grade de onze isso vira uma tela inteira em alarme — onde tudo alarma,
-          nada alarma. O ícone fica na explicação para o aviso não depender da
-          cor, e a frase segue na tinta de sempre. */}
-      <span style={{ color: T.faint, fontSize: 11, lineHeight: 1.45 }}>
-        {alerta && (
-          <AlertTriangle
-            size={11}
-            aria-hidden="true"
-            style={{ marginRight: 4, verticalAlign: -1, color: T.danger }}
-          />
-        )}
-        {leitura}
-      </span>
-    </div>
-  );
-}
 
 /** Um grupo de células, com o nome da base de tempo que vale para elas. */
 function Grupo({ titulo, base, children, primeiro = false }) {
@@ -157,11 +114,11 @@ export function SaudeDoProcesso({ processo, periodo, loading }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Grupo titulo="Balanço da fila" base={`entradas e saídas em ${label}`} primeiro>
         <Celula
-          icon={Scale}
+          icone={Scale}
           rotulo="Saldo do período"
           valor={`${balanco.saldo > 0 ? '+' : ''}${numero(balanco.saldo)}`}
           alerta={filaCrescendo}
-          leitura={
+          nota={
             balanco.saldo === 0
               ? 'Entrou o mesmo que saiu. A fila ficou do mesmo tamanho.'
               : cresceu
@@ -170,47 +127,47 @@ export function SaudeDoProcesso({ processo, periodo, loading }) {
           }
         />
         <Celula
-          icon={Send}
+          icone={Send}
           rotulo="Abertos"
           valor={numero(balanco.nasceram)}
-          leitura={`Ocorrências que a vistoria abriu em ${label}.`}
+          nota={`Ocorrências que a vistoria abriu em ${label}.`}
         />
         <Celula
-          icon={Clock}
+          icone={Clock}
           rotulo="Fechados"
           valor={numero(balanco.fecharam)}
-          leitura={`Chamados que o moderador encerrou em ${label}, de qualquer mês de abertura.`}
+          nota={`Chamados que o moderador encerrou em ${label}, de qualquer mês de abertura.`}
         />
       </Grupo>
 
       <Grupo titulo="Desvios do processo" base={`em ${label}`}>
         <Celula
-          icon={CornerUpLeft}
+          icone={CornerUpLeft}
           rotulo="Voltaram etapa"
           valor={numero(desvios.com_volta)}
           alerta={relevante(desvios.com_volta)}
-          leitura={
+          nota={
             desvios.com_volta === 0
               ? 'Nenhum encaminhamento cancelado nem conclusão desfeita.'
               : 'Tiveram o encaminhamento cancelado ou a conclusão desfeita.'
           }
         />
         <Celula
-          icon={Send}
+          icone={Send}
           rotulo="Reencaminhados"
           valor={numero(desvios.reencaminhados)}
           alerta={relevante(desvios.reencaminhados)}
-          leitura={
+          nota={
             desvios.reencaminhados === 0
               ? 'Todo chamado foi para a pessoa certa de primeira.'
               : 'Foram encaminhados mais de uma vez — a triagem errou o alvo.'
           }
         />
         <Celula
-          icon={AlertTriangle}
+          icone={AlertTriangle}
           rotulo="Fechados sem responsável"
           valor={numero(desvios.fechados_sem_responsavel)}
-          leitura={
+          nota={
             desvios.fechados_sem_responsavel === 0
               ? 'Todo chamado fechado passou por quem executa.'
               : 'Foram encerrados sem ninguém receber: o moderador resolveu direto, ou fechou sem execução.'
@@ -220,21 +177,21 @@ export function SaudeDoProcesso({ processo, periodo, loading }) {
 
       <Grupo titulo="Qualidade do registro" base={`em ${label}`}>
         <Celula
-          icon={Wallet}
+          icone={Wallet}
           rotulo="Concluídos com valor"
           valor={registro.pct_com_custo === null ? '—' : `${numero(registro.pct_com_custo)}%`}
           alerta={registro.pct_com_custo !== null && registro.pct_com_custo < 50}
-          leitura={
+          nota={
             registro.pct_com_custo === null
               ? 'Nada concluído no período.'
               : `${numero(registro.concluidos_com_custo)} de ${numero(balanco.fecharam)} tiveram o valor preenchido. Abaixo disso, o custo do prédio é chute.`
           }
         />
         <Celula
-          icon={AlertTriangle}
+          icone={AlertTriangle}
           rotulo="Abertos como alta"
           valor={registro.pct_altas === null ? '—' : `${numero(registro.pct_altas)}%`}
-          leitura={
+          nota={
             registro.pct_altas === null
               ? 'Nada aberto no período.'
               : `${numero(registro.altas)} dos ${numero(balanco.nasceram)} abertos vieram como prioridade alta.`

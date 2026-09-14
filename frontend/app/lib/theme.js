@@ -118,6 +118,22 @@ export function heatColor(count) {
  */
 export const CHART = ['var(--chart-0)', 'var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)'];
 
+/**
+ * A matiz de cada bloco do painel analítico.
+ *
+ * `CHART` é rampa ordinal — cinco degraus de uma matiz só, para quando a ordem
+ * importa (o funil, a composição por estado). `SERIE` é outra coisa: quatro
+ * matizes distintas, uma por bloco, para dar identidade ao cartão. Não se
+ * misturam, e nenhuma das duas significa nada — significar é trabalho do
+ * `danger`, e por isso nenhuma matiz aqui é vermelha.
+ */
+export const SERIE = {
+  ambar: 'var(--serie-ambar)',
+  violeta: 'var(--serie-violeta)',
+  ciano: 'var(--serie-ciano)',
+  verde: 'var(--serie-verde)',
+};
+
 export const CHART_MARK = 'var(--chart-mark)';
 
 /**
