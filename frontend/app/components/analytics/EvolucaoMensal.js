@@ -1,17 +1,30 @@
 'use client';
 import { Skeleton } from '@/app/components/ui';
 import { T, W } from '@/app/lib/theme';
+import { Linha } from './Linha';
 import { ESPACO, TIPO } from './escala';
 
 /**
  * O ano mês a mês: a fila cresceu ou encolheu, e quando.
  *
- * O saldo, e não duas séries lado a lado. Doze meses com duas colunas cada dão
- * vinte e quatro barras num cartão largo, e a pergunta — "estamos fechando mais
- * do que abrindo?" — vira uma conta de subtração que o leitor faz de cabeça,
- * par a par. Uma coluna por mês em torno de uma linha de zero responde isso sem
- * conta nenhuma: para cima a fila cresceu, para baixo encolheu, e o tamanho é o
- * quanto.
+ * Duas leituras empilhadas sobre o mesmo eixo de meses, e a de cima é a que
+ * conta a história.
+ *
+ * **A linha, em cima: a fila acumulada.** O saldo mensal oscila em torno do
+ * zero, e a barra de um mês bom é igual à de um mês ruim — um prédio que abre
+ * cinco a mais todo mês tem doze barrinhas modestas e uma fila que dobrou no
+ * ano. A soma corrida é onde isso aparece, e ela parte do que já estava aberto
+ * em janeiro (`evolucao.saldo_inicial`): começar no zero diria que o prédio
+ * entrou no ano sem nada pendente.
+ *
+ * **As barras, embaixo: o saldo de cada mês.** É o detalhe de onde a linha
+ * mexeu — para cima a fila cresceu, para baixo encolheu, e o tamanho é o
+ * quanto. Continuam sendo por onde se troca o filtro de mês.
+ *
+ * Dois desenhos, e não dois eixos verticais num só: as grandezas são diferentes
+ * — uma é estoque, a outra é fluxo —, e um eixo duplo deixa o leitor comparar
+ * alturas que não se comparam. Empilhados, o eixo horizontal é partilhado e
+ * cada grandeza tem a escala dela.
  *
  * Os números que a subtração esconde não somem — abertos e fechados estão no
  * `title` de cada mês e na tabela equivalente, que é onde se vai quando se quer
@@ -36,9 +49,13 @@ export function EvolucaoMensal({ evolucao, mesSelecionado, loading, onSelecionar
   const meses = evolucao?.meses ?? [];
   if (meses.length === 0) return null;
 
-  const comSaldo = meses.map((m) => ({ ...m, saldo: m.abertos - m.fechados }));
+  // `saldo`, `acumulado` e `futuro` vêm do servidor desde que a fila acumulada
+  // entrou; o cálculo local sobrevive para não quebrar com resposta antiga em
+  // cache do React Query enquanto o deploy não passa pelas duas pontas.
+  const comSaldo = meses.map((m) => ({ ...m, saldo: m.saldo ?? m.abertos - m.fechados }));
   const teto = Math.max(...comSaldo.map((m) => Math.abs(m.saldo)), 1);
   const houveMovimento = comSaldo.some((m) => m.abertos > 0 || m.fechados > 0);
+  const temAcumulado = comSaldo.some((m) => m.acumulado !== undefined && m.acumulado !== null);
 
   if (!houveMovimento) {
     return (
@@ -51,6 +68,23 @@ export function EvolucaoMensal({ evolucao, mesSelecionado, loading, onSelecionar
   const totalAbertos = comSaldo.reduce((s, m) => s + m.abertos, 0);
   const totalFechados = comSaldo.reduce((s, m) => s + m.fechados, 0);
   const pior = comSaldo.reduce((a, b) => (b.saldo > a.saldo ? b : a));
+
+  // A fila acumulada, como a `Linha` a consome. O mês que ainda não aconteceu
+  // vai marcado: o valor dele é herdado, não medido, e a linha para ali.
+  const fila = comSaldo.map((m) => ({
+    id: m.mes,
+    valor: m.acumulado,
+    futuro: Boolean(m.futuro),
+    rotulo: MESES[m.mes - 1],
+    rotuloCompleto: `${MESES[m.mes - 1]} de ${evolucao.year}`,
+    texto: `${m.acumulado} em aberto`,
+    destaque: mesSelecionado === m.mes,
+    nota: m.futuro
+      ? null
+      : `${m.abertos} ${m.abertos === 1 ? 'aberto' : 'abertos'}, ${m.fechados} ${m.fechados === 1 ? 'fechado' : 'fechados'}`,
+  }));
+
+  const ultimoMedido = [...fila].reverse().find((p) => !p.futuro);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: ESPACO.md }}>
@@ -77,7 +111,49 @@ export function EvolucaoMensal({ evolucao, mesSelecionado, loading, onSelecionar
             do que entraram no ano. A fila encolheu.
           </>
         )}
+        {/* O estoque, e não só o fluxo: "entraram 4 a mais" não diz se a fila
+            tem 4 ou 40, e é o tamanho dela que decide se falta gente. */}
+        {ultimoMedido && (
+          <>
+            {' '}
+            Hoje são{' '}
+            <span style={{ color: T.text, fontWeight: W.title }}>
+              {ultimoMedido.valor} em aberto
+            </span>
+            {evolucao.saldo_inicial > 0 && (
+              <>, contra {evolucao.saldo_inicial} no começo do ano</>
+            )}
+            .
+          </>
+        )}
       </p>
+
+      {/* A fila acumulada, em cima. Sem rótulos próprios: o eixo de meses é o
+          mesmo das barras logo abaixo, e dois "jan fev mar" empilhados diriam
+          que são dois eixos. */}
+      {temAcumulado && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: ESPACO.xs }}>
+          <span style={{ ...TIPO.eyebrow, color: T.faint }}>
+            fila em aberto, mês a mês
+          </span>
+          <Linha
+            pontos={fila}
+            medida="Chamados em aberto"
+            rotulos={false}
+            alturaMinima={92}
+            alturaMaxima={140}
+            onSelecionar={
+              onSelecionarMes
+                ? (p) => onSelecionarMes(mesSelecionado === p.id ? '' : String(p.id))
+                : undefined
+            }
+          />
+        </div>
+      )}
+
+      {temAcumulado && (
+        <span style={{ ...TIPO.eyebrow, color: T.faint }}>saldo do mês</span>
+      )}
 
       {/* A linha de zero atravessa os doze meses de uma vez, por trás das
           colunas. Desenhada dentro de cada célula, ela ganhava o vão entre as
@@ -94,7 +170,7 @@ export function EvolucaoMensal({ evolucao, mesSelecionado, loading, onSelecionar
         />
 
         <div style={{ display: 'flex', alignItems: 'stretch', gap: 3 }}>
-        {comSaldo.map((m) => {
+        {comSaldo.map((m, i) => {
           const selecionado = mesSelecionado === m.mes;
           const vazio = m.abertos === 0 && m.fechados === 0;
           const altura = m.saldo === 0 ? 0 : Math.max(PISO, (Math.abs(m.saldo) / teto) * META_ALTURA);
@@ -110,7 +186,15 @@ export function EvolucaoMensal({ evolucao, mesSelecionado, loading, onSelecionar
             <Marca
               key={m.mes}
               {...(onSelecionarMes
-                ? { type: 'button', onClick: () => onSelecionarMes(selecionado ? '' : String(m.mes)), className: 'btn' }
+                ? {
+                    type: 'button',
+                    onClick: () => onSelecionarMes(selecionado ? '' : String(m.mes)),
+                    // `press` é o encolher de 3% enquanto o dedo está em cima.
+                    // Aqui vale porque o mês é alvo compacto e o clique troca a
+                    // tela inteira — a peça precisa dizer que ouviu antes de a
+                    // consulta voltar.
+                    className: 'btn press',
+                  }
                 : {})}
               title={descricao}
               aria-label={onSelecionarMes ? `Filtrar por ${descricao}` : undefined}
@@ -137,7 +221,12 @@ export function EvolucaoMensal({ evolucao, mesSelecionado, loading, onSelecionar
                   <span
                     style={{
                       width: '100%', height: altura, background: T.danger, opacity: 0.85,
-                      borderRadius: '3px 3px 0 0', transition: 'height 260ms ease',
+                      borderRadius: '3px 3px 0 0',
+                      // Cascata da esquerda para a direita: o ano se desenha na
+                      // ordem em que ele aconteceu. 25ms por mês — doze peças a
+                      // 45 dariam meio segundo até dezembro chegar.
+                      transition: 'height 260ms var(--ease-saida)',
+                      transitionDelay: `${i * 25}ms`,
                     }}
                   />
                 )}
@@ -158,7 +247,9 @@ export function EvolucaoMensal({ evolucao, mesSelecionado, loading, onSelecionar
                   <span
                     style={{
                       width: '100%', height: altura, background: T.mute, opacity: 0.45,
-                      borderRadius: '0 0 3px 3px', transition: 'height 260ms ease',
+                      borderRadius: '0 0 3px 3px',
+                      transition: 'height 260ms var(--ease-saida)',
+                      transitionDelay: `${i * 25}ms`,
                     }}
                   />
                 )}
@@ -220,6 +311,7 @@ export function EvolucaoMensal({ evolucao, mesSelecionado, loading, onSelecionar
             <th scope="col">Abertos</th>
             <th scope="col">Fechados</th>
             <th scope="col">Saldo</th>
+            {temAcumulado && <th scope="col">Em aberto ao fim do mês</th>}
           </tr>
           {comSaldo.map((m) => (
             <tr key={m.mes}>
@@ -227,6 +319,7 @@ export function EvolucaoMensal({ evolucao, mesSelecionado, loading, onSelecionar
               <td>{m.abertos}</td>
               <td>{m.fechados}</td>
               <td>{m.saldo > 0 ? `+${m.saldo}` : m.saldo}</td>
+              {temAcumulado && <td>{m.futuro ? 'ainda não aconteceu' : m.acumulado}</td>}
             </tr>
           ))}
         </tbody>

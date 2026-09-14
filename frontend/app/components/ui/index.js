@@ -168,20 +168,57 @@ export function Card({ children, style = {}, className = '' }) {
  *
  * `aria-hidden` no ícone porque ele não acrescenta nada ao que o rótulo já diz.
  */
-export function StatCard({ icon: Icon, label, value, hint, loading = false, className = '', style = {} }) {
+/**
+ * Um número do topo do painel.
+ *
+ * `alerta` e `href` chegaram juntos, e por um motivo só: o cartão "fora do
+ * prazo". Os quatro cartões originais contam onde os chamados estão — abertos,
+ * encaminhados, em andamento, concluídos — e nenhum deles é boa ou má notícia.
+ * Um número que é problema precisa de duas coisas que eles não precisavam: a
+ * cor que diz que é problema, e o caminho para os chamados em questão.
+ *
+ * `alerta` só pinta quando o valor é maior que zero — quem chega e vê o cartão
+ * em vermelho marcando zero aprende a ignorar o vermelho, e aí ele para de
+ * funcionar no dia em que é três.
+ */
+export function StatCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  loading = false,
+  alerta = false,
+  href,
+  className = '',
+  style = {},
+}) {
+  // Zero nunca alarma, seja qual for o `alerta` que chegou.
+  const acende = alerta && Number(value) > 0;
+  const Peca = href ? Link : 'div';
+
   return (
-    <div
+    <Peca
+      {...(href ? { href } : {})}
       className={className}
+      title={href ? `Ver ${String(label).toLowerCase()} no painel analítico` : undefined}
       // Recuo e vão apertados de propósito: o cartão tem de caber no número, e
       // não o contrário. Com 20 de recuo e 16 de vão sobrava fundo vazio em
       // volta do 34px, e a fileira ocupava mais altura do que tinha o que
       // dizer — 148px para carregar um número de dois dígitos. Assim são 102,
       // e 120 nos dois cartões que trazem dica.
-      style={{ ...G.card, padding: 14, display: 'flex', flexDirection: 'column', gap: 8, ...style }}
+      style={{
+        ...G.card, padding: 14, display: 'flex', flexDirection: 'column', gap: 8,
+        // A borda acesa, e não o fundo: o fundo vermelho num cartão de 102px
+        // sobrepõe o número e obriga a repensar a cor do texto inteiro. A borda
+        // marca o cartão sem disputar com o que está escrito dentro dele.
+        ...(acende ? { borderColor: T.danger } : {}),
+        ...(href ? { textDecoration: 'none', color: 'inherit' } : {}),
+        ...style,
+      }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <p style={{
-          color: T.mute, fontSize: 11, fontWeight: W.strong,
+          color: acende ? T.danger : T.mute, fontSize: 11, fontWeight: W.strong,
           // Caixa alta pede respiro entre as letras; sem ele o rótulo fecha num
           // bloco só. O leitor de tela continua ouvindo o texto como foi escrito.
           letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1.45,

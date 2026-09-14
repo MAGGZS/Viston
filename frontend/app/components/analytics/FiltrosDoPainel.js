@@ -33,6 +33,15 @@ const ANOS_ATRAS = 5;
 const TODOS = '';
 
 /**
+ * As visões que a URL aceita, tirando a primeira.
+ *
+ * A primeira não entra porque ela é a ausência do parâmetro — `trocar` apaga a
+ * chave quando a visão é a de entrada, para não poluir o endereço com o estado
+ * padrão. Qualquer outro valor cai nela.
+ */
+const VISOES_VALIDAS = new Set(['DESEMPENHO', 'PREDIO']);
+
+/**
  * Os filtros lidos do endereço, já no formato que a consulta pede.
  *
  * Devolve dois objetos separados porque eles têm donos diferentes: `filtros` é
@@ -56,9 +65,22 @@ export function useFiltrosDoPainel() {
       // A visão aberta também é endereço: mandar "olha a equipe em março" tem
       // de abrir na equipe, e não no processo com um clique de instrução junto.
       // Ausente é a primeira, que é onde se entra.
-      visao: params.get('visao') === 'DESEMPENHO' ? 'DESEMPENHO' : 'PROCESSOS',
+      // A lista de visões vive no `PainelAnalitico`; aqui só se confere que o
+      // valor da URL é uma delas. Um `visao=qualquercoisa` digitado à mão cai
+      // na primeira, que é onde se entra.
+      visao: VISOES_VALIDAS.has(params.get('visao')) ? params.get('visao') : 'PROCESSOS',
       // E, dentro do desempenho, qual equipe. Mesma regra.
       equipe: params.get('equipe') === 'INSPETORES' ? 'INSPETORES' : 'RESPONSAVEIS',
+      /**
+       * Qual lista da fila acionável está aberta.
+       *
+       * Endereço, como as outras: "olha os parados" tem de ser um link. Sem
+       * valor não vira `ATRASADOS` por padrão — quem decide é a própria fila,
+       * que abre na lista mais grave *que tem conteúdo*. Fixar o padrão aqui
+       * abriria em "atrasados" num prédio sem nenhum atrasado, e a tela pediria
+       * um clique só para dizer que está tudo bem.
+       */
+      motivo: params.get('motivo') ?? TODOS,
     }),
     [params, anoCorrente]
   );

@@ -104,7 +104,7 @@ export function Colunas({
           flex: 1, minHeight: alturaMinima, maxHeight: alturaMaxima,
         }}
       >
-        {itens.map((item) => {
+        {itens.map((item, i) => {
           const temDado = temValor(item);
           const referencia = referenciaDe(item);
           const pct = temDado ? Math.max(PISO, (item.valor / teto) * 100) : 0;
@@ -150,7 +150,24 @@ export function Colunas({
                     background: 'currentColor',
                     opacity: marcada ? 1 : NEUTRO,
                     borderRadius: CANTO,
-                    transition: 'height 260ms ease',
+                    /**
+                     * A coluna cresce com curva de saída, e em cascata.
+                     *
+                     * `ease` saía devagar do lugar — e o primeiro quadro é
+                     * justamente o que se está olhando quando se troca o mês.
+                     * A curva forte arranca e freia no fim, que é o que faz a
+                     * troca de período parecer instantânea mesmo levando o
+                     * mesmo tempo.
+                     *
+                     * `height`, e não `transform: scaleY()`, apesar de este
+                     * último rodar na GPU: escalar a barra escala o canto de
+                     * 4px junto, e a coluna baixa fica com o topo achatado o
+                     * tempo todo. São no máximo doze barras animando uma vez
+                     * por troca de filtro — o quadro perdido é hipotético, o
+                     * canto torto seria permanente.
+                     */
+                    transition: 'height 260ms var(--ease-saida)',
+                    transitionDelay: `${i * 40}ms`,
                   }}
                 />
 

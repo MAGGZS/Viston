@@ -1,4 +1,12 @@
-import { previousPeriod, resolvePeriod } from '../services/analytics.service';
+import {
+  FAIXAS_DE_CICLO,
+  N_MINIMO,
+  acumular,
+  confiavel,
+  previousPeriod,
+  resolvePeriod,
+} from '../services/analytics.service';
+import { SLA_BUSINESS_DAYS } from '../utils/sla';
 
 /**
  * O período do painel.
@@ -62,5 +70,122 @@ describe('previousPeriod', () => {
 
   it('de um ano, o ano anterior', () => {
     expect(previousPeriod(2026).label).toBe('2025');
+  });
+});
+
+/**
+ * A fila acumulada.
+ *
+ * O saldo mensal oscila em torno do zero e a barra de um mês ruim é igual à de
+ * um mês bom; a soma corrida é que mostra se a fila cresce. Ela só diz a
+ * verdade se partir do que já estava aberto quando o ano começou.
+ */
+describe('acumular', () => {
+  let n = 0;
+  const mes = (abertos: number, fechados: number) => ({ mes: (n += 1), abertos, fechados });
+
+  beforeEach(() => {
+    n = 0;
+  });
+
+  it('parte do que já estava em aberto, e não do zero', () => {
+    const linha = acumular([mes(3, 1)], 10);
+
+    expect(linha[0].saldo).toBe(2);
+    expect(linha[0].acumulado).toBe(12);
+  });
+
+  it('soma mês a mês, sem reiniciar', () => {
+    const linha = acumular([mes(5, 2), mes(1, 4), mes(0, 0)], 0);
+
+    expect(linha.map((m) => m.acumulado)).toEqual([3, 0, 0]);
+  });
+
+  it('deixa a fila encolher abaixo do ponto de partida', () => {
+    const linha = acumular([mes(0, 4), mes(0, 4)], 6);
+
+    expect(linha.map((m) => m.acumulado)).toEqual([2, -2]);
+  });
+
+  it('preserva os campos que já vinham do mês', () => {
+    const linha = acumular([{ mes: 3, abertos: 2, fechados: 2 }], 0);
+
+    expect(linha[0]).toEqual({
+      mes: 3,
+      abertos: 2,
+      fechados: 2,
+      saldo: 0,
+      acumulado: 0,
+      futuro: false,
+    });
+  });
+
+  /**
+   * O mês que ainda não aconteceu não é um mês de saldo zero: é um mês sem
+   * dado. Sem a marca, a linha acumulada segue reta até dezembro e desenha como
+   * previsão o que é só ausência.
+   */
+  it('marca como futuro o que vem depois do último mês fechado', () => {
+    const linha = acumular([mes(4, 1), mes(0, 0), mes(0, 0)], 0, 1);
+
+    expect(linha.map((m) => m.futuro)).toEqual([false, true, true]);
+    expect(linha.map((m) => m.acumulado)).toEqual([3, 3, 3]);
+  });
+
+  it('ano inteiro no passado não tem futuro nenhum', () => {
+    const linha = acumular([mes(1, 0), mes(0, 1)], 0);
+
+    expect(linha.every((m) => m.futuro === false)).toBe(true);
+  });
+});
+
+/**
+ * O piso de denominador.
+ *
+ * Não é rigor estatístico — é o ponto em que "um de dois deu errado" para de
+ * ser desenhado com o mesmo peso de "trinta de duzentos".
+ */
+describe('confiavel', () => {
+  it('exige pelo menos cinco observações', () => {
+    expect(N_MINIMO).toBe(5);
+    expect(confiavel(4)).toBe(false);
+    expect(confiavel(5)).toBe(true);
+  });
+
+  it('período vazio nunca sustenta leitura', () => {
+    expect(confiavel(0)).toBe(false);
+  });
+});
+
+/**
+ * As faixas da distribuição de tempo de resolução.
+ *
+ * Os cortes existem para que cada barra se leia contra uma promessa do produto,
+ * e não contra um número inventado. Se os prazos mudarem e as faixas não, o
+ * gráfico passa a dizer "dentro do prazo" sobre uma faixa que estourou — este
+ * teste é o que avisa.
+ */
+describe('FAIXAS_DE_CICLO', () => {
+  it('tem um corte em cada prazo do produto', () => {
+    const cortes = FAIXAS_DE_CICLO.flatMap((f) => f.id.split('-').map(Number)).filter(
+      (n) => !Number.isNaN(n)
+    );
+
+    for (const prazo of Object.values(SLA_BUSINESS_DAYS)) {
+      expect(cortes).toContain(prazo);
+    }
+  });
+
+  it('só a última faixa é aberta, e é a única marcada como acima', () => {
+    const acima = FAIXAS_DE_CICLO.filter((f) => f.acima);
+
+    expect(acima).toHaveLength(1);
+    expect(acima[0].id).toBe('15+');
+    expect(FAIXAS_DE_CICLO[FAIXAS_DE_CICLO.length - 1].id).toBe('15+');
+  });
+
+  it('não repete faixa', () => {
+    const ids = FAIXAS_DE_CICLO.map((f) => f.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });

@@ -305,6 +305,8 @@ describe('painel analítico', () => {
 
   const RESPONSAVEIS = `/buildings/${BUILDING_ID}/analytics/responsibles`;
 
+  const PREDIO = `/buildings/${BUILDING_ID}/analytics/building`;
+
   beforeEach(() => {
     mockAnalyticsRepo.overview.mockResolvedValue({ total: 0, parados1: 0 } as any);
     mockAnalyticsRepo.porPrioridade.mockResolvedValue([]);
@@ -315,8 +317,18 @@ describe('painel analítico', () => {
     mockAnalyticsRepo.porResponsavel.mockResolvedValue([]);
     mockAnalyticsRepo.atrasadosAbertos.mockResolvedValue([]);
     mockAnalyticsRepo.evolucaoMensal.mockResolvedValue([]);
+    mockAnalyticsRepo.backlogNoInicioDoAno.mockResolvedValue(0);
+    mockAnalyticsRepo.filaAcionavel.mockResolvedValue([]);
+    mockAnalyticsRepo.distribuicaoDeCiclo.mockResolvedValue([]);
     mockAnalyticsRepo.porInspetor.mockResolvedValue([]);
     mockAnalyticsRepo.totalDeAndares.mockResolvedValue(12);
+    mockAnalyticsRepo.custo.mockResolvedValue({
+      total: 0, total_anterior: 0, fechados: 0, n_com_custo: 0,
+      n_com_custo_anterior: 0, ticket_medio: null, ticket_p50: null,
+    });
+    mockAnalyticsRepo.custoPorDimensao.mockResolvedValue([]);
+    mockAnalyticsRepo.perfilMensal.mockResolvedValue([]);
+    mockAnalyticsRepo.recorrencia.mockResolvedValue([]);
   });
 
   it('bloqueia quem não tem vínculo com o prédio', async () => {
@@ -366,6 +378,60 @@ describe('painel analítico', () => {
 
     expect(res.status).toBe(404);
     expect(mockAnalyticsRepo.overview).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A aba do prédio tem custo de manutenção dentro.
+   *
+   * Mesma guarda do `overview`, e pelo mesmo motivo: quanto o prédio gastou não
+   * é leitura de quem só acompanha as vistorias. A guarda mora na rota — a aba
+   * escondida no navegador com a rota aberta é permissão que existe só no
+   * desenho.
+   */
+  it('o membro que não modera não lê o custo do prédio', async () => {
+    comoMembro('INSPECTOR');
+
+    const res = await request(app)
+      .get(PREDIO)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(403);
+    expect(mockAnalyticsRepo.custo).not.toHaveBeenCalled();
+  });
+
+  it('quem não tem vínculo nenhum também não lê', async () => {
+    const res = await request(app).get(PREDIO).set('Authorization', `Bearer ${tokenViewer}`);
+
+    expect(res.status).toBe(403);
+    expect(mockAnalyticsRepo.custo).not.toHaveBeenCalled();
+  });
+
+  it('o moderador do prédio lê o custo — é ele quem lança o valor', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'MODERADOR' } as any);
+
+    const res = await request(app).get(PREDIO).set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('o gestor do prédio lê o custo', async () => {
+    comoGestorDoPredio();
+
+    const res = await request(app).get(PREDIO).set('Authorization', `Bearer ${tokenGestor}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('recusa responsável de outro prédio também na aba do prédio', async () => {
+    mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'MODERADOR' } as any);
+    mockBuildingRepo.findResponsible.mockResolvedValue(null);
+
+    const res = await request(app)
+      .get(`${PREDIO}?responsible_id=${RESPONSIBLE_ID}`)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(404);
+    expect(mockAnalyticsRepo.custo).not.toHaveBeenCalled();
   });
 
   /**

@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { Card } from '@/app/components/ui';
 import {
+  useAnalyticsBuilding,
   useAnalyticsInspectors,
   useAnalyticsOverview,
   useAnalyticsResponsibles,
@@ -13,8 +14,11 @@ import { AnaliseDeSla } from './AnaliseDeSla';
 import { Desempenho } from './Desempenho';
 import { ESPACO, Relogio, TIPO } from './escala';
 import { EvolucaoMensal } from './EvolucaoMensal';
+import { FilaAcionavel } from './FilaAcionavel';
+import { FilaHoje } from './FilaHoje';
 import { FiltrosDoPainel, useFiltrosDoPainel } from './FiltrosDoPainel';
 import { FunilDeEtapas } from './FunilDeEtapas';
+import { Predio } from './Predio';
 import { ResumoDoPeriodo } from './ResumoDoPeriodo';
 import { SaudeDoProcesso } from './SaudeDoProcesso';
 import { SeletorDeVisao } from './SeletorDeVisao';
@@ -43,7 +47,23 @@ import { SeletorDeVisao } from './SeletorDeVisao';
 const VISOES = [
   { key: 'PROCESSOS', tab: 'Processos' },
   { key: 'DESEMPENHO', tab: 'Desempenho' },
+  { key: 'PREDIO', tab: 'Prédio' },
 ];
+
+/**
+ * O atraso de entrada de cada bloco, em cascata.
+ *
+ * Sete cartões aparecendo no mesmo quadro é a tela piscando; em cascata, é a
+ * tela sendo montada, e o olho ganha uma ordem de leitura de graça. 45ms entre
+ * peças: abaixo de 30 não se percebe, acima de 80 a última demora a chegar e o
+ * painel passa a parecer lento — que é o oposto do que a cascata existe para
+ * fazer.
+ *
+ * A cascata é decoração, e nenhuma peça espera por ela: `both` deixa o cartão
+ * invisível durante o atraso, mas ele já está no DOM, já é clicável e já foi
+ * anunciado ao leitor de tela.
+ */
+const PASSO_CASCATA = 45;
 
 /**
  * Um bloco do painel.
@@ -56,11 +76,18 @@ const VISOES = [
  * cartões alinhada. Sem isso cada um termina onde o conteúdo dele acaba, e a
  * fileira fica com um degrau no pé.
  */
-function Bloco({ titulo, relogio, agora = false, descricao, children, style = {} }) {
+function Bloco({ titulo, relogio, agora = false, descricao, ordem = 0, children, style = {} }) {
   return (
     <Card
       style={{
         padding: ESPACO.xl, height: '100%',
+        // Declarada inline, e não pela classe: o `Card` já traz `anim-fade-up`,
+        // e duas classes de animação no mesmo elemento se resolvem pela ordem
+        // do arquivo CSS — que é a última coisa em que se quer apoiar. Inline
+        // vence sem ambiguidade, e a regra de movimento reduzido continua
+        // valendo, porque ela zera a duração com `!important`.
+        animation: `analise-entra 220ms var(--ease-saida) both`,
+        animationDelay: `${ordem * PASSO_CASCATA}ms`,
         display: 'flex', flexDirection: 'column', gap: ESPACO.lg, ...style,
       }}
     >
@@ -82,6 +109,32 @@ function Bloco({ titulo, relogio, agora = false, descricao, children, style = {}
   );
 }
 
+/**
+ * O cabeçalho de uma seção da aba.
+ *
+ * A aba Processos passou a ter dois relógios declarados de uma vez, em vez de
+ * um por bloco. Antes, cada cartão trazia a própria etiqueta `Relogio`, e a
+ * "Saúde do processo" trazia três dentro dela: o balanço era do período, a fila
+ * era de agora, os desvios eram do período de novo. A etiqueta avisava caso a
+ * caso, e mesmo assim a tela misturava estoque com fluxo dentro do mesmo
+ * cartão — que é como um painel perde a confiança de quem o lê.
+ *
+ * Agora a divisão é estrutural: o que é "agora" fica em cima, junto, e o que é
+ * "no período" fica embaixo, junto. A etiqueta continua em cada bloco, mas
+ * passou a confirmar o que a seção já disse, em vez de ser o único aviso.
+ */
+function Secao({ titulo, relogio, agora = false, descricao }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: ESPACO.sm }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: ESPACO.sm }}>
+        <h2 style={{ ...TIPO.eyebrow, color: T.mute }}>{titulo}</h2>
+        <Relogio agora={agora}>{relogio}</Relogio>
+      </div>
+      <p style={{ ...TIPO.meta, color: T.faint }}>{descricao}</p>
+    </div>
+  );
+}
+
 function Erro({ error }) {
   return (
     <Card style={{ padding: ESPACO.xl }}>
@@ -100,6 +153,7 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
   const { estado, filtros, filtrosDeEquipe, trocar, limpar } = useFiltrosDoPainel();
 
   const emDesempenho = estado.visao === 'DESEMPENHO';
+  const emPredio = estado.visao === 'PREDIO';
   const emInspetores = podeVerInspetores && estado.equipe === 'INSPETORES';
   /**
    * O chip de responsável só aparece onde ele é aplicado.
@@ -116,6 +170,7 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
   // uma requisição que volta 403 a cada visita.
   const responsaveis = useAnalyticsResponsibles(buildingId, filtrosDeEquipe, filtraPorResponsavel);
   const inspetores = useAnalyticsInspectors(buildingId, filtros, emDesempenho && emInspetores);
+  const predio = useAnalyticsBuilding(buildingId, filtros, emPredio);
 
   const { data: listaResponsaveis } = useBuildingResponsibles(buildingId);
   const { data: andaresData } = useFloors(buildingId);
@@ -131,7 +186,13 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
     ? (ticket) => router.push(`${baseChamados}/processamento?chamado=${ticket.id}`)
     : undefined;
 
-  const atual = emDesempenho ? (emInspetores ? inspetores : responsaveis) : overview;
+  const atual = emPredio
+    ? predio
+    : emDesempenho
+      ? emInspetores
+        ? inspetores
+        : responsaveis
+      : overview;
   if (atual.isError) return <Erro error={atual.error} />;
 
   // Enquanto a primeira busca não volta não há período a anunciar, e escrever
@@ -157,7 +218,21 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
         label="Visões do painel analítico"
       />
 
-      {emDesempenho ? (
+      {emPredio ? (
+        <Bloco
+          titulo="O prédio"
+          relogio={predio.data?.periodo?.label ?? periodo?.label}
+          descricao="Quanto a manutenção custou e o que volta a dar problema no mesmo lugar. É o assunto que nem o processo nem a equipe respondem."
+        >
+          <Predio
+            dados={predio.data}
+            loading={predio.isLoading}
+            mesSelecionado={estado.mes ? Number(estado.mes) : null}
+            onSelecionarMes={(m) => trocar('mes', m)}
+            onFiltrarAndar={(id) => trocar('andar', id)}
+          />
+        </Bloco>
+      ) : emDesempenho ? (
         <Bloco
           titulo="Desempenho"
           relogio={periodo?.label}
@@ -174,8 +249,64 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
         </Bloco>
       ) : (
         <>
+          {/* Primeiro o que muda o dia, depois o que muda a conversa do mês.
+              A ordem antiga abria com o resumo do período — o retrospecto —, e
+              os dois chamados que já passaram do prazo ficavam três blocos
+              abaixo, dentro do cartão de SLA. */}
+          <Secao
+            titulo="Agora"
+            relogio="agora"
+            agora
+            descricao="O prédio inteiro, sem recorte de período: um chamado de dois meses atrás prestes a estourar continua sendo problema de hoje."
+          />
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))',
+              gap: ESPACO.lg,
+            }}
+          >
+            <Bloco
+              titulo="Pede atenção"
+              ordem={0}
+              relogio="agora"
+              agora
+              descricao="Quem estourou o prazo, quem está perto de estourar e quem ninguém tocou. Clique para abrir o chamado."
+            >
+              <FilaAcionavel
+                fila={overview.data?.fila_acionavel}
+                loading={overview.isLoading}
+                onAbrirChamado={abrirChamado}
+                motivo={estado.motivo}
+                onTrocarMotivo={(m) => trocar('motivo', m)}
+              />
+            </Bloco>
+
+            <Bloco
+              titulo="A fila hoje"
+              ordem={1}
+              relogio="agora"
+              agora
+              descricao="O tamanho e a idade do que está em aberto. É o contrapeso do tempo de resolução, que só conta o que fechou."
+            >
+              <FilaHoje
+                fila={overview.data?.processo?.fila_hoje}
+                kpis={overview.data?.kpis}
+                loading={overview.isLoading}
+              />
+            </Bloco>
+          </div>
+
+          <Secao
+            titulo="No período"
+            relogio={periodo?.label ?? '—'}
+            descricao="Recortado pelos filtros acima. O que nasceu, o que fechou e como o processo se comportou."
+          />
+
           <Bloco
             titulo="Resumo do período"
+            ordem={2}
             relogio={periodo?.label}
             descricao={`Chamados abertos em ${doPeriodo} e onde eles estão hoje. O atraso conta do dia da vistoria, e vale também para os que já fecharam.`}
           >
@@ -184,6 +315,7 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
 
           <Bloco
             titulo="O ano mês a mês"
+            ordem={3}
             relogio={String(overview.data?.evolucao?.year ?? periodo?.year ?? '')}
             descricao="A fila cresce quando entra mais do que sai. Clique num mês para recortar a tela inteira por ele."
           >
@@ -208,6 +340,7 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
           >
             <Bloco
               titulo="Funil e gargalos"
+              ordem={4}
               relogio={periodo?.label}
               descricao="Cada etapa é uma ação que alguém precisa tomar. A coluna mais alta é onde o processo trava."
             >
@@ -220,6 +353,7 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
 
             <Bloco
               titulo="Análise de SLA"
+              ordem={5}
               relogio={periodo?.label}
               descricao="Prazo em dias úteis contado do dia da vistoria. O percentual é sobre o que foi concluído no período."
             >
@@ -228,15 +362,15 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
                 kpis={overview.data?.kpis}
                 periodo={periodo}
                 loading={overview.isLoading}
-                onAbrirChamado={abrirChamado}
               />
             </Bloco>
           </div>
 
           <Bloco
-            titulo="Saúde do processo"
-            relogio="período e agora"
-            descricao="O que o tempo de cada etapa não conta: se a fila cresce, o que envelheceu no fundo dela, o que foi esquecido e onde o fluxo foi pulado."
+            titulo="Desvios do processo"
+            ordem={6}
+            relogio={periodo?.label}
+            descricao="O que o tempo de cada etapa não conta: se a fila cresce, onde o fluxo foi pulado e se o que foi registrado vale alguma coisa."
           >
             <SaudeDoProcesso
               processo={overview.data?.processo}

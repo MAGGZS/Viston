@@ -774,6 +774,24 @@ export function useAnalyticsResponsibles(buildingId, filtros, enabled = true) {
 }
 
 /**
+ * O prédio do painel analítico: custo e reincidência.
+ *
+ * `enabled` porque é uma aba: as consultas varrem o prédio inteiro, e buscar o
+ * custo enquanto ninguém abriu a aba é uma varredura por visita que nenhuma
+ * tela lê.
+ */
+export function useAnalyticsBuilding(buildingId, filtros, enabled = true) {
+  return useQuery({
+    queryKey: ['analytics', 'building', buildingId, filtros],
+    queryFn: () =>
+      api.get(`/buildings/${buildingId}/analytics/building`, { params: filtros }).then((r) => r.data),
+    enabled: !!buildingId && enabled,
+    staleTime: 1000 * 60 * 5,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
  * Os inspetores do painel analítico — rota de gestor.
  *
  * `enabled` carrega duas condições: a aba estar aberta e a conta poder ver.

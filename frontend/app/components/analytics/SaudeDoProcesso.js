@@ -1,19 +1,21 @@
 'use client';
-import { AlertTriangle, Clock, CornerUpLeft, Hourglass, Scale, Send, Wallet } from 'lucide-react';
+import { AlertTriangle, Clock, CornerUpLeft, Scale, Send, Wallet } from 'lucide-react';
 import { Skeleton } from '@/app/components/ui';
 import { T, W } from '@/app/lib/theme';
 
 /**
- * O que o tempo de cada etapa não conta.
+ * Os desvios do processo — o que o tempo de cada etapa não conta.
  *
  * O funil mostra onde o chamado espera. Ele não mostra se a fila está
- * crescendo, se há coisa apodrecendo no fundo dela, se alguém foi esquecido, ou
- * se o processo está sendo pulado. Cada número aqui existe porque muda uma
- * decisão — e os que não mudariam ficaram de fora.
+ * crescendo, se o processo está sendo pulado, nem se o que foi registrado vale
+ * alguma coisa. Cada número aqui existe porque muda uma decisão — e os que não
+ * mudariam ficaram de fora.
  *
- * As três leituras têm bases diferentes, e isso vai escrito em cada bloco em
- * vez de ficar implícito: o balanço é do período, a fila é de hoje (prédio
- * inteiro), os desvios são do período. Sem dizer, quem lê soma um com o outro.
+ * **Tudo aqui é do período**, e isso é novo. O cartão tinha um quarto grupo — a
+ * fila de hoje — que lia o relógio de agora, com uma etiqueta no cabeçalho
+ * avisando. A etiqueta avisava; a tela continuava pondo um estoque ao lado de
+ * um fluxo, e quem lê de relance soma os dois. O grupo subiu para o bloco "A
+ * fila hoje", na seção "Agora", onde ele está entre os pares dele.
  */
 
 function numero(v, casas = 0) {
@@ -126,7 +128,15 @@ export function SaudeDoProcesso({ processo, periodo, loading }) {
 
   if (!processo) return null;
 
-  const { balanco, fila_hoje: fila, desvios, registro } = processo;
+  // `fila_hoje` saiu daqui para o bloco "A fila hoje", no topo da tela.
+  //
+  // Ela era o único grupo deste cartão que lia o relógio de agora; os outros
+  // três são do período. Um cartão com dois relógios dentro é onde o leitor
+  // começa a somar um estoque com um fluxo sem perceber — e a etiqueta que
+  // avisava disso vivia no cabeçalho do grupo, longe dos números. Agora a
+  // divisão é estrutural: o que é de agora está numa seção, o que é do período
+  // está em outra.
+  const { balanco, desvios, registro } = processo;
   const label = periodo?.label?.toLowerCase() ?? 'no período';
   const cresceu = balanco.saldo > 0;
 
@@ -139,9 +149,6 @@ export function SaudeDoProcesso({ processo, periodo, loading }) {
    * parado — e é o que mantém o vermelho querendo dizer alguma coisa.
    */
   const relevante = (n) => balanco.nasceram > 0 && n / balanco.nasceram >= 0.1;
-  // Aberto há mais que o prazo mais longo do SLA (baixa, 15 dias úteis) é um
-  // chamado que nenhuma prioridade justifica.
-  const velhoDemais = fila.mais_velho_dias_uteis !== null && fila.mais_velho_dias_uteis > 15;
   // A fila crescer dois num ano não é notícia; crescer um quarto do que entrou é.
   const filaCrescendo = cresceu && balanco.saldo / Math.max(balanco.nasceram, 1) >= 0.25;
 
@@ -172,42 +179,6 @@ export function SaudeDoProcesso({ processo, periodo, loading }) {
           rotulo="Fechados"
           valor={numero(balanco.fecharam)}
           leitura={`Chamados que o moderador encerrou em ${label}, de qualquer mês de abertura.`}
-        />
-      </Grupo>
-
-      <Grupo titulo="A fila hoje" base="prédio inteiro, agora — fora do recorte de período">
-        <Celula
-          icon={Hourglass}
-          rotulo="Em aberto"
-          valor={numero(fila.em_aberto)}
-          leitura={
-            fila.mediana_dias_uteis === null
-              ? 'Nada em aberto no prédio.'
-              : `Metade deles espera há mais de ${dias(Math.round(fila.mediana_dias_uteis))}.`
-          }
-        />
-        <Celula
-          icon={Clock}
-          rotulo="O mais antigo"
-          valor={fila.mais_velho_dias_uteis === null ? '—' : numero(fila.mais_velho_dias_uteis)}
-          sufixo={fila.mais_velho_dias_uteis === null ? undefined : 'dias úteis'}
-          alerta={velhoDemais}
-          leitura={
-            fila.mais_velho_dias_uteis === null
-              ? 'Sem chamado aberto para envelhecer.'
-              : 'Tempo que o chamado aberto há mais tempo já esperou.'
-          }
-        />
-        <Celula
-          icon={AlertTriangle}
-          rotulo="Sem movimento"
-          valor={numero(fila.sem_movimento)}
-          alerta={fila.sem_movimento > 0}
-          leitura={
-            fila.sem_movimento === 0
-              ? `Todo chamado aberto teve algum toque nos últimos ${dias(fila.sem_movimento_desde_dias)}.`
-              : `Sem encaminhamento, recebimento, conclusão ou linha na timeline há ${dias(fila.sem_movimento_desde_dias)} ou mais.`
-          }
         />
       </Grupo>
 

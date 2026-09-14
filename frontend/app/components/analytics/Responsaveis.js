@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { AlertTriangle, ArrowDown, ArrowUp, Clock } from 'lucide-react';
 import { Skeleton } from '@/app/components/ui';
 import { labelOf, MAINTENANCE_TYPES } from '@/app/lib/maintenanceOptions';
-import { T, R, W, NUM } from '@/app/lib/theme';
+import { T, R, W, NUM, CHART } from '@/app/lib/theme';
 
 /**
  * Os responsáveis do prédio — comparados, ou um só por inteiro.
@@ -39,10 +39,74 @@ const COLUNAS = [
   { chave: 'recebidos', titulo: 'Recebidos', dica: 'Chamados que a pessoa aceitou dentro do período.' },
   { chave: 'concluidos', titulo: 'Concluídos', dica: 'Chamados fechados pelo moderador dentro do período.' },
   { chave: 'em_andamento_agora', titulo: 'Na mão agora', dica: 'Recebidos e ainda não fechados, neste instante.' },
+  {
+    chave: 'carga',
+    titulo: 'Carga',
+    tipo: 'carga',
+    dica: 'De que o trabalho concluído é feito: quanto de alta, média e baixa prioridade.',
+  },
   { chave: 'tempo_medio', titulo: 'Tempo médio', formato: dias, bomAlto: false, dica: 'Dias úteis entre a vistoria e o fechamento.' },
   { chave: 'taxa_atraso', titulo: 'Atraso', formato: pct, bomAlto: false, alertaAcima: 0, dica: 'Dos concluídos, quantos saíram fora do prazo.' },
   { chave: 'pct_sla', titulo: 'SLA', formato: pct, bomAlto: true, dica: 'Dos concluídos, quantos saíram dentro do prazo.' },
 ];
+
+/** A ordem das prioridades na micro-barra, da mais urgente para a menos. */
+const CARGA = [
+  { chave: 'ALTA', rotulo: 'alta', cor: 0 },
+  { chave: 'MEDIA', rotulo: 'média', cor: 2 },
+  { chave: 'BAIXA', rotulo: 'baixa', cor: 4 },
+];
+
+/**
+ * De que a carga da pessoa é feita.
+ *
+ * A tabela existia para comparar gente, e comparava taxa de atraso entre quem
+ * não recebeu o mesmo trabalho: prioridade alta tem cinco dias úteis de prazo,
+ * baixa tem quinze. Quem pega as altas aparece pior fazendo o serviço mais
+ * difícil — e o painel pintava isso de vermelho sem dizer nada a respeito.
+ *
+ * Uma micro-barra empilhada, na rampa `CHART`, que já é ordinal: o degrau mais
+ * escuro é a prioridade mais alta, e a ordem se lê na própria cor. Não é um
+ * gráfico a mais na tela, é a legenda que faltava às outras duas colunas.
+ */
+function Carga({ carga }) {
+  const total = CARGA.reduce((s, p) => s + (carga?.[p.chave] ?? 0), 0);
+
+  if (!carga || total === 0) {
+    return <span style={{ color: T.faint, fontSize: 12 }}>—</span>;
+  }
+
+  const texto = CARGA.filter((p) => carga[p.chave] > 0)
+    .map((p) => `${carga[p.chave]} ${p.rotulo}`)
+    .join(', ');
+
+  return (
+    <span
+      title={texto}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}
+    >
+      <span
+        aria-hidden="true"
+        style={{ display: 'flex', width: 46, height: 8, borderRadius: 2, overflow: 'hidden' }}
+      >
+        {CARGA.map((p) => {
+          const n = carga[p.chave] ?? 0;
+          if (n === 0) return null;
+          return (
+            <span
+              key={p.chave}
+              style={{ width: `${(n / total) * 100}%`, background: CHART[p.cor] }}
+            />
+          );
+        })}
+      </span>
+      {/* O texto ao lado da barra, e não só no `title`: uma barra de 46px com
+          três fatias não se lê, e a coluna existe justamente para desfazer um
+          julgamento — não pode depender de passar o mouse. */}
+      <span style={{ color: T.faint, fontSize: 11, whiteSpace: 'nowrap', ...NUM }}>{texto}</span>
+    </span>
+  );
+}
 
 /** O cabeçalho que ordena. Clicável, e anunciado como tal. */
 function Cabecalho({ coluna, ordem, onOrdenar }) {
@@ -94,6 +158,9 @@ function TabelaComparativa({ linhas, onAbrirPessoa }) {
 
     return [...linhas].sort((a, b) => {
       if (col?.tipo === 'texto') return sinal * String(a.name).localeCompare(String(b.name), 'pt-BR');
+      // A carga não é um número: ordena pelo total concluído, que é o tamanho
+      // dela. Ordenar pelo objeto daria `NaN` e embaralharia a tabela.
+      if (col?.tipo === 'carga') return sinal * (a.concluidos - b.concluidos);
       // Sem dado vai sempre para o fim, ordene-se como se ordenar: quem não
       // concluiu nada não é "o mais rápido da equipe".
       const va = a[ordem.chave];
@@ -114,7 +181,7 @@ function TabelaComparativa({ linhas, onAbrirPessoa }) {
     // Rolagem horizontal contida: sete colunas não cabem no telefone, e o corpo
     // da página não pode rolar de lado por causa disso.
     <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', minWidth: 620, borderCollapse: 'collapse' }}>
+      <table style={{ width: '100%', minWidth: 780, borderCollapse: 'collapse' }}>
         <caption className="so-leitor">
           Comparativo dos responsáveis do prédio no período
         </caption>
@@ -147,8 +214,21 @@ function TabelaComparativa({ linhas, onAbrirPessoa }) {
 
               {COLUNAS.slice(1).map((c) => {
                 const valor = r[c.chave];
+                /**
+                 * O vermelho pede duas coisas: valor ruim e amostra que baste.
+                 *
+                 * `r.confiavel` vem do servidor e é o mesmo piso que o resto do
+                 * painel usa. Sem ele, "1 de 2 atrasou" acendia 50% em vermelho
+                 * ao lado de quem fechou duzentos — e a pessoa que concluiu dois
+                 * chamados aparecia como o pior problema da equipe. Abaixo do
+                 * piso o número continua na tela, na tinta de sempre: esconder
+                 * seria a outra mentira.
+                 */
                 const ruim =
-                  c.alertaAcima !== undefined && valor !== null && valor > c.alertaAcima;
+                  c.alertaAcima !== undefined &&
+                  valor !== null &&
+                  valor > c.alertaAcima &&
+                  r.confiavel !== false;
 
                 return (
                   <td
@@ -160,7 +240,13 @@ function TabelaComparativa({ linhas, onAbrirPessoa }) {
                       ...NUM,
                     }}
                   >
-                    {c.formato ? c.formato(valor) : numero(valor)}
+                    {c.tipo === 'carga' ? (
+                      <Carga carga={valor} />
+                    ) : c.formato ? (
+                      c.formato(valor)
+                    ) : (
+                      numero(valor)
+                    )}
                   </td>
                 );
               })}

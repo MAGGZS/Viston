@@ -65,15 +65,36 @@ export function Desempenho({
         </div>
       )}
 
-      {emInspetores ? (
-        <Inspetores dados={inspetores?.data} loading={inspetores?.isLoading} />
-      ) : (
-        <Responsaveis
-          dados={responsaveis?.data}
-          loading={responsaveis?.isLoading}
-          onSelecionar={onSelecionarResponsavel}
-        />
-      )}
+      {/* A troca de equipe anima; a troca de aba lá em cima já animava porque
+          o cartão inteiro remonta, mas aqui a tabela era substituída dentro do
+          mesmo cartão e o conteúdo pulava sem aviso. Duas tabelas de colunas
+          diferentes trocando no mesmo quadro se leem como a página tendo dado
+          um erro.
+
+          `key` na visão: é o que faz o navegador tratar a tabela nova como
+          elemento novo e tocar a entrada de novo. Sem ela o React reaproveita o
+          nó e a animação não roda uma segunda vez.
+
+          Mais rápido que a entrada de um bloco — 180ms contra 220 — porque aqui
+          já se está dentro do assunto: o cartão, o título e o alternador não se
+          moveram, e só o miolo mudou. */}
+      <div
+        key={emInspetores ? 'INSPETORES' : 'RESPONSAVEIS'}
+        style={{
+          animation: 'analise-entra 180ms var(--ease-saida) both',
+          flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0,
+        }}
+      >
+        {emInspetores ? (
+          <Inspetores dados={inspetores?.data} loading={inspetores?.isLoading} />
+        ) : (
+          <Responsaveis
+            dados={responsaveis?.data}
+            loading={responsaveis?.isLoading}
+            onSelecionar={onSelecionarResponsavel}
+          />
+        )}
+      </div>
     </div>
   );
 }

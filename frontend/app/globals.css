@@ -258,6 +258,51 @@ input:-webkit-autofill:focus {
 .anim-scale-out  { animation: scale-out 0.18s ease both; }
 
 /**
+ * A curva de entrada do painel analítico.
+ *
+ * As curvas embutidas do CSS são fracas — `ease` sai devagar do lugar, e é
+ * justamente o primeiro quadro que se está olhando. Esta arranca e freia no
+ * fim, que é o que faz a peça parecer que respondeu antes de terminar.
+ *
+ * `ease-in` nunca entra aqui: começar devagar faz a mesma duração *parecer*
+ * mais longa, e o painel já tem sete blocos para desenhar.
+ */
+:root {
+  --ease-saida: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/**
+ * A entrada de um bloco de análise.
+ *
+ * 220ms e 8px, contra os 350ms e 16px do `fade-up` do produto. O painel troca
+ * de visão com um clique e mostra sete cartões de uma vez; no ritmo do resto do
+ * produto a tela inteira ficava um terço de segundo chegando. Deslocamento
+ * curto pelo mesmo motivo: sete peças subindo 16px ao mesmo tempo é a tela
+ * balançando, não a tela entrando.
+ */
+@keyframes analise-entra {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.anim-analise { animation: analise-entra 220ms var(--ease-saida) both; }
+
+/**
+ * A resposta ao toque.
+ *
+ * Encolher 3% enquanto o dedo está em cima é o que diz que a interface ouviu,
+ * antes de ela ter o que responder. Vai só em alvo compacto — mês do gráfico,
+ * item de lista. Num cabeçalho de tabela largo o mesmo gesto vira a linha
+ * inteira pulando, e ali o realce de fundo já basta.
+ *
+ * Classe à parte, e não dentro de `.btn`: `transform` faz do elemento um bloco
+ * de contenção, e `.btn` é usada no produto inteiro — inclusive em peças que
+ * abrigam elemento `position: fixed` (ver a nota das utilitárias acima).
+ */
+.press { transition: transform 160ms var(--ease-saida); }
+.press:active { transform: scale(0.97); }
+
+/**
  * A lista entra pelo lado em que está o botão que a abriu.
  *
  * Trocar de fila troca a lista inteira no mesmo lugar da tela, e sem percurso o

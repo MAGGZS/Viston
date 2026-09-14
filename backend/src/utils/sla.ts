@@ -1,4 +1,5 @@
 import { Priority } from '@prisma/client';
+import { HOLIDAY_CTE, brazilHolidays } from './holidays';
 import { zonedDayKey } from './timezone';
 
 /**
@@ -28,11 +29,12 @@ export const SLA_BUSINESS_DAYS: Record<Priority, number> = {
 export const SLA_RISK_THRESHOLD = 0.8;
 
 /**
- * Onde os feriados entram, quando entrarem.
+ * Por onde os feriados entram.
  *
- * Hoje ninguém implementa esta interface e todo o produto conta sábado e
- * domingo como os únicos dias não úteis. Quando houver calendário, ele entra
- * por aqui: `businessDaysBetween` desconta o que ele disser, e nada mais muda.
+ * A interface é o contrato, e `brazilHolidays` (utils/holidays.ts) é quem o
+ * cumpre hoje: os feriados nacionais, gerados a partir do ano. Feriado
+ * municipal, quando existir, entra por aqui também — outra implementação, e
+ * nada mais muda.
  */
 export interface HolidayCalendar {
   /** Quantos feriados úteis caem no intervalo (início, fim]. */
@@ -144,7 +146,13 @@ export function computeSla(input: {
   closedAt: Date | null | undefined;
   /** Agora. Existe para os testes; em produção é sempre o relógio do servidor. */
   now?: Date;
-  holidays?: HolidayCalendar;
+  /**
+   * O calendário de feriados. Omitido, é o nacional — quem chama não precisa
+   * lembrar de passá-lo, e esquecer de passar era como o produto inteiro
+   * voltava a contar 25 de dezembro como dia de trabalho. `null` conta só
+   * sábado e domingo, e existe para os testes da fórmula crua.
+   */
+  holidays?: HolidayCalendar | null;
 }): SlaInfo {
   const limite = SLA_BUSINESS_DAYS[input.priority];
   if (!input.openedOn) return { limite, ...SEM_DATA };
@@ -154,7 +162,8 @@ export function computeSla(input: {
     ? zonedDayKey(input.closedAt)
     : zonedDayKey(input.now ?? new Date());
 
-  const dias = businessDaysBetween(dateColumnKey(input.openedOn), fim, input.holidays);
+  const calendario = input.holidays === undefined ? brazilHolidays : input.holidays;
+  const dias = businessDaysBetween(dateColumnKey(input.openedOn), fim, calendario ?? undefined);
   const consumo = dias / limite;
   const atrasado = dias > limite;
 
@@ -186,12 +195,36 @@ export function sqlBizIndex(dateExpr: string): string {
 }
 
 /**
+ * O desconto de feriados, em SQL.
+ *
+ * Lê a CTE `feriados`, que quem monta a consulta declara uma vez no `WITH` (ver
+ * `sqlHolidayCte`). A janela é (início, fim], a mesma de `businessDaysBetween`,
+ * e a lista já vem sem feriado de fim de semana — descontar um sábado seria
+ * tirar do prazo um dia que a contagem nunca deu.
+ */
+function sqlHolidayDiscount(startExpr: string, endExpr: string): string {
+  return `(SELECT count(*) FROM ${HOLIDAY_CTE} f
+    WHERE f.dia > (${startExpr})::date AND f.dia <= (${endExpr})::date)`;
+}
+
+/**
  * Dias úteis decorridos entre duas expressões de data, em SQL.
  *
- * Espelha `businessDaysBetween`, inclusive o piso em zero.
+ * Espelha `businessDaysBetween`, inclusive o piso em zero e o desconto de
+ * feriados. `holidays: false` devolve a fórmula crua — sábado e domingo apenas
+ * —, e serve a quem monta um SELECT sem a CTE `feriados` no `WITH`.
  */
-export function sqlBusinessDaysBetween(startExpr: string, endExpr: string): string {
-  return `GREATEST(0, ${sqlBizIndex(endExpr)} - ${sqlBizIndex(startExpr)})`;
+export function sqlBusinessDaysBetween(
+  startExpr: string,
+  endExpr: string,
+  options: { holidays?: boolean } = {}
+): string {
+  const uteis = `${sqlBizIndex(endExpr)} - ${sqlBizIndex(startExpr)}`;
+  const comFeriado = options.holidays !== false;
+
+  return comFeriado
+    ? `GREATEST(0, ${uteis} - ${sqlHolidayDiscount(startExpr, endExpr)})`
+    : `GREATEST(0, ${uteis})`;
 }
 
 /** O prazo de cada prioridade, como expressão SQL (para comparar com o decorrido). */

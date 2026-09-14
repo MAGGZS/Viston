@@ -172,4 +172,16 @@ describe('a tradução para SQL', () => {
   it('põe piso em zero, como businessDaysBetween', () => {
     expect(sqlBusinessDaysBetween('a', 'b')).toMatch(/^GREATEST\(0,/);
   });
+
+  it('desconta feriado pela CTE, na mesma janela aberta-fechada', () => {
+    const sql = sqlBusinessDaysBetween('a', 'b');
+
+    expect(sql).toContain('FROM feriados f');
+    expect(sql).toContain('f.dia > (a)::date');
+    expect(sql).toContain('f.dia <= (b)::date');
+  });
+
+  it('sem feriado, volta a ser a fórmula crua', () => {
+    expect(sqlBusinessDaysBetween('a', 'b', { holidays: false })).not.toContain('feriados');
+  });
 });

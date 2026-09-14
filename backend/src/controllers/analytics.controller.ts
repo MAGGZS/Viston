@@ -30,6 +30,28 @@ export const analyticsController = {
   },
 
   /**
+   * Quantos chamados pedem atenção agora.
+   *
+   * Sem filtro nenhum, nem `req.query`: a fila é de agora e do prédio inteiro.
+   * Passar o schema aqui abriria um recorte de período sobre uma pergunta que
+   * não tem período.
+   */
+  async queue(req: AuthenticatedRequest, res: Response) {
+    ok(res, await analyticsService.queue(req.params.id));
+  },
+
+  /**
+   * O prédio: custo e reincidência.
+   *
+   * Mesma guarda do `overview`, e pelo mesmo motivo: tem custo de manutenção
+   * dentro, e custo não é leitura de quem só acompanha o prédio.
+   */
+  async building(req: AuthenticatedRequest, res: Response) {
+    const filters = analyticsFiltersSchema.parse(req.query);
+    ok(res, await analyticsService.building(req.params.id, filters));
+  },
+
+  /**
    * Os inspetores do prédio.
    *
    * A rota é de gestor (ver routes/analytics.routes.ts). Quem vistoria é
