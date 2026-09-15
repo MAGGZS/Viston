@@ -5,8 +5,8 @@ import { ptBR } from 'date-fns/locale';
 import { Download, Inbox, Send, Loader, CheckCheck } from 'lucide-react';
 import { CartaoForaDoPrazo } from '@/app/components/CartaoForaDoPrazo';
 import { ModeradorShell, useModeratorBuilding } from '@/app/components/ModeradorShell';
-import { OcorrenciasPorStatus } from '@/app/components/OcorrenciasPorStatus';
-import { OcorrenciasPorCategoria } from '@/app/components/OcorrenciasPorCategoria';
+import { OcorrenciasPorCategoriaPizza } from '@/app/components/OcorrenciasPorCategoriaPizza';
+import { OcorrenciasPorTipo } from '@/app/components/OcorrenciasPorTipo';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
 import { Badge, Skeleton, StatCard } from '@/app/components/ui';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
@@ -198,14 +198,8 @@ export default function ModeradorPage() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, alignItems: 'start' }}>
-          {/* Onde estão as ocorrências do período, em pizza.
-
-              Tomou o lugar do calendário de atividade. Os dois cabiam aqui, mas
-              não respondiam à mesma pessoa: o calendário diz em que dias se
-              vistoriou, que é a pergunta de quem monta escala, e esta é a mesa
-              de quem despacha chamado. O calendário continua onde ele responde
-              alguma coisa — a tela inicial, o histórico e o painel do gestor. */}
-          <OcorrenciasPorStatus
+          {/* Categorias das ocorrências do período, em pizza. */}
+          <OcorrenciasPorCategoriaPizza
             buildingId={buildingId}
             className="anim-fade-up anim-d5"
             style={{ height: ALTURA_PIZZA }}
@@ -266,10 +260,8 @@ export default function ModeradorPage() {
           </div>
         </div>
 
-        {/* Largo e embaixo: são cinco barras a comparar entre si, e comparação
-            de comprimento quer a linha inteira. Ao lado dos outros dois ele
-            teria um terço da tela e as barras curtas ficariam todas iguais. */}
-        <OcorrenciasPorCategoria buildingId={buildingId} className="anim-fade-up anim-d6" />
+        {/* Gráfico de colunas com os tipos de ocorrência */}
+        <OcorrenciasPorTipo buildingId={buildingId} className="anim-fade-up anim-d6" />
       </div>
 
       <ReportDocumentModal open={!!reportId} onClose={() => setReportId(null)} reportId={reportId} />

@@ -3,74 +3,35 @@ import { useState } from 'react';
 import { PeriodoFiltro, usePeriodo } from '@/app/components/PeriodoFiltro';
 import { Skeleton } from '@/app/components/ui';
 import { useTicketSummary } from '@/app/hooks/useApi';
+import { CATEGORIES } from '@/app/lib/maintenanceOptions';
 import { T, R, W, NUM, CHART } from '@/app/lib/theme';
 
 /**
- * Onde estão as ocorrências do período, em pizza.
+ * Distribuição das ocorrências por categoria no período, em pizza/rosca.
  *
- * Tomou o lugar do calendário de atividade. O calendário respondia "em que dias
- * se vistoriou", que é a pergunta de quem monta escala; esta tela é a mesa de
- * quem despacha chamado, e a pergunta dela é "quanto de cada coisa está parado
- * comigo".
- *
- * A pizza mostra a proporção de relance, e é só isso que ela faz bem: comparar
- * duas fatias parecidas por ângulo não funciona. Por isso a legenda carrega o
- * número exato e a porcentagem de cada estado — quem precisa comparar lê os
- * números, e a rosca fica com o trabalho que é dela, mostrar o peso de cada
- * parte no todo.
- *
- * As cores são uma rampa de uma matiz só, do começo do caminho ao fim (ver
- * CHART em app/lib/theme.js): estado de chamado é etapa de funil, e cinco cores
- * diferentes diriam "estas coisas não têm ordem entre si", que é falso.
+ * Mostra a proporção das categorias de manutenção (Preventiva, Corretiva,
+ * Emergencial, Eventos e Projetos). A rosca exibe a relação entre as partes e
+ * o todo com as 5 cores da escala CHART, enquanto a legenda exibe os valores
+ * absolutos e percentuais.
  */
-
-/**
- * As fatias, na ordem do caminho que o chamado faz.
- *
- * EM_ANDAMENTO e AGUARDANDO_TERCEIRO entram na mesma: são o mesmo momento para
- * quem olha de fora — alguém está executando —, e é assim que as listas do
- * produto já os rotulam (ver OCCURRENCE_STATUS_LABEL). AGUARDANDO_FECHAMENTO
- * fica de fora dessa soma porque não é execução: é decisão parada com o
- * moderador, que é justamente o que ele abre esta tela para ver.
- *
- * Isto é mais fino que os contadores do topo, que juntam os três num
- * "Em andamento" só. É de propósito, e os rótulos dizem qual é qual: o topo
- * conta o trabalho em curso, a pizza mostra de que ele é feito.
- */
-const FATIAS = [
-  { key: 'ABERTO', label: 'Em aberto', de: ['ABERTO'] },
-  { key: 'ENCAMINHADO', label: 'Encaminhado', de: ['ENCAMINHADO'] },
-  { key: 'ANDAMENTO', label: 'Em andamento', de: ['EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO'] },
-  { key: 'AGUARDANDO_FECHAMENTO', label: 'Concluído pelo responsável', de: ['AGUARDANDO_FECHAMENTO'] },
-  { key: 'CONCLUIDO', label: 'Finalizado', de: ['CONCLUIDO'] },
-];
+const FATIAS_CATEGORIA = CATEGORIES.map((c) => ({
+  key: c.value,
+  label: c.label,
+}));
 
 /**
  * A medida da rosca.
  *
- * Cresceu de 168 para 220 quando o cartão ganhou altura própria no painel (ver
- * `ALTURA_CARTAO`, em app/moderador/page.js): sobrava vão embaixo, e vão embaixo
- * de um gráfico é gráfico pequeno demais, não cartão grande demais. O raio e a
- * grossura acompanham na mesma proporção — a rosca é a mesma peça, maior.
+ * 220px com raio de 89px e borda de 26px para ocupar o cartão confortavelmente.
  */
 const TAMANHO = 220;
 const RAIO = 89;
 const GROSSURA = 26;
 const CIRCUNFERENCIA = 2 * Math.PI * RAIO;
-
-/**
- * O respiro entre fatias, em pixels de arco.
- *
- * A fatia é encurtada por ele, e o que aparece embaixo é o cartão: duas cores
- * vizinhas da mesma rampa encostadas viram uma mancha só, e essa borda é a
- * única coisa que diz onde uma acaba.
- */
 const RESPIRO = 3;
 
 /** Uma fatia da rosca, desenhada como pedaço tracejado da circunferência. */
 function Fatia({ cor, fracao, offset, apagada, onFoco }) {
-  // Fatia menor que o respiro não pode sumir: o buraco que ela deixaria no anel
-  // mentiria sobre o total. Abaixo desse tamanho ela abre mão do respiro.
   const arco = fracao * CIRCUNFERENCIA;
   const desenhado = arco > RESPIRO + 1.5 ? arco - RESPIRO : arco;
 
@@ -91,25 +52,19 @@ function Fatia({ cor, fracao, offset, apagada, onFoco }) {
   );
 }
 
-export function OcorrenciasPorStatus({ buildingId, className = '', style = {} }) {
+export function OcorrenciasPorCategoriaPizza({ buildingId, className = '', style = {} }) {
   const periodo = usePeriodo();
   const { data, isLoading } = useTicketSummary(buildingId, periodo.params);
   const [emFoco, setEmFoco] = useState(null);
 
-  const contagens = data?.by_status ?? {};
-  const fatias = FATIAS.map((f) => ({
+  const contagens = data?.by_category ?? {};
+  const fatias = FATIAS_CATEGORIA.map((f) => ({
     ...f,
-    valor: f.de.reduce((soma, s) => soma + (contagens[s] ?? 0), 0),
+    valor: contagens[f.key] ?? 0,
   }));
 
-  // O total sai do servidor: somar as fatias aqui daria outro número no dia em
-  // que um estado novo entrar no enum e ainda não tiver fatia desenhada.
-  const total = data?.total ?? 0;
+  const total = fatias.reduce((soma, f) => soma + f.valor, 0);
 
-  // O deslocamento de cada fatia é tudo o que veio antes dela — a rosca é uma
-  // volta só, e cada pedaço começa onde o anterior parou. Num `reduce`, e não
-  // num contador ao lado do `map`: o compilador do React recusa variável que o
-  // render vai remexendo, e aqui o acumulado é a própria lista sendo montada.
   const comOffset = fatias.reduce((ate, f) => {
     const fracao = total > 0 ? f.valor / total : 0;
     const anterior = ate[ate.length - 1];
@@ -127,8 +82,8 @@ export function OcorrenciasPorStatus({ buildingId, className = '', style = {} })
       className={className}
       style={{ background: T.card, borderRadius: R.card, boxShadow: T.cardRing, padding: 20, ...style }}
     >
-      <h2 style={{ color: T.text, fontSize: 14, fontWeight: W.title }}>Ocorrências por status</h2>
-      <p style={{ color: T.mute, fontSize: 12, marginTop: 3 }}>Onde está cada chamado do período</p>
+      <h2 style={{ color: T.text, fontSize: 14, fontWeight: W.title }}>Ocorrências por categoria</h2>
+      <p style={{ color: T.mute, fontSize: 12, marginTop: 3 }}>Distribuição por categoria no período</p>
 
       <PeriodoFiltro
         year={periodo.year}
@@ -152,7 +107,7 @@ export function OcorrenciasPorStatus({ buildingId, className = '', style = {} })
               height={TAMANHO}
               viewBox={`0 0 ${TAMANHO} ${TAMANHO}`}
               role="img"
-              aria-label={`Ocorrências por status, ${total} no total. ${resumo}`}
+              aria-label={`Ocorrências por categoria, ${total} no total. ${resumo}`}
               // Começa às 12h: uma volta que principia à direita não tem começo
               // aparente, e a primeira fatia é a primeira etapa do caminho.
               style={{ transform: 'rotate(-90deg)' }}
@@ -223,3 +178,5 @@ export function OcorrenciasPorStatus({ buildingId, className = '', style = {} })
     </div>
   );
 }
+
+export const OcorrenciasPorStatus = OcorrenciasPorCategoriaPizza;

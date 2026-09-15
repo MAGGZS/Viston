@@ -11,6 +11,8 @@ import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { InspectionPreviewModal } from '@/app/components/InspectionPreview';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
+import { OcorrenciasPorCategoriaPizza } from '@/app/components/OcorrenciasPorCategoriaPizza';
+import { OcorrenciasPorTipo } from '@/app/components/OcorrenciasPorTipo';
 import { Badge, Skeleton, Button, Modal, StatCard } from '@/app/components/ui';
 import { HEAT, heatColor, T } from '@/app/lib/theme';
 import { HistoricoSwitcher, useHistoricoView } from '@/app/components/HistoricoSwitcher';
@@ -244,25 +246,19 @@ export default function GestorBuildingPage() {
             pelas semanas do mês — ganhava um vão de fundo vazio embaixo da
             legenda, do tamanho do que sobrava da tabela ao lado. É o mesmo
             ajuste que o painel do moderador já faz. */}
+        {/* Pizza de categorias + Histórico */}
         <div className="anim-fade-up anim-d4 grid grid-cols-3 gap-6 items-start">
-          <div className="col-span-1 bg-card rounded-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <button onClick={prev} className="p-1 text-mute hover:text-ink"><ChevronLeft size={16} /></button>
-              <span key={monthLabel} className="anim-fade-in text-ink text-sm font-semibold capitalize">{monthLabel}</span>
-              <button onClick={next} className="p-1 text-mute hover:text-ink"><ChevronRight size={16} /></button>
-            </div>
-            <MonthGrid heatmap={heatmap} year={year} month={month} onDayClick={(day, info) => setSelected({ day, info })} />
-            <div className="flex items-center gap-1 mt-4 justify-end">
-              <span className="text-mute text-xs">Menos</span>
-              {HEAT.map((c, i) => (
-                <div key={i} style={{ background: c }} className="w-3 h-3 rounded-sm" />
-              ))}
-              <span className="text-mute text-xs">Mais</span>
-            </div>
-          </div>
+          <OcorrenciasPorCategoriaPizza
+            buildingId={id}
+            className="col-span-1"
+            style={{ height: 540 }}
+          />
 
-          <div className="col-span-2 bg-card rounded-card overflow-hidden">
-            <div className="px-6 py-4 border-b border-line">
+          <div
+            className="col-span-2 bg-card rounded-card overflow-hidden"
+            style={{ height: 568, display: 'flex', flexDirection: 'column' }}
+          >
+            <div className="px-6 py-4 border-b border-line" style={{ flexShrink: 0 }}>
               <HistoricoSwitcher
                 view={historico.view}
                 onSelect={historico.select}
@@ -277,13 +273,20 @@ export default function GestorBuildingPage() {
               />
             </div>
 
-            {/* `key` na visão: só o miolo do cartão troca — o calendário ao
+            {/* `key` na visão: só o miolo do cartão troca — a pizza ao
                 lado e o resto da tela do prédio ficam onde estão. */}
-            <div key={historico.view} className="anim-fade-up">
+            <div
+              key={historico.view}
+              className="anim-fade-up"
+              style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+            >
               {historico.isVistorias ? inspecoesPanel : <OcorrenciasTable buildingId={id} padX={24} />}
             </div>
           </div>
         </div>
+
+        {/* Gráfico de colunas com tipos de ocorrências */}
+        <OcorrenciasPorTipo buildingId={id} className="anim-fade-up anim-d6" style={{ marginTop: 24 }} />
       </div>
 
       <DayInspectionsModal
