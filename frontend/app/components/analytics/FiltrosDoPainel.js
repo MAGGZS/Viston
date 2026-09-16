@@ -183,6 +183,8 @@ export function FiltrosDoPainel({
   andares = [],
   /** O chip de responsável só existe onde ele é aplicado: a aba de desempenho. */
   mostrarResponsavel = false,
+  /** A entrada da peça fica com quem a posiciona na tela. */
+  className = '',
 }) {
   const anos = useMemo(() => {
     const atual = new Date().getFullYear();
@@ -190,7 +192,7 @@ export function FiltrosDoPainel({
   }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div className={className} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div
         role="group"
         aria-label="Recorte do painel"

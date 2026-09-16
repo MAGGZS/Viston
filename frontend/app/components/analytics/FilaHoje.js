@@ -1,6 +1,7 @@
 'use client';
 import { Skeleton } from '@/app/components/ui';
-import { T, W, NUM } from '@/app/lib/theme';
+import { T, W, NUM, SERIE } from '@/app/lib/theme';
+import { Celula, Figura } from './CartaoMetrica';
 import { ESPACO, TIPO } from './escala';
 
 /**
@@ -47,14 +48,10 @@ export function FilaHoje({ fila, kpis, loading }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: ESPACO.lg, flex: 1, minHeight: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: ESPACO.md, flexWrap: 'wrap' }}>
-        <span style={{ ...TIPO.heroi, ...NUM, color: T.text, lineHeight: 1 }}>
-          {fila.em_aberto}
-        </span>
-        <span style={{ ...TIPO.corpo, color: T.mute }}>
-          {fila.em_aberto === 1 ? 'chamado em aberto' : 'chamados em aberto'}
-        </span>
-      </div>
+      <Figura
+        valor={fila.em_aberto}
+        rotulo={fila.em_aberto === 1 ? 'chamado em aberto' : 'chamados em aberto'}
+      />
 
       <div
         style={{
@@ -74,6 +71,12 @@ export function FilaHoje({ fila, kpis, loading }) {
           valor={fila.mediana_dias_uteis === null ? '—' : Math.round(fila.mediana_dias_uteis)}
           sufixo={fila.mediana_dias_uteis === null ? null : 'd'}
           nota="metade da fila espera há mais tempo que isto, em dias úteis"
+          proporcao={
+            fila.mediana_dias_uteis === null || !fila.mais_velho_dias_uteis
+              ? null
+              : fila.mediana_dias_uteis / fila.mais_velho_dias_uteis
+          }
+          cor={SERIE.ciano}
         />
         <Celula
           rotulo="O mais antigo"
@@ -85,12 +88,20 @@ export function FilaHoje({ fila, kpis, loading }) {
               ? `acima de ${VELHO_DEMAIS} dias úteis em aberto`
               : 'nada apodrecendo no fundo da fila'
           }
+          // O mais antigo é o teto da própria escala: a barra cheia é o que dá
+          // sentido à fração que a mediana desenha ao lado.
+          proporcao={fila.mais_velho_dias_uteis === null ? null : 1}
+          cor={SERIE.ciano}
         />
         <Celula
           rotulo="Sem movimento"
           valor={fila.sem_movimento}
           alerta={fila.sem_movimento > 0}
           nota={`ninguém tocou há ${fila.sem_movimento_desde_dias} dias úteis ou mais`}
+          // Quanto da fila está esquecida — a única das três que é parte de um
+          // todo, e por isso a única cuja barra se lê como percentual.
+          proporcao={fila.em_aberto > 0 ? fila.sem_movimento / fila.em_aberto : null}
+          cor={SERIE.ciano}
         />
       </div>
 
@@ -182,26 +193,3 @@ export function FilaHoje({ fila, kpis, loading }) {
   );
 }
 
-function Celula({ rotulo, valor, sufixo, nota, alerta = false }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-      <span style={{ ...TIPO.eyebrow, color: T.faint }}>{rotulo}</span>
-      <span
-        style={{
-          ...TIPO.figura, ...NUM,
-          color: alerta ? T.danger : T.text,
-          fontWeight: W.title, lineHeight: 1.2,
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {valor}
-        {sufixo && (
-          <span style={{ ...TIPO.meta, color: T.faint, fontWeight: W.body }}> {sufixo}</span>
-        )}
-      </span>
-      <span style={{ ...TIPO.meta, color: alerta ? T.danger : T.faint, lineHeight: 1.4 }}>
-        {nota}
-      </span>
-    </div>
-  );
-}

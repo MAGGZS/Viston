@@ -29,7 +29,7 @@ export default function GestorPainelAnaliticoPage() {
       title="Painel analítico"
       subtitle="Como o prédio está andando, onde o processo trava e como a equipe está indo"
     >
-      <div style={{ padding: '0 32px 32px', overflowY: 'auto' }}>
+      <div style={{ padding: '2px 32px 32px', overflowY: 'auto' }}>
         <Suspense fallback={null}>
           <PainelAnalitico
             buildingId={id}

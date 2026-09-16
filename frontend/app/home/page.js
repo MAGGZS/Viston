@@ -92,7 +92,7 @@ export default function HomePage() {
 
         {podeVistoriar && (
           <MCard className="anim-fade-up anim-d1"
-            style={{ background: M.accent, padding: 20, display: 'flex', alignItems: 'center', gap: 14 }}
+            style={{ background: M.accent, boxShadow: `inset 0 0 0 1px ${M.accentEdge}`, padding: 20, display: 'flex', alignItems: 'center', gap: 14 }}
             onClick={() => router.push('/inspecao')}>
             <div style={{ width: 46, height: 46, borderRadius: R.control, background: 'rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <ClipboardCheck size={22} color="#000" />

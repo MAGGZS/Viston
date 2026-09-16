@@ -9,10 +9,15 @@ import nextJest from 'next/jest.js';
  */
 const createJestConfig = nextJest({ dir: './' });
 
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('jest').Config} */
 const config = {
   testEnvironment: 'jsdom',
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  setupFilesAfterEnv: [path.resolve(__dirname, 'jest.setup.js')],
   testMatch: ['<rootDir>/app/**/__tests__/**/*.test.js'],
 };
 

@@ -35,7 +35,7 @@ const S = {
   input: { background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent', borderRadius: R.control, padding: '13px 16px', color: T.text, fontSize: 16, outline: 'none', width: '100%' },
   inputWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
   eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: T.mute, display: 'flex', alignItems: 'center' },
-  btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: 500, fontSize: 15, padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4 },
+  btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: 500, fontSize: 15, padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4, boxShadow: `inset 0 0 0 1px ${T.accentEdge}` },
 };
 
 export default function RegisterPage() {
@@ -164,7 +164,7 @@ export default function RegisterPage() {
             />
             {fields.map(({ name, label, type, placeholder }) => {
               const isPassword = type === 'password';
-              const inputStyle = { ...S.input, ...(isPassword ? { paddingRight: 46 } : {}), ...(errors[name] ? { borderColor: 'rgba(248,113,113,0.5)' } : {}) };
+              const inputStyle = { ...S.input, ...(isPassword ? { paddingRight: 46 } : {}), ...(errors[name] ? { borderColor: T.danger } : {}) };
               return (
                 <div key={name} style={S.field} {...(name === 'password' ? foco.ancora : {})}>
                   <label style={S.label}>{label}</label>
@@ -190,7 +190,7 @@ export default function RegisterPage() {
               );
             })}
             {apiError && (
-              <div style={{ background: 'rgba(248,113,113,0.13)', borderRadius: R.control, padding: '11px 14px' }}>
+              <div style={{ background: T.dangerSoft, borderRadius: R.control, padding: '11px 14px' }}>
                 <p style={{ color: T.danger, fontSize: 14, textAlign: 'center' }}>{apiError}</p>
               </div>
             )}

@@ -80,6 +80,22 @@ const ZERO_CATEGORY = {
   PROJETOS: 0,
 } as Record<MaintenanceCategory, number>;
 
+const ZERO_TYPE = {
+  AR_CONDICIONADO: 0,
+  CIVIL: 0,
+  ELETRICA: 0,
+  EQUIPAMENTO: 0,
+  EVENTOS: 0,
+  HIDRELETRICA: 0,
+  HIGIENIZACAO_LIMPEZA: 0,
+  INFILTRACAO: 0,
+  MARCENARIA: 0,
+  MOVEIS_CADEIRAS: 0,
+  PINTURA: 0,
+  PROJETOR: 0,
+  VAZAMENTO: 0,
+} as Record<MaintenanceType, number>;
+
 /** As linhas de um `groupBy` sobre o mapa zerado daquela coluna. */
 function fill<K extends string>(
   zero: Record<K, number>,
@@ -253,6 +269,7 @@ export const ticketRepository = {
   ): Promise<{
     status: Record<RecordStatus, number>;
     category: Record<MaintenanceCategory, number>;
+    type: Record<MaintenanceType, number>;
   }> {
     const { date_from, date_to } = period;
 
@@ -276,14 +293,16 @@ export const ticketRepository = {
         : {}),
     };
 
-    const [porStatus, porCategoria] = await Promise.all([
+    const [porStatus, porCategoria, porTipo] = await Promise.all([
       prisma.maintenanceRecord.groupBy({ by: ['status'], where, _count: { _all: true } }),
       prisma.maintenanceRecord.groupBy({ by: ['category'], where, _count: { _all: true } }),
+      prisma.maintenanceRecord.groupBy({ by: ['maintenance_type'], where, _count: { _all: true } }),
     ]);
 
     return {
       status: fill(ZERO_STATUS, porStatus, 'status'),
       category: fill(ZERO_CATEGORY, porCategoria, 'category'),
+      type: fill(ZERO_TYPE, porTipo, 'maintenance_type'),
     };
   },
 

@@ -1,8 +1,9 @@
 'use client';
 import { AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/app/components/ui';
-import { T, R, W, NUM, CHART } from '@/app/lib/theme';
-import { TIPO } from './escala';
+import { T, R, W, NUM, CHART, SERIE } from '@/app/lib/theme';
+import { Faixa, Figura, PilulaVariacao } from './CartaoMetrica';
+import { ESPACO, TIPO } from './escala';
 
 /**
  * O que aconteceu no período, numa peça só.
@@ -39,30 +40,6 @@ const ESTADOS = [
 function numero(v, casas = 0) {
   if (v === null || v === undefined) return '—';
   return v.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
-}
-
-/**
- * A variação contra o período anterior.
- *
- * `bomSubir` é o que impede a peça de mentir: sem ele, o aumento de atrasados
- * ganharia a mesma seta discreta do aumento de concluídos. Só o que piorou
- * recebe cor — colorir os dois lados gastaria a tinta de alarme na metade boa.
- */
-function Variacao({ valor, bomSubir, sufixo = '%', casas = 0, base }) {
-  if (valor === null || valor === undefined) {
-    return <span style={{ color: T.faint, fontSize: 11 }}>sem base de comparação</span>;
-  }
-
-  const parado = Math.abs(valor) < 0.05;
-  const piorou = !parado && valor > 0 !== bomSubir;
-  const seta = parado ? '' : valor > 0 ? '▲' : '▼';
-
-  return (
-    <span style={{ color: piorou ? T.danger : T.faint, fontSize: 11, fontWeight: piorou ? W.strong : W.body }}>
-      {parado ? 'estável' : `${seta} ${numero(Math.abs(valor), casas)}${sufixo}`}
-      <span style={{ color: T.faint, fontWeight: W.body }}> vs. {base}</span>
-    </span>
-  );
 }
 
 /** A composição do período: um comprimento dividido, com os nomes embaixo. */
@@ -140,7 +117,7 @@ function Composicao({ kpis }) {
   );
 }
 
-export function ResumoDoPeriodo({ kpis, periodo, loading }) {
+export function ResumoDoPeriodo({ kpis, evolucao, periodo, loading }) {
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -149,6 +126,28 @@ export function ResumoDoPeriodo({ kpis, periodo, loading }) {
       </div>
     );
   }
+
+  /**
+   * A série que a forma desenha: os chamados abertos mês a mês.
+   *
+   * Os meses que ainda não aconteceram ficam de fora — a linha para onde o ano
+   * parou, em vez de cair a zero em outubro e desenhar um despencar que é só
+   * ausência de dado.
+   */
+  const serie = (evolucao?.meses ?? []).filter((m) => !m.futuro).map((m) => m.abertos);
+
+  /**
+   * A forma só aparece quando há forma.
+   *
+   * Dois pontos bastam para desenhar uma linha, e não bastam para haver
+   * tendência: num prédio com um mês de movimento no ano, a série é uma fileira
+   * de zeros com um espinho no meio — e espinho não é tendência, é um mês. Pior,
+   * o trecho reto no pé do cartão se lê como borda, não como dado.
+   *
+   * Dois meses **com movimento** é o piso. É o mesmo julgamento do perfil da
+   * manutenção na aba do prédio, pelo mesmo motivo.
+   */
+  const mesesComMovimento = serie.filter((n) => n > 0).length;
 
   const k = kpis ?? {};
   const v = k.variacao ?? {};
@@ -179,26 +178,23 @@ export function ResumoDoPeriodo({ kpis, periodo, loading }) {
           gap: 20, alignItems: 'center',
         }}
       >
-        <div>
-          {/* Figuras proporcionais, e não tabulares: `tabular-nums` dá a todo
-              dígito a largura do zero, e num corpo de 48 isso abre buracos
-              dentro do próprio número. Tabular fica para as colunas que
-              precisam alinhar entre linhas. */}
-          <span
-            style={{
-              ...TIPO.heroi,
-              color: T.text, lineHeight: 1, letterSpacing: '-0.03em',
-            }}
-          >
-            {numero(k.total)}
-          </span>
-          <p style={{ color: T.mute, fontSize: 13, marginTop: 6 }}>
-            {k.total === 1 ? 'chamado aberto' : 'chamados abertos'} em{' '}
-            {periodo?.label?.toLowerCase() ?? 'no período'}
-          </p>
-          <div style={{ marginTop: 4 }}>
-            <Variacao valor={v.total} bomSubir={false} base={base} />
-          </div>
+        {/* Figura, variação e forma — a anatomia de `CartaoMetrica`, na ordem
+            que todo bloco do painel segue agora. A variação era texto solto com
+            uma seta ao lado do rótulo; virou pílula, que separa a comparação do
+            número em vez de colar as duas grandezas na mesma linha. */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: ESPACO.sm }}>
+          <Figura
+            valor={numero(k.total)}
+            rotulo={`${k.total === 1 ? 'chamado aberto' : 'chamados abertos'} em ${periodo?.label?.toLowerCase() ?? 'no período'}`}
+            variacao={<PilulaVariacao valor={v.total} bomSubir={false} base={base} />}
+          />
+
+          {/* A forma do ano atrás do número.
+              Não acrescenta dado — os doze meses já estão no bloco de baixo —,
+              acrescenta a forma do dado, que é o que o olho lê antes do dígito.
+              Só aparece quando há ano a mostrar: num prédio de um mês só, a
+              linha seria um traço reto fingindo tendência. */}
+          {mesesComMovimento >= 2 && <Faixa valores={serie} cor={SERIE.ambar} altura={40} />}
         </div>
 
         <Composicao kpis={k} />
@@ -250,7 +246,7 @@ export function ResumoDoPeriodo({ kpis, periodo, loading }) {
           </span>
         </span>
 
-        <Variacao valor={v.atrasados} bomSubir={false} base={base} />
+        <PilulaVariacao valor={v.atrasados} bomSubir={false} base={base} />
       </div>
     </div>
   );

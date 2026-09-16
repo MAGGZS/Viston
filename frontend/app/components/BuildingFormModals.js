@@ -23,7 +23,7 @@ function FloorTags({ labels, onRemove, input, onInputChange, onAdd }) {
           <span style={{ color: T.faint, fontSize: 14 }}>Nenhum andar adicionado</span>
         )}
         {labels.map(label => (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px 6px 12px', borderRadius: 20, border: '1px solid rgba(245,197,24,0.3)', background: 'rgba(245,197,24,0.08)' }}>
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px 6px 12px', borderRadius: 20, border: `1px solid ${T.accentLine}`, background: T.accentSoft }}>
             <span style={{ color: T.accentInk, fontSize: 14, fontWeight: 600 }}>{label}</span>
             <button onClick={() => onRemove(label)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.faint, display: 'flex', alignItems: 'center', padding: 0, lineHeight: 1 }}
               onMouseEnter={e => e.currentTarget.style.color = T.danger}

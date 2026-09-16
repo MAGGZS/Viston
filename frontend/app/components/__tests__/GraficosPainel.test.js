@@ -1,8 +1,8 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { OcorrenciasPorStatus } from '@/app/components/OcorrenciasPorStatus';
-import { OcorrenciasPorCategoria } from '@/app/components/OcorrenciasPorCategoria';
+import { OcorrenciasPorCategoriaPizza, OcorrenciasPorStatus } from '@/app/components/OcorrenciasPorStatus';
+import { OcorrenciasPorTipo } from '@/app/components/OcorrenciasPorTipo';
 import { intervaloDe } from '@/app/lib/periodo';
 
 // Caminho relativo, e não o alias `@/`: o `jest.mock` é içado para antes dos
@@ -11,13 +11,9 @@ jest.mock('../../lib/api', () => ({ __esModule: true, default: { get: jest.fn() 
 import api from '../../lib/api';
 
 /**
- * Os dois gráficos do painel do moderador.
- *
- * O que se cobre aqui é o que eles existem para dizer. Primeiro o período: "até
- * hoje" é a única regra que o produto inventou — vai do primeiro de janeiro do
- * ano escolhido até o dia em que a pessoa está olhando —, e ela erra sozinha na
- * virada do fuso. Depois as contagens: elas vêm somadas do servidor, e uma soma
- * feita sobre a página que a tela carregou mentiria em qualquer prédio grande.
+ * Os dois gráficos dos painéis iniciais do moderador e gestor:
+ * - Pizza de ocorrências por categoria
+ * - Colunas de ocorrências por tipo
  */
 const BUILDING = 'p1';
 
@@ -31,6 +27,13 @@ const RESUMO = {
     CONCLUIDO: 7,
   },
   by_category: { PREVENTIVA: 8, CORRETIVA: 9, EMERGENCIAL: 3, EVENTOS: 1, PROJETOS: 1 },
+  by_type: {
+    ELETRICA: 9,
+    INFILTRACAO: 6,
+    AR_CONDICIONADO: 4,
+    CIVIL: 2,
+    PINTURA: 1,
+  },
   total: 22,
 };
 
@@ -97,38 +100,38 @@ describe('intervaloDe', () => {
   });
 });
 
-// ── A pizza ───────────────────────────────────────────────────────────────────
-describe('OcorrenciasPorStatus', () => {
+// ── A pizza de categorias ─────────────────────────────────────────────────────
+describe('OcorrenciasPorCategoriaPizza', () => {
   it('abre no ano corrente até hoje, sem ninguém escolher nada', async () => {
-    renderCard(<OcorrenciasPorStatus buildingId={BUILDING} />);
+    renderCard(<OcorrenciasPorCategoriaPizza buildingId={BUILDING} />);
 
     const ano = new Date().getFullYear();
     await waitFor(() => expect(ultimoPeriodo()?.date_from).toBe(`${ano}-01-01`));
   });
 
-  it('junta execução numa fatia só e deixa a decisão do moderador à parte', async () => {
-    // EM_ANDAMENTO + AGUARDANDO_TERCEIRO são o mesmo momento para quem olha de
-    // fora — 3 + 1. AGUARDANDO_FECHAMENTO não entra: não é execução, é decisão
-    // parada com o moderador, que é o que ele abre esta tela para ver.
-    renderCard(<OcorrenciasPorStatus buildingId={BUILDING} />);
+  it('exibe as categorias e suas respectivas contagens', async () => {
+    renderCard(<OcorrenciasPorCategoriaPizza buildingId={BUILDING} />);
 
-    const andamento = await screen.findByText('Em andamento');
-    expect(within(andamento.closest('li')).getByText('4')).toBeInTheDocument();
+    const preventiva = await screen.findByText('Preventiva');
+    expect(within(preventiva.closest('li')).getByText('8')).toBeInTheDocument();
 
-    const aguardando = screen.getByText('Concluído pelo responsável');
-    expect(within(aguardando.closest('li')).getByText('2')).toBeInTheDocument();
+    const corretiva = screen.getByText('Corretiva');
+    expect(within(corretiva.closest('li')).getByText('9')).toBeInTheDocument();
+
+    const emergencial = screen.getByText('Emergencial');
+    expect(within(emergencial.closest('li')).getByText('3')).toBeInTheDocument();
   });
 
-  it('o total é o do servidor, e não a soma das fatias desenhadas', async () => {
-    renderCard(<OcorrenciasPorStatus buildingId={BUILDING} />);
+  it('calcula o total a partir das categorias', async () => {
+    renderCard(<OcorrenciasPorCategoriaPizza buildingId={BUILDING} />);
 
     expect(await screen.findByLabelText(/22 no total/)).toBeInTheDocument();
   });
 
   it('trocar o mês manda outro período ao servidor', async () => {
     const user = userEvent.setup();
-    renderCard(<OcorrenciasPorStatus buildingId={BUILDING} />);
-    await screen.findByText('Finalizado');
+    renderCard(<OcorrenciasPorCategoriaPizza buildingId={BUILDING} />);
+    await screen.findByText('Preventiva');
 
     await user.click(screen.getByRole('combobox', { name: 'Mês' }));
     await user.click(await screen.findByRole('option', { name: 'Março' }));
@@ -141,38 +144,38 @@ describe('OcorrenciasPorStatus', () => {
 
   it('período sem ocorrência nenhuma não desenha rosca vazia', async () => {
     api.get.mockImplementation(() =>
-      Promise.resolve({ data: { by_status: {}, by_category: {}, total: 0 } })
+      Promise.resolve({ data: { by_status: {}, by_category: {}, by_type: {}, total: 0 } })
     );
-    renderCard(<OcorrenciasPorStatus buildingId={BUILDING} />);
+    renderCard(<OcorrenciasPorCategoriaPizza buildingId={BUILDING} />);
 
     expect(await screen.findByText('Nenhuma ocorrência neste período')).toBeInTheDocument();
   });
 });
 
-// ── As barras ─────────────────────────────────────────────────────────────────
-describe('OcorrenciasPorCategoria', () => {
-  it('ordena da categoria que mais pesou para a que menos', async () => {
-    renderCard(<OcorrenciasPorCategoria buildingId={BUILDING} />);
+// ── As colunas de tipos de ocorrências ─────────────────────────────────────────
+describe('OcorrenciasPorTipo', () => {
+  it('ordena do tipo que mais pesou para o que menos', async () => {
+    renderCard(<OcorrenciasPorTipo buildingId={BUILDING} />);
 
-    await screen.findByText('Corretiva');
-    const nomes = screen.getAllByRole('listitem').map((li) => li.textContent);
+    await screen.findByText('Elétrica');
+    const rotulos = screen.getByRole('img').querySelectorAll('span');
+    const textos = Array.from(rotulos).map((s) => s.textContent);
 
-    expect(nomes[0]).toContain('Corretiva');
-    expect(nomes[1]).toContain('Preventiva');
-    expect(nomes[2]).toContain('Emergencial');
+    expect(textos).toContain('Elétrica');
+    expect(textos).toContain('Infiltração');
   });
 
   it('tem período próprio: mexer aqui não mexe no gráfico do lado', async () => {
     const user = userEvent.setup();
     renderCard(
       <>
-        <OcorrenciasPorStatus buildingId={BUILDING} />
-        <OcorrenciasPorCategoria buildingId={BUILDING} />
+        <OcorrenciasPorCategoriaPizza buildingId={BUILDING} />
+        <OcorrenciasPorTipo buildingId={BUILDING} />
       </>
     );
-    await screen.findByText('Corretiva');
+    await screen.findByText('Elétrica');
 
-    // O segundo cartão é o das categorias — os dois trazem o mesmo par de chips.
+    // O segundo cartão é o dos tipos — os dois trazem o mesmo par de chips.
     const meses = screen.getAllByRole('combobox', { name: 'Mês' });
     await user.click(meses[1]);
     await user.click(await screen.findByRole('option', { name: 'Maio' }));

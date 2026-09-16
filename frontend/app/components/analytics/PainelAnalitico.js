@@ -31,39 +31,66 @@ import { SeletorDeVisao } from './SeletorDeVisao';
  * lugar onde dois números diferentes para a mesma pergunta são o pior defeito
  * possível.
  *
- * Duas visões, alternadas em pilha:
+ * Três visões, e cada uma responde sobre uma coisa só:
  *
- * - **Processos** responde sobre o prédio: quanto entrou, como o ano andou,
- *   onde trava, o que está fora do prazo, o que foi esquecido.
- * - **Desempenho** responde sobre gente. É visão separada e não mais um bloco
- *   no fim da rolagem porque comparar uma equipe exige a tela inteira, e quem
- *   abriu o painel para ver o prédio não quer atravessar a equipe até o
- *   gargalo.
+ * - **Processos** é o caminho do chamado: o que pede ação hoje, quanto entrou,
+ *   como o ano andou, onde trava e o que está fora do prazo.
+ * - **Prédio** é sobre o imóvel: quanto custou, o que reincide, e como o
+ *   processo está sendo operado.
+ * - **Desempenho** é sobre gente. É visão separada e não um bloco no fim da
+ *   rolagem porque comparar uma equipe exige a tela inteira, e quem abriu o
+ *   painel para ver o prédio não quer atravessar a equipe até o gargalo.
+ *
+ * A divisão é por assunto, e não por quanto cabe em cada aba — mas as duas
+ * coisas andam juntas. "Desvios do processo" estava em Processos, que tinha 3,3
+ * telas contra 1,2 desta: era o bloco mais fundo da rolagem mais longa, e
+ * ninguém chegava nele. Mudou de aba porque o assunto dele é o prédio, e de
+ * quebra as duas abas ficaram do mesmo tamanho.
  *
  * Os filtros ficam acima do alternador porque valem para as duas: repeti-los
  * dentro de cada uma faria a troca de aba parecer reiniciar o recorte.
  */
 
+/**
+ * A ordem das abas é a ordem das perguntas, da mais concreta à mais abstrata.
+ *
+ * Processos, Prédio, Desempenho. Primeiro o que está acontecendo com os
+ * chamados, depois o imóvel de que eles falam, e só então as pessoas que os
+ * atendem.
+ *
+ * Desempenho ficou por último de propósito. É a única aba sobre gente, e uma
+ * aba sobre gente no meio do caminho faz a tela parecer uma ferramenta de
+ * avaliação com dois anexos — quando ela é uma ferramenta sobre o prédio que
+ * também mede quem trabalha nele. As duas primeiras respondem "como está"; a
+ * terceira responde "quem", e "quem" é a pergunta que se faz depois.
+ */
 const VISOES = [
   { key: 'PROCESSOS', tab: 'Processos' },
-  { key: 'DESEMPENHO', tab: 'Desempenho' },
   { key: 'PREDIO', tab: 'Prédio' },
+  { key: 'DESEMPENHO', tab: 'Desempenho' },
 ];
 
 /**
- * O atraso de entrada de cada bloco, em cascata.
+ * O atraso de entrada de cada peça, em cascata.
  *
  * Sete cartões aparecendo no mesmo quadro é a tela piscando; em cascata, é a
- * tela sendo montada, e o olho ganha uma ordem de leitura de graça. 45ms entre
- * peças: abaixo de 30 não se percebe, acima de 80 a última demora a chegar e o
- * painel passa a parecer lento — que é o oposto do que a cascata existe para
- * fazer.
+ * tela sendo montada, e o olho ganha uma ordem de leitura de graça.
  *
- * A cascata é decoração, e nenhuma peça espera por ela: `both` deixa o cartão
- * invisível durante o atraso, mas ele já está no DOM, já é clicável e já foi
- * anunciado ao leitor de tela.
+ * Os degraus são os do produto — `anim-d1`..`anim-d6`, de 50ms em 50ms, as
+ * mesmas classes que escalonam a home, o histórico e as tabelas. O painel já
+ * teve um passo próprio (45ms) e uma curva de entrada própria; a diferença não
+ * se via de perto, mas via-se ao trocar de tela, que é onde o produto precisa
+ * parecer um só.
+ *
+ * A cascata é decoração, e nenhuma peça espera por ela: o `both` do `fade-up`
+ * deixa o cartão invisível durante o atraso, mas ele já está no DOM, já é
+ * clicável e já foi anunciado ao leitor de tela.
  */
-const PASSO_CASCATA = 45;
+const DEGRAUS = 6;
+
+function cascata(ordem) {
+  return ordem > 0 ? ` anim-d${Math.min(ordem, DEGRAUS)}` : '';
+}
 
 /**
  * Um bloco do painel.
@@ -79,15 +106,13 @@ const PASSO_CASCATA = 45;
 function Bloco({ titulo, relogio, agora = false, descricao, ordem = 0, children, style = {} }) {
   return (
     <Card
+      // A entrada é a do produto: o `Card` já traz `anim-fade-up`, e daqui sai
+      // só o degrau da cascata. `anim-dN` mexe apenas em `animation-delay`, não
+      // disputa com a animação do `Card`, e a regra de movimento reduzido zera
+      // os dois de uma vez.
+      className={cascata(ordem).trim()}
       style={{
         padding: ESPACO.xl, height: '100%',
-        // Declarada inline, e não pela classe: o `Card` já traz `anim-fade-up`,
-        // e duas classes de animação no mesmo elemento se resolvem pela ordem
-        // do arquivo CSS — que é a última coisa em que se quer apoiar. Inline
-        // vence sem ambiguidade, e a regra de movimento reduzido continua
-        // valendo, porque ela zera a duração com `!important`.
-        animation: `analise-entra 220ms var(--ease-saida) both`,
-        animationDelay: `${ordem * PASSO_CASCATA}ms`,
         display: 'flex', flexDirection: 'column', gap: ESPACO.lg, ...style,
       }}
     >
@@ -123,9 +148,12 @@ function Bloco({ titulo, relogio, agora = false, descricao, ordem = 0, children,
  * "no período" fica embaixo, junto. A etiqueta continua em cada bloco, mas
  * passou a confirmar o que a seção já disse, em vez de ser o único aviso.
  */
-function Secao({ titulo, relogio, agora = false, descricao }) {
+function Secao({ titulo, relogio, agora = false, descricao, ordem = 0 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: ESPACO.sm }}>
+    <div
+      className={`anim-fade-up${cascata(ordem)}`}
+      style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: ESPACO.sm }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: ESPACO.sm }}>
         <h2 style={{ ...TIPO.eyebrow, color: T.mute }}>{titulo}</h2>
         <Relogio agora={agora}>{relogio}</Relogio>
@@ -202,7 +230,13 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: ESPACO.lg }}>
+      {/* O cabeçalho da tela entra antes do conteúdo, e entra só com opacidade.
+          `anim-fade-in` e não `anim-fade-up` aqui por regra do sistema: o `both`
+          do fade-up retém um `transform`, e elemento com transform vira bloco de
+          contenção para filho `position: fixed` — estas duas peças abrigam menu
+          de chip e trilho medido, e é onde isso morde primeiro. */}
       <FiltrosDoPainel
+        className="anim-fade-in"
         estado={estado}
         trocar={trocar}
         limpar={limpar}
@@ -212,26 +246,69 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
       />
 
       <SeletorDeVisao
+        className="anim-fade-in anim-d1"
         views={VISOES}
         value={estado.visao}
         onSelect={(v) => trocar('visao', v === VISOES[0].key ? '' : v)}
         label="Visões do painel analítico"
       />
 
+      {/* A cascata do conteúdo recomeça do zero a cada visão, e por isso ela é
+          chaveada: trocar de aba troca a tela inteira no mesmo lugar, e sem
+          remontar o React reaproveita os nós — a animação de entrada só tocaria
+          na primeira visita, e as outras duas abas apareceriam secas.
+
+          A chave fica num contêiner próprio, e não em cada bloco: assim a
+          fileira em grade também remonta, e os dois cartões lado a lado entram
+          junto com o resto em vez de ficarem parados enquanto a coluna anima. */}
+      <div
+        key={estado.visao}
+        style={{ display: 'flex', flexDirection: 'column', gap: ESPACO.lg }}
+      >
       {emPredio ? (
-        <Bloco
-          titulo="O prédio"
-          relogio={predio.data?.periodo?.label ?? periodo?.label}
-          descricao="Quanto a manutenção custou e o que volta a dar problema no mesmo lugar. É o assunto que nem o processo nem a equipe respondem."
-        >
-          <Predio
-            dados={predio.data}
-            loading={predio.isLoading}
-            mesSelecionado={estado.mes ? Number(estado.mes) : null}
-            onSelecionarMes={(m) => trocar('mes', m)}
-            onFiltrarAndar={(id) => trocar('andar', id)}
-          />
-        </Bloco>
+        <>
+          <Bloco
+            titulo="O prédio"
+            ordem={0}
+            relogio={predio.data?.periodo?.label ?? periodo?.label}
+            descricao="Quanto a manutenção custou e o que volta a dar problema no mesmo lugar. É o assunto que nem o processo nem a equipe respondem."
+          >
+            <Predio
+              dados={predio.data}
+              loading={predio.isLoading}
+              mesSelecionado={estado.mes ? Number(estado.mes) : null}
+              onSelecionarMes={(m) => trocar('mes', m)}
+              onFiltrarAndar={(id) => trocar('andar', id)}
+            />
+          </Bloco>
+
+          {/* Os desvios moraram na aba Processos, e estavam no lugar errado por
+              dois motivos.
+
+              O de peso: eram 494px na terceira dobra de uma aba de 3,3 telas,
+              enquanto esta tinha 1,2 — ninguém rolava até lá, e oito números que
+              custam consulta não eram lidos por ninguém.
+
+              O de assunto, que é o que decide: "a fila cresceu", "o fluxo foi
+              pulado", "o valor não foi preenchido" não falam do caminho que o
+              chamado faz nem de quem o empurra — falam do prédio e de como ele
+              é operado. É a mesma pergunta do custo e da reincidência logo
+              acima, e a cobertura de custo daqui explica a qualidade do registro
+              dali: os dois blocos se lêem melhor um ao lado do outro do que
+              separados por uma aba. */}
+          <Bloco
+            titulo="Desvios do processo"
+            ordem={1}
+            relogio={periodo?.label}
+            descricao="O que o tempo de cada etapa não conta: se a fila cresce, onde o fluxo foi pulado e se o que foi registrado vale alguma coisa."
+          >
+            <SaudeDoProcesso
+              processo={overview.data?.processo}
+              periodo={periodo}
+              loading={overview.isLoading}
+            />
+          </Bloco>
+        </>
       ) : emDesempenho ? (
         <Bloco
           titulo="Desempenho"
@@ -258,6 +335,7 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
             relogio="agora"
             agora
             descricao="O prédio inteiro, sem recorte de período: um chamado de dois meses atrás prestes a estourar continua sendo problema de hoje."
+            ordem={0}
           />
 
           <div
@@ -269,10 +347,9 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
           >
             <Bloco
               titulo="Pede atenção"
-              ordem={0}
+              ordem={1}
               relogio="agora"
               agora
-              descricao="Quem estourou o prazo, quem está perto de estourar e quem ninguém tocou. Clique para abrir o chamado."
             >
               <FilaAcionavel
                 fila={overview.data?.fila_acionavel}
@@ -285,10 +362,9 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
 
             <Bloco
               titulo="A fila hoje"
-              ordem={1}
+              ordem={2}
               relogio="agora"
               agora
-              descricao="O tamanho e a idade do que está em aberto. É o contrapeso do tempo de resolução, que só conta o que fechou."
             >
               <FilaHoje
                 fila={overview.data?.processo?.fila_hoje}
@@ -302,22 +378,27 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
             titulo="No período"
             relogio={periodo?.label ?? '—'}
             descricao="Recortado pelos filtros acima. O que nasceu, o que fechou e como o processo se comportou."
+            ordem={3}
           />
 
           <Bloco
             titulo="Resumo do período"
-            ordem={2}
+            ordem={4}
             relogio={periodo?.label}
             descricao={`Chamados abertos em ${doPeriodo} e onde eles estão hoje. O atraso conta do dia da vistoria, e vale também para os que já fecharam.`}
           >
-            <ResumoDoPeriodo kpis={overview.data?.kpis} periodo={periodo} loading={overview.isLoading} />
+            <ResumoDoPeriodo
+              kpis={overview.data?.kpis}
+              evolucao={overview.data?.evolucao}
+              periodo={periodo}
+              loading={overview.isLoading}
+            />
           </Bloco>
 
           <Bloco
             titulo="O ano mês a mês"
-            ordem={3}
+            ordem={5}
             relogio={String(overview.data?.evolucao?.year ?? periodo?.year ?? '')}
-            descricao="A fila cresce quando entra mais do que sai. Clique num mês para recortar a tela inteira por ele."
           >
             <EvolucaoMensal
               evolucao={overview.data?.evolucao}
@@ -340,9 +421,8 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
           >
             <Bloco
               titulo="Funil e gargalos"
-              ordem={4}
+              ordem={6}
               relogio={periodo?.label}
-              descricao="Cada etapa é uma ação que alguém precisa tomar. A coluna mais alta é onde o processo trava."
             >
               <FunilDeEtapas
                 funil={overview.data?.funil}
@@ -353,7 +433,7 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
 
             <Bloco
               titulo="Análise de SLA"
-              ordem={5}
+              ordem={6}
               relogio={periodo?.label}
               descricao="Prazo em dias úteis contado do dia da vistoria. O percentual é sobre o que foi concluído no período."
             >
@@ -366,20 +446,9 @@ export function PainelAnalitico({ buildingId, baseChamados, podeVerInspetores = 
             </Bloco>
           </div>
 
-          <Bloco
-            titulo="Desvios do processo"
-            ordem={6}
-            relogio={periodo?.label}
-            descricao="O que o tempo de cada etapa não conta: se a fila cresce, onde o fluxo foi pulado e se o que foi registrado vale alguma coisa."
-          >
-            <SaudeDoProcesso
-              processo={overview.data?.processo}
-              periodo={periodo}
-              loading={overview.isLoading}
-            />
-          </Bloco>
         </>
       )}
+      </div>
     </div>
   );
 }

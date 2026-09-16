@@ -45,6 +45,7 @@ function CreateTile({ onClick, standalone, className = '' }) {
         className="transition-transform duration-300 group-hover:rotate-90 group-hover:scale-110"
         style={{
           width: 56, height: 56, borderRadius: '50%', background: T.accent, color: T.onAccent,
+          boxShadow: `inset 0 0 0 1px ${T.accentEdge}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}
       >
@@ -85,7 +86,7 @@ function BuildingCard({ building, onOpen, onShare, onEdit, onDelete, className =
           onClick={onOpen}
           className="transition-colors duration-150 hover:bg-accent-hover"
           style={{
-            flex: 1, background: T.accent, color: T.onAccent, border: 'none', borderRadius: R.control,
+            flex: 1, background: T.accent, color: T.onAccent, boxShadow: `inset 0 0 0 1px ${T.accentEdge}`, border: 'none', borderRadius: R.control,
             padding: '9px 0', fontSize: 14, fontWeight: W.title, fontFamily: T.display, cursor: 'pointer',
           }}
         >

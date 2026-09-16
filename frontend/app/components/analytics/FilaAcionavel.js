@@ -297,14 +297,17 @@ function Item({ ticket, ordem, motivo, semMovimentoDesde, onAbrir }) {
       <Peca
         type={onAbrir ? 'button' : undefined}
         onClick={onAbrir ? () => onAbrir(ticket) : undefined}
+        // A mesma entrada das linhas de tabela do produto: opacidade e o
+        // escalonamento de `anim-d1`..`anim-d6`. O item é uma linha dentro de
+        // um cartão que já subiu; fazê-lo subir de novo seria o mesmo movimento
+        // duas vezes na mesma peça.
+        className={`anim-fade-in${ordem > 0 ? ` anim-d${Math.min(ordem, 6)}` : ''}`}
         style={{
           display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
           gap: ESPACO.md, width: '100%', padding: `${ESPACO.sm}px ${ESPACO.xs}px`,
           background: 'none', border: 'none', borderRadius: 6,
           textAlign: 'left', cursor: onAbrir ? 'pointer' : 'default',
           transition: 'background 140ms var(--ease-saida)',
-          animation: 'analise-entra 200ms var(--ease-saida) both',
-          animationDelay: `${ordem * 30}ms`,
         }}
         onMouseEnter={(e) => { if (onAbrir) e.currentTarget.style.background = T.hover; }}
         onMouseLeave={(e) => { if (onAbrir) e.currentTarget.style.background = 'transparent'; }}

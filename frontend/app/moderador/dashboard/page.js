@@ -26,7 +26,7 @@ export default function PainelAnaliticoPage() {
       title="Painel analítico"
       subtitle="Como o prédio está andando, onde o processo trava e o que está fora do prazo"
     >
-      <div style={{ padding: '0 32px 32px', overflowY: 'auto' }}>
+      <div style={{ padding: '2px 32px 32px', overflowY: 'auto' }}>
         <Suspense fallback={null}>
           <PainelAnalitico buildingId={building?.building_id} baseChamados="/moderador/chamados" />
         </Suspense>

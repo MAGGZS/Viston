@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { setTheme, useTheme } from '@/app/lib/tema';
+import { setTheme, useTheme, useThemePref } from '@/app/lib/tema';
 import { THEME_KEY } from '@/app/lib/theme';
 
 /**
@@ -9,10 +9,25 @@ import { THEME_KEY } from '@/app/lib/theme';
  * sobrevive ao recarregamento, e o armazenamento recusando escrita não derruba
  * a troca na tela. Esse último caso é navegação anônima, e é o que quebra sem
  * ninguém perceber.
+ *
+ * Preferência e tema em uso são coisas diferentes: `system` é preferência e
+ * nunca chega ao `data-theme`, que só conhece `dark` e `light`. `sistemaClaro`
+ * abaixo finge o aparelho em claro, porque o jsdom responde `false` a qualquer
+ * consulta de mídia e sem isso o automático seria testado só num dos lados.
  */
+function sistemaClaro(claro) {
+  window.matchMedia = jest.fn().mockImplementation((query) => ({
+    matches: claro && query === '(prefers-color-scheme: light)',
+    media: query,
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+  }));
+}
+
 beforeEach(() => {
   localStorage.clear();
   document.documentElement.removeAttribute('data-theme');
+  sistemaClaro(false);
 });
 
 describe('tema', () => {
@@ -30,6 +45,34 @@ describe('tema', () => {
     expect(result.current).toBe('light');
     expect(document.documentElement.dataset.theme).toBe('light');
     expect(localStorage.getItem(THEME_KEY)).toBe('light');
+  });
+
+  it('sem escolha, a preferência é o automático', () => {
+    const { result } = renderHook(() => useThemePref());
+
+    expect(result.current).toBe('system');
+  });
+
+  it('no automático, segue a aparência do aparelho', () => {
+    sistemaClaro(true);
+
+    const { result } = renderHook(() => useTheme());
+    act(() => setTheme('system'));
+
+    expect(result.current).toBe('light');
+    expect(document.documentElement.dataset.theme).toBe('light');
+    // O que fica guardado é a preferência, e não o tema que ela resolveu.
+    expect(localStorage.getItem(THEME_KEY)).toBe('system');
+  });
+
+  it('escolhido o escuro, o aparelho em claro não manda mais', () => {
+    sistemaClaro(true);
+
+    const { result } = renderHook(() => useTheme());
+    act(() => setTheme('dark'));
+
+    expect(result.current).toBe('dark');
+    expect(document.documentElement.dataset.theme).toBe('dark');
   });
 
   it('ignora valor que não é tema', () => {

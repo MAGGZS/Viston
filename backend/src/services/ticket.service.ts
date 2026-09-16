@@ -309,7 +309,7 @@ export const ticketService = {
    * dia alguma fatia ficasse de fora.
    */
   async summary(buildingId: string, period: { date_from?: Date; date_to?: Date }) {
-    const { status, category } = await ticketRepository.countByStatusAndCategory(
+    const { status, category, type } = await ticketRepository.countByStatusAndCategory(
       buildingId,
       period
     );
@@ -317,6 +317,7 @@ export const ticketService = {
     return {
       by_status: status,
       by_category: category,
+      by_type: type,
       total: Object.values(status).reduce((soma, n) => soma + n, 0),
     };
   },

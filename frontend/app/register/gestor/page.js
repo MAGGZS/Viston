@@ -35,7 +35,7 @@ const S = {
   input: { background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent', borderRadius: R.control, padding: '13px 16px', color: T.text, fontSize: 16, outline: 'none', width: '100%' },
   inputWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
   eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: T.mute, display: 'flex', alignItems: 'center' },
-  btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: W.strong, fontSize: 15, padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4 },
+  btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: W.strong, fontSize: 15, padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4, boxShadow: `inset 0 0 0 1px ${T.accentEdge}` },
 };
 
 /**
@@ -151,7 +151,7 @@ export default function RegisterGestorPage() {
         />
         {fields.map(({ name, label, type, placeholder }) => {
           const isPassword = type === 'password';
-          const inputStyle = { ...S.input, ...(isPassword ? { paddingRight: 46 } : {}), ...(errors[name] ? { borderColor: 'rgba(248,113,113,0.5)' } : {}) };
+          const inputStyle = { ...S.input, ...(isPassword ? { paddingRight: 46 } : {}), ...(errors[name] ? { borderColor: T.danger } : {}) };
           return (
             <div key={name} style={S.field} {...(name === 'password' ? foco.ancora : {})}>
               <label style={S.label}>{label}</label>

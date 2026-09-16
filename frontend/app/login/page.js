@@ -22,12 +22,12 @@ const S = {
   input: { background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent', borderRadius: R.control, padding: '13px 16px', color: T.text, fontSize: 16, outline: 'none', width: '100%' },
   // O mesmo vermelho rebaixado do campo obrigatório em branco, agora escrito
   // uma vez só: são quatro campos-estado nesta tela contando os dois erros.
-  inputErro: { borderColor: 'rgba(248,113,113,0.5)' },
+  inputErro: { borderColor: T.danger },
   erro: { fontSize: 12, color: T.danger },
   inputWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
   eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: T.mute, display: 'flex', alignItems: 'center' },
-  btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: 500, fontSize: 15, padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4 },
-  errBox: { background: 'rgba(248,113,113,0.13)', borderRadius: R.control, padding: '11px 14px', textAlign: 'center' },
+  btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: 500, fontSize: 15, padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4, boxShadow: `inset 0 0 0 1px ${T.accentEdge}` },
+  errBox: { background: T.dangerSoft, borderRadius: R.control, padding: '11px 14px', textAlign: 'center' },
   // E-mail não confirmado não é erro: é um passo pendente. Por isso o aviso usa
   // o dourado da marca, e não o vermelho do `errBox` — o que falta aqui tem
   // botão, não culpa.

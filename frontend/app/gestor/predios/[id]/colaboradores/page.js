@@ -120,14 +120,14 @@ function ManagerRow({ link, buildingId, sole, className = '' }) {
 
   return (
     <div className={`flex items-center gap-3 rounded-control px-4 py-3 ${className}`}
-      style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)' }}>
+      style={{ background: T.accentSoft, border: `1px solid ${T.accentLine}` }}>
       <Avatar user={link.manager} size={32} />
       <div className="flex-1 min-w-0">
         <p className="text-ink text-sm font-semibold truncate">{link.manager?.name}</p>
         <p className="text-mute text-xs truncate">{link.manager?.email}</p>
       </div>
       <span className="text-xs font-semibold px-3 py-1.5 rounded-pill text-accent-ink flex-shrink-0"
-        style={{ background: 'rgba(245,197,24,0.13)' }}>
+        style={{ background: T.accentSoft }}>
         Gestor
       </span>
       <button
@@ -282,7 +282,7 @@ export default function GestorColaboradoresPage() {
         </button>
       }
     >
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-8">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 pt-0.5 pb-8">
         <div style={{ maxWidth: 860, display: 'flex', flexDirection: 'column', gap: 20 }}>
           <Section
             className="anim-fade-up"

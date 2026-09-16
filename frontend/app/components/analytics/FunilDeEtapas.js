@@ -2,6 +2,7 @@
 import { Skeleton } from '@/app/components/ui';
 import { T, W } from '@/app/lib/theme';
 import { TIPO } from './escala';
+import { Figura } from './CartaoMetrica';
 import { Colunas } from './Colunas';
 
 /**
@@ -137,14 +138,22 @@ export function FunilDeEtapas({ funil, periodoLabel, loading }) {
           O cartão existe para responder "onde trava"; escrever a resposta em
           uma linha poupa quem só passou os olhos, e o gráfico fica para quem
           quer conferir de quanto é a diferença. */}
+      {/* O gargalo como figura, e não dentro de uma frase.
+
+          A conclusão era um parágrafo com três palavras em negrito no meio —
+          o tempo, a etapa e o dono. Funcionava para quem lia a frase inteira, e
+          era invisível para quem varre a tela atrás do número, que é como um
+          painel é lido. Agora o tempo é a figura do bloco, no mesmo corpo do
+          "11" do resumo e do "2" da fila, e a frase vira o rótulo dela.
+
+          O que não mudou é a ordem: a conclusão continua antes do gráfico. O
+          cartão existe para responder "onde trava", e o desenho fica para quem
+          quer conferir de quanto é a diferença. */}
       {gargalo && (
-        <p style={{ ...TIPO.corpo, color: T.mute }}>
-          A espera mais longa é para{' '}
-          <span style={{ color: T.text, fontWeight: W.title }}>{gargalo.rotulo.toLowerCase()}</span>
-          , com{' '}
-          <span style={{ color: T.text, fontWeight: W.title }}>{gargalo.texto}</span> em média —
-          responsabilidade do {gargalo.sublinha.split(' · ')[0]}.
-        </p>
+        <Figura
+          valor={gargalo.texto}
+          rotulo={`a espera mais longa é para ${gargalo.rotulo.toLowerCase()}, com o ${gargalo.sublinha.split(' · ')[0]}`}
+        />
       )}
 
       <Colunas

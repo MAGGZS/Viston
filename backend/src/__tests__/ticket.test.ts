@@ -846,6 +846,7 @@ describe('ticketService.summary', () => {
       CONCLUIDO: 7,
     },
     category: { PREVENTIVA: 8, CORRETIVA: 9, EMERGENCIAL: 3, EVENTOS: 1, PROJETOS: 1 },
+    type: { ELETRICA: 5, INFILTRACAO: 4, CIVIL: 3, AR_CONDICIONADO: 10 },
   };
 
   beforeEach(() => {
@@ -860,6 +861,7 @@ describe('ticketService.summary', () => {
 
     expect(resumo.by_status).toEqual(contagens.status);
     expect(resumo.by_category).toEqual(contagens.category);
+    expect(resumo.by_type).toEqual(contagens.type);
   });
 
   it('o total é a soma dos estados, e não a das categorias', async () => {
