@@ -127,7 +127,10 @@ export function Linha({
         style={{
           position: 'relative', width: '100%',
           flex: 1, minHeight: alturaMinima, maxHeight: alturaMaxima,
-          color: T.accent,
+          // `accentInk`, e não `accent`: daqui sai o `currentColor` da linha e dos
+          // pontos, e dourado puro sobre o cartão branco dá 1,63:1 — a série
+          // sumia no tema claro. No escuro as duas variáveis são a mesma cor.
+          color: T.accentInk,
         }}
       >
         <svg

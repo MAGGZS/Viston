@@ -15,7 +15,7 @@ const S = {
     outline: 'none', width: '100%',
   },
   btn: {
-    width: '100%', background: T.accent, color: T.onAccent, fontWeight: 500, fontSize: 15,
+    width: '100%', background: T.accent, color: T.onAccent, boxShadow: `inset 0 0 0 1px ${T.accentEdge}`, fontWeight: 500, fontSize: 15,
     padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4,
   },
   texto: { color: T.mute, fontSize: 14, lineHeight: 1.6 },

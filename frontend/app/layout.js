@@ -105,15 +105,19 @@ export const viewport = {
  * Sem isto a página nasce escura e vira clara depois da hidratação, e o piscar
  * é justamente o que se vê primeiro. Fica em `<script>` no começo do `<body>`
  * porque o navegador o executa enquanto ainda está montando a página, antes de
- * pintar qualquer coisa. Escuro é o padrão de quem chega: é a cara do produto,
- * e a maioria dos telefones está em claro por conta do sistema.
+ * pintar qualquer coisa.
+ *
+ * O que está guardado é a preferência — `system`, `dark` ou `light` —, e não o
+ * tema. Sem nada guardado, vale `system`, e aí quem decide é o aparelho: ele já
+ * sabe se está de dia ou de noite, e essa é uma escolha que a pessoa fez uma vez
+ * para valer em tudo. Sem resposta do sistema, escuro, que é a cara do produto.
  *
  * Acerta também a barra do sistema no telefone. O `themeColor` do viewport é um
  * valor só, escrito no HTML, e sem esta linha quem escolheu o claro voltaria a
  * cada carregamento com o app claro e a barra preta em cima. O `<meta>` está no
  * `<head>`, que o navegador já leu quando chega aqui.
  */
-const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('${THEME_KEY}');t=(t==='light'||t==='dark')?t:'dark';document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',${JSON.stringify(THEME_COLOR)}[t]);}catch(e){document.documentElement.dataset.theme='dark'}})();`;
+const THEME_SCRIPT = `(function(){try{var p=localStorage.getItem('${THEME_KEY}');if(p!=='light'&&p!=='dark')p='system';var t=p;if(p==='system'){t='dark';try{if(window.matchMedia('(prefers-color-scheme: light)').matches)t='light'}catch(e){}}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',${JSON.stringify(THEME_COLOR)}[t]);}catch(e){document.documentElement.dataset.theme='dark'}})();`;
 
 export default function RootLayout({ children }) {
   return (

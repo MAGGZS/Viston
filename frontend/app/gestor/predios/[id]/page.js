@@ -206,7 +206,7 @@ export default function GestorBuildingPage() {
         </button>
       }
     >
-      <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8">
+      <div className="flex-1 min-h-0 overflow-y-auto px-8 pt-0.5 pb-8">
         {/* Stats.
 
             Os três primeiros descrevem o prédio — quanto já se vistoriou, quem

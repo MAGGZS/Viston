@@ -28,7 +28,7 @@ const S = {
     width: '100%', background: T.accent, color: T.onAccent, fontWeight: 500, fontSize: 15,
     padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4,
   },
-  erro: { background: 'rgba(248,113,113,0.13)', borderRadius: R.control, padding: '11px 14px', textAlign: 'center' },
+  erro: { background: T.dangerSoft, borderRadius: R.control, padding: '11px 14px', textAlign: 'center' },
   aviso: { background: 'rgba(224,180,0,0.11)', borderRadius: R.control, padding: '13px 14px' },
   texto: { color: T.mute, fontSize: 14, lineHeight: 1.6 },
 };

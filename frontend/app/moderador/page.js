@@ -176,7 +176,7 @@ export default function ModeradorPage() {
       title="Painel"
       subtitle={building?.name}
     >
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '2px 32px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
         {/* Onde estão os chamados, na ordem do caminho que eles fazem.
             "Encaminhados" é contador próprio, e não parte de "em andamento":
             ninguém aceitou esses ainda, e somá-los ao que está sendo feito
@@ -189,7 +189,13 @@ export default function ModeradorPage() {
             minutos — por isso é o único que acende e o único que leva a algum
             lugar. A tela que abria com quatro números para olhar passa a abrir
             com um para resolver. */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16 }}>
+        {/* `minmax(0, 1fr)`, e não `1fr`: o mínimo de `1fr` é o conteúdo, e
+            "ENCAMINHADOS" é mais largo que "EM ABERTO" — a fileira saía com
+            cinco cartões de larguras diferentes (147, 169, 147, 151, 147), que
+            é o que se via como desalinhamento. Com o mínimo zerado, as cinco
+            colunas ficam iguais e quem cede é o rótulo, quebrando em duas
+            linhas como "EM ANDAMENTO" já fazia. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 16 }}>
           <StatCard className="anim-fade-up anim-d1" icon={Inbox} label="Em aberto" value={stats?.abertos} loading={statsLoading} />
           <StatCard className="anim-fade-up anim-d2" icon={Send} label="Encaminhados" value={stats?.encaminhados} loading={statsLoading} />
           <StatCard className="anim-fade-up anim-d3" icon={Loader} label="Em andamento" value={stats?.em_andamento} loading={statsLoading} />

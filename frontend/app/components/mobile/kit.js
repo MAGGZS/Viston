@@ -161,7 +161,7 @@ const BUTTON_BASE = {
 export function MButton({ children, onClick, type = 'button', disabled, loading, style = {} }) {
   return (
     <button type={type} onClick={onClick} disabled={disabled || loading}
-      style={{ ...BUTTON_BASE, background: M.accent, color: '#000', opacity: disabled || loading ? 0.5 : 1, ...style }}>
+      style={{ ...BUTTON_BASE, background: M.accent, color: M.onAccent, boxShadow: `inset 0 0 0 1px ${M.accentEdge}`, opacity: disabled || loading ? 0.5 : 1, ...style }}>
       {loading ? 'Aguarde...' : children}
     </button>
   );
@@ -201,7 +201,7 @@ export function MSectionHead({ title, action, className = '' }) {
 export function MPill({ children, onClick }) {
   return (
     <button onClick={onClick} style={{
-      background: M.accent, color: '#000', border: 'none', cursor: 'pointer',
+      background: M.accent, color: M.onAccent, boxShadow: `inset 0 0 0 1px ${M.accentEdge}`, border: 'none', cursor: 'pointer',
       borderRadius: R.pill, padding: '7px 14px', fontFamily: M.display, fontWeight: 600, fontSize: 14,
       display: 'inline-flex', alignItems: 'center', gap: 6,
     }}>
@@ -232,7 +232,7 @@ export function MField({ label, error, style = {}, ...props }) {
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
         style={{
-          background: M.chip, border: `1px solid ${error ? 'rgba(248,113,113,0.5)' : 'var(--input-line)'}`,
+          background: M.chip, border: `1px solid ${error ? M.danger : 'var(--input-line)'}`,
           // 16px é o piso: abaixo disso o iOS dá zoom ao focar e a tela salta.
           borderRadius: R.control, padding: '14px 16px', color: M.text, fontSize: 16, outline: 'none', width: '100%',
           ...style,

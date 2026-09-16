@@ -66,7 +66,7 @@ function StepSemVinculo() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 20, padding: 16 }}>
+      <div style={{ background: M.accentSoft, border: `1px solid ${M.accentLine}`, borderRadius: 20, padding: 16 }}>
         <p style={{ color: M.text, fontSize: 14, lineHeight: 1.6 }}>
           Você não tem vínculo com nenhum prédio. Digite a chave fornecida pelo administrador e solicite acesso.
         </p>
@@ -95,7 +95,7 @@ function StepSemVinculo() {
       {data && !requested && (
         <div className="anim-fade-up" style={{ background: M.chip, borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, background: 'rgba(245,197,24,0.1)', borderRadius: R.pill, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 40, height: 40, background: M.accentSoft, borderRadius: R.pill, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Building2 size={18} color={M.accentInk} />
             </div>
             <div>

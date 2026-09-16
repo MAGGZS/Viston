@@ -39,8 +39,8 @@ const FLOOR_STATUS_COLOR = { OK: INK_SOFT, ATENCAO: T.accentInk, PROBLEMA: T.dan
 /** Fundo do selo de andar no telefone — o mesmo tom da cor, rebaixado. */
 const FLOOR_STATUS_TINT = {
   OK: T.chip,
-  ATENCAO: 'rgba(245,197,24,0.12)',
-  PROBLEMA: 'rgba(248,113,113,0.12)',
+  ATENCAO: T.accentSoft,
+  PROBLEMA: T.dangerSoft,
 };
 const PRIORITY_COLOR = { ALTA: T.danger, MEDIA: T.accentInk, BAIXA: INK_SOFT };
 

@@ -55,7 +55,7 @@ export default function ChamadosFinalizadosPage() {
         style={{ padding: '0 24px 16px', flexShrink: 0 }}
       />
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 24px 28px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '2px 24px 28px' }}>
         <div className="anim-fade-up anim-d1" style={{ background: T.card, borderRadius: R.card, overflow: 'hidden' }}>
           <OcorrenciasTable
             buildingId={building?.building_id}

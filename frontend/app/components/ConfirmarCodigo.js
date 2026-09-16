@@ -9,7 +9,7 @@ const COOLDOWN_SEG = 60;
 
 const S = {
   btn: {
-    width: '100%', background: T.accent, color: T.onAccent, fontWeight: 500, fontSize: 15,
+    width: '100%', background: T.accent, color: T.onAccent, boxShadow: `inset 0 0 0 1px ${T.accentEdge}`, fontWeight: 500, fontSize: 15,
     padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4,
   },
   btnSecundario: {
@@ -18,7 +18,7 @@ const S = {
     borderWidth: 1, borderStyle: 'solid', borderColor: T.accentInk, cursor: 'pointer',
   },
   aviso: { background: 'rgba(224,180,0,0.11)', borderRadius: R.control, padding: '11px 14px', textAlign: 'center' },
-  erro: { background: 'rgba(248,113,113,0.13)', borderRadius: R.control, padding: '11px 14px', textAlign: 'center' },
+  erro: { background: T.dangerSoft, borderRadius: R.control, padding: '11px 14px', textAlign: 'center' },
   texto: { color: T.mute, fontSize: 14, lineHeight: 1.6 },
 };
 

@@ -34,7 +34,7 @@ import { TIPO } from './escala';
  * medida — fonte que termina de carregar, janela que muda de tamanho.
  */
 
-export function SeletorDeVisao({ views, value, onSelect, label }) {
+export function SeletorDeVisao({ views, value, onSelect, label, className = '' }) {
   const index = Math.max(0, views.findIndex((item) => item.key === value));
 
   const refs = useRef([]);
@@ -62,6 +62,7 @@ export function SeletorDeVisao({ views, value, onSelect, label }) {
       ref={trilho}
       role="tablist"
       aria-label={label}
+      className={className}
       style={{
         position: 'relative',
         alignSelf: 'flex-start', maxWidth: '100%',

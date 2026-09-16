@@ -374,7 +374,7 @@ export default function HistoricoPage() {
       {!isAdmin && !buildingsLoading && !hasBuilding ? (
         <div style={{ padding: '0 32px' }}><NoPredioState /></div>
       ) : (
-        <div style={{ padding: '0 32px 32px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, overflowY: 'auto' }}>
+        <div style={{ padding: '2px 32px 32px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, overflowY: 'auto' }}>
           <div className="anim-fade-up anim-d1" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <HistoricoSwitcher
               view={historico.view}

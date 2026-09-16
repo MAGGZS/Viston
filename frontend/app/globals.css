@@ -57,6 +57,35 @@
   --surface-blur: rgba(11, 11, 11, 0.82);
   --selection: rgba(245, 197, 24, 0.25);
   --selection-ink: #fff;
+  /**
+   * O contorno do preenchimento dourado.
+   *
+   * No escuro o dourado dá 11:1 contra o cartão e a forma do botão se vê de
+   * longe; no claro ele dá 1,63:1 sobre branco, e o limite do botão deixa de
+   * existir — a norma pede 3:1 para o contorno de um controle. O anel só
+   * aparece no claro; aqui ele é transparente e não desenha nada.
+   */
+  --accent-edge: transparent;
+  /* Realce do botão de perigo. O claro tem o seu, mais escuro. */
+  --color-danger-hover: rgba(248, 113, 113, 0.2);
+  /* Fio de caixa tingida de dourado (aviso, destaque de chave do prédio). */
+  --accent-line: rgba(245, 197, 24, 0.15);
+
+  /**
+   * As duas elevações.
+   *
+   * No escuro, o que sobe fica mais claro que o fundo e a luminância já conta a
+   * história — a sombra é só o peso que impede a caixa de flutuar sem apoio. No
+   * claro não há para onde subir a partir do branco, e aí é a sombra que diz
+   * "isto está por cima". Por isso os dois conjuntos diferem em forma, e não só
+   * em opacidade.
+   *
+   * `elev-1` é de peça que encosta no que a abriu (lista suspensa, balão do
+   * trilho). `elev-2` é de peça que paira sobre a tela (diálogo, regras de
+   * senha).
+   */
+  --elev-1: 0 6px 18px rgba(0, 0, 0, 0.40);
+  --elev-2: 0 12px 34px rgba(0, 0, 0, 0.50);
   --logo-v-from: #FFFFFF;
   --logo-v-to: #BFBFBF;
   /* Rampa do calendário de atividade: 0, 1, 2, 3 e 4 ou mais vistorias no dia. */
@@ -120,9 +149,15 @@
  * `--card-ring`, um fio de 1px feito com sombra e não com borda, para não
  * empurrar o layout em um pixel só neste tema.
  *
- * `mute` e `faint` estão em 6,7:1 e 4,8:1 sobre o branco. É a mesma régua que o
- * escuro segue (ver app/lib/theme.js): eles carregam e-mail, data e nome de
- * inspetor, informação que alguém precisa ler.
+ * `mute` e `faint` estão em 6,9:1 e 4,9:1 sobre o cartão branco, e em 6,7:1 e
+ * 4,6:1 sobre o chip, que é a superfície mais escura deste tema. É a mesma
+ * régua que o escuro segue (ver app/lib/theme.js): eles carregam e-mail, data e
+ * nome de inspetor, informação que alguém precisa ler.
+ *
+ * Os números antigos deste comentário (6,7 e 4,8) não batiam com o que o
+ * navegador media: os valores de então davam 5,6:1 e 4,1:1, e o `faint` estava
+ * abaixo do mínimo da norma. Ao anotar contraste aqui, diga também contra qual
+ * superfície ele foi medido — cartão, chip e página dão resultados diferentes.
  *
  * O dourado continua sendo o mesmo, mas só como fundo. Como texto ele dá 1,7:1
  * sobre o branco, então quem escreve em dourado usa `--color-accent-ink`.
@@ -137,8 +172,14 @@ html[data-theme='light'] {
   --color-accent-soft: rgba(245, 197, 24, 0.22);
   --color-accent-ink: #8A6B00;
   --color-ink: rgba(16, 19, 23, 0.92);
-  --color-mute: rgba(16, 19, 23, 0.64);
-  --color-faint: rgba(16, 19, 23, 0.55);
+  /* 0,70 dá 6,9:1 sobre o cartão e 6,7:1 sobre a página. A 0,64 dava 5,6:1:
+     passava na norma, mas era um segundo nível de leitura mais apagado que o
+     do escuro, que tem 8,7:1. */
+  --color-mute: rgba(16, 19, 23, 0.70);
+  /* 0,60 dá 4,9:1 sobre o cartão e 4,6:1 sobre o chip. A 0,55 dava 4,1:1 e
+     4,0:1 — os dois abaixo dos 4,5:1, e é este nível que carrega data, rótulo
+     de gráfico e nome de inspetor. */
+  --color-faint: rgba(16, 19, 23, 0.60);
   --color-danger: #D02F2F;
   --color-danger-soft: rgba(208, 47, 47, 0.10);
   /* Os mesmos dois, escurecidos: sobre branco o verde claro dá 1,8:1. */
@@ -147,9 +188,11 @@ html[data-theme='light'] {
 
   --hero-surface: linear-gradient(158deg, #FFFFFF 0%, #F2F4F7 100%);
   --card-ring: 0 0 0 1px rgba(16, 19, 23, 0.08);
-  --color-hover: #E4E7EC;
+  /* Um degrau a mais que os #E4E7EC de antes: sobre o chip, aquele realce dava
+     1,07:1 e o item não parecia responder ao cursor. */
+  --color-hover: #DFE3E9;
   --color-hover-raised: #F2F4F7;
-  --color-hover-strong: #DDE1E7;
+  --color-hover-strong: #D6DAE2;
   --backdrop: rgba(16, 19, 23, 0.35);
   --scroll-thumb: rgba(16, 19, 23, 0.18);
   --autofill: #ECEEF2;
@@ -158,14 +201,32 @@ html[data-theme='light'] {
   --surface-blur: rgba(245, 246, 248, 0.82);
   --selection: rgba(245, 197, 24, 0.35);
   --selection-ink: #101317;
+  /* 3,6:1 contra a página e 3,9:1 contra o cartão: o botão dourado volta a ter
+     limite. Dourado escurecido, e não um cinza — o contorno é do próprio botão,
+     e não uma borda emprestada de outro elemento. */
+  --accent-edge: #A07C00;
+  --color-danger-hover: rgba(208, 47, 47, 0.18);
+  /* Sobre branco, dourado a 0,15 some. O fio do claro é o dourado de letra. */
+  --accent-line: rgba(138, 107, 0, 0.30);
+
+  /* A sombra do claro é curta, fraca e vem com o mesmo fio de 1px dos cartões:
+     sombra larga e escura sobre branco se lê como sujeira, não como altura. */
+  --elev-1: 0 0 0 1px rgba(16, 19, 23, 0.08), 0 6px 16px rgba(16, 19, 23, 0.08);
+  --elev-2: 0 0 0 1px rgba(16, 19, 23, 0.08), 0 14px 34px rgba(16, 19, 23, 0.14);
   --logo-v-from: #3A4048;
   --logo-v-to: #14181D;
-  /* A mesma rampa subindo para o branco: no claro ela clareia em vez de escurecer. */
+  /* A mesma rampa, descendo a partir do branco.
+     Os degraus medidos em L* são 2,1 · 6,5 · 11,5 · 19,1, contra os 0,0 · 5,3 ·
+     6,6 · 11,8 de antes. O primeiro era zero: "nenhuma vistoria" e "uma
+     vistoria" tinham a mesma luminosidade e se separavam só pela matiz, o que
+     fazia um mês de trabalho leve parecer um mês vazio. A ponta também desce
+     até um dourado escuro — sobre branco, amarelo médio não consegue ser o dia
+     mais cheio do calendário. */
   --heat-0: var(--color-chip);
-  --heat-1: #FBEEC0;
-  --heat-2: #F7DE84;
-  --heat-3: #F0C93C;
-  --heat-4: #D9A400;
+  --heat-1: #FBE7A8;
+  --heat-2: #F5D35C;
+  --heat-3: #E0AF16;
+  --heat-4: #A87C00;
 
   /* A rampa dos gráficos, invertida: sobre o cartão branco quem finalizou é o
      degrau escuro. Mesma matiz, mesmos quatro testes — ver o bloco escuro. */
@@ -290,34 +351,20 @@ input:-webkit-autofill:focus {
 .anim-scale-out  { animation: scale-out 0.18s ease both; }
 
 /**
- * A curva de entrada do painel analítico.
+ * A curva das transições do produto.
  *
  * As curvas embutidas do CSS são fracas — `ease` sai devagar do lugar, e é
  * justamente o primeiro quadro que se está olhando. Esta arranca e freia no
  * fim, que é o que faz a peça parecer que respondeu antes de terminar.
  *
- * `ease-in` nunca entra aqui: começar devagar faz a mesma duração *parecer*
- * mais longa, e o painel já tem sete blocos para desenhar.
+ * Vale para o que transiciona (largura de barra, altura de coluna, fundo em
+ * hover). A *entrada* de um elemento é sempre uma das classes `.anim-*` acima:
+ * o painel analítico já teve uma curva de entrada própria, mais curta, e o que
+ * se via era uma tela do produto com um tempo que não era o do produto.
  */
 :root {
   --ease-saida: cubic-bezier(0.23, 1, 0.32, 1);
 }
-
-/**
- * A entrada de um bloco de análise.
- *
- * 220ms e 8px, contra os 350ms e 16px do `fade-up` do produto. O painel troca
- * de visão com um clique e mostra sete cartões de uma vez; no ritmo do resto do
- * produto a tela inteira ficava um terço de segundo chegando. Deslocamento
- * curto pelo mesmo motivo: sete peças subindo 16px ao mesmo tempo é a tela
- * balançando, não a tela entrando.
- */
-@keyframes analise-entra {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.anim-analise { animation: analise-entra 220ms var(--ease-saida) both; }
 
 /**
  * A resposta ao toque.
@@ -415,9 +462,17 @@ input:-webkit-autofill:focus {
   .btn:not(:disabled):hover { background-color: var(--btn-hover); }
 }
 
-/* O mesmo realce que o `Select` já dava — teclado enxerga onde está */
+/**
+ * O mesmo realce que o `Select` já dava — teclado enxerga onde está.
+ *
+ * A cor é `accent-ink`, e não o dourado com transparência que estava aqui:
+ * aquele valor dava 4,8:1 sobre a página escura e 1,3:1 sobre a clara, ou seja,
+ * no claro quem navega por teclado não via onde estava. Como `accent-ink` é o
+ * dourado da marca no escuro e o dourado escurecido no claro, uma declaração só
+ * serve os dois temas (4,8:1 e 4,6:1).
+ */
 .btn:focus-visible {
-  outline: 2px solid rgba(245, 197, 24, 0.6);
+  outline: 2px solid var(--color-accent-ink);
   outline-offset: 2px;
 }
 
@@ -434,7 +489,7 @@ input:-webkit-autofill:focus {
   z-index: 100;
   padding: 12px 18px;
   background: var(--color-accent);
-  color: #000;
+  color: var(--color-onaccent);
   font-weight: 600;
   border-radius: 0 0 var(--radius-control) 0;
 }
@@ -519,15 +574,17 @@ input:-webkit-autofill:focus {
 
 .select-trigger:hover:not(:disabled) { background-color: var(--color-hover); }
 
-/* Dourado no foco, como nos demais campos — teclado enxerga onde está */
-.select-trigger:focus-visible { border-color: rgba(245, 197, 24, 0.5); }
+/* Dourado no foco, como nos demais campos — ver a nota de `.btn:focus-visible` */
+.select-trigger:focus-visible { border-color: var(--color-accent-ink); }
 
 /* Aberta, a borda dourada fica: o gatilho e a lista formam um bloco só */
-.select-trigger.is-open { border-color: rgba(245, 197, 24, 0.5); }
+.select-trigger.is-open { border-color: var(--color-accent-ink); }
 
 .select-trigger:disabled { opacity: 0.5; cursor: default; }
 
-.select-trigger.is-error { border-color: rgba(248, 113, 113, 0.5); }
+/* O vermelho do tema, e não o salmão do escuro: sobre o chip claro aquele
+   valor dava 1,56:1, e o campo com erro parecia um campo comum. */
+.select-trigger.is-error { border-color: var(--color-danger); }
 
 /* Sobre superfície que já é chip (linha de colaborador): sobe um nível de cor */
 .select-trigger--raised { background-color: var(--color-card); }
@@ -541,7 +598,9 @@ input:-webkit-autofill:focus {
   background: var(--color-card);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-control);
-  box-shadow: var(--card-ring);
+  /* Ela paira sobre o conteúdo: no claro, cartão branco sobre cartão branco
+     separado por um fio de 1px não se lê como camada. */
+  box-shadow: var(--elev-1);
   padding: 6px;
   overflow-y: auto;
   z-index: 60;
@@ -604,7 +663,7 @@ input:-webkit-autofill:focus {
 }
 
 .fila-card:focus-visible {
-  outline: 2px solid rgba(245, 197, 24, 0.6);
+  outline: 2px solid var(--color-accent-ink);
   outline-offset: 2px;
 }
 
@@ -648,7 +707,7 @@ input:-webkit-autofill:focus {
 }
 
 .seg__btn:focus-visible {
-  outline: 2px solid rgba(245, 197, 24, 0.6);
+  outline: 2px solid var(--color-accent-ink);
   outline-offset: 1px;
 }
 
@@ -665,7 +724,7 @@ input:-webkit-autofill:focus {
 .pager-btn { transition: background-color 0.15s ease, opacity 0.15s ease; }
 
 .pager-btn:focus-visible {
-  outline: 2px solid rgba(245, 197, 24, 0.6);
+  outline: 2px solid var(--color-accent-ink);
   outline-offset: 2px;
 }
 
@@ -728,7 +787,7 @@ input:-webkit-autofill:focus {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
   background: var(--color-card);
-  box-shadow: var(--card-ring);
+  box-shadow: var(--elev-1);
   color: var(--color-ink);
   font-size: 13px;
   white-space: nowrap;
@@ -808,8 +867,10 @@ input:-webkit-autofill:focus {
   left: 0;
   right: 0;
   top: calc(100% + 8px);
-  /* A sombra é o que diz "isto está por cima", e não "isto empurrou o resto". */
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  /* A sombra é o que diz "isto está por cima", e não "isto empurrou o resto".
+     Por token: o preto a 0,45 foi desenhado para o fundo escuro e, sobre a
+     página clara, virava uma mancha em volta da caixa. */
+  box-shadow: var(--elev-2);
 }
 
 @media (min-width: 980px) {
@@ -818,6 +879,37 @@ input:-webkit-autofill:focus {
     right: auto;
     top: 0;
     width: 232px;
+  }
+}
+
+/*
+ * O rótulo que divide a linha de cima com um selo redondo.
+ *
+ * Caixa de texto não é texto. O `<p>` do rótulo do `StatCard` começa no recuo
+ * do cartão, 14px, igual ao selo ao lado — mas a primeira letra dele só aparece
+ * 6,5px depois: 2,5px de meia entrelinha (11px de corpo em 1,45) e mais 4px de
+ * folga que a própria Poppins reserva acima das maiúsculas. O selo é um círculo
+ * cheio, e círculo cheio começa onde a caixa dele começa. Resultado: dois
+ * elementos alinhados no código e desencontrados na tela, e é justamente no
+ * topo — a borda que o olho usa para conferir o alinhamento do cartão inteiro.
+ *
+ * `text-box-trim` corta essa folga e faz a caixa começar na altura das
+ * maiúsculas, que é o alinhamento que se queria desde o começo. Onde ele ainda
+ * não existe, a margem negativa faz o mesmo à mão — o valor é a folga medida no
+ * navegador, e muda se o corpo ou a entrelinha do rótulo mudarem.
+ *
+ * Só no começo (`trim-start`): embaixo a folga não atrapalha ninguém, e cortá-la
+ * apertaria a segunda linha dos rótulos que quebram ("EM ANDAMENTO").
+ */
+.rotulo-topo {
+  margin-top: -6.5px;
+}
+
+@supports (text-box-trim: trim-start) and (text-box-edge: cap alphabetic) {
+  .rotulo-topo {
+    margin-top: 0;
+    text-box-trim: trim-start;
+    text-box-edge: cap alphabetic;
   }
 }
 

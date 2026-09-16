@@ -11,6 +11,15 @@ import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTrans
  * Superfície chapada: os três níveis de cor já separam o conteúdo, então
  * nenhum destes elementos carrega borda, blur ou sombra decorativa.
  */
+/**
+ * O anel do preenchimento dourado.
+ *
+ * No escuro `accentEdge` é transparente e isto não desenha nada; no claro é um
+ * dourado escurecido, e é o que devolve limite ao botão — ver T.accentEdge.
+ * Interno (`inset`) de propósito: o botão não pode crescer 1px num tema só.
+ */
+const ANEL_ACENTO = `inset 0 0 0 1px ${T.accentEdge}`;
+
 const G = {
   card: { background: T.card, borderRadius: R.card, boxShadow: T.cardRing },
   input: {
@@ -32,7 +41,7 @@ const G = {
     width: '100%',
     transition: 'border-color 0.2s',
   },
-  inputError: { borderColor: 'rgba(248,113,113,0.5)' },
+  inputError: { borderColor: T.danger },
   label: { fontSize: 12, fontWeight: W.body, color: T.mute },
 };
 
@@ -46,10 +55,10 @@ const G = {
  */
 export function Button({ children, variant = 'primary', className = '', loading = false, style = {}, type = 'button', ...props }) {
   const styles = {
-    primary: { background: T.accent, color: T.onAccent, hover: 'var(--color-accent-hover)' },
+    primary: { background: T.accent, color: T.onAccent, hover: 'var(--color-accent-hover)', boxShadow: ANEL_ACENTO },
     secondary: { background: T.chip, color: T.text, hover: 'var(--color-hover-strong)' },
     ghost: { background: 'transparent', color: T.mute, hover: T.chip },
-    danger: { background: T.dangerSoft, color: T.danger, hover: 'rgba(248,113,113,0.2)' },
+    danger: { background: T.dangerSoft, color: T.danger, hover: 'var(--color-danger-hover)' },
   };
   const { hover, ...base } = styles[variant];
 
@@ -218,12 +227,18 @@ export function StatCard({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-        <p style={{
-          color: acende ? T.danger : T.mute, fontSize: 11, fontWeight: W.strong,
-          // Caixa alta pede respiro entre as letras; sem ele o rótulo fecha num
-          // bloco só. O leitor de tela continua ouvindo o texto como foi escrito.
-          letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1.45,
-        }}>
+        <p
+          // `rotulo-topo`: corta a folga que a fonte reserva acima das
+          // maiúsculas, senão o rótulo nasce 6,5px abaixo do selo ao lado
+          // mesmo os dois começando no mesmo recuo — ver globals.css.
+          className="rotulo-topo"
+          style={{
+            color: acende ? T.danger : T.mute, fontSize: 11, fontWeight: W.strong,
+            // Caixa alta pede respiro entre as letras; sem ele o rótulo fecha num
+            // bloco só. O leitor de tela continua ouvindo o texto como foi escrito.
+            letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1.45,
+          }}
+        >
           {label}
         </p>
         {Icon && (
@@ -247,7 +262,15 @@ export function StatCard({
         ) : (
           <p
             style={{
-              fontFamily: T.display, fontWeight: W.title, fontSize: 34, lineHeight: 1.05,
+              // A entrelinha é em pixel inteiro, e não em múltiplo do corpo.
+              // 34 × 1,05 dá 35,7, e meio pixel aqui vira meio pixel na altura
+              // do cartão inteiro: a borda de baixo passava a cair no meio de
+              // uma linha da tela e era desenhada esmaecida, enquanto a de cima,
+              // num limite inteiro, saía nítida. O cartão parecia ter uma borda
+              // diferente da outra. Ver o recuo do cartão logo acima: 102 e 120
+              // são as alturas que este cartão promete, e só fecham redondo com
+              // as entrelinhas inteiras.
+              fontFamily: T.display, fontWeight: W.title, fontSize: 34, lineHeight: '36px',
               color: acende ? T.danger : T.text, ...NUM,
             }}
           >
@@ -255,7 +278,9 @@ export function StatCard({
           </p>
         )}
         {hint && (
-          <p style={{ color: acende ? T.danger : T.faint, fontSize: 11, marginTop: 2 }}>{hint}</p>
+          // 16px pelo mesmo motivo do número acima: a entrelinha automática
+          // deste corpo dá 16,5, e a meia unidade reaparece na altura do cartão.
+          <p style={{ color: acende ? T.danger : T.faint, fontSize: 11, lineHeight: '16px', marginTop: 2 }}>{hint}</p>
         )}
       </div>
     </Peca>

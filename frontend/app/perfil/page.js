@@ -719,7 +719,7 @@ function PerfilContent() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {myBuildings.map((building) => (
               <div key={building.building_id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.15)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ background: T.accentSoft, border: `1px solid ${T.accentLine}`, borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <Building2 size={18} color={T.accentInk} style={{ flexShrink: 0 }} />
                   <div style={{ minWidth: 0 }}>
                     <p style={{ color: T.text, fontWeight: 600, fontSize: 14 }}>{building.name}</p>

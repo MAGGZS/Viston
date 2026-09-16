@@ -77,15 +77,15 @@ export function Desempenho({
           elemento novo e tocar a entrada de novo. Sem ela o React reaproveita o
           nó e a animação não roda uma segunda vez.
 
-          Mais rápido que a entrada de um bloco — 180ms contra 220 — porque aqui
-          já se está dentro do assunto: o cartão, o título e o alternador não se
-          moveram, e só o miolo mudou. */}
+          Só opacidade, e não o `fade-up` do cartão: aqui o cartão, o título e o
+          alternador não se moveram, e só o miolo mudou — uma tabela subindo
+          16px dentro de uma moldura parada se lê como a moldura tendo pulado.
+          `anim-fade-in` também é a classe que o produto usa para linha de
+          tabela, que é o que está trocando. */}
       <div
         key={emInspetores ? 'INSPETORES' : 'RESPONSAVEIS'}
-        style={{
-          animation: 'analise-entra 180ms var(--ease-saida) both',
-          flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0,
-        }}
+        className="anim-fade-in"
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
       >
         {emInspetores ? (
           <Inspetores dados={inspetores?.data} loading={inspetores?.isLoading} />

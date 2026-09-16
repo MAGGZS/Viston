@@ -25,7 +25,19 @@
  */
 export const THEME_KEY = 'viston:tema';
 
+/** Os dois temas que existem de fato, e os únicos valores de `data-theme`. */
 export const THEMES = ['dark', 'light'];
+
+/**
+ * O que a pessoa escolhe, que não é a mesma coisa que o tema em uso.
+ *
+ * `system` é a terceira opção e o padrão de quem chega: o aparelho já sabe se
+ * está de dia ou de noite, e abrir escuro num telefone configurado em claro é o
+ * produto ignorando uma escolha que a pessoa já fez uma vez, para valer em tudo.
+ * Quem quiser o escuro sempre — que continua sendo a cara do Viston — escolhe
+ * escuro, e aí ele não acompanha mais o sistema.
+ */
+export const THEME_PREFS = ['system', 'dark', 'light'];
 
 /** Cor da barra do sistema no telefone. Acompanha --color-page de cada tema. */
 export const THEME_COLOR = { dark: '#0B0B0B', light: '#F5F6F8' };
@@ -45,6 +57,16 @@ export const T = {
    * `color` usa `accentInk`.
    */
   accentInk: 'var(--color-accent-ink)',
+  /**
+   * O contorno do preenchimento dourado, e só ele.
+   *
+   * Vai como anel interno em quem tem fundo `accent`: no escuro é transparente,
+   * porque o dourado já dá 11:1 contra o cartão; no claro é um dourado
+   * escurecido, porque ali o mesmo dourado dá 1,63:1 e o botão fica sem limite.
+   */
+  accentEdge: 'var(--accent-edge)',
+  /** Fio da caixa tingida de dourado (aviso, destaque de chave do prédio). */
+  accentLine: 'var(--accent-line)',
   /** Texto sobre dourado. Preto puro dá 12,6:1 — nenhum tom rebaixado chega perto. */
   onAccent: '#000',
   text: 'var(--color-ink)',
@@ -54,15 +76,18 @@ export const T = {
    * `mute` carrega o e-mail da conta, a dica de cada linha do perfil, o nome do
    * inspetor e a data no formulário de vistoria: informação que alguém precisa
    * ler. A 0,44 ele dava ~3,6:1 sobre o cartão, abaixo dos 4,5:1 que a WCAG
-   * pede para texto. A 0,68 dá ~8,4:1, e continua sendo claramente o segundo
-   * nível de leitura. No claro, 0,64 sobre branco dá ~6,7:1.
+   * pede para texto. A 0,68 dá 8,7:1, e continua sendo claramente o segundo
+   * nível de leitura. No claro, 0,70 sobre o cartão branco dá 6,9:1 — a 0,64,
+   * que era o valor anterior, dava 5,6:1.
    */
   mute: 'var(--color-mute)',
   /**
    * O nível mais apagado, e o único com regra de uso: separador, marca d'água,
    * rótulo de apoio. Nunca texto que alguém precise ler de fato — para isso
    * existe `mute`. Passa em 4,5:1 nos dois temas mesmo assim, porque "de apoio"
-   * costuma virar "importante" com o tempo.
+   * costuma virar "importante" com o tempo — e foi o que aconteceu: no claro
+   * ele chegou a ficar em 4,1:1 sobre o cartão e 4,0:1 sobre o chip, carregando
+   * data e rótulo de gráfico. Hoje são 4,9:1 e 4,6:1.
    */
   faint: 'var(--color-faint)',
   /** Confirmação ("recebido", "solicitação enviada"), fora da escala do dourado. */
@@ -77,8 +102,25 @@ export const T = {
    * Vai em `boxShadow`, não em `border`: metade dos cartões é `<button>` com
    * `border: none`, e uma borda de verdade empurraria o layout em 1px só num
    * dos temas.
+   *
+   * O preço disso: sombra vive fora da borda do elemento, e contêiner de
+   * rolagem recorta no limite do próprio recuo. Cartão colado no topo de um
+   * miolo com `padding-top: 0` perdia o fio de cima, e só no modo claro —
+   * no escuro o anel é transparente e não havia o que cortar. Por isso os
+   * miolos que rolam carregam 2px de recuo no topo.
    */
   cardRing: 'var(--card-ring)',
+  /**
+   * As duas elevações, para o que paira sobre a tela.
+   *
+   * `elev1` é peça encostada no que a abriu (lista suspensa, balão); `elev2` é
+   * peça que paira (diálogo, regras de senha). O valor de cada uma muda por
+   * tema: no escuro a luminância já separa e a sombra é peso; no claro, a
+   * partir do branco não há para onde subir, e a sombra é a única camada. Os
+   * valores estão em app/globals.css.
+   */
+  elev1: 'var(--elev-1)',
+  elev2: 'var(--elev-2)',
   /** Superfície sob o cursor, um passo acima da cor de base. */
   hover: 'var(--color-hover)',
   display: 'var(--font-poppins), sans-serif',
