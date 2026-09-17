@@ -523,79 +523,111 @@ function AnaliseIndividual({ pessoa, equipe, atrasados, atividades = [], periodo
             Nenhuma atividade registrada nos últimos 7 dias.
           </p>
         ) : (
-          <ul style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {atividades.map((a) => {
+          <ol style={{ display: 'flex', flexDirection: 'column', maxWidth: 720 }}>
+            {atividades.map((a, idx) => {
               const cfg = CONFIG_ATIVIDADE[a.tipo] || CONFIG_ATIVIDADE.UPDATE;
               const Icon = cfg.icon;
+              const ultima = idx === atividades.length - 1;
               return (
                 <li
                   // O mesmo chamado aparece como aberto, recebido e concluído:
                   // o id sozinho repete, o par tipo + id não.
                   key={`${a.tipo}-${a.id}`}
-                  style={{
-                    background: T.chip, borderRadius: R.control, padding: '10px 12px',
-                    display: 'flex', flexDirection: 'column', gap: 6,
-                  }}
+                  style={{ display: 'grid', gridTemplateColumns: '28px 1fr', columnGap: 12 }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  {/* Trilho: ícone e o fio que liga à atividade seguinte. */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <span
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                        background: cfg.bg, color: cfg.cor,
+                        boxShadow: `inset 0 0 0 1px ${T.line}`,
+                      }}
+                    >
+                      <Icon size={14} aria-hidden="true" />
+                    </span>
+                    {!ultima && (
                       <span
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: 20, height: 20, borderRadius: '50%',
-                          background: cfg.bg, color: cfg.cor, flexShrink: 0,
-                        }}
-                      >
-                        <Icon size={11} aria-hidden="true" />
-                      </span>
-                      <span style={{ ...TIPO.meta, color: T.text, fontWeight: W.strong }}>
+                        aria-hidden="true"
+                        style={{ flex: 1, width: 1, background: T.line, margin: '4px 0' }}
+                      />
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      minWidth: 0, paddingTop: 4, paddingBottom: ultima ? 0 : 18,
+                      display: 'flex', flexDirection: 'column', gap: 6,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                        gap: 12, flexWrap: 'wrap',
+                      }}
+                    >
+                      <span style={{ ...TIPO.meta, color: T.text, fontWeight: W.title }}>
                         {cfg.rotulo}
                       </span>
-                      <span style={{ color: T.faint, fontSize: 12 }}>·</span>
+                      <time
+                        dateTime={a.quando}
+                        style={{ color: T.faint, fontSize: 11, flexShrink: 0, ...NUM }}
+                      >
+                        {formatarMomento(a.quando)}
+                      </time>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <span style={{ ...TIPO.meta, color: T.mute }}>
                         {labelOf(MAINTENANCE_TYPES, a.maintenance_type)}
                       </span>
                       {a.floor_label && (
-                        <span style={{ color: T.faint, fontSize: 11 }}>({a.floor_label})</span>
+                        <span
+                          style={{
+                            background: T.chip, color: T.mute, borderRadius: R.badge,
+                            padding: '2px 8px', fontSize: 11, fontWeight: W.strong,
+                            lineHeight: 1.4, ...NUM,
+                          }}
+                        >
+                          {/^\d+$/.test(a.floor_label) ? `${a.floor_label}º andar` : a.floor_label}
+                        </span>
                       )}
                     </div>
 
-                    <span style={{ ...TIPO.meta, color: T.faint, fontSize: 11, flexShrink: 0, ...NUM }}>
-                      {formatarMomento(a.quando)}
-                    </span>
+                    {a.texto && (
+                      <p
+                        style={{
+                          color: T.text, fontSize: 13, lineHeight: 1.5, margin: 0,
+                          background: T.chip, borderRadius: R.card, padding: '8px 12px',
+                          wordBreak: 'break-word', alignSelf: 'flex-start', maxWidth: '100%',
+                        }}
+                      >
+                        {a.texto}
+                      </p>
+                    )}
+
+                    {a.photos && a.photos.length > 0 && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {a.photos.map((foto, i) => (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            key={i}
+                            src={foto}
+                            alt=""
+                            style={{
+                              width: 48, height: 48, objectFit: 'cover',
+                              borderRadius: R.card, display: 'block',
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
-
-                  {a.texto && (
-                    <p
-                      style={{
-                        color: T.mute, fontSize: 12, lineHeight: 1.45,
-                        margin: 0, paddingLeft: 26, wordBreak: 'break-word',
-                      }}
-                    >
-                      {a.texto}
-                    </p>
-                  )}
-
-                  {a.photos && a.photos.length > 0 && (
-                    <div style={{ display: 'flex', gap: 6, paddingLeft: 26, marginTop: 2 }}>
-                      {a.photos.map((foto, i) => (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img
-                          key={i}
-                          src={foto}
-                          alt=""
-                          style={{
-                            width: 38, height: 38, objectFit: 'cover',
-                            borderRadius: R.control, display: 'block',
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
                 </li>
               );
             })}
-          </ul>
+          </ol>
         )}
       </div>
 
