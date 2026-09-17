@@ -124,6 +124,7 @@ export default function RegisterGestorPage() {
 
   return (
     <AuthShell
+      marca={false}
       title="Criar conta de gestor"
       subtitle="Conta de gestor: você cadastra os prédios, aprova quem entra e define quem vistoria."
       footer={
@@ -139,7 +140,7 @@ export default function RegisterGestorPage() {
         </div>
       }
     >
-      <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <form onSubmit={handleSubmit(onSubmit)} className="auth-form">
         {/* Armadilha para robô de formulário — ver `/register`. */}
         <input
           type="text"

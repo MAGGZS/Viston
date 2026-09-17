@@ -45,6 +45,22 @@
  */
 :root {
   --hero-surface: linear-gradient(158deg, #1A1A1A 0%, #151515 100%);
+  /**
+   * O painel de arte das telas de acesso — a metade direita do cartão.
+   *
+   * É a única superfície do produto que não carrega conteúdo: ela existe para
+   * dar à porta de entrada o peso que uma coluna de 380px sozinha no meio de um
+   * monitor não dá. Por isso é grafite com duas brumas douradas de saturação
+   * baixa, e não dourado cheio: dourado sólido é a ação primária, e gastá-lo
+   * num ornamento tiraria dele o que faz o botão de entrar ser achado.
+   *
+   * Fosco de propósito — a mesma regra da tela de convite. Nenhuma aura, nenhum
+   * brilho: três camadas de luminância que se encontram na diagonal.
+   */
+  --auth-art:
+    radial-gradient(120% 95% at 18% 12%, rgba(245, 197, 24, 0.24) 0%, rgba(245, 197, 24, 0) 58%),
+    radial-gradient(95% 80% at 88% 84%, rgba(245, 197, 24, 0.15) 0%, rgba(245, 197, 24, 0) 55%),
+    linear-gradient(158deg, #242424 0%, #131313 52%, #0C0C0C 100%);
   /* Ver T.cardRing: no escuro a separação já vem da luminância, e a borda some. */
   --card-ring: 0 0 0 0 transparent;
   --color-hover: #2A2A2A;
@@ -187,6 +203,13 @@ html[data-theme='light'] {
   --color-info: #4A55B8;
 
   --hero-surface: linear-gradient(158deg, #FFFFFF 0%, #F2F4F7 100%);
+  /* O mesmo painel no claro: a bruma dourada sobe de opacidade porque sobre
+     cinza-claro ela some em 0,16, e a base vira o par de cinzas da página —
+     grafite ali seria um retângulo preto encostado num cartão branco. */
+  --auth-art:
+    radial-gradient(120% 95% at 18% 12%, rgba(224, 175, 22, 0.30) 0%, rgba(224, 175, 22, 0) 60%),
+    radial-gradient(95% 80% at 88% 84%, rgba(224, 175, 22, 0.18) 0%, rgba(224, 175, 22, 0) 55%),
+    linear-gradient(158deg, #EEF0F4 0%, #E4E7EC 52%, #DCE0E7 100%);
   --card-ring: 0 0 0 1px rgba(16, 19, 23, 0.08);
   /* Um degrau a mais que os #E4E7EC de antes: sobre o chip, aquele realce dava
      1,07:1 e o item não parecia responder ao cursor. */
@@ -899,13 +922,239 @@ input:-webkit-autofill:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px 24px;
+  padding: 40px 24px;
 }
 
-@media (max-height: 900px), (max-width: 640px) {
+/*
+ * O cartão de acesso: formulário à esquerda, painel de arte à direita.
+ *
+ * Abaixo de 900px ele não é cartão nenhum — é a coluna chapada de sempre, sem
+ * fundo, sem sombra e sem o painel. No telefone a tela inteira já é a
+ * superfície, e desenhar um cartão dentro dela criaria uma moldura de 8px em
+ * volta de nada. Daí a divisão: tudo que faz o cartão existir mora na consulta
+ * de 900px, e o padrão continua sendo o que o telefone recebe.
+ */
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+}
+
+/* A coluna do formulário mantém os 380px de antes mesmo dentro do cartão: a
+   linha de texto confortável não muda porque ganhou vizinho à direita. */
+.auth-card__col {
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+/*
+ * Os respiros da coluna de acesso, e o corpo do que depende deles.
+ *
+ * Saíram do `style` do AuthShell para cá porque o telefone precisa de outros
+ * valores, e estilo em atributo não tem como dizer "só abaixo de 900px". Os
+ * números do computador são os mesmos de antes.
+ */
+.auth-titulo {
+  font-size: 26px;
+  margin-top: 26px;
+}
+
+.auth-sub {
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.auth-divisor {
+  height: 1px;
+  margin: 26px 0;
+}
+
+.auth-rodape {
+  margin-top: 26px;
+}
+
+/* O corpo do formulário — a distância entre um campo e o seguinte. */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/*
+ * No telefone tudo isso encolhe, e o alvo é uma tela só sem rolagem.
+ *
+ * O cadastro é a mais alta das telas de acesso e passava dos 950px num aparelho
+ * de 812 — o botão de criar conta ficava abaixo da dobra, e o passo final do
+ * cadastro virava uma coisa a procurar. O que encolhe é o respiro e a marca; o
+ * campo fica do tamanho que está.
+ *
+ * O corpo de 16px do campo é intocável: abaixo disso o Safari do iPhone dá
+ * zoom sozinho ao focar, e a tela salta de lado no meio do cadastro. É por isso
+ * que aqui não entra o `zoom` que o computador usa — ele levaria o campo junto.
+ *
+ * Num aparelho ainda mais curto (um iPhone SE, 667px) a tela volta a rolar, e é
+ * o certo: a alternativa seria letra de 12px virando 9px na mão de quem está
+ * digitando uma senha.
+ */
+@media (max-width: 899px) {
+  .auth-marca svg {
+    height: 100px;
+    width: auto;
+  }
+
+  .auth-titulo {
+    font-size: 22px;
+    margin-top: 18px;
+  }
+
+  .auth-sub {
+    margin-top: 6px;
+  }
+
+  .auth-divisor {
+    margin: 18px 0;
+  }
+
+  .auth-rodape {
+    margin-top: 18px;
+  }
+
+  .auth-form {
+    gap: 14px;
+  }
+}
+
+/* O espaço da imagem só existe no computador: no telefone ele roubaria a
+   altura de que o formulário precisa sem dizer nada a ninguém. */
+.auth-card__art {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  /*
+   * No computador a tela de acesso é a janela inteira, partida ao meio: o
+   * formulário de um lado, a imagem do outro.
+   *
+   * Havia um cartão aqui, pairando sobre a página com sombra e moldura. Ele
+   * punha uma terceira superfície entre o formulário e a janela sem que nada
+   * na tela precisasse dela — e, encolhido para caber, deixava o formulário
+   * pequeno no meio de muito fundo. Sem ele, a coluna volta ao tamanho de
+   * leitura e a metade da direita fica livre para a imagem.
+   */
+  .auth-shell {
+    padding: 0;
+    /*
+       A coluna inteira um passo abaixo do tamanho desenhado. Em tela cheia o
+       formulário no tamanho de origem ficava pesado ao lado da imagem — 5% o
+       assenta sem mexer em nenhuma proporção interna, que é o que o `zoom`
+       garante. Uma tela pode pedir outro valor pela prop `escala` (ver
+       components/AuthShell.js); os degraus de altura multiplicam este.
+    */
+    --auth-escala: 0.95;
+  }
+
+  .auth-card {
+    max-width: none;
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+  }
+
+  .auth-card__form {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 36px;
+    /*
+       A coluna encolhe junto quando a janela é baixa demais para ela — ver
+       `--auth-zoom` logo abaixo. Em janela normal não há escala nenhuma: o
+       formulário fica no tamanho desenhado.
+
+       `zoom` e não `transform: scale()`: o segundo desenha menor e continua
+       ocupando o tamanho de antes, então a coluna rolaria do mesmo jeito.
+       `zoom` entra no cálculo do layout, que é o que se quer.
+
+       Onde ele não existir, a página volta a rolar: é a degradação certa,
+       porque o conteúdo continua todo lá.
+    */
+    zoom: calc(var(--auth-zoom, 1) * var(--auth-escala, 1));
+  }
+
+  /*
+   * A metade da direita — o lugar da imagem.
+   *
+   * Até ela chegar, o degradê fosco de `--auth-art` segura o espaço. Quando
+   * chegar, basta apontar `--auth-art-img` para o arquivo: ela entra por cima
+   * do degradê, cobre a metade inteira e o resto do bloco continua valendo.
+   *
+   *   .auth-shell { --auth-art-img: url('/acesso.jpg'); }
+   */
+  .auth-card__art {
+    display: block;
+    /* A metade da imagem não encosta na borda da janela: ela fica recuada e de
+       canto redondo, como era no cartão. É o que dá a ela a cara de peça
+       apoiada na página, e não de fundo que vazou até o limite da tela. */
+    margin: 16px;
+    border-radius: 28px;
+    background-color: var(--color-card);
+    background-image: var(--auth-art-img, none), var(--auth-art);
+    background-size: cover;
+    background-position: center;
+  }
+
+  /*
+     A lista de exigências da senha continua saindo pelo lado (ver
+     `.senha-regras`) e pousa sobre a imagem — que é superfície, e portanto o
+     único lugar da tela que ela pode cobrir sem esconder nada.
+  */
+}
+
+/*
+ * A escala do formulário por altura de janela.
+ *
+ * Em janela normal não há escala nenhuma: as telas cabem no tamanho desenhado.
+ * Os degraus abaixo só entram quando falta altura, e aí a coluna inteira
+ * encolhe de uma vez — em vez de reescrever cada corpo, recuo e altura de campo
+ * por faixa, que são seis números por tela e seis chances de desencontro. A
+ * hierarquia desenhada chega igual, apenas menor.
+ *
+ * A conta é pela tela mais alta, porque o degrau vale para todas. Hoje é o
+ * cadastro de gestor: 752px de coluna mais recuo no tamanho de origem, 714
+ * depois dos 5% que `--auth-escala` tira de todas. O cadastro comum pede 694
+ * e o login, 666.
+ *
+ * Cada degrau é calculado para o fundo da faixa dele, e não para o topo: o de
+ * 710px precisa caber em 671, senão a faixa inteira rola menos o primeiro
+ * pixel. A escala é H / 714, e ela multiplica a base — o 0,94 abaixo chega na
+ * tela como 0,89.
+ *
+ * O piso é 0,85: abaixo dele o rótulo de 12px chega a 10px, e numa janela ainda
+ * mais baixa a tela volta a rolar, de propósito.
+ */
+@media (min-width: 900px) and (max-height: 710px) {
+  .auth-shell {
+    --auth-zoom: 0.94;
+  }
+}
+
+@media (min-width: 900px) and (max-height: 670px) {
+  .auth-shell {
+    --auth-zoom: 0.88;
+  }
+}
+
+/*
+ * No telefone a coluna sobe para o topo — ver a nota acima do `.auth-shell`:
+ * centralizar faz a marca de cada tela pousar numa altura diferente.
+ */
+@media (max-width: 899px) {
   .auth-shell {
     align-items: flex-start;
-    padding-top: 90px;
+    /* Era 90px. O alinhamento entre as telas — que é o motivo de o valor ser
+       fixo — continua de pé, porque todas descem o mesmo tanto; o que se perde
+       é a folga que empurrava o cadastro para fora da tela. */
+    padding: 40px 24px 24px;
   }
 }
 

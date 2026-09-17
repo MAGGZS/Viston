@@ -146,7 +146,7 @@ function LoginForm() {
         </div>
       }
     >
-      <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <form onSubmit={handleSubmit(onSubmit)} className="auth-form">
         <div style={S.field}>
           {/* `htmlFor` de verdade: `<label>` solto não nomeia campo nenhum, e o
               leitor de tela anunciava só "caixa de edição". O erro vira `alert`

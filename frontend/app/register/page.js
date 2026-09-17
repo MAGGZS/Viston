@@ -130,6 +130,7 @@ function RegisterForm() {
 
   return (
     <AuthShell
+      marca={false}
       title="Criar conta"
       subtitle="Depois de entrar, peça a chave do prédio ao administrador para começar a vistoriar."
       footer={
@@ -145,7 +146,7 @@ function RegisterForm() {
         </div>
       }
     >
-      <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <form onSubmit={handleSubmit(onSubmit)} className="auth-form">
             {/*
               Armadilha para robô de formulário. Humano nenhum vê este campo, e
               nenhum leitor de tela o anuncia; robô que preenche tudo que
