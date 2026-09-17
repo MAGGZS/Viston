@@ -1,4 +1,4 @@
-\'use client';
+'use client';
 import { useRef, useState } from 'react';
 import { Camera, X } from 'lucide-react';
 import { Button, Modal, Select, Textarea } from '@/app/components/ui';
