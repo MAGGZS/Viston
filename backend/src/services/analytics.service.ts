@@ -541,7 +541,10 @@ export const analyticsService = {
     const escopoDaPessoa = await scopeDe(buildingId, filters);
     const pessoa = comMetricas.find((r) => r.id === filters.responsible_id);
 
-    const atrasados = await analyticsRepository.atrasadosAbertos(escopoDaPessoa);
+    const [atrasados, atividades] = await Promise.all([
+      analyticsRepository.atrasadosAbertos(escopoDaPessoa),
+      analyticsRepository.atividadesRecentesResponsavel(escopoDaPessoa),
+    ]);
 
     return {
       periodo,
@@ -552,6 +555,7 @@ export const analyticsService = {
       // precisa poder dizer "nada neste período" em vez de "não encontrado".
       pessoa: pessoa ?? null,
       atrasados,
+      atividades,
     };
   },
 

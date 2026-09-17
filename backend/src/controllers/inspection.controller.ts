@@ -48,11 +48,6 @@ export const inspectionController = {
     ok(res, result);
   },
 
-  async findById(req: AuthenticatedRequest, res: Response) {
-    const report = await inspectionService.findById(req.params.id, req.user);
-    ok(res, report);
-  },
-
   /** O relatório completo do dia daquela vistoria — a unidade virou o dia. */
   async getDayReport(req: AuthenticatedRequest, res: Response) {
     const report = await inspectionService.getDayReport(req.params.id, req.user);

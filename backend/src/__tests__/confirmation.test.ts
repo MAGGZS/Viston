@@ -39,6 +39,7 @@ jest.mock('../repositories/emailToken.repository', () => ({
     findOpen: jest.fn(),
     consume: jest.fn(),
     registerFailure: jest.fn(),
+    reserveAttempt: jest.fn(),
   },
 }));
 jest.mock('../repositories/user.repository');
@@ -96,6 +97,7 @@ beforeEach(() => {
   tokens.create.mockResolvedValue({} as never);
   tokens.consume.mockResolvedValue(true);
   tokens.registerFailure.mockResolvedValue({} as never);
+  tokens.reserveAttempt.mockResolvedValue(true);
   users.findByEmail.mockResolvedValue(null);
   managers.findByEmail.mockResolvedValue(null);
   buildings.getUserMemberships.mockResolvedValue([] as never);
@@ -298,6 +300,19 @@ describe('verificacao do codigo', () => {
     await expect(confirmationService.confirmar('carlos@test.com', CODIGO)).rejects.toThrow(
       InvalidCodeError
     );
+    expect(users.update).not.toHaveBeenCalled();
+  });
+
+  it('chute em paralelo sem tentativa reservada nem chega a ser comparado', async () => {
+    // A leitura viu `attempts = 0`, mas outras requisições já gastaram as cinco
+    // tentativas no banco: sem a reserva, o código certo abriria a conta aqui.
+    tokens.findOpen.mockResolvedValue(makeRegistro({ attempts: 0 }));
+    tokens.reserveAttempt.mockResolvedValue(false);
+
+    await expect(confirmationService.confirmar('carlos@test.com', CODIGO)).rejects.toThrow(
+      InvalidCodeError
+    );
+    expect(tokens.consume).not.toHaveBeenCalled();
     expect(users.update).not.toHaveBeenCalled();
   });
 

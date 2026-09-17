@@ -177,13 +177,3 @@ export function rolesLabel(buildingRoles = [], accountRole) {
   }
   return 'Sem vínculo';
 }
-
-/**
- * Prefixo da API para as rotas de conta própria.
- *
- * Perfil, senha e foto existem para os dois tipos, em caminhos diferentes —
- * `/users/me` e `/managers/me` —, porque são tabelas diferentes.
- */
-export function accountPath(user) {
-  return isManagerAccount(user) ? '/managers/me' : '/users/me';
-}

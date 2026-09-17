@@ -2,14 +2,20 @@ import { AuditAction, BuildingRole, Prisma, RecordStatus } from '@prisma/client'
 import { ticketRepository, TicketRow, TicketUpdateRow } from '../repositories/ticket.repository';
 import { buildingRepository, auditRepository, actorAudit } from '../repositories/building.repository';
 import { Actor } from '../middlewares/authenticate';
-import { canModerateBuilding, getBuildingStanding } from '../middlewares/buildingAccess';
+import {
+  canModerateBuilding,
+  getBuildingStanding,
+  isBuildingResponsible,
+} from '../middlewares/buildingAccess';
 import { managerRepository } from '../repositories/manager.repository';
 import { userRepository } from '../repositories/user.repository';
 import { storageService } from './storage.service';
 import { decodeImageDataUrl, MAX_PHOTO_BYTES } from '../utils/image';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
+import { randomUUID } from 'node:crypto';
+import { CreateOccurrencePayload } from '../validators/occurrence.validator';
 import { TICKET_GROUPS, TicketFilters, TicketGroup } from '../validators/ticket.validator';
-import { zonedTimeToUtc } from '../utils/timezone';
+import { zonedDateOnly, zonedTimeToUtc } from '../utils/timezone';
 import { computeSla } from '../utils/sla';
 
 /** O afunilamento da listagem — tudo o que não é grupo, página nem tamanho. */
@@ -163,9 +169,21 @@ const ACEITA_ESCRITA: RecordStatus[] = [
   RecordStatus.AGUARDANDO_TERCEIRO,
 ];
 
-/** É o dono do chamado — a pessoa a quem ele foi encaminhado. */
-function isAssignedTo(ticket: { responsible_id: string | null }, user: Actor) {
-  return user.kind === 'USER' && ticket.responsible_id === user.id;
+/**
+ * É o dono do chamado — a pessoa a quem ele foi encaminhado — *e continua sendo
+ * responsável no prédio*.
+ *
+ * Só o `responsible_id` não basta: quem é tirado do prédio (ou muda de papel)
+ * seguia lendo, anotando e concluindo os chamados que estavam com ele, porque o
+ * id continuava gravado na linha. O vínculo de hoje é o que vale.
+ */
+async function isAssignedTo(
+  ticket: { responsible_id: string | null },
+  buildingId: string,
+  user: Actor
+): Promise<boolean> {
+  if (user.kind !== 'USER' || ticket.responsible_id !== user.id) return false;
+  return isBuildingResponsible(user, buildingId);
 }
 
 /**
@@ -177,7 +195,7 @@ function isAssignedTo(ticket: { responsible_id: string | null }, user: Actor) {
  * que é de moderador continua sendo o gasto e as filas, não o relato.
  */
 async function assertCanRead(ticket: TicketRow, buildingId: string, user: Actor) {
-  if (isAssignedTo(ticket, user)) return;
+  if (await isAssignedTo(ticket, buildingId, user)) return;
   if (await getBuildingStanding(user, buildingId)) return;
   throw new ForbiddenError('Você não tem acesso a este chamado');
 }
@@ -191,7 +209,7 @@ async function assertCanRead(ticket: TicketRow, buildingId: string, user: Actor)
  * base nela, e escrever ali confundiria as duas coisas.
  */
 async function assertCanWrite(ticket: TicketRow, buildingId: string, user: Actor) {
-  if (isAssignedTo(ticket, user)) return;
+  if (await isAssignedTo(ticket, buildingId, user)) return;
   if ((await getBuildingStanding(user, buildingId)) === BuildingRole.MODERADOR) return;
   throw new ForbiddenError('Só o responsável ou o moderador registram o andamento');
 }
@@ -218,6 +236,77 @@ async function logTicket(user: Actor, buildingId: string, ticketId: string, meta
 }
 
 export const ticketService = {
+  /**
+   * Abre uma ocorrência individual avulsa registrada por um responsável.
+   *
+   * Vai direto para a fila dele em EM_ANDAMENTO, permitindo iniciar o atendimento
+   * e registrar fotos/passos na Linha do Tempo imediatamente.
+   *
+   * Só `RESPONSAVEL`: quem registra vira o responsável do chamado, e um
+   * inspetor ou quem só acompanha passaria a aparecer no ranking da equipe.
+   *
+   * O andar é conferido contra o prédio da rota. Sem isso, um vínculo no prédio
+   * A bastaria para pendurar ocorrência num andar do prédio B.
+   */
+  async createOccurrence(buildingId: string, user: Actor, data: CreateOccurrencePayload) {
+    if (user.kind !== 'USER' || (await getBuildingStanding(user, buildingId)) !== BuildingRole.RESPONSAVEL) {
+      throw new ForbiddenError('Só o responsável do prédio registra ocorrência avulsa');
+    }
+
+    // Mesma resposta para andar inexistente e andar de outro prédio: a API não
+    // confirma que um id existe fora do prédio de quem pergunta.
+    const [floor] = await buildingRepository.findFloorsByIds([data.floor_id]);
+    if (!floor || floor.building_id !== buildingId) {
+      throw new NotFoundError('Andar');
+    }
+
+    const name = await actorName(user);
+
+    // O id sai antes para que as fotos já subam com o nome do chamado de verdade
+    // (`ticket_<id>_…`), que é o prefixo pelo qual elas são achadas e apagadas.
+    const ticketId = randomUUID();
+    const photos: string[] = [];
+
+    let ticket: TicketRow;
+    try {
+      for (const dataUrl of data.photos) {
+        const { buffer, contentType } = decodeImageDataUrl(dataUrl, MAX_PHOTO_BYTES);
+        photos.push(await storageService.uploadTicketPhoto(ticketId, buffer, contentType));
+      }
+
+      ticket = await ticketRepository.createIndividualOccurrence({
+        ticket_id: ticketId,
+        building_id: buildingId,
+        floor_id: data.floor_id,
+        // Coluna DATE: o dia do calendário de quem registrou, como na vistoria.
+        date: zonedDateOnly(new Date()),
+        responsible_id: user.id,
+        responsible_name: name,
+        maintenance_type: data.maintenance_type,
+        category: data.category,
+        priority: data.priority,
+        description: data.description,
+        photos,
+      });
+    } catch (err) {
+      // A criação é uma transação só: se falhou, nada no banco aponta para as
+      // fotos que já subiram, e elas ficariam no bucket para sempre.
+      await Promise.all(photos.map((url) => storageService.removeTicketPhoto(url)));
+      throw err;
+    }
+
+    await auditRepository.log({
+      ...actorAudit(user),
+      building_id: buildingId,
+      action: AuditAction.CREATE,
+      entity: 'MaintenanceRecord',
+      entity_id: ticket.id,
+      metadata: { origin: 'AVULSA', floor_id: data.floor_id },
+    });
+
+    return toTicket(ticket);
+  },
+
   /**
    * A fila do prédio, num dos grupos da barra lateral do moderador — e, com os
    * filtros, a lista ampliada do histórico de ocorrências.
@@ -399,8 +488,7 @@ export const ticketService = {
   async receive(id: string, user: Actor) {
     const { ticket, buildingId } = await loadTicket(id);
 
-    const isAssigned = user.kind === 'USER' && ticket.responsible_id === user.id;
-    if (!isAssigned) {
+    if (!(await isAssignedTo(ticket, buildingId, user))) {
       throw new ForbiddenError('Este chamado não está com você');
     }
 
@@ -494,7 +582,7 @@ export const ticketService = {
   async reportDone(id: string, user: Actor, doneReport?: string | null) {
     const { ticket, buildingId } = await loadTicket(id);
 
-    const isAssigned = isAssignedTo(ticket, user);
+    const isAssigned = await isAssignedTo(ticket, buildingId, user);
     if (!isAssigned && !(await canModerateBuilding(user, buildingId))) {
       throw new ForbiddenError('Este chamado não está com você');
     }
@@ -550,7 +638,7 @@ export const ticketService = {
     const { ticket, buildingId } = await loadTicket(id);
 
     // A mesma dupla de `reportDone`: quem pôde dizer "terminei" pode desdizer.
-    if (!isAssignedTo(ticket, user) && !(await canModerateBuilding(user, buildingId))) {
+    if (!(await isAssignedTo(ticket, buildingId, user)) && !(await canModerateBuilding(user, buildingId))) {
       throw new ForbiddenError('Este chamado não está com você');
     }
 

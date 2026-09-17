@@ -32,11 +32,6 @@ export const userController = {
     noContent(res);
   },
 
-  async getMe(req: AuthenticatedRequest, res: Response) {
-    const user = await userService.getProfile(req.user.id);
-    ok(res, user);
-  },
-
   async updateMe(req: AuthenticatedRequest, res: Response) {
     const user = await userService.updateMe(req.user.id, req.body);
     ok(res, user);

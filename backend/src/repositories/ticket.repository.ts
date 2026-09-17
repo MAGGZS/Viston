@@ -1,9 +1,12 @@
 import {
+  BuildingRole,
+  FloorStatus,
   MaintenanceCategory,
   MaintenanceType,
   Prisma,
   Priority,
   RecordStatus,
+  ReportOrigin,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
@@ -221,6 +224,15 @@ export const ticketRepository = {
     return prisma.maintenanceRecord.findMany({
       where: {
         responsible_id: responsibleId,
+        // Só dos prédios em que a pessoa ainda é responsável: quem saiu de um
+        // prédio não segue vendo a fila de lá (ver `isAssignedTo`).
+        floor_form_entry: {
+          report: {
+            building: {
+              members: { some: { user_id: responsibleId, role: BuildingRole.RESPONSAVEL } },
+            },
+          },
+        },
         status: includeClosed
           ? { not: RecordStatus.ABERTO }
           : {
@@ -434,5 +446,94 @@ export const ticketRepository = {
     }
     return map;
   },
-};
 
+  /**
+   * Registra uma ocorrência individual avulsa (feita por um responsável).
+   *
+   * Diferente da vistoria completa do inspetor (que passa por todos os andares),
+   * a ocorrência avulsa cria um relatório com origin: 'AVULSA', status COMPLETED,
+   * gerando a entrada do andar e o chamado diretamente em EM_ANDAMENTO com
+   * o responsável atribuído.
+   *
+   * O id do chamado vem de fora porque as fotos sobem antes, já com o nome dele.
+   */
+  async createIndividualOccurrence(data: {
+    ticket_id: string;
+    building_id: string;
+    floor_id: string;
+    date: Date;
+    responsible_id: string;
+    responsible_name: string;
+    maintenance_type: MaintenanceType;
+    category: MaintenanceCategory;
+    priority: Priority;
+    description: string;
+    photos?: string[];
+  }): Promise<TicketRow> {
+    // Nunca OK: o andar tem um problema registrado, e o status dele entra na
+    // planilha e na severidade do andar. Só a prioridade alta sobe para PROBLEMA.
+    const status_geral = data.priority === 'ALTA' ? FloorStatus.PROBLEMA : FloorStatus.ATENCAO;
+
+    return prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const report = await tx.inspectionReport.create({
+        data: {
+          building_id: data.building_id,
+          inspector_id: null,
+          origin: ReportOrigin.AVULSA,
+          status: 'COMPLETED',
+          date: data.date,
+          started_at: now,
+          finished_at: now,
+          floors_inspected: [data.floor_id],
+        },
+      });
+
+      const entry = await tx.floorFormEntry.create({
+        data: {
+          report_id: report.id,
+          floor_id: data.floor_id,
+          status_geral,
+          completed_at: now,
+        },
+      });
+
+      const ticket = await tx.maintenanceRecord.create({
+        data: {
+          id: data.ticket_id,
+          floor_form_entry_id: entry.id,
+          maintenance_type: data.maintenance_type,
+          category: data.category,
+          priority: data.priority,
+          description: data.description,
+          responsible_id: data.responsible_id,
+          responsible: data.responsible_name,
+          status: 'EM_ANDAMENTO',
+          forwarded_at: now,
+          received_at: now,
+        },
+      });
+
+      // As fotos vão para a Linha do Tempo, que é onde o chamado guarda imagem.
+      // O texto não repete a descrição: ela já está no chamado, e o painel do
+      // responsável mostraria a mesma frase duas vezes.
+      if (data.photos && data.photos.length > 0) {
+        await tx.ticketUpdate.create({
+          data: {
+            ticket_id: ticket.id,
+            author_id: data.responsible_id,
+            author_name: data.responsible_name,
+            description: 'Fotos do registro da ocorrência',
+            photos: data.photos,
+            created_at: now,
+          },
+        });
+      }
+
+      return tx.maintenanceRecord.findUniqueOrThrow({
+        where: { id: ticket.id },
+        include: ticketInclude,
+      });
+    });
+  },
+};

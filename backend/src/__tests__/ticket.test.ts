@@ -1144,3 +1144,128 @@ describe('ticketService.listByBuilding — ordem', () => {
     expect(ordemPedida()).toBe('CLOSED_ASC');
   });
 });
+
+// ── Ocorrência avulsa ─────────────────────────────────────────────────────────
+
+describe('ticketService.createOccurrence', () => {
+  const FLOOR_ID = '55555555-5555-4555-8555-555555555555';
+  const jpeg = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0x00]).toString('base64')}`;
+  const payload = (overrides: any = {}) =>
+    ({
+      floor_id: FLOOR_ID,
+      maintenance_type: 'ELETRICA',
+      category: 'CORRETIVA',
+      priority: 'MEDIA',
+      description: 'Tomada solta na copa',
+      photos: [],
+      ...overrides,
+    }) as any;
+
+  beforeEach(() => {
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([
+      { id: FLOOR_ID, building_id: BUILDING_ID, label: '6º Andar' },
+    ] as any);
+    mockTicketRepo.createIndividualOccurrence.mockImplementation(((data: any) =>
+      Promise.resolve(makeTicket({ id: data.ticket_id, status: 'EM_ANDAMENTO' }))) as any);
+  });
+
+  it('registra no prédio da rota, com o id já usado nas fotos', async () => {
+    comPapel('RESPONSAVEL');
+
+    await ticketService.createOccurrence(BUILDING_ID, responsavel, payload({ photos: [jpeg] }));
+
+    const data = mockTicketRepo.createIndividualOccurrence.mock.calls[0][0];
+    expect(data.building_id).toBe(BUILDING_ID);
+    expect(data.responsible_id).toBe(RESPONSIBLE_ID);
+    expect(mockStorage.uploadTicketPhoto).toHaveBeenCalledWith(data.ticket_id, expect.any(Buffer), 'image/jpeg');
+  });
+
+  it('grava o dia do calendário local, não o dia UTC', async () => {
+    comPapel('RESPONSAVEL');
+    jest.useFakeTimers({ now: new Date('2026-09-16T23:30:00-03:00') });
+    try {
+      await ticketService.createOccurrence(BUILDING_ID, responsavel, payload());
+    } finally {
+      jest.useRealTimers();
+    }
+
+    const { date } = mockTicketRepo.createIndividualOccurrence.mock.calls[0][0];
+    expect(date.toISOString().slice(0, 10)).toBe('2026-09-16');
+  });
+
+  it.each(['VIEWER', 'INSPECTOR', 'MODERADOR'])('recusa quem é %s no prédio', async (role) => {
+    comPapel(role);
+
+    await expect(
+      ticketService.createOccurrence(BUILDING_ID, visualizador, payload())
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(mockTicketRepo.createIndividualOccurrence).not.toHaveBeenCalled();
+  });
+
+  it('recusa gestor', async () => {
+    await expect(
+      ticketService.createOccurrence(BUILDING_ID, gestor, payload())
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('recusa andar de outro prédio, como se não existisse', async () => {
+    comPapel('RESPONSAVEL');
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([
+      { id: FLOOR_ID, building_id: 'outro-predio', label: '1º Andar' },
+    ] as any);
+
+    await expect(
+      ticketService.createOccurrence(BUILDING_ID, responsavel, payload())
+    ).rejects.toBeInstanceOf(NotFoundError);
+    expect(mockStorage.uploadTicketPhoto).not.toHaveBeenCalled();
+    expect(mockTicketRepo.createIndividualOccurrence).not.toHaveBeenCalled();
+  });
+
+  it('apaga as fotos já enviadas quando a gravação falha', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.createIndividualOccurrence.mockRejectedValue(new Error('banco fora'));
+
+    await expect(
+      ticketService.createOccurrence(BUILDING_ID, responsavel, payload({ photos: [jpeg, jpeg] }))
+    ).rejects.toThrow('banco fora');
+    expect(mockStorage.removeTicketPhoto).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ── Responsável que saiu do prédio ────────────────────────────────────────────
+
+describe('responsável que deixou de ser responsável no prédio', () => {
+  const comigo = () =>
+    makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID });
+
+  it.each([null, 'VIEWER'])('com vínculo %s, não escreve nem conclui o chamado que era dele', async (role) => {
+    comPapel(role);
+    const eu = { ...responsavel };
+    mockTicketRepo.findById.mockResolvedValue(comigo());
+
+    await expect(
+      ticketService.addUpdate(TICKET_ID, eu, { description: 'ainda aqui', photos: [] })
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(ticketService.reportDone(TICKET_ID, eu)).rejects.toBeInstanceOf(ForbiddenError);
+    expect(mockTicketRepo.createUpdate).not.toHaveBeenCalled();
+    expect(mockTicketRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('continua responsável: segue trabalhando no chamado', async () => {
+    comPapel('RESPONSAVEL');
+    const eu = { ...responsavel };
+    mockTicketRepo.findById.mockResolvedValue(comigo());
+
+    await ticketService.addUpdate(TICKET_ID, eu, { description: 'troquei a peça', photos: [] });
+    expect(mockTicketRepo.createUpdate).toHaveBeenCalled();
+  });
+});
+
+it('quem saiu do prédio não lê mais o chamado que era dele', async () => {
+  comPapel(null);
+  mockTicketRepo.findById.mockResolvedValue(
+    makeTicket({ status: 'EM_ANDAMENTO', responsible_id: RESPONSIBLE_ID })
+  );
+
+  await expect(ticketService.getOne(TICKET_ID, { ...responsavel })).rejects.toBeInstanceOf(ForbiddenError);
+});

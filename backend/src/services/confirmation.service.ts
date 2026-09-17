@@ -138,9 +138,13 @@ export async function verificarCodigo(
     throw new InvalidCodeError();
   }
 
+  // A tentativa é gasta antes da comparação, no banco e de forma atômica: é o
+  // que faz o teto valer também para chutes disparados em paralelo.
+  if (!(await emailTokenRepository.reserveAttempt(registro.id))) {
+    throw new InvalidCodeError();
+  }
+
   if (!hashesIguais(hashCodigo(codigo), registro.code_hash)) {
-    // O chute é contado mesmo quando o registro já vai morrer: é o contador que
-    // fecha a porta, e ele precisa chegar ao teto para fechá-la.
     await emailTokenRepository.registerFailure(registro.id, registro.attempts);
     throw new InvalidCodeError();
   }

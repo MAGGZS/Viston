@@ -38,7 +38,6 @@ import { T, R, W, NUM, HERO_SURFACE } from '@/app/lib/theme';
 
 const profileSchema = yup.object({
   name: yup.string().min(2).required('Obrigatório'),
-  email: yup.string().email('E-mail inválido').required('Obrigatório'),
 });
 
 const feedbackSchema = yup.object({
@@ -473,7 +472,7 @@ function IdentityForm({ user }) {
     resolver: yupResolver(profileSchema),
     // `values` e não `defaultValues`: o usuário chega depois da primeira
     // renderização, e os campos precisam acompanhar quando ele chegar.
-    values: { name: user?.name ?? '', email: user?.email ?? '' },
+    values: { name: user?.name ?? '' },
   });
 
   useUnsavedField(form.formState.isDirty);
@@ -491,7 +490,17 @@ function IdentityForm({ user }) {
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <MField label="Nome" error={form.formState.errors.name?.message} {...form.register('name')} />
-      <MField label="E-mail" type="email" error={form.formState.errors.email?.message} {...form.register('email')} />
+      {/* Só leitura: o e-mail é a identidade da conta e a porta da recuperação
+          de senha, e a API não o troca mais por aqui. */}
+      <MField
+        label="E-mail"
+        type="email"
+        name="email"
+        value={user?.email ?? ''}
+        readOnly
+        disabled
+        style={{ opacity: 0.7, cursor: 'not-allowed' }}
+      />
       <MButton type="submit" loading={updateMe.isPending} style={{ width: '100%' }}>Salvar alterações</MButton>
     </form>
   );

@@ -5,10 +5,20 @@ import {
   MaintenanceType,
   Prisma,
   Priority,
+  ReportOrigin,
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma';
 import { withExcelFlag } from '../utils/reportShape';
+
+/**
+ * O filtro que separa vistoria de ocorrência avulsa.
+ *
+ * Toda leitura de `inspection_reports` que fala em "vistoria" (histórico,
+ * calendário, planilha do dia, contadores) precisa dele: o relatório avulso só
+ * existe para pendurar o chamado do responsável num andar.
+ */
+export const ONLY_INSPECTIONS = ReportOrigin.VISTORIA;
 
 const reportInclude = {
   inspector: { select: { id: true, name: true, email: true, role: true, avatar_url: true } },
@@ -99,7 +109,10 @@ export const inspectionRepository = {
   },
 
   findById(id: string) {
-    return prisma.inspectionReport.findUnique({ where: { id }, include: reportInclude });
+    // Só vistoria: o relatório avulso é suporte do chamado, não documento. Aberto
+    // por aqui, ele podia ser lido, regerado ou apagado — e apagar leva o chamado
+    // junto, em cascata.
+    return prisma.inspectionReport.findFirst({ where: { id, origin: ONLY_INSPECTIONS }, include: reportInclude });
   },
 
   /**
@@ -112,7 +125,7 @@ export const inspectionRepository = {
    */
   findDayReports(buildingId: string, date: Date) {
     return prisma.inspectionReport.findMany({
-      where: { building_id: buildingId, date, status: InspectionStatus.COMPLETED },
+      where: { building_id: buildingId, date, status: InspectionStatus.COMPLETED, origin: ONLY_INSPECTIONS },
       include: reportInclude,
       orderBy: { started_at: 'asc' },
     });
@@ -127,7 +140,7 @@ export const inspectionRepository = {
    */
   setDayExcelPath(buildingId: string, date: Date, excelPath: string) {
     return prisma.inspectionReport.updateMany({
-      where: { building_id: buildingId, date },
+      where: { building_id: buildingId, date, origin: ONLY_INSPECTIONS },
       data: { excel_path: excelPath },
     });
   },
@@ -158,6 +171,7 @@ export const inspectionRepository = {
 
     const where: Prisma.InspectionReportWhereInput = {
       status: status ?? InspectionStatus.COMPLETED,
+      origin: ONLY_INSPECTIONS,
       ...(inspector_id && { inspector_id }),
       // Pelo nome, sem diferenciar maiúscula: quem procura "carlos" está
       // procurando o Carlos. Vistoria de inspetor apagado (`inspector` nulo)
@@ -224,6 +238,7 @@ export const inspectionRepository = {
     return prisma.inspectionReport.findMany({
       where: {
         status: InspectionStatus.COMPLETED,
+        origin: ONLY_INSPECTIONS,
         finished_at: { gte: dateFrom, lte: dateTo },
         ...(buildingScope.length ? { AND: buildingScope } : {}),
       },

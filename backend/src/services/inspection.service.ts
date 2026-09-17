@@ -444,15 +444,6 @@ export const inspectionService = {
     };
   },
 
-  async findById(id: string, user: Viewer) {
-    const report = await inspectionRepository.findById(id);
-    if (!report || report.status === InspectionStatus.IN_PROGRESS) {
-      throw new NotFoundError('Relatório');
-    }
-    await assertCanSeeReport(user, report.building_id);
-    return withExcelFlag(report);
-  },
-
   /**
    * A URL de download da planilha, assinada na hora.
    *

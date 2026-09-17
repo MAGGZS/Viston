@@ -31,7 +31,14 @@ function escapar(valor) {
         (Number.isInteger(valor) ? String(valor) : valor.toFixed(2)).replace('.', ',')
       : String(valor);
 
-  return /[;"\n\r]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
+  // Injeção de fórmula: texto que começa com `=`, `+`, `-`, `@`, tab ou CR é
+  // executado pelo Excel como fórmula. A descrição de uma ocorrência é escrita
+  // por qualquer inspetor, e `=HYPERLINK(...)` viraria link malicioso na
+  // planilha de quem exporta. O apóstrofo à frente faz o Excel ler como texto.
+  // Número de verdade não passa por aqui — só texto.
+  const seguro = typeof valor !== 'number' && /^[=+\-@\t\r]/.test(texto) ? `'${texto}` : texto;
+
+  return /[;"\n\r]/.test(seguro) ? `"${seguro.replace(/"/g, '""')}"` : seguro;
 }
 
 /**

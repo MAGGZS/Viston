@@ -70,10 +70,25 @@ async function accountMemberships(account: { id: string; kind: AccountKind }) {
   return buildingRepository.getUserMemberships(account.id);
 }
 
+/**
+ * Um hash de bcrypt que não abre conta nenhuma.
+ *
+ * O login sem conta respondia sem rodar o bcrypt, em microssegundos; o login
+ * com conta e senha errada levava o tempo do hash. A diferença de tempo dizia
+ * quais e-mails têm conta, e o formulário virava o verificador que o cadastro
+ * se esforça para não ser. Comparar contra este hash iguala os dois caminhos.
+ */
+let dummyHash: Promise<string> | null = null;
+function hashFalso(): Promise<string> {
+  dummyHash ??= hashPassword(`viston-sem-conta-${Math.random()}`);
+  return dummyHash;
+}
+
 export const authService = {
   async login(email: string, password: string) {
-    const account = await findAccountByEmail(email);
+    const account = await findAccountByEmail(normalizeEmail(email));
     if (!account || account.status === 'DELETED') {
+      await bcrypt.compare(password, await hashFalso());
       throw new UnauthorizedError('Credenciais inválidas');
     }
 

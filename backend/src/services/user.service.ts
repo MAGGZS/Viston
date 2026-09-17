@@ -137,12 +137,9 @@ export const userService = {
   // As três rotas abaixo devolvem o perfil inteiro, com os vínculos: é o
   // resultado delas que o app grava por cima do usuário logado, e sem os
   // vínculos ele perderia, na hora, o que a pessoa pode fazer em cada prédio.
-  async updateMe(id: string, data: { name?: string; email?: string }) {
-    if (data.email) {
-      const existing = await userRepository.findByEmail(data.email);
-      if (existing && existing.id !== id) throw new ConflictError('E-mail já em uso');
-    }
-    const updated = await userRepository.update(id, data);
+  // Só o nome: o e-mail não se troca por aqui (ver `updateMeSchema`).
+  async updateMe(id: string, data: { name?: string }) {
+    const updated = await userRepository.update(id, { name: data.name });
     const { password_hash: _, ...safe } = updated;
     return withMemberships(safe);
   },

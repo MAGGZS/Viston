@@ -10,6 +10,7 @@ import { ok, created, noContent } from '../utils/response';
 import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
 import { normalizeShareKey, isValidShareKeyFormat } from '../utils/shareKey';
 import { zonedParts, zonedRange } from '../utils/timezone';
+import { normalizeEmail } from '../services/confirmation.service';
 
 /** Remove a chave de compartilhamento de respostas destinadas a quem nao e gestor. */
 function publicBuilding(building: { id: string; name: string; description: string | null }) {
@@ -241,7 +242,7 @@ export const buildingController = {
    * a saída do último é recusada.
    */
   async addManager(req: AuthenticatedRequest, res: Response) {
-    const email = String(req.body?.email ?? '').trim();
+    const email = normalizeEmail(req.body.email);
     const manager = await managerRepository.findByEmail(email);
     if (!manager || manager.status === 'DELETED') {
       throw new NotFoundError('Conta de gestor com este e-mail');
@@ -356,6 +357,13 @@ export const buildingController = {
 
   // ── Solicitações de acesso ────────────────────────────────────────────────
   async requestAccess(req: AuthenticatedRequest, res: Response) {
+    // Solicitação é de usuário: `user_id` aponta para `users`. Conta de gestor
+    // entra no prédio sendo adicionada por outro gestor, nunca por aqui — e o id
+    // dela não pode virar `user_id` de ninguém.
+    if (req.user.kind !== 'USER') {
+      throw new ForbiddenError('Conta de gestor não solicita acesso a prédio');
+    }
+
     const building = await findBuildingByKeyOrFail(req.body?.key);
 
     const isMember = await buildingRepository.findMember(building.id, req.user.id);

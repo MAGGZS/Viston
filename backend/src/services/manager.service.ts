@@ -1,7 +1,6 @@
 import bcrypt from 'bcrypt';
 import { managerRepository } from '../repositories/manager.repository';
 import { PASSWORD_ROUNDS } from '../utils/password';
-import { userRepository } from '../repositories/user.repository';
 import { buildingRepository } from '../repositories/building.repository';
 import { storageService } from './storage.service';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
@@ -12,25 +11,6 @@ import {
   outraTabelaLivre,
   RESPOSTA_CADASTRO,
 } from './confirmation.service';
-
-/**
- * O e-mail precisa ser livre nas duas tabelas.
- *
- * Postgres não faz unique entre tabelas, e o login procura nos dois lugares: se
- * o mesmo e-mail existisse em `users` e em `managers`, a entrada seria ambígua e
- * a pessoa cairia numa conta ou noutra dependendo da ordem da consulta.
- */
-export async function assertEmailIsFree(email: string, ignoreManagerId?: string) {
-  const [user, manager] = await Promise.all([
-    userRepository.findByEmail(email),
-    managerRepository.findByEmail(email),
-  ]);
-
-  if (user) throw new ConflictError('E-mail já cadastrado');
-  if (manager && manager.id !== ignoreManagerId) {
-    throw new ConflictError('E-mail já cadastrado');
-  }
-}
 
 /**
  * Recusa apagar a conta que é a única gestora de algum prédio.
@@ -65,9 +45,8 @@ export const managerService = {
   async create(data: { name: string; email: string; password: string; website?: string }) {
     // Os quatro caminhos daqui são os mesmos de `userService.create`, e pela
     // mesma razão: o cadastro de gestor também é público, e também não pode
-    // dizer quais endereços já têm conta. `assertEmailIsFree` continua valendo
-    // para a troca de e-mail no perfil, onde quem pede já provou ser quem é —
-    // ali o 409 é informação devida, não vazamento.
+    // dizer quais endereços já têm conta. O e-mail ser livre também na outra
+    // tabela é conferido por `outraTabelaLivre`, calado.
     if (data.website) return RESPOSTA_CADASTRO;
 
     const email = normalizeEmail(data.email);
@@ -122,9 +101,9 @@ export const managerService = {
     };
   },
 
-  async updateMe(id: string, data: { name?: string; email?: string }) {
-    if (data.email) await assertEmailIsFree(data.email, id);
-    await managerRepository.update(id, data);
+  // Só o nome: o e-mail não se troca por aqui (ver `updateMeSchema`).
+  async updateMe(id: string, data: { name?: string }) {
+    await managerRepository.update(id, { name: data.name });
     return this.getProfile(id);
   },
 

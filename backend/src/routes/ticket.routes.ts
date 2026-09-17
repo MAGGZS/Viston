@@ -1,9 +1,11 @@
 import { Router } from 'express';
+import { guardUuidParams } from '../middlewares/uuidParams';
 import { ticketController } from '../controllers/ticket.controller';
 import { authenticate } from '../middlewares/authenticate';
 import { requireBuildingMember, requireBuildingModerator } from '../middlewares/buildingAccess';
+import { occurrenceLimiter } from '../middlewares/rateLimit';
 
-const router = Router();
+const router = guardUuidParams(Router());
 
 const auth = authenticate;
 const moderator = requireBuildingModerator();
@@ -28,9 +30,21 @@ router.get('/buildings/:id/tickets/report', auth, moderator, ticketController.re
 // dela para preencher o formulário.
 router.get('/buildings/:id/responsibles', auth, member, ticketController.responsibles);
 
+// Ocorrência avulsa, registrada pelo responsável. O prédio vem do caminho, e o
+// vínculo passa pela guarda como no resto do prédio; que o papel seja
+// `RESPONSAVEL` e que o andar seja deste prédio, o serviço confere.
+router.post(
+  '/buildings/:id/occurrences',
+  auth,
+  member,
+  occurrenceLimiter,
+  ticketController.createOccurrence
+);
+
 // ── O chamado, um a um ────────────────────────────────────────────────────────
 // Sem guarda de papel na rota: quem pode mexer depende do prédio do chamado, e
 // só o serviço sabe qual é depois de carregá-lo (ver services/ticket.service.ts).
+
 router.get('/tickets/me', auth, ticketController.mine);
 // Depois de `/tickets/me`, e a ordem é o que faz as duas conviverem: declarado
 // antes, o segmento variável engoliria "me" e a lista do responsável viraria

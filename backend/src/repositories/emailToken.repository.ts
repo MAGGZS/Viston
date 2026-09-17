@@ -100,20 +100,36 @@ export const emailTokenRepository = {
   },
 
   /**
-   * Registra um chute errado, e mata o registro no último.
+   * Gasta uma tentativa *antes* de comparar o código.
    *
-   * O incremento acontece no banco (`increment`), e não lido e regravado aqui:
-   * cinco tentativas disparadas ao mesmo tempo leriam todas o mesmo número e
-   * gravariam o mesmo sucessor, e o teto contaria uma só.
+   * Contar só depois do erro deixava uma fresta: mil chutes disparados juntos
+   * liam todos `attempts = 0`, passavam pelo teto e eram comparados antes de o
+   * primeiro incremento chegar ao banco — o teto de cinco valia só em série.
+   * Aqui a reserva é um UPDATE condicional: o Postgres serializa na linha, e só
+   * cinco requisições, no total, recebem `count: 1`.
+   */
+  async reserveAttempt(id: string): Promise<boolean> {
+    const { count } = await prisma.emailToken.updateMany({
+      where: {
+        id,
+        used_at: null,
+        expires_at: { gt: new Date() },
+        attempts: { lt: MAX_TENTATIVAS },
+      },
+      data: { attempts: { increment: 1 } },
+    });
+    return count === 1;
+  },
+
+  /**
+   * Registra um chute errado: mata o registro quando a tentativa gasta era a
+   * última. A contagem já aconteceu em `reserveAttempt`.
    */
   registerFailure(id: string, attempts: number) {
-    const estourou = attempts + 1 >= MAX_TENTATIVAS;
-    return prisma.emailToken.update({
-      where: { id },
-      data: {
-        attempts: { increment: 1 },
-        ...(estourou ? { used_at: new Date() } : {}),
-      },
+    if (attempts + 1 < MAX_TENTATIVAS) return Promise.resolve(null);
+    return prisma.emailToken.updateMany({
+      where: { id, used_at: null },
+      data: { used_at: new Date() },
     });
   },
 };

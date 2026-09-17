@@ -1,12 +1,48 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { AlertTriangle, ArrowDown, ArrowUp, Clock } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, CheckCheck, Clock, Inbox, MessageSquare, PlusCircle } from 'lucide-react';
+import { format, isToday, isYesterday } from 'date-fns';
 import { Skeleton } from '@/app/components/ui';
 import { labelOf, MAINTENANCE_TYPES } from '@/app/lib/maintenanceOptions';
 import { nomeDoRecorte } from '@/app/lib/csv';
 import { BaixarCsv } from './BaixarCsv';
 import { TIPO } from './escala';
 import { T, R, W, NUM, CHART } from '@/app/lib/theme';
+
+const CONFIG_ATIVIDADE = {
+  OPEN: {
+    rotulo: 'Ocorrência aberta',
+    icon: PlusCircle,
+    cor: T.accentInk,
+    bg: T.accentSoft,
+  },
+  UPDATE: {
+    rotulo: 'Linha do tempo',
+    icon: MessageSquare,
+    cor: T.accentInk,
+    bg: T.accentSoft,
+  },
+  RECEIVE: {
+    rotulo: 'Chamado recebido',
+    icon: Inbox,
+    cor: T.mute,
+    bg: T.chip,
+  },
+  DONE: {
+    rotulo: 'Conclusão informada',
+    icon: CheckCheck,
+    cor: T.success,
+    bg: 'var(--color-success-soft, rgba(34, 197, 94, 0.12))',
+  },
+};
+
+function formatarMomento(quando) {
+  if (!quando) return '';
+  const d = new Date(quando);
+  if (isToday(d)) return `Hoje às ${format(d, 'HH:mm')}`;
+  if (isYesterday(d)) return `Ontem às ${format(d, 'HH:mm')}`;
+  return format(d, "dd/MM 'às' HH:mm");
+}
 
 /**
  * Os responsáveis do prédio — comparados, ou um só por inteiro.
@@ -340,7 +376,7 @@ function ContraAEquipe({ rotulo, valor, equipe, bomAlto, sufixo = '', casas = 0,
   );
 }
 
-function AnaliseIndividual({ pessoa, equipe, atrasados, periodo, onVoltar }) {
+function AnaliseIndividual({ pessoa, equipe, atrasados, atividades = [], periodo, onVoltar }) {
   if (!pessoa) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -472,6 +508,97 @@ function AnaliseIndividual({ pessoa, equipe, atrasados, periodo, onVoltar }) {
         )}
       </div>
 
+      <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 14 }}>
+        <p
+          style={{
+            color: T.faint, fontSize: 10, fontWeight: W.strong,
+            letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 8,
+          }}
+        >
+          Atividades dos últimos 7 dias
+        </p>
+
+        {atividades.length === 0 ? (
+          <p style={{ ...TIPO.meta, color: T.faint }}>
+            Nenhuma atividade registrada nos últimos 7 dias.
+          </p>
+        ) : (
+          <ul style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {atividades.map((a) => {
+              const cfg = CONFIG_ATIVIDADE[a.tipo] || CONFIG_ATIVIDADE.UPDATE;
+              const Icon = cfg.icon;
+              return (
+                <li
+                  // O mesmo chamado aparece como aberto, recebido e concluído:
+                  // o id sozinho repete, o par tipo + id não.
+                  key={`${a.tipo}-${a.id}`}
+                  style={{
+                    background: T.chip, borderRadius: R.control, padding: '10px 12px',
+                    display: 'flex', flexDirection: 'column', gap: 6,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                      <span
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: 20, height: 20, borderRadius: '50%',
+                          background: cfg.bg, color: cfg.cor, flexShrink: 0,
+                        }}
+                      >
+                        <Icon size={11} aria-hidden="true" />
+                      </span>
+                      <span style={{ ...TIPO.meta, color: T.text, fontWeight: W.strong }}>
+                        {cfg.rotulo}
+                      </span>
+                      <span style={{ color: T.faint, fontSize: 12 }}>·</span>
+                      <span style={{ ...TIPO.meta, color: T.mute }}>
+                        {labelOf(MAINTENANCE_TYPES, a.maintenance_type)}
+                      </span>
+                      {a.floor_label && (
+                        <span style={{ color: T.faint, fontSize: 11 }}>({a.floor_label})</span>
+                      )}
+                    </div>
+
+                    <span style={{ ...TIPO.meta, color: T.faint, fontSize: 11, flexShrink: 0, ...NUM }}>
+                      {formatarMomento(a.quando)}
+                    </span>
+                  </div>
+
+                  {a.texto && (
+                    <p
+                      style={{
+                        color: T.mute, fontSize: 12, lineHeight: 1.45,
+                        margin: 0, paddingLeft: 26, wordBreak: 'break-word',
+                      }}
+                    >
+                      {a.texto}
+                    </p>
+                  )}
+
+                  {a.photos && a.photos.length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, paddingLeft: 26, marginTop: 2 }}>
+                      {a.photos.map((foto, i) => (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          key={i}
+                          src={foto}
+                          alt=""
+                          style={{
+                            width: 38, height: 38, objectFit: 'cover',
+                            borderRadius: R.control, display: 'block',
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
       {onVoltar && <VoltarParaEquipe onVoltar={onVoltar} />}
     </div>
   );
@@ -514,6 +641,7 @@ export function Responsaveis({ dados, loading, onSelecionar }) {
         pessoa={dados.pessoa}
         equipe={dados.equipe}
         atrasados={dados.atrasados ?? []}
+        atividades={dados.atividades ?? []}
         periodo={dados.periodo}
         onVoltar={onSelecionar ? () => onSelecionar('') : undefined}
       />

@@ -39,6 +39,40 @@ export const authLimiter = rateLimit({
 });
 
 /**
+ * Registro de ocorrência avulsa: cada chamada cria relatório, chamado e até
+ * quatro arquivos no bucket. A cota é por conta — a rota só existe depois do
+ * login — e cobre com folga quem registra em campo.
+ */
+export const occurrenceLimiter = perAccount(60_000, 10, 'Muitas ocorrências em sequência. Aguarde um instante.');
+
+/**
+ * Refazer a planilha do dia: monta o .xlsx de todas as vistorias da data e sobe
+ * para o bucket. Qualquer membro do prédio chega aqui, e sem teto a rota vira
+ * um botão de gastar CPU e armazenamento.
+ */
+export const excelLimiter = perAccount(10 * 60_000, 20, 'Muitas gerações de planilha. Tente em alguns minutos.');
+
+/**
+ * Teto por conta, para rotas que só existem depois do login.
+ *
+ * Por conta e não por IP: a conta é o que se quer limitar, e o IP muda (4G) ou
+ * é dividido (escritório). Sem `req.user` — a guarda deveria ter barrado antes —
+ * cai no IP, para nunca ficar sem chave.
+ */
+function perAccount(windowMs: number, limit: number, message: string) {
+  return rateLimit({
+    ...base,
+    windowMs,
+    limit,
+    keyGenerator: (req) => {
+      const user = (req as { user?: { id?: string; kind?: string } }).user;
+      return user?.id ? `${user.kind}:${user.id}` : ipKeyGenerator(req.ip ?? '');
+    },
+    message: tooMany(message),
+  });
+}
+
+/**
  * Cadastro público, busca por chave de compartilhamento e pedido de acesso:
  * evita criação de contas em massa e varredura de chaves de prédio.
  */

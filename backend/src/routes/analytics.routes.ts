@@ -1,9 +1,10 @@
 import { Router } from 'express';
+import { guardUuidParams } from '../middlewares/uuidParams';
 import { analyticsController } from '../controllers/analytics.controller';
 import { authenticate } from '../middlewares/authenticate';
 import { requireBuildingManager, requireBuildingModerator } from '../middlewares/buildingAccess';
 
-const router = Router();
+const router = guardUuidParams(Router());
 
 /**
  * O painel analítico do prédio.

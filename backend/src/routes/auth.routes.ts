@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { guardUuidParams } from '../middlewares/uuidParams';
 import { authController } from '../controllers/auth.controller';
 import { authenticate } from '../middlewares/authenticate';
 import { validate } from '../middlewares/validate';
@@ -12,7 +13,7 @@ import {
   verifyResetCodeSchema,
 } from '../validators/confirmation.validator';
 
-const router = Router();
+const router = guardUuidParams(Router());
 
 router.post('/login', authLimiter, validate(loginSchema), authController.login);
 router.post('/refresh', authLimiter, validate(refreshSchema), authController.refresh);
