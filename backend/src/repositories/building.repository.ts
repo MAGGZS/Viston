@@ -1,7 +1,7 @@
 import { AuditAction, BuildingRole, InspectionStatus, Prisma } from '@prisma/client';
 import { ONLY_INSPECTIONS } from './inspection.repository';
 import { prisma } from '../lib/prisma';
-import { generateShareKey } from '../utils/shareKey';
+import { generateShareKey, generateShareToken, SHARE_TOKEN_TTL_MS } from '../utils/shareKey';
 import { sortFloorsDesc } from '../utils/floorOrder';
 import { logger } from '../lib/logger';
 
@@ -24,6 +24,78 @@ export const buildingRepository = {
 
   findByShareKey(shareKey: string) {
     return prisma.building.findUnique({ where: { share_key: shareKey } });
+  },
+
+  /** Busca o prédio por um token temporário válido (não expirado). */
+  async findByShareToken(token: string) {
+    const record = await prisma.buildingShareToken.findFirst({
+      where: {
+        token,
+        expires_at: { gt: new Date() },
+      },
+      include: { building: true },
+    });
+    return record?.building ?? null;
+  },
+
+  /** Resolve o prédio tanto por token temporário de 15 minutos quanto por chave permanente legada. */
+  async findBuildingByKeyOrToken(keyOrToken: string) {
+    const tokenBuilding = await this.findByShareToken(keyOrToken);
+    if (tokenBuilding) return tokenBuilding;
+    return this.findByShareKey(keyOrToken);
+  },
+
+  /** Obtém o token temporário ativo (expires_at > now()) ou gera um novo de 15 minutos. */
+  async getOrGenerateShareToken(buildingId: string) {
+    const now = new Date();
+    const active = await prisma.buildingShareToken.findFirst({
+      where: {
+        building_id: buildingId,
+        expires_at: { gt: now },
+      },
+      orderBy: { expires_at: 'desc' },
+    });
+
+    if (active) {
+      const remainingMs = active.expires_at.getTime() - now.getTime();
+      return {
+        token: active.token,
+        expires_at: active.expires_at,
+        expires_in_seconds: Math.max(0, Math.floor(remainingMs / 1000)),
+      };
+    }
+
+    return this.rotateShareToken(buildingId);
+  },
+
+  /** Força a emissão imediata de um novo token temporário de 15 minutos. */
+  async rotateShareToken(buildingId: string) {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + SHARE_TOKEN_TTL_MS);
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const token = generateShareToken();
+      try {
+        const created = await prisma.buildingShareToken.create({
+          data: {
+            building_id: buildingId,
+            token,
+            expires_at: expiresAt,
+          },
+        });
+        return {
+          token: created.token,
+          expires_at: created.expires_at,
+          expires_in_seconds: Math.floor(SHARE_TOKEN_TTL_MS / 1000),
+        };
+      } catch (err) {
+        const isDup =
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === 'P2002';
+        if (!isDup) throw err;
+      }
+    }
+    throw new Error('Não foi possível gerar um token de compartilhamento único');
   },
 
   // ── Gestores ───────────────────────────────────────────────────────────────

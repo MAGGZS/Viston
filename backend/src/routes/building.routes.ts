@@ -119,4 +119,9 @@ router.patch(
   buildingController.reviewAccessRequest
 );
 
+// ── Tokens temporários de compartilhamento (QR Code / Link de 15 min) ────────
+router.get('/:id/share-token', auth, manager, buildingController.getShareToken);
+router.post('/:id/share-token/rotate', auth, manager, buildingController.rotateShareToken);
+
 export default router;
+

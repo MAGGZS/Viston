@@ -25,7 +25,7 @@ export function JoinBuildingForm({ align = 'left' }) {
   function handleSearch() {
     const key = normalizeShareKey(keyInput);
     if (!isCompleteShareKey(key)) {
-      toast('Chave inválida. Ela tem 12 caracteres.', 'error');
+      toast('Código inválido. Digite o código de 8 ou 12 caracteres.', 'error');
       return;
     }
     setSearchKey(key);

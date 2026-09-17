@@ -10,6 +10,7 @@ import { useToastStore } from '@/app/store/toast';
 import { useManagedBuildings, useDeleteBuilding } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { formatShareKey } from '@/app/lib/shareKey';
+import { ModalShareBuilding } from '@/app/components/ModalShareBuilding';
 import { T, R, W } from '@/app/lib/theme';
 import { CONTENT_ID } from '@/app/components/mobile/kit';
 
@@ -93,7 +94,7 @@ function BuildingCard({ building, onOpen, onShare, onEdit, onDelete, className =
           Abrir
         </button>
         {[
-          { icon: Share2, label: 'Compartilhar chave', onClick: onShare, color: T.mute },
+          { icon: Share2, label: 'Compartilhar chave', onClick: (e) => onShare?.(e.currentTarget), color: T.mute },
           { icon: Pencil, label: 'Editar prédio', onClick: onEdit, color: T.mute },
           { icon: Trash2, label: 'Excluir prédio', onClick: onDelete, color: T.danger },
         ].map(({ icon: Icon, label, onClick, color }) => (
@@ -188,7 +189,7 @@ export default function GestorHomePage() {
                     // Entrada em cascata: os cartões sobem na ordem em que se leem
                     className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
                     onOpen={() => router.push(`/gestor/predios/${b.id}`)}
-                    onShare={() => setShareModal(b)}
+                    onShare={(anchorEl) => setShareModal({ ...b, anchorEl })}
                     onEdit={() => setEditModal(b)}
                     onDelete={() => setDeleteModal(b)}
                   />
@@ -227,23 +228,13 @@ export default function GestorHomePage() {
         </div>
       </Modal>
 
-      <Modal open={!!shareModal} onClose={() => setShareModal(null)} title="Chave do prédio">
-        <p style={{ color: T.mute, fontSize: 14, marginBottom: 16, lineHeight: 1.6 }}>
-          Compartilhe esta chave para que outras pessoas solicitem acesso a{' '}
-          <span style={{ color: T.text, fontWeight: W.title }}>{shareModal?.name}</span>.
-        </p>
-        <div style={{ background: T.chip, borderRadius: R.control, padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <span style={{ color: T.accentInk, fontWeight: W.title, fontSize: 14, letterSpacing: '0.18em', wordBreak: 'break-all' }}>
-            {formatShareKey(shareModal?.share_key)}
-          </span>
-          <button
-            onClick={() => { navigator.clipboard.writeText(formatShareKey(shareModal?.share_key)); toast('Chave copiada!', 'info'); }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, fontSize: 12, whiteSpace: 'nowrap', padding: '6px 12px' }}
-          >
-            Copiar
-          </button>
-        </div>
-      </Modal>
+      <ModalShareBuilding
+        open={!!shareModal}
+        onClose={() => setShareModal(null)}
+        anchorEl={shareModal?.anchorEl}
+        buildingId={shareModal?.id}
+        buildingName={shareModal?.name}
+      />
     </RouteGuard>
   );
 }

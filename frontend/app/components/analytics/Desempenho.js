@@ -1,6 +1,5 @@
 'use client';
-import { T } from '@/app/lib/theme';
-import { ESPACO, TIPO } from './escala';
+import { ESPACO } from './escala';
 import { SeletorInterno } from './SeletorDeVisao';
 import { Inspetores } from './Inspetores';
 import { Responsaveis } from './Responsaveis';
@@ -51,20 +50,12 @@ export function Desempenho({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: ESPACO.lg, flex: 1 }}>
       {podeVerInspetores && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: ESPACO.md, flexWrap: 'wrap' }}>
-          <SeletorInterno
-            views={EQUIPES}
-            value={equipe}
-            onSelect={onTrocarEquipe}
-            label="Equipe a analisar"
-          />
-
-          <span style={{ ...TIPO.meta, color: T.faint }}>
-            {emInspetores
-              ? 'Quem encontra a ocorrência: cobertura do prédio e rigor da ronda.'
-              : 'Quem resolve a ocorrência: carga, tempo de execução e prazo.'}
-          </span>
-        </div>
+        <SeletorInterno
+          views={EQUIPES}
+          value={equipe}
+          onSelect={onTrocarEquipe}
+          label="Equipe a analisar"
+        />
       )}
 
       {/* A troca de equipe anima; a troca de aba lá em cima já animava porque

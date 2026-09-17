@@ -8,7 +8,7 @@ import { buildHeatmap } from '../services/inspection.service';
 import { inspectionFiltersSchema } from '../validators/inspection.validator';
 import { ok, created, noContent } from '../utils/response';
 import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
-import { normalizeShareKey, isValidShareKeyFormat } from '../utils/shareKey';
+import { normalizeShareKey, isValidShareKeyFormat, isValidShareTokenFormat } from '../utils/shareKey';
 import { zonedParts, zonedRange } from '../utils/timezone';
 import { normalizeEmail } from '../services/confirmation.service';
 
@@ -17,12 +17,18 @@ function publicBuilding(building: { id: string; name: string; description: strin
   return { id: building.id, name: building.name, description: building.description };
 }
 
-/** Resolve o predio a partir da chave informada pelo usuário. */
+/** Resolve o predio a partir da chave ou token temporário informado pelo usuário. */
 async function findBuildingByKeyOrFail(rawKey: unknown) {
   const key = normalizeShareKey(String(rawKey ?? ''));
-  if (!isValidShareKeyFormat(key)) throw new NotFoundError('Prédio');
+  if (!isValidShareTokenFormat(key) && !isValidShareKeyFormat(key)) throw new NotFoundError('Prédio');
 
-  const building = await buildingRepository.findByShareKey(key);
+  let building = null;
+  if (typeof buildingRepository.findByShareToken === 'function') {
+    building = await buildingRepository.findByShareToken(key);
+  }
+  if (!building && typeof buildingRepository.findByShareKey === 'function') {
+    building = await buildingRepository.findByShareKey(key);
+  }
   if (!building) throw new NotFoundError('Prédio');
 
   return building;
@@ -409,5 +415,16 @@ export const buildingController = {
     }
 
     ok(res, updated);
+  },
+
+  // ── Tokens temporários de compartilhamento (QR Code / Link) ───────────────
+  async getShareToken(req: AuthenticatedRequest, res: Response) {
+    const tokenData = await buildingRepository.getOrGenerateShareToken(req.params.id);
+    ok(res, tokenData);
+  },
+
+  async rotateShareToken(req: AuthenticatedRequest, res: Response) {
+    const tokenData = await buildingRepository.rotateShareToken(req.params.id);
+    ok(res, tokenData);
   },
 };

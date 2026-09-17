@@ -1,10 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Eye, EyeOff } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthShell } from '@/app/components/AuthShell';
 import { useAuthStore } from '@/app/store/auth';
 import { T, R } from '@/app/lib/theme';
@@ -20,17 +20,12 @@ const S = {
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
   label: { fontSize: 12, fontWeight: 400, color: T.mute },
   input: { background: T.chip, borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent', borderRadius: R.control, padding: '13px 16px', color: T.text, fontSize: 16, outline: 'none', width: '100%' },
-  // O mesmo vermelho rebaixado do campo obrigatório em branco, agora escrito
-  // uma vez só: são quatro campos-estado nesta tela contando os dois erros.
   inputErro: { borderColor: T.danger },
   erro: { fontSize: 12, color: T.danger },
   inputWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
   eyeBtn: { position: 'absolute', right: 6, background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: T.mute, display: 'flex', alignItems: 'center' },
   btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: 500, fontSize: 15, padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4, boxShadow: `inset 0 0 0 1px ${T.accentEdge}` },
   errBox: { background: T.dangerSoft, borderRadius: R.control, padding: '11px 14px', textAlign: 'center' },
-  // E-mail não confirmado não é erro: é um passo pendente. Por isso o aviso usa
-  // o dourado da marca, e não o vermelho do `errBox` — o que falta aqui tem
-  // botão, não culpa.
   avisoBox: { background: 'rgba(224,180,0,0.11)', borderRadius: R.control, padding: '13px 14px', textAlign: 'center' },
   btnSecundario: {
     width: '100%', background: 'transparent', color: T.accentInk, fontWeight: 500, fontSize: 14,
@@ -41,18 +36,15 @@ const S = {
   link: { color: T.accentInk, fontWeight: 500, textDecoration: 'none' },
 };
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams?.get('redirect');
   const { login } = useAuthStore();
   const { mutateAsync, isPending, error, reset: limparErro } = useLogin();
   const { register, handleSubmit, formState: { errors } } = useForm({ resolver: yupResolver(schema) });
   const [showPassword, setShowPassword] = useState(false);
 
-  // As credenciais da última tentativa, guardadas para o reenvio.
-  //
-  // O endpoint de reenvio exige a senha, e pedi-la de novo numa segunda caixa
-  // seria pedir duas vezes a mesma coisa na mesma tela. Vive só em memória, e
-  // some quando a aba fecha.
   const [ultimaTentativa, setUltimaTentativa] = useState(null);
   const [segundosAteReenviar, setSegundosAteReenviar] = useState(0);
   const [reenviado, setReenviado] = useState(false);
@@ -64,7 +56,7 @@ export default function LoginPage() {
     try {
       const res = await mutateAsync(data);
       login(res.access_token, res.refresh_token, res.user);
-      router.replace('/');
+      router.replace(redirectUrl || '/');
     } catch {}
   }
 
@@ -141,7 +133,12 @@ export default function LoginPage() {
       subtitle="Acesse as vistorias do prédio em que você trabalha."
       footer={
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <p style={S.footer}>Não tem conta?{' '}<a href="/register" style={S.link}>Criar conta</a></p>
+          <p style={S.footer}>
+            Não tem conta?{' '}
+            <a href={redirectUrl ? `/register?redirect=${encodeURIComponent(redirectUrl)}` : '/register'} style={S.link}>
+              Criar conta
+            </a>
+          </p>
           <p style={S.footer}>
             Vai administrar um prédio?{' '}
             <a href="/register/gestor" style={S.link}>Cadastre-se como gestor</a>
@@ -262,5 +259,13 @@ export default function LoginPage() {
         </button>
       </form>
     </AuthShell>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }

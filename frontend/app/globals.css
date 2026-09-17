@@ -201,10 +201,8 @@ html[data-theme='light'] {
   --surface-blur: rgba(245, 246, 248, 0.82);
   --selection: rgba(245, 197, 24, 0.35);
   --selection-ink: #101317;
-  /* 3,6:1 contra a página e 3,9:1 contra o cartão: o botão dourado volta a ter
-     limite. Dourado escurecido, e não um cinza — o contorno é do próprio botão,
-     e não uma borda emprestada de outro elemento. */
-  --accent-edge: #A07C00;
+  /* Sem borda escura no botão amarelo no modo claro */
+  --accent-edge: transparent;
   --color-danger-hover: rgba(208, 47, 47, 0.18);
   /* Sobre branco, dourado a 0,15 some. O fio do claro é o dourado de letra. */
   --accent-line: rgba(138, 107, 0, 0.30);

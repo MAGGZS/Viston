@@ -539,6 +539,25 @@ export function useAccessRequests(buildingId) {
   });
 }
 
+export function useBuildingShareToken(buildingId, enabled = true) {
+  return useQuery({
+    queryKey: ['building-share-token', buildingId],
+    queryFn: () => api.get(`/buildings/${buildingId}/share-token`).then((r) => r.data),
+    enabled: !!buildingId && enabled,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useRotateBuildingShareToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (buildingId) => api.post(`/buildings/${buildingId}/share-token/rotate`).then((r) => r.data),
+    onSuccess: (data, buildingId) => {
+      qc.setQueryData(['building-share-token', buildingId], data);
+    },
+  });
+}
+
 export function useReviewAccessRequest() {
   const qc = useQueryClient();
   return useMutation({

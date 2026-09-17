@@ -266,8 +266,25 @@ model Building {
   members         BuildingMember[]
   access_requests BuildingAccessRequest[]
   audit_logs      AuditLog[]
+  share_tokens    BuildingShareToken[]
 
   @@map("buildings")
+}
+
+/// Tokens temporários de compartilhamento do prédio (validade de 15 minutos).
+/// Alimentam o QR Code, link direto e código rotativo exibidos pelo gestor.
+model BuildingShareToken {
+  id          String   @id @default(uuid())
+  building_id String
+  token       String   @unique
+  expires_at  DateTime
+  created_at  DateTime @default(now())
+
+  building    Building @relation(fields: [building_id], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([building_id, expires_at])
+  @@map("building_share_tokens")
 }
 
 /// Quem administra o prédio.

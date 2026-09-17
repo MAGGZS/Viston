@@ -1,10 +1,10 @@
 'use client';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Eye, EyeOff } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthShell } from '@/app/components/AuthShell';
 import { ConfirmarCodigo } from '@/app/components/ConfirmarCodigo';
 import { SenhaChecklist, senhaValida, useFocoSenha } from '@/app/components/SenhaChecklist';
@@ -38,8 +38,10 @@ const S = {
   btn: { width: '100%', background: T.accent, color: T.onAccent, fontWeight: 500, fontSize: 15, padding: '14px', borderRadius: R.control, border: 'none', cursor: 'pointer', marginTop: 4, boxShadow: `inset 0 0 0 1px ${T.accentEdge}` },
 };
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams?.get('redirect');
   const createUser = useCreateUser();
   // Campos vazios declarados: sem eles `isDirty` nunca volta a falso, e o
   // cadastro passa a perguntar "descartar alterações?" ao sair mesmo com tudo
@@ -113,14 +115,14 @@ export default function RegisterPage() {
         footer={
           <p style={{ color: T.faint, fontSize: 14 }}>
             Já confirmou?{' '}
-            <a href="/login" style={{ color: T.accentInk, fontWeight: 600, textDecoration: 'none' }}>Entrar</a>
+            <a href={redirectUrl ? `/login?redirect=${encodeURIComponent(redirectUrl)}` : '/login'} style={{ color: T.accentInk, fontWeight: 600, textDecoration: 'none' }}>Entrar</a>
           </p>
         }
       >
         <ConfirmarCodigo
           email={credenciais.email}
           senha={credenciais.senha}
-          aoConfirmar={() => router.replace('/login?confirmado=1')}
+          aoConfirmar={() => router.replace(redirectUrl ? `/login?confirmado=1&redirect=${encodeURIComponent(redirectUrl)}` : '/login?confirmado=1')}
         />
       </AuthShell>
     );
@@ -134,7 +136,7 @@ export default function RegisterPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <p style={{ color: T.faint, fontSize: 14 }}>
             Já tem conta?{' '}
-            <a href="/login" style={{ color: T.accentInk, fontWeight: 600, textDecoration: 'none' }}>Entrar</a>
+            <a href={redirectUrl ? `/login?redirect=${encodeURIComponent(redirectUrl)}` : '/login'} style={{ color: T.accentInk, fontWeight: 600, textDecoration: 'none' }}>Entrar</a>
           </p>
           <p style={{ color: T.faint, fontSize: 14 }}>
             Vai administrar um prédio?{' '}
@@ -199,5 +201,13 @@ export default function RegisterPage() {
         </button>
       </form>
     </AuthShell>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
   );
 }

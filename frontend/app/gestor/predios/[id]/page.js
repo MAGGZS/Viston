@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -23,8 +23,8 @@ import { useBuildingDashboard, useBuildingHistory, useDeleteInspection } from '@
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { formatShareKey } from '@/app/lib/shareKey';
 import { parseReportDate } from '@/app/lib/date';
-import { CELL_PAD_Y, placeholderCellHeight } from '@/app/lib/pagination';
 import { useToastStore } from '@/app/store/toast';
+import { ModalShareBuilding } from '@/app/components/ModalShareBuilding';
 
 const PLACEHOLDER_CELL_H = 42;
 
@@ -84,6 +84,7 @@ export default function GestorBuildingPage() {
   const [year, setYear] = useState(now.getFullYear());
   const [selected, setSelected] = useState(null);
   const [shareModal, setShareModal] = useState(false);
+  const shareBtnRef = useRef(null);
   const [confirmDiscard, setConfirmDiscard] = useState(null); // vistoria a descartar
   const [previewId, setPreviewId] = useState(null); // vistoria em prévia
   const [reportId, setReportId] = useState(null); // relatório completo aberto
@@ -200,8 +201,11 @@ export default function GestorBuildingPage() {
     <GestorShell
       buildingId={id}
       actions={
-        <button onClick={() => setShareModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-ink transition-colors flex-shrink-0">
+        <button
+          ref={shareBtnRef}
+          onClick={() => setShareModal((v) => !v)}
+          className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-ink transition-colors flex-shrink-0"
+        >
           <Share2 size={15} /> Compartilhar ID
         </button>
       }
@@ -333,16 +337,13 @@ export default function GestorBuildingPage() {
         </div>
       </Modal>
 
-      <Modal open={shareModal} onClose={() => setShareModal(false)} title="Compartilhar chave do prédio">
-        <p className="text-mute text-sm mb-4">Compartilhe esta chave com inspetores e visualizadores para que possam solicitar acesso.</p>
-        <div className="bg-chip rounded-control p-4 flex items-center justify-between gap-3">
-          <span className="text-accent-ink font-semibold text-sm break-all" style={{ letterSpacing: "0.18em" }}>{shareKey}</span>
-          <button onClick={() => { navigator.clipboard.writeText(shareKey); toast('Chave copiada!', 'info'); }}
-            className="text-xs text-mute hover:text-ink whitespace-nowrap rounded-pill px-3 py-1.5 transition-colors">
-            Copiar
-          </button>
-        </div>
-      </Modal>
+      <ModalShareBuilding
+        open={shareModal}
+        onClose={() => setShareModal(false)}
+        anchorRef={shareBtnRef}
+        buildingId={id}
+        buildingName={data?.building?.name}
+      />
     </GestorShell>
   );
 }
