@@ -33,11 +33,21 @@ export interface TokenPayload {
   tv?: number;
 }
 
+/**
+ * O algoritmo, fixo na assinatura e na conferência.
+ *
+ * Sem a lista na conferência, é o cabeçalho do próprio token — escrito por quem
+ * o envia — que diz como ele deve ser verificado. É a porta clássica da troca
+ * de algoritmo; fixar HS256 fecha a porta em vez de confiar na versão da lib.
+ */
+const ALGORITHM = 'HS256' as const;
+const VERIFY_OPTIONS: jwt.VerifyOptions = { algorithms: [ALGORITHM] };
+
 export function signAccessToken(userId: string, role: string, kind: AccountKind = 'USER'): string {
   return jwt.sign(
     { sub: userId, kind, role, type: 'access' } as TokenPayload,
     config.jwt.secret,
-    { expiresIn: config.jwt.expiresIn } as jwt.SignOptions
+    { algorithm: ALGORITHM, expiresIn: config.jwt.expiresIn } as jwt.SignOptions
   );
 }
 
@@ -50,13 +60,13 @@ export function signRefreshToken(
   return jwt.sign(
     { sub: userId, kind, role, type: 'refresh', tv: tokenVersion } as TokenPayload,
     config.jwt.refreshSecret,
-    { expiresIn: config.jwt.refreshExpiresIn } as jwt.SignOptions
+    { algorithm: ALGORITHM, expiresIn: config.jwt.refreshExpiresIn } as jwt.SignOptions
   );
 }
 
 export function verifyAccessToken(token: string): TokenPayload {
   try {
-    return jwt.verify(token, config.jwt.secret) as TokenPayload;
+    return jwt.verify(token, config.jwt.secret, VERIFY_OPTIONS) as TokenPayload;
   } catch {
     throw new UnauthorizedError('Token inválido ou expirado');
   }
@@ -64,7 +74,7 @@ export function verifyAccessToken(token: string): TokenPayload {
 
 export function verifyRefreshToken(token: string): TokenPayload {
   try {
-    return jwt.verify(token, config.jwt.refreshSecret) as TokenPayload;
+    return jwt.verify(token, config.jwt.refreshSecret, VERIFY_OPTIONS) as TokenPayload;
   } catch {
     throw new UnauthorizedError('Refresh token inválido ou expirado');
   }

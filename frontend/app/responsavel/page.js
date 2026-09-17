@@ -3,11 +3,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronRight, ClipboardList, Inbox } from 'lucide-react';
+import { ChevronRight, ClipboardList, Inbox, Plus } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { Badge } from '@/app/components/ui';
-import { M, MPage, MTopBar, MCard, MButton } from '@/app/components/mobile/kit';
+import { M, MPage, MTopBar, MCard, MButton, MRound } from '@/app/components/mobile/kit';
+import { RegistrarOcorrenciaModal } from '@/app/components/RegistrarOcorrenciaModal';
 import { useMyTickets, useReceiveTicket } from '@/app/hooks/useApi';
 import {
   MAINTENANCE_TYPES,
@@ -344,6 +345,7 @@ export default function ResponsavelPage() {
   const tickets = data?.tickets ?? [];
 
   const [aba, setAba] = useState('RECEBER');
+  const [modalNovaAberta, setModalNovaAberta] = useState(false);
 
   const contagem = ABAS.reduce((acc, a) => {
     acc[a.id] = tickets.filter((t) => a.status.includes(t.status)).length;
@@ -376,6 +378,11 @@ export default function ResponsavelPage() {
           eyebrow={eyebrow}
           title="Meus"
           accent="chamados"
+          actions={
+            <MRound label="Registrar ocorrência" onClick={() => setModalNovaAberta(true)}>
+              <Plus size={18} />
+            </MRound>
+          }
         />
 
         {/* Trocar de fila não pergunta nada: desde que o relatório e as
@@ -405,6 +412,11 @@ export default function ResponsavelPage() {
               {user?.name?.split(' ')[0]}, quando o moderador encaminhar uma
               ocorrência para você, ela aparece aqui.
             </p>
+            <div style={{ marginTop: 18 }}>
+              <MButton onClick={() => setModalNovaAberta(true)} style={{ margin: '0 auto' }}>
+                <Plus size={15} /> Registrar ocorrência
+              </MButton>
+            </div>
           </MCard>
         )}
 
@@ -435,6 +447,12 @@ export default function ResponsavelPage() {
         </div>
 
         <BottomNav />
+
+        <RegistrarOcorrenciaModal
+          open={modalNovaAberta}
+          onClose={() => setModalNovaAberta(false)}
+          onSuccess={() => setAba('ANDAMENTO')}
+        />
       </MPage>
     </RouteGuard>
   );

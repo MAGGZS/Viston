@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { guardUuidParams } from '../middlewares/uuidParams';
 import { userController } from '../controllers/user.controller';
 import { authenticate } from '../middlewares/authenticate';
 import { authorize } from '../middlewares/authorize';
@@ -12,15 +13,15 @@ import {
   changePasswordSchema,
 } from '../validators/auth.validator';
 
-const router = Router();
+const router = guardUuidParams(Router());
 
 // Cadastro público (nasce sem nível de acesso — ver user.service)
 router.post('/', sensitiveLimiter, validate(createUserSchema), userController.create);
 // Cadastro de gestor não mora aqui: gestor é outro tipo de conta, e a rota é
 // POST /managers (ver routes/manager.routes.ts).
 
-// Próprio usuário — deve vir ANTES de /:id para não ser capturado pelo parâmetro dinâmico
-router.get('/me', authenticate, userController.getMe);
+// Próprio usuário — deve vir ANTES de /:id para não ser capturado pelo parâmetro dinâmico.
+// O perfil é lido por GET /auth/me, que serve os dois tipos de conta.
 router.patch('/me', authenticate, validate(updateMeSchema), userController.updateMe);
 router.patch('/me/password', authenticate, validate(changePasswordSchema), userController.changePassword);
 // Foto de perfil — a imagem chega já recortada pelo app, como data URL.

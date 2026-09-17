@@ -50,6 +50,13 @@ app.use(
 );
 
 // ── Body parsing ──────────────────────────────────────────────────────────────
+// As duas rotas que recebem foto em data URL: até 4 fotos de 1,5 MB, que em
+// base64 passam de 8 MB. Entram antes do parser geral — corpo já lido, ele não
+// lê de novo — para que o teto maior valha só aqui.
+app.use(
+  ['/buildings/:id/occurrences', '/tickets/:id/updates'],
+  express.json({ limit: '9mb' })
+);
 // Teto da vistoria: 20 andares × 20 ocorrências × 2000 caracteres cabe em 2mb.
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));

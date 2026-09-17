@@ -582,14 +582,15 @@ describe('isolamento por prédio', () => {
     mockBuildingRepo.findMember.mockResolvedValue(null);
 
     await expect(
-      inspectionService.findById('report-1', inspetor('outro'))
+      inspectionService.getDayReport('report-1', inspetor('outro'))
     ).rejects.toThrow(NotFoundError);
+    expect(mockInspectionRepo.findDayReports).not.toHaveBeenCalled();
   });
 
-  it('entrega o relatório para o membro do prédio', async () => {
+  it('entrega o relatório do dia para o membro do prédio', async () => {
     mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: 'VIEWER' } as any);
 
-    const report = await inspectionService.findById('report-1', inspetor());
-    expect(report.id).toBe('report-1');
+    await inspectionService.getDayReport('report-1', inspetor());
+    expect(mockInspectionRepo.findDayReports).toHaveBeenCalledWith(BUILDING_ID, expect.any(Date));
   });
 });

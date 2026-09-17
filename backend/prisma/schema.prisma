@@ -63,6 +63,11 @@ enum InspectionStatus {
   COMPLETED
 }
 
+enum ReportOrigin {
+  VISTORIA
+  AVULSA
+}
+
 enum FloorStatus {
   OK
   ATENCAO
@@ -343,6 +348,7 @@ model InspectionReport {
   finished_at           DateTime?
   floors_inspected      String[]
   status                InspectionStatus @default(IN_PROGRESS)
+  origin                ReportOrigin     @default(VISTORIA)
   /// Identifica a *tentativa* de envio, não o relatório.
   ///
   /// O app gera a chave quando a vistoria começa e a manda no cabeçalho

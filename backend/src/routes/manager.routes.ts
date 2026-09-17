@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { guardUuidParams } from '../middlewares/uuidParams';
 import { managerController } from '../controllers/manager.controller';
 import { authenticate } from '../middlewares/authenticate';
 import { authorize } from '../middlewares/authorize';
@@ -11,7 +12,7 @@ import {
   changePasswordSchema,
 } from '../validators/auth.validator';
 
-const router = Router();
+const router = guardUuidParams(Router());
 
 const auth = authenticate;
 const adminOnly = authorize('ADMIN');
@@ -20,8 +21,8 @@ const adminOnly = authorize('ADMIN');
 // prédio — cada prédio que ela cadastrar tem ela como gestora.
 router.post('/', sensitiveLimiter, validate(createUserSchema), managerController.create);
 
-// Conta própria — antes de /:id para não ser capturado pelo parâmetro dinâmico
-router.get('/me', auth, managerController.getMe);
+// Conta própria — antes de /:id para não ser capturado pelo parâmetro dinâmico.
+// O perfil é lido por GET /auth/me, que serve os dois tipos de conta.
 router.patch('/me', auth, validate(updateMeSchema), managerController.updateMe);
 router.patch('/me/password', auth, validate(changePasswordSchema), managerController.changePassword);
 router.patch('/me/avatar', auth, validate(updateAvatarSchema), managerController.updateAvatar);

@@ -28,6 +28,21 @@ export function errorHandler(
     return;
   }
 
+  // Erros do `express.json`: corpo acima do teto (413) ou JSON quebrado (400).
+  // Chegavam aqui como 500, e um 500 é o sinal que quem sonda procura — além de
+  // poluir o log de erro com o que é só entrada ruim.
+  const httpStatus = (err as { status?: number; statusCode?: number }).status;
+  if (typeof httpStatus === 'number' && httpStatus >= 400 && httpStatus < 500) {
+    const tooLarge = httpStatus === 413;
+    res.status(httpStatus).json({
+      error: {
+        code: tooLarge ? 'PAYLOAD_TOO_LARGE' : 'BAD_REQUEST',
+        message: tooLarge ? 'Conteúdo grande demais' : 'Requisição malformada',
+      },
+    });
+    return;
+  }
+
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === 'P2025') {
       res.status(404).json({

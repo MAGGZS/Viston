@@ -448,18 +448,9 @@ paths:
               schema: { $ref: '#/components/schemas/User' }
 
   /users/me:
-    get:
-      tags: [Users]
-      summary: Obter dados do usuário autenticado
-      responses:
-        '200':
-          description: Dados do usuário
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/User' }
     patch:
       tags: [Users]
-      summary: Atualizar nome/e-mail do usuário autenticado
+      summary: Atualizar o nome do usuário autenticado (o perfil é lido em GET /auth/me)
       requestBody:
         content:
           application/json:
@@ -467,7 +458,6 @@ paths:
               type: object
               properties:
                 name: { type: string }
-                email: { type: string, format: email }
       responses:
         '200':
           description: Usuário atualizado
@@ -715,20 +705,17 @@ paths:
                   pages: { type: integer }
 
   /inspections/{id}:
-    get:
+    delete:
       tags: [Inspections]
-      summary: Obter inspeção por ID
+      summary: Descartar a vistoria (só o gestor do prédio)
       parameters:
         - in: path
           name: id
           required: true
           schema: { type: string, format: uuid }
       responses:
-        '200':
-          description: Dados completos da inspeção
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/InspectionReport' }
+        '204':
+          description: Vistoria descartada
         '404':
           description: Inspeção não encontrada
 

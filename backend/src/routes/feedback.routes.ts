@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { guardUuidParams } from '../middlewares/uuidParams';
 import { feedbackController } from '../controllers/feedback.controller';
 import { authenticate } from '../middlewares/authenticate';
 import { authorize } from '../middlewares/authorize';
@@ -10,7 +11,7 @@ import {
   listFeedbackQuerySchema,
 } from '../validators/feedback.validator';
 
-const router = Router();
+const router = guardUuidParams(Router());
 
 const auth = authenticate;
 const adminOnly = authorize('ADMIN');

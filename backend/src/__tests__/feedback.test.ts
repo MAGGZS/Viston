@@ -4,11 +4,14 @@ import request from 'supertest';
 // feedback, para onde ele vai, o que some ao ser descartado) e a cadeia de
 // middlewares das rotas — não o acesso ao banco.
 jest.mock('../repositories/feedback.repository');
+// A guarda de ADMIN confere a conta no banco a cada requisição.
+jest.mock('../repositories/user.repository');
 
 import app from '../app';
 import { feedbackService } from '../services/feedback.service';
 import { feedbackRepository } from '../repositories/feedback.repository';
 import { auditRepository } from '../repositories/building.repository';
+import { userRepository } from '../repositories/user.repository';
 import { createFeedbackSchema, updateFeedbackSchema } from '../validators/feedback.validator';
 import { NotFoundError } from '../utils/errors';
 import { signAccessToken } from '../utils/jwt';
@@ -43,6 +46,11 @@ function makeFeedback(overrides = {}) {
 beforeEach(() => {
   jest.clearAllMocks();
   (auditRepository.log as jest.Mock) = jest.fn().mockResolvedValue(undefined);
+  (userRepository.findById as jest.Mock).mockResolvedValue({
+    id: 'user-admin',
+    role: 'ADMIN',
+    status: 'ACTIVE',
+  });
 });
 
 // ── Testes: feedbackService.create ───────────────────────────────────────────

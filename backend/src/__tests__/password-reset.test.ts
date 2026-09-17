@@ -18,6 +18,7 @@ jest.mock('../repositories/emailToken.repository', () => ({
     findOpen: jest.fn(),
     consume: jest.fn(),
     registerFailure: jest.fn(),
+    reserveAttempt: jest.fn(),
   },
 }));
 jest.mock('../repositories/user.repository');
@@ -71,6 +72,7 @@ beforeEach(() => {
   tokens.create.mockResolvedValue({} as never);
   tokens.consume.mockResolvedValue(true);
   tokens.registerFailure.mockResolvedValue({} as never);
+  tokens.reserveAttempt.mockResolvedValue(true);
   users.findByEmail.mockResolvedValue(null);
   managers.findByEmail.mockResolvedValue(null);
   mockBcrypt.hash.mockResolvedValue('$2b$12$nova' as never);

@@ -1,4 +1,5 @@
 import { AuditAction, BuildingRole, InspectionStatus, Prisma } from '@prisma/client';
+import { ONLY_INSPECTIONS } from './inspection.repository';
 import { prisma } from '../lib/prisma';
 import { generateShareKey } from '../utils/shareKey';
 import { sortFloorsDesc } from '../utils/floorOrder';
@@ -369,7 +370,7 @@ export const buildingRepository = {
       countDistinctMembers(BuildingRole.INSPECTOR),
       countDistinctMembers(BuildingRole.VIEWER),
       prisma.user.count({ where: { status: 'ACTIVE' } }),
-      prisma.inspectionReport.count({ where: { status: InspectionStatus.COMPLETED } }),
+      prisma.inspectionReport.count({ where: { status: InspectionStatus.COMPLETED, origin: ONLY_INSPECTIONS } }),
       prisma.buildingAccessRequest.count({ where: { status: 'PENDING' } }),
       prisma.floor.groupBy({
         by: ['building_id'],
@@ -415,7 +416,7 @@ export const buildingRepository = {
       }),
       // Só conta inspeções concluídas — as IN_PROGRESS ainda não viraram relatório
       prisma.inspectionReport.count({
-        where: { building_id: buildingId, status: InspectionStatus.COMPLETED },
+        where: { building_id: buildingId, status: InspectionStatus.COMPLETED, origin: ONLY_INSPECTIONS },
       }),
     ]);
   },

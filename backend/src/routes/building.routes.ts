@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { guardUuidParams } from '../middlewares/uuidParams';
 import { buildingController } from '../controllers/building.controller';
 import { authenticate } from '../middlewares/authenticate';
 import { authorize } from '../middlewares/authorize';
@@ -6,7 +7,9 @@ import { requireBuildingManager, requireBuildingMember } from '../middlewares/bu
 import { validate } from '../middlewares/validate';
 import { sensitiveLimiter } from '../middlewares/rateLimit';
 import {
+  accessRequestQuerySchema,
   accessRequestSchema,
+  addManagerSchema,
   createBuildingSchema,
   createFloorSchema,
   reviewAccessRequestSchema,
@@ -14,7 +17,7 @@ import {
   updateMemberRoleSchema,
 } from '../validators/auth.validator';
 
-const router = Router();
+const router = guardUuidParams(Router());
 
 const auth = authenticate;
 const adminOnly = authorize('ADMIN');
@@ -68,7 +71,16 @@ router.get('/:id/history', auth, member, buildingController.getHistory);
 // Adicionar outro gestor é o que permite dividir ou passar a gestão adiante:
 // quem quer sair adiciona o substituto e depois se remove. A saída do último é
 // recusada com 409.
-router.post('/:id/managers', auth, manager, buildingController.addManager);
+// Com teto: a resposta diz se o e-mail tem conta de gestor, e qualquer gestor de
+// prédio chega aqui. Sem ele, a rota varria a base de e-mails.
+router.post(
+  '/:id/managers',
+  auth,
+  manager,
+  sensitiveLimiter,
+  validate(addManagerSchema),
+  buildingController.addManager
+);
 router.delete('/:id/managers/:managerId', auth, manager, buildingController.removeManager);
 
 // ── Membros ───────────────────────────────────────────────────────────────────
@@ -92,7 +104,13 @@ router.post(
   validate(accessRequestSchema),
   buildingController.requestAccess
 );
-router.get('/:id/access-requests', auth, manager, buildingController.getAccessRequests);
+router.get(
+  '/:id/access-requests',
+  auth,
+  manager,
+  validate(accessRequestQuerySchema, 'query'),
+  buildingController.getAccessRequests
+);
 router.patch(
   '/:id/access-requests/:requestId',
   auth,

@@ -160,9 +160,10 @@ function base(scope: AnalyticsScope) {
   return Prisma.sql`
     SELECT
       mr.id, mr.status, mr.priority, mr.category, mr.maintenance_type,
-      mr.responsible_id, mr.maintenance_cost, mr.description,
+      mr.responsible_id, mr.maintenance_cost, mr.description, mr.done_report,
       mr.forwarded_at, mr.received_at, mr.done_at, mr.closed_at,
       ffe.floor_id,
+      r.origin::text AS origin,
       r.date AS aberto_em,
       ffe.completed_at AS registrado_em
     FROM maintenance_records mr
@@ -355,6 +356,18 @@ export type ResponsavelRow = {
   altas: number;
   medias: number;
   baixas: number;
+};
+
+export type AtividadeResponsavelRow = {
+  id: string;
+  ticket_id: string;
+  tipo: 'OPEN' | 'UPDATE' | 'RECEIVE' | 'DONE';
+  quando: Date;
+  maintenance_type: string;
+  priority: string;
+  floor_label: string;
+  texto: string | null;
+  photos: string[];
 };
 
 export const analyticsRepository = {
@@ -1021,6 +1034,7 @@ export const analyticsRepository = {
                EXTRACT(EPOCH FROM (r.finished_at - r.started_at)) / 60 AS minutos
         FROM inspection_reports r
         WHERE r.building_id = ${scope.building_id}
+          AND r.origin = 'VISTORIA'::"ReportOrigin"
           AND r.inspector_id IS NOT NULL
           AND r.date BETWEEN ${periodo.from_day}::date AND ${periodo.to_day}::date
       ),
@@ -1094,6 +1108,96 @@ export const analyticsRepository = {
       LEFT JOIN users u ON u.id = b.responsible_id
       WHERE b.closed_at IS NULL AND ${atrasado}
       ORDER BY (${consumidos} - ${limite}) DESC
+      LIMIT ${limit}
+    `;
+  },
+
+  /**
+   * As atividades dos últimos 7 dias de um responsável no prédio.
+   *
+   * Traz os quatro eventos da pessoa ordenados pelo relógio:
+   * 1. Ocorrência aberta por ela (origin = 'AVULSA')
+   * 2. Anotação na Linha do Tempo (ticket_updates de autoria dela)
+   * 3. Chamado recebido (received_at)
+   * 4. Conclusão informada (done_at)
+   */
+  async atividadesRecentesResponsavel(scope: AnalyticsScope, limit = 20) {
+    if (!scope.responsible_id) return [];
+
+    return prisma.$queryRaw<AtividadeResponsavelRow[]>`
+      WITH b AS (${base(scope)})
+      SELECT * FROM (
+        -- 1. Ocorrência aberta pelo próprio responsável
+        SELECT
+          b.id,
+          b.id AS ticket_id,
+          'OPEN' AS tipo,
+          b.registrado_em AS quando,
+          b.maintenance_type::text AS maintenance_type,
+          b.priority::text AS priority,
+          COALESCE(f.label, 'Sem andar') AS floor_label,
+          b.description AS texto,
+          ARRAY[]::text[] AS photos
+        FROM b
+        LEFT JOIN floors f ON f.id = b.floor_id
+        WHERE b.origin = 'AVULSA'
+          AND b.registrado_em >= (now() - interval '7 days')
+
+        UNION ALL
+
+        -- 2. Anotação na Linha do Tempo
+        SELECT
+          tu.id,
+          tu.ticket_id,
+          'UPDATE' AS tipo,
+          tu.created_at AS quando,
+          b.maintenance_type::text AS maintenance_type,
+          b.priority::text AS priority,
+          COALESCE(f.label, 'Sem andar') AS floor_label,
+          tu.description AS texto,
+          tu.photos
+        FROM ticket_updates tu
+        JOIN b ON b.id = tu.ticket_id
+        LEFT JOIN floors f ON f.id = b.floor_id
+        WHERE tu.author_id = ${scope.responsible_id}
+          AND tu.created_at >= (now() - interval '7 days')
+
+        UNION ALL
+
+        -- 3. Chamado recebido (aceite de chamado de vistoria ou moderador)
+        SELECT
+          b.id,
+          b.id AS ticket_id,
+          'RECEIVE' AS tipo,
+          b.received_at AS quando,
+          b.maintenance_type::text AS maintenance_type,
+          b.priority::text AS priority,
+          COALESCE(f.label, 'Sem andar') AS floor_label,
+          b.description AS texto,
+          ARRAY[]::text[] AS photos
+        FROM b
+        LEFT JOIN floors f ON f.id = b.floor_id
+        WHERE b.origin != 'AVULSA'
+          AND b.received_at >= (now() - interval '7 days')
+
+        UNION ALL
+
+        -- 4. Conclusão informada
+        SELECT
+          b.id,
+          b.id AS ticket_id,
+          'DONE' AS tipo,
+          b.done_at AS quando,
+          b.maintenance_type::text AS maintenance_type,
+          b.priority::text AS priority,
+          COALESCE(f.label, 'Sem andar') AS floor_label,
+          COALESCE(b.done_report, b.description) AS texto,
+          ARRAY[]::text[] AS photos
+        FROM b
+        LEFT JOIN floors f ON f.id = b.floor_id
+        WHERE b.done_at >= (now() - interval '7 days')
+      ) x
+      ORDER BY quando DESC
       LIMIT ${limit}
     `;
   },

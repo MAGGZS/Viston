@@ -2,7 +2,8 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/authenticate';
 import { ticketService } from '../services/ticket.service';
 import { buildingRepository } from '../repositories/building.repository';
-import { ok } from '../utils/response';
+import { ok, created } from '../utils/response';
+import { createOccurrenceSchema } from '../validators/occurrence.validator';
 import {
   ticketFiltersSchema,
   forwardTicketSchema,
@@ -17,6 +18,12 @@ import {
 import { buildTicketReport, reportFileName } from '../services/ticketReport';
 
 export const ticketController = {
+  /** Registra uma ocorrência individual avulsa (feita por um responsável). */
+  async createOccurrence(req: AuthenticatedRequest, res: Response) {
+    const data = createOccurrenceSchema.parse(req.body);
+    created(res, await ticketService.createOccurrence(req.params.id, req.user, data));
+  },
+
   /** A fila do moderador: um dos três estados, do mais novo para o mais velho. */
   async findByBuilding(req: AuthenticatedRequest, res: Response) {
     // Espalhado, e não campo a campo: os filtros da tela ampliada entram pelo

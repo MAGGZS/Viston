@@ -29,10 +29,6 @@ export const managerController = {
     noContent(res);
   },
 
-  async getMe(req: AuthenticatedRequest, res: Response) {
-    ok(res, await managerService.getProfile(asManager(req)));
-  },
-
   async updateMe(req: AuthenticatedRequest, res: Response) {
     ok(res, await managerService.updateMe(asManager(req), req.body));
   },

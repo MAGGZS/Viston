@@ -1,13 +1,15 @@
 import { z } from 'zod';
 import { senhaSchema } from './confirmation.validator';
 
+// Tetos de tamanho em toda entrada de texto: bcrypt só lê 72 bytes, e um token
+// de verdade tem poucas centenas de caracteres. O que passa disso não é uso.
 export const loginSchema = z.object({
-  email: z.string().email('E-mail inválido'),
-  password: z.string().min(1, 'Senha obrigatória'),
+  email: z.string().trim().email('E-mail inválido').max(160),
+  password: z.string().min(1, 'Senha obrigatória').max(200),
 });
 
 export const refreshSchema = z.object({
-  refresh_token: z.string().min(1, 'Refresh token obrigatório'),
+  refresh_token: z.string().min(1, 'Refresh token obrigatório').max(2000),
 });
 
 // Cadastro público: nunca aceita `role`. Toda conta nasce igual, sem vínculo
@@ -52,12 +54,32 @@ export const updateMemberRoleSchema = z
   })
   .strict();
 
+// Só o nome. O e-mail saiu: trocá-lo aqui não passava por confirmação nenhuma,
+// e qualquer sessão aberta (ou roubada) podia apontar a conta para outra caixa,
+// ocupar o endereço de outra pessoa ou colidir com uma conta da outra tabela.
+// O e-mail é a identidade da conta e a porta da recuperação de senha.
 export const updateMeSchema = z
   .object({
     name: z.string().trim().min(2).max(120).optional(),
-    email: z.string().trim().email().max(160).optional(),
   })
   .strict();
+
+// Adicionar gestor ao prédio, pelo e-mail da conta dele.
+export const addManagerSchema = z
+  .object({
+    email: z.string().trim().email('E-mail inválido').max(160),
+  })
+  .strict();
+
+// A lista de solicitações só filtra pelos estados que existem.
+export const accessRequestQuerySchema = z.object({
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
+});
+
+export const changePasswordSchema = z.object({
+  current_password: z.string().min(1).max(200),
+  new_password: senhaSchema,
+});
 
 // Aprovação/recusa de solicitação de acesso a um prédio.
 export const reviewAccessRequestSchema = z
@@ -113,8 +135,3 @@ export const updateAvatarSchema = z
       .max(2_100_000, 'Imagem muito grande'),
   })
   .strict();
-
-export const changePasswordSchema = z.object({
-  current_password: z.string().min(1),
-  new_password: senhaSchema,
-});

@@ -986,6 +986,25 @@ export function useCloseTicket() {
   });
 }
 
+/**
+ * Registra uma ocorrência avulsa feita por um responsável.
+ *
+ * Vai direto para a fila dele em EM_ANDAMENTO e aparece no histórico de ocorrências,
+ * mas fica fora do histórico de vistorias.
+ */
+export function useCreateOccurrence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ building_id, ...data }) =>
+      api.post(`/buildings/${building_id}/occurrences`, data).then((r) => r.data),
+    onSuccess: () => {
+      invalidateTickets(qc);
+      qc.invalidateQueries({ queryKey: ['my-tickets'] });
+      qc.invalidateQueries({ queryKey: ['analytics'] });
+    },
+  });
+}
+
 // ── A linha do tempo da manutenção ───────────────────────────────────────────
 
 /**
