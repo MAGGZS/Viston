@@ -94,7 +94,7 @@ function BuildingCard({ building, onOpen, onShare, onEdit, onDelete, className =
           Abrir
         </button>
         {[
-          { icon: Share2, label: 'Compartilhar chave', onClick: (e) => onShare?.(e.currentTarget), color: T.mute },
+          { icon: Share2, label: 'Compartilhar chave', onClick: onShare, color: T.mute },
           { icon: Pencil, label: 'Editar prédio', onClick: onEdit, color: T.mute },
           { icon: Trash2, label: 'Excluir prédio', onClick: onDelete, color: T.danger },
         ].map(({ icon: Icon, label, onClick, color }) => (
@@ -189,7 +189,7 @@ export default function GestorHomePage() {
                     // Entrada em cascata: os cartões sobem na ordem em que se leem
                     className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
                     onOpen={() => router.push(`/gestor/predios/${b.id}`)}
-                    onShare={(anchorEl) => setShareModal({ ...b, anchorEl })}
+                    onShare={() => setShareModal(b)}
                     onEdit={() => setEditModal(b)}
                     onDelete={() => setDeleteModal(b)}
                   />
@@ -231,7 +231,7 @@ export default function GestorHomePage() {
       <ModalShareBuilding
         open={!!shareModal}
         onClose={() => setShareModal(null)}
-        anchorEl={shareModal?.anchorEl}
+        centered
         buildingId={shareModal?.id}
         buildingName={shareModal?.name}
       />

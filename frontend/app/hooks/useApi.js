@@ -335,10 +335,20 @@ export function useLeaveBuilding() {
 // Os vínculos do usuário: cada item traz `building_id`, o nome do prédio e o
 // papel dele ali dentro. É de propósito que a chave não é `id` — o que se lista
 // aqui é o vínculo, e o papel muda de prédio para prédio.
-export function useMyBuildings() {
+/**
+ * Os prédios em que a conta é membro.
+ *
+ * `enabled` existe por causa da tela de convite, que é a única que roda para
+ * quem talvez não tenha sessão: sem a trava, a consulta saía mesmo deslogada,
+ * voltava 401, e o interceptor encerrava a sessão e mandava a pessoa para o
+ * login — perdendo o convite que ela tinha acabado de escanear. Quem chama de
+ * dentro do app não passa nada e nada muda.
+ */
+export function useMyBuildings(enabled = true) {
   return useQuery({
     queryKey: ['my-buildings'],
     queryFn: () => api.get('/buildings/me').then((r) => r.data),
+    enabled,
   });
 }
 
@@ -349,11 +359,13 @@ export function useBuildings() {
   });
 }
 
-// Prédios que o usuário administra — a tela inicial do gestor
-export function useManagedBuildings() {
+// Prédios que o usuário administra — a tela inicial do gestor.
+// `enabled` pelo mesmo motivo de `useMyBuildings`, logo acima.
+export function useManagedBuildings(enabled = true) {
   return useQuery({
     queryKey: ['managed-buildings'],
     queryFn: () => api.get('/buildings/managed').then((r) => r.data),
+    enabled,
   });
 }
 

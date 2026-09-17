@@ -5,6 +5,29 @@ import { useAuthStore } from '@/app/store/auth';
 import api from '@/app/lib/api';
 import { getAccessToken, SESSION_EXPIRED } from '@/app/lib/session';
 
+/** Telas que já são o caminho de entrada: voltar para elas não é destino. */
+const ROTAS_DE_ENTRADA = ['/login', '/register', '/senha', '/confirmar'];
+
+/**
+ * Para onde mandar quem perdeu a sessão.
+ *
+ * Com o destino junto, e não `/login` seco. Quem escaneia o QR Code do prédio
+ * com uma sessão vencida era devolvido ao login sem o convite: entrava, caía na
+ * tela inicial, e o link do gestor tinha sumido — restava pedir outro. O
+ * endereço volta como `?redirect=`, que é o que o login já sabe ler.
+ *
+ * As telas de entrada ficam de fora: mandar o login de volta para o login é um
+ * caminho que não anda.
+ */
+function loginComVolta() {
+  if (typeof window === 'undefined') return '/login';
+
+  const { pathname, search } = window.location;
+  if (ROTAS_DE_ENTRADA.some((rota) => pathname.startsWith(rota))) return '/login';
+
+  return `/login?redirect=${encodeURIComponent(pathname + search)}`;
+}
+
 export function AuthProvider({ children }) {
   // Ações do zustand têm referência estável, então listá-las nas dependências
   // não faz o efeito rodar de novo.
@@ -40,7 +63,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     function onExpired() {
       clearSession();
-      router.replace('/login');
+      router.replace(loginComVolta());
     }
     window.addEventListener(SESSION_EXPIRED, onExpired);
     return () => window.removeEventListener(SESSION_EXPIRED, onExpired);

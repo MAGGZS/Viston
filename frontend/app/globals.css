@@ -450,12 +450,36 @@ input:-webkit-autofill:focus {
  * `mouseleave` num dedo que sai —, e a restauração dependia de um `??` que
  * adivinhava a cor original. Em CSS, cada variante diz sua cor de hover em uma
  * variável e o resto é uma regra só.
+ *
+ * A cor de repouso de cada variante mora aqui embaixo, e não no `style` do
+ * componente, e é isso que faz a regra de hover valer. Enquanto ela era escrita
+ * em atributo (`style={{ background: T.accent }}`), declaração de folha de
+ * estilo nenhuma alcançava o botão: estilo inline ganha de classe sem
+ * `!important`. A variável de hover estava certa, a regra estava certa, e o
+ * botão dourado atravessava o produto inteiro sem responder ao cursor.
  */
 .btn {
   transition: background-color 0.15s ease, opacity 0.2s;
 }
 
-/* `:hover` só onde existe cursor: no toque, `hover` gruda depois do dedo sair. */
+/* Cor de repouso por variante — o gêmeo do mapa `styles` em components/ui. */
+.btn--primary {
+  background: var(--color-accent);
+  color: #000;
+  /* Interno de propósito: o botão não pode crescer 1px num tema só. */
+  box-shadow: inset 0 0 0 1px var(--accent-edge);
+}
+
+.btn--secondary { background: var(--color-chip); color: var(--color-ink); }
+.btn--ghost     { background: transparent; color: var(--color-mute); }
+.btn--danger    { background: var(--color-danger-soft); color: var(--color-danger); }
+
+/*
+ * `:hover` só onde existe cursor: no toque, `hover` gruda depois do dedo sair.
+ *
+ * A regra geral serve os `<button className="btn">` escritos à mão, que dizem a
+ * própria cor em `--btn-hover` (ver components/MenuDaConta.js).
+ */
 @media (hover: hover) {
   .btn:not(:disabled):hover { background-color: var(--btn-hover); }
 }
@@ -472,6 +496,45 @@ input:-webkit-autofill:focus {
 .btn:focus-visible {
   outline: 2px solid var(--color-accent-ink);
   outline-offset: 2px;
+}
+
+/**
+ * Ação em texto — a segunda via de uma tela que já tem um botão.
+ *
+ * Nasceu na tela de convite (app/conectar): cada estado oferece uma ação de
+ * peso e, embaixo dela, uma saída. A saída era um botão cinza de largura cheia,
+ * então a tela mostrava duas caixas do mesmo tamanho e o olho tinha de ler as
+ * duas para descobrir qual era a principal. Em texto a hierarquia se resolve
+ * sozinha, e é o que o rodapé do login já fazia.
+ *
+ * Hover e foco em CSS pelo mesmo motivo do `.btn`: em JS o teclado não ganha
+ * realce nenhum, e no toque o estado gruda depois de o dedo sair.
+ */
+.link-acao {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+@media (hover: hover) {
+  /* Discreta: o realce é ganhar contraste, que é o que lhe falta em repouso. */
+  .link-acao:not(.link-acao--acento):hover { color: var(--color-ink); }
+
+  /* Dourada: já está no topo do contraste, então o realce é o sublinhado. */
+  .link-acao--acento:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+.link-acao:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 /**

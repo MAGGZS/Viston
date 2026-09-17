@@ -11,15 +11,6 @@ import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTrans
  * Superfície chapada: os três níveis de cor já separam o conteúdo, então
  * nenhum destes elementos carrega borda, blur ou sombra decorativa.
  */
-/**
- * O anel do preenchimento dourado.
- *
- * No escuro `accentEdge` é transparente e isto não desenha nada; no claro é um
- * dourado escurecido, e é o que devolve limite ao botão — ver T.accentEdge.
- * Interno (`inset`) de propósito: o botão não pode crescer 1px num tema só.
- */
-const ANEL_ACENTO = `inset 0 0 0 1px ${T.accentEdge}`;
-
 const G = {
   card: { background: T.card, borderRadius: R.card, boxShadow: T.cardRing },
   input: {
@@ -45,6 +36,14 @@ const G = {
   label: { fontSize: 12, fontWeight: W.body, color: T.mute },
 };
 
+/** A cor de hover de cada variante. A de repouso mora no CSS — ver abaixo. */
+const HOVER_POR_VARIANTE = {
+  primary: 'var(--color-accent-hover)',
+  secondary: 'var(--color-hover-strong)',
+  ghost: T.chip,
+  danger: 'var(--color-danger-hover)',
+};
+
 /**
  * Botão do produto.
  *
@@ -52,31 +51,28 @@ const G = {
  * por variável. Em JS ele custava caro: teclado sem realce, estado grudado
  * depois do toque no telefone, e a cor original adivinhada na volta. `type` é
  * `button` por padrão — dentro de `<form>`, o padrão do HTML é enviar.
+ *
+ * A cor de repouso saiu deste `style` e virou `.btn--<variante>` no CSS, e é o
+ * que finalmente ligou o hover. Escrita em atributo, ela ganhava da regra de
+ * folha de estilo — inline vence classe sem `!important` —, então o realce
+ * nunca pintava: o botão dourado atravessava o produto sem responder ao cursor,
+ * e só se descobria medindo o `backgroundColor` computado sob o ponteiro.
  */
 export function Button({ children, variant = 'primary', className = '', loading = false, style = {}, type = 'button', ...props }) {
-  const styles = {
-    primary: { background: T.accent, color: T.onAccent, hover: 'var(--color-accent-hover)', boxShadow: ANEL_ACENTO },
-    secondary: { background: T.chip, color: T.text, hover: 'var(--color-hover-strong)' },
-    ghost: { background: 'transparent', color: T.mute, hover: T.chip },
-    danger: { background: T.dangerSoft, color: T.danger, hover: 'var(--color-danger-hover)' },
-  };
-  const { hover, ...base } = styles[variant];
-
   return (
     <button
       type={type}
-      className={`btn ${className}`}
+      className={`btn btn--${variant} ${className}`}
       style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         fontFamily: T.display, fontWeight: W.strong, fontSize: 14,
         padding: '12px 20px', borderRadius: R.control, border: 'none',
         cursor: props.disabled || loading ? 'not-allowed' : 'pointer',
         opacity: props.disabled || loading ? 0.5 : 1,
-        ...base,
         ...style,
         // Depois do `style` de quem chama: quem troca a cor de fundo troca junto
         // a de hover, senão o realce voltaria à cor da variante.
-        '--btn-hover': style.background ? undefined : hover,
+        '--btn-hover': style.background ? undefined : HOVER_POR_VARIANTE[variant],
       }}
       disabled={loading || props.disabled}
       {...props}

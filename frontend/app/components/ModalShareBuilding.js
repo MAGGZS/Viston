@@ -26,9 +26,12 @@ export function ModalShareBuilding({
   onClose,
   anchorRef,
   anchorEl,
+  centered = false,
   buildingId,
   buildingName,
 }) {
+  const isCentered = centered || (!anchorRef && !anchorEl);
+
   const { show: toast } = useToastStore();
   const { data: tokenData, isLoading, refetch } = useBuildingShareToken(buildingId, open);
   const rotateMutation = useRotateBuildingShareToken();
@@ -39,12 +42,11 @@ export function ModalShareBuilding({
   const [coords, setCoords] = useState(null);
   const popoverRef = useRef(null);
 
-  // Calcula a posição diretamente abaixo do botão
+  // Calcula a posição diretamente abaixo do botão quando não for centralizado
   const updatePosition = useCallback(() => {
-    if (!open) return;
+    if (!open || isCentered) return;
     const el = anchorEl || anchorRef?.current;
     if (!el) {
-      // Fallback gracioso no topo direito se a ref não estiver disponível
       setCoords({
         top: 80,
         right: 32,
@@ -81,10 +83,10 @@ export function ModalShareBuilding({
         alignRight: false,
       });
     }
-  }, [open, anchorEl, anchorRef]);
+  }, [open, isCentered, anchorEl, anchorRef]);
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open || isCentered) return;
     updatePosition();
     window.addEventListener('scroll', updatePosition, true);
     window.addEventListener('resize', updatePosition);
@@ -92,7 +94,7 @@ export function ModalShareBuilding({
       window.removeEventListener('scroll', updatePosition, true);
       window.removeEventListener('resize', updatePosition);
     };
-  }, [open, updatePosition]);
+  }, [open, isCentered, updatePosition]);
 
   // Tecla Escape para fechar
   useEffect(() => {
@@ -180,6 +182,16 @@ export function ModalShareBuilding({
   return createPortal(
     <>
       <style>{`
+        @keyframes modal-pop-center {
+          from {
+            opacity: 0;
+            transform: translate(-50%, -46%) scale(0.96);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+          }
+        }
         @keyframes popover-drop {
           from {
             opacity: 0;
@@ -190,46 +202,74 @@ export function ModalShareBuilding({
             transform: translateY(0) scale(1);
           }
         }
+        @keyframes backdrop-fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
       `}</style>
 
-      {/* Backdrop transparente para capturar cliques fora e fechar suavemente */}
+      {/* Backdrop: escurecido no modo centralizado, transparente no modo ancorado */}
       <div
         onClick={onClose}
         style={{
           position: 'fixed',
           inset: 0,
           zIndex: 9998,
-          background: 'transparent',
+          background: isCentered ? 'var(--backdrop, rgba(0, 0, 0, 0.6))' : 'transparent',
+          animation: isCentered ? 'backdrop-fade-in 0.2s ease both' : undefined,
         }}
       />
 
-      {/* Cartão Dropdown Popover ancorado abaixo do botão */}
+      {/* Cartão do Modal: centralizado na tela ou ancorado abaixo do botão */}
       <div
         ref={popoverRef}
         role="dialog"
         aria-modal="true"
         aria-label="Compartilhar prédio"
-        style={{
-          position: 'fixed',
-          top: coords ? coords.top : 80,
-          left: coords?.left,
-          right: coords?.right,
-          width: coords?.width ?? POPOVER_WIDTH,
-          maxWidth: 'calc(100vw - 32px)',
-          maxHeight: coords ? `calc(100vh - ${coords.top + 16}px)` : '85vh',
-          overflowY: 'auto',
-          zIndex: 9999,
-          background: T.card,
-          border: `1px solid ${T.line}`,
-          borderRadius: 16,
-          boxShadow: '0 16px 40px -6px rgba(0, 0, 0, 0.4), 0 4px 16px -2px rgba(0, 0, 0, 0.2)',
-          padding: 20,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 16,
-          animation: 'popover-drop 0.22s cubic-bezier(0.16, 1, 0.3, 1) both',
-          transformOrigin: coords?.alignRight ? 'top right' : 'top left',
-        }}
+        style={
+          isCentered
+            ? {
+                position: 'fixed',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: POPOVER_WIDTH,
+                maxWidth: 'calc(100vw - 32px)',
+                maxHeight: 'calc(100vh - 32px)',
+                overflowY: 'auto',
+                zIndex: 9999,
+                background: T.card,
+                border: `1px solid ${T.line}`,
+                borderRadius: 16,
+                boxShadow: '0 20px 50px -10px rgba(0, 0, 0, 0.5), 0 8px 24px -4px rgba(0, 0, 0, 0.2)',
+                padding: 22,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+                animation: 'modal-pop-center 0.22s cubic-bezier(0.16, 1, 0.3, 1) both',
+              }
+            : {
+                position: 'fixed',
+                top: coords ? coords.top : 80,
+                left: coords?.left,
+                right: coords?.right,
+                width: coords?.width ?? POPOVER_WIDTH,
+                maxWidth: 'calc(100vw - 32px)',
+                maxHeight: coords ? `calc(100vh - ${coords.top + 16}px)` : '85vh',
+                overflowY: 'auto',
+                zIndex: 9999,
+                background: T.card,
+                border: `1px solid ${T.line}`,
+                borderRadius: 16,
+                boxShadow: '0 16px 40px -6px rgba(0, 0, 0, 0.4), 0 4px 16px -2px rgba(0, 0, 0, 0.2)',
+                padding: 20,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+                animation: 'popover-drop 0.22s cubic-bezier(0.16, 1, 0.3, 1) both',
+                transformOrigin: coords?.alignRight ? 'top right' : 'top left',
+              }
+        }
       >
         {/* Cabeçalho do Popover com botão de fechar "X" */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
