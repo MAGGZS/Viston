@@ -6,6 +6,7 @@ import request from 'supertest';
 jest.mock('../repositories/feedback.repository');
 // A guarda de ADMIN confere a conta no banco a cada requisição.
 jest.mock('../repositories/user.repository');
+jest.mock('../repositories/plan.repository');
 
 import app from '../app';
 import { feedbackService } from '../services/feedback.service';
