@@ -110,7 +110,13 @@ function ConectarContent() {
     }
 
     return null;
-  }, [isAuth, building?.id, building?.name, user, myBuildings, managedBuildings]);
+    // `building` inteiro, e não `building?.id` e `building?.name` soltos: o
+    // compilador do React lê as dependências que o corpo de fato usa e não
+    // reconhece campo alcançado por `?.` na lista, então a memoização escrita à
+    // mão era descartada — o componente perdia a otimização inteira. O objeto
+    // vem do cache da consulta e só troca de identidade quando o prédio muda,
+    // que é exatamente quando este cálculo precisa refazer.
+  }, [isAuth, building, user, myBuildings, managedBuildings]);
 
   const isExplicitlyExpired = searchParams?.get('expirado') === 'true';
   const isExpired = isExplicitlyExpired || !!error;

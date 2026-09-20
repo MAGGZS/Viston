@@ -17,6 +17,17 @@ import { T, R, W, NUM, CHART_MARK } from '@/app/lib/theme';
 const ALTURA_DESENHO = 150;
 const PISO = 4;
 
+/**
+ * As alturas das colunas do esqueleto, enquanto o período não chega.
+ *
+ * Fixas, e não sorteadas. Eram `Math.random()` dentro do render, e isso custava
+ * três coisas: o servidor desenhava uma altura e o cliente outra, a coluna
+ * pulava a cada novo quadro, e o render deixava de ser função só das
+ * propriedades — que é o que o compilador do React exige para otimizar o
+ * componente. Uma lista fixa dá a mesma variação sem nenhuma das três.
+ */
+const ALTURAS_ESQUELETO = [96, 62, 118, 50, 84, 108, 70, 128, 58, 92, 76, 112, 66];
+
 export function OcorrenciasPorTipo({ buildingId, className = '', style = {} }) {
   const periodo = usePeriodo();
   const { data, isLoading } = useTicketSummary(buildingId, periodo.params);
@@ -75,10 +86,10 @@ export function OcorrenciasPorTipo({ buildingId, className = '', style = {} }) {
 
       {isLoading ? (
         <div style={{ display: 'flex', gap: 12, marginTop: 28, alignItems: 'flex-end', height: ALTURA_DESENHO + 50 }}>
-          {MAINTENANCE_TYPES.map((t) => (
+          {MAINTENANCE_TYPES.map((t, i) => (
             <div key={t.value} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
               <Skeleton style={{ height: 14, width: 20 }} />
-              <Skeleton style={{ height: Math.floor(Math.random() * 80 + 40), width: '100%', borderRadius: '4px 4px 0 0' }} />
+              <Skeleton style={{ height: ALTURAS_ESQUELETO[i % ALTURAS_ESQUELETO.length], width: '100%', borderRadius: '4px 4px 0 0' }} />
               <Skeleton style={{ height: 12, width: 36 }} />
             </div>
           ))}
