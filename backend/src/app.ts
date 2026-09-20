@@ -16,6 +16,7 @@ import ticketRoutes from './routes/ticket.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import adminRoutes from './routes/admin.routes';
 import billingRoutes from './routes/billing.routes';
+import ownershipRoutes from './routes/ownership.routes';
 import { errorHandler } from './middlewares/errorHandler';
 import { generalLimiter } from './middlewares/rateLimit';
 
@@ -126,6 +127,8 @@ app.use('/admin', adminRoutes);
 // Cobranca. O webhook mora dentro deste roteador e le o corpo cru — por isso o
 // roteador entra antes do `express.json` global (ver billing.routes.ts).
 app.use('/billing', billingRoutes);
+// A troca de dono entra na raiz: o pedido e do predio, a resposta e do pedido.
+app.use('/', ownershipRoutes);
 app.use('/', inspectionRoutes);
 // Os chamados moram em dois caminhos — a fila é do prédio, a ação é da
 // ocorrência — e por isso a rota entra na raiz, como a de vistorias.
