@@ -4,6 +4,7 @@ import { InspectionStatus } from '@prisma/client';
 
 jest.mock('../repositories/inspection.repository');
 jest.mock('../repositories/building.repository');
+jest.mock('../repositories/plan.repository');
 
 function makeFullReport(overrides: any = {}) {
   return {
