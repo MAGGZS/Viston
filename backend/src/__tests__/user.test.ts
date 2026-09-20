@@ -22,6 +22,7 @@ jest.mock('../repositories/emailToken.repository');
 jest.mock('../lib/mailer');
 jest.mock('bcrypt');
 jest.mock('../repositories/usage.repository');
+jest.mock('../repositories/plan.repository');
 
 const mockUserRepo = userRepository as jest.Mocked<typeof userRepository>;
 const mockManagerRepo = managerRepository as jest.Mocked<typeof managerRepository>;

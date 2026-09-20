@@ -13,6 +13,7 @@ jest.mock('../repositories/user.repository');
 jest.mock('../repositories/manager.repository');
 jest.mock('../services/storage.service');
 jest.mock('../services/usage.service');
+jest.mock('../repositories/plan.repository');
 
 const mockTicketRepo = ticketRepository as jest.Mocked<typeof ticketRepository>;
 const mockBuildingRepo = buildingRepository as jest.Mocked<typeof buildingRepository>;

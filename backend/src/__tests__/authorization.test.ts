@@ -15,6 +15,7 @@ jest.mock('../lib/mailer');
 jest.mock('../services/excel.service');
 jest.mock('../services/storage.service');
 jest.mock('../repositories/usage.repository');
+jest.mock('../repositories/plan.repository');
 
 import app from '../app';
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
