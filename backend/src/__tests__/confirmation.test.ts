@@ -49,6 +49,7 @@ jest.mock('../repositories/building.repository');
 jest.mock('../lib/mailer');
 jest.mock('bcrypt');
 jest.mock('../services/usage.service');
+jest.mock('../repositories/plan.repository');
 
 const tokens = emailTokenRepository as jest.Mocked<typeof emailTokenRepository>;
 const users = userRepository as jest.Mocked<typeof userRepository>;
