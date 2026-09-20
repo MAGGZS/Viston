@@ -10,6 +10,7 @@ jest.mock('../repositories/emailToken.repository');
 jest.mock('../lib/mailer');
 jest.mock('../services/excel.service');
 jest.mock('../services/storage.service');
+jest.mock('../repositories/usage.repository');
 
 import app from '../app';
 import { buildingRepository } from '../repositories/building.repository';

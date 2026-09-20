@@ -7,6 +7,7 @@ jest.mock('../repositories/building.repository');
 jest.mock('../repositories/manager.repository');
 jest.mock('../repositories/user.repository');
 jest.mock('bcrypt');
+jest.mock('../repositories/usage.repository');
 
 import bcrypt from 'bcrypt';
 import app from '../app';

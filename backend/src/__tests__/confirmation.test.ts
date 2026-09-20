@@ -13,6 +13,7 @@ import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
 import { enviarEmail } from '../lib/mailer';
+import { usageService } from '../services/usage.service';
 import {
   EmailDeliveryError,
   EmailNotConfirmedError,
@@ -47,6 +48,7 @@ jest.mock('../repositories/manager.repository');
 jest.mock('../repositories/building.repository');
 jest.mock('../lib/mailer');
 jest.mock('bcrypt');
+jest.mock('../services/usage.service');
 
 const tokens = emailTokenRepository as jest.Mocked<typeof emailTokenRepository>;
 const users = userRepository as jest.Mocked<typeof userRepository>;
@@ -55,6 +57,7 @@ const buildings = buildingRepository as jest.Mocked<typeof buildingRepository>;
 const audit = auditRepository as jest.Mocked<typeof auditRepository>;
 const mockBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
 const mockEnviarEmail = enviarEmail as jest.MockedFunction<typeof enviarEmail>;
+const mockUsage = usageService as jest.Mocked<typeof usageService>;
 
 const CODIGO = '481507';
 
@@ -332,6 +335,29 @@ describe('verificacao do codigo', () => {
       InvalidCodeError
     );
     expect(users.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('e-mail enviado conta no mes da conta de gestor', () => {
+  it('conta de gestor: o envio entra no contador dela', async () => {
+    await enviarCodigo({ kind: 'MANAGER', id: 'mgr-1' }, 'EMAIL_VERIFY', 'Ana', 'ana@test.com');
+
+    expect(mockUsage.recordEmail).toHaveBeenCalledWith('mgr-1');
+  });
+
+  it('conta de usuario nao tem plano, e nao ha a quem cobrar o envio', async () => {
+    await enviarCodigo({ kind: 'USER', id: 'user-1' }, 'EMAIL_VERIFY', 'Carlos', 'carlos@test.com');
+
+    expect(mockUsage.recordEmail).not.toHaveBeenCalled();
+  });
+
+  it('envio que falhou nao conta', async () => {
+    mockEnviarEmail.mockRejectedValue(new EmailDeliveryError());
+
+    await expect(
+      enviarCodigo({ kind: 'MANAGER', id: 'mgr-1' }, 'EMAIL_VERIFY', 'Ana', 'ana@test.com')
+    ).rejects.toThrow(EmailDeliveryError);
+    expect(mockUsage.recordEmail).not.toHaveBeenCalled();
   });
 });
 

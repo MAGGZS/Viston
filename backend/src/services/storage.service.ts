@@ -18,6 +18,30 @@ const EXCEL_URL_TTL_SECONDS = 300;
  */
 const EXCEL_PREFIX = 'report_';
 
+/**
+ * O nome do objeto no bucket, a partir da URL pública.
+ *
+ * O nome sai do último segmento do caminho da URL, e não do texto inteiro:
+ * `split('/')` cru pegaria querystring e fragmento junto. `null` é URL que não
+ * é URL, ou nome com `..` — nada que se aceite como caminho.
+ *
+ * Existe em um lugar só porque três chamadas fazem a mesma pergunta: remover o
+ * avatar, remover a foto do chamado e descontar o espaço dela da conta (ver
+ * `usageService`). Cada uma com a sua cópia era a garantia de que um dia duas
+ * discordariam sobre qual objeto é qual.
+ */
+export function photoObjectPath(publicUrl: string): string | null {
+  let fileName: string;
+  try {
+    fileName = decodeURIComponent(new URL(publicUrl).pathname.split('/').pop() ?? '');
+  } catch {
+    return null;
+  }
+
+  if (!fileName || fileName.includes('..')) return null;
+  return fileName;
+}
+
 /** Nada de barra, `..` ou nome vazio: o caminho é montado aqui, nunca vem do cliente. */
 function assertSafeExcelPath(path: string): void {
   if (!path || path.includes('/') || path.includes('\\') || path.includes('..')) {
@@ -130,14 +154,8 @@ export const storageService = {
    * mesmo que o arquivo velho já tenha sumido do bucket.
    */
   async removeAvatar(avatarUrl: string): Promise<void> {
-    let fileName: string;
-    try {
-      fileName = decodeURIComponent(new URL(avatarUrl).pathname.split('/').pop() ?? '');
-    } catch {
-      return;
-    }
-
-    if (!fileName || !fileName.startsWith('avatar_') || fileName.includes('..')) return;
+    const fileName = photoObjectPath(avatarUrl);
+    if (!fileName || !fileName.startsWith('avatar_')) return;
 
     const { error } = await supabase.storage.from(config.supabase.bucketPhotos).remove([fileName]);
     if (error) logger.error({ err: error }, '[Avatar] Falha ao remover foto antiga');
@@ -181,14 +199,8 @@ export const storageService = {
    * arquivo já tenha sumido do bucket.
    */
   async removeTicketPhoto(photoUrl: string): Promise<void> {
-    let fileName: string;
-    try {
-      fileName = decodeURIComponent(new URL(photoUrl).pathname.split('/').pop() ?? '');
-    } catch {
-      return;
-    }
-
-    if (!fileName || !fileName.startsWith('ticket_') || fileName.includes('..')) return;
+    const fileName = photoObjectPath(photoUrl);
+    if (!fileName || !fileName.startsWith('ticket_')) return;
 
     const { error } = await supabase.storage.from(config.supabase.bucketPhotos).remove([fileName]);
     if (error) logger.error({ err: error }, '[Chamado] Falha ao remover foto da atualização');
