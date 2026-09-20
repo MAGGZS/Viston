@@ -1,6 +1,7 @@
 import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
 import { TokenPurpose } from '@prisma/client';
 import { enviarEmail } from '../lib/mailer';
+import { usageService } from './usage.service';
 import { logger } from '../lib/logger';
 import { emailVerificacao, emailRecuperacao } from '../templates/email';
 import {
@@ -107,6 +108,12 @@ export async function enviarCodigo(
       : emailVerificacao(nome, codigo, VALIDADE_MINUTOS);
 
   await enviarEmail(email, assunto, html, texto);
+
+  // Depois do envio, e só para conta de gestor: o teto mensal é do plano, e o
+  // plano é da conta que assina. O que falhou não conta, e o que a conta de
+  // usuário gasta não tem a quem cobrar enquanto o que sai daqui é código de
+  // confirmação e de troca de senha.
+  if (owner.kind === 'MANAGER') await usageService.recordEmail(owner.id);
 }
 
 /**

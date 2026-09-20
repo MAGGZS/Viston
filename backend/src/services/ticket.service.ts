@@ -10,6 +10,7 @@ import {
 import { managerRepository } from '../repositories/manager.repository';
 import { userRepository } from '../repositories/user.repository';
 import { storageService } from './storage.service';
+import { usageService } from './usage.service';
 import { decodeImageDataUrl, MAX_PHOTO_BYTES } from '../utils/image';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { randomUUID } from 'node:crypto';
@@ -266,12 +267,18 @@ export const ticketService = {
     // (`ticket_<id>_…`), que é o prefixo pelo qual elas são achadas e apagadas.
     const ticketId = randomUUID();
     const photos: string[] = [];
+    // O tamanho de cada foto vai junto porque é o que conta no espaço do plano
+    // (ver `usageService.recordPhotos`), e aqui é o único lugar onde ele se
+    // sabe sem ir buscar o objeto de volta no bucket.
+    const enviadas: { url: string; bytes: number }[] = [];
 
     let ticket: TicketRow;
     try {
       for (const dataUrl of data.photos) {
         const { buffer, contentType } = decodeImageDataUrl(dataUrl, MAX_PHOTO_BYTES);
-        photos.push(await storageService.uploadTicketPhoto(ticketId, buffer, contentType));
+        const url = await storageService.uploadTicketPhoto(ticketId, buffer, contentType);
+        photos.push(url);
+        enviadas.push({ url, bytes: buffer.length });
       }
 
       ticket = await ticketRepository.createIndividualOccurrence({
@@ -294,6 +301,10 @@ export const ticketService = {
       await Promise.all(photos.map((url) => storageService.removeTicketPhoto(url)));
       throw err;
     }
+
+    // Depois do banco, e não antes: contar foto de ocorrência que não chegou a
+    // existir faria a conta cobrar espaço que ninguém ocupa.
+    await usageService.recordPhotos(buildingId, enviadas);
 
     await auditRepository.log({
       ...actorAudit(user),
@@ -825,9 +836,12 @@ export const ticketService = {
     }
 
     const photos: string[] = [];
+    const enviadas: { url: string; bytes: number }[] = [];
     for (const dataUrl of data.photos) {
       const { buffer, contentType } = decodeImageDataUrl(dataUrl, MAX_PHOTO_BYTES);
-      photos.push(await storageService.uploadTicketPhoto(id, buffer, contentType));
+      const url = await storageService.uploadTicketPhoto(id, buffer, contentType);
+      photos.push(url);
+      enviadas.push({ url, bytes: buffer.length });
     }
 
     const row = await ticketRepository.createUpdate({
@@ -839,6 +853,10 @@ export const ticketService = {
       description: data.description,
       photos,
     });
+
+    // Depois da linha, pela mesma razão da ocorrência avulsa: só se conta o que
+    // ficou de pé.
+    await usageService.recordPhotos(buildingId, enviadas);
 
     await logTicket(user, buildingId, id, { update_added: row.id });
     return toUpdate(row);
@@ -873,6 +891,10 @@ export const ticketService = {
     // Depois de apagar a linha: falha no bucket deixa um arquivo órfão, e isso
     // é bem melhor que uma linha viva sem as fotos que ela cita.
     for (const url of last.photos) await storageService.removeTicketPhoto(url);
+
+    // O espaço volta para a conta junto com a foto. Sem isto, o contador só
+    // sobe, e quem limpou a linha do tempo continuaria pagando por ela.
+    await usageService.forgetPhotos(last.photos);
 
     await logTicket(user, buildingId, id, { update_removed: last.id });
     return { ok: true };

@@ -4,6 +4,7 @@ import { buildingRepository } from '../repositories/building.repository';
 import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { storageService } from '../services/storage.service';
+import { usageService } from '../services/usage.service';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 
 jest.mock('../repositories/ticket.repository');
@@ -11,12 +12,14 @@ jest.mock('../repositories/building.repository');
 jest.mock('../repositories/user.repository');
 jest.mock('../repositories/manager.repository');
 jest.mock('../services/storage.service');
+jest.mock('../services/usage.service');
 
 const mockTicketRepo = ticketRepository as jest.Mocked<typeof ticketRepository>;
 const mockBuildingRepo = buildingRepository as jest.Mocked<typeof buildingRepository>;
 const mockUserRepo = userRepository as jest.Mocked<typeof userRepository>;
 const mockManagerRepo = managerRepository as jest.Mocked<typeof managerRepository>;
 const mockStorage = storageService as jest.Mocked<typeof storageService>;
+const mockUsage = usageService as jest.Mocked<typeof usageService>;
 
 const BUILDING_ID = '11111111-1111-4111-8111-111111111111';
 const TICKET_ID = '22222222-2222-4222-8222-222222222222';
@@ -609,6 +612,12 @@ describe('ticketService.editUpdate e removeUpdate', () => {
 
     expect(mockTicketRepo.removeUpdate).toHaveBeenCalledWith(UPDATE_ID);
     expect(mockStorage.removeTicketPhoto).toHaveBeenCalledTimes(2);
+    // E o espaço delas volta para a conta: contador que só sobe cobraria para
+    // sempre por foto que já não existe.
+    expect(mockUsage.forgetPhotos).toHaveBeenCalledWith([
+      'https://bucket/ticket_a.jpg',
+      'https://bucket/ticket_b.jpg',
+    ]);
   });
 
   it('sem nenhuma linha, não há o que alterar', async () => {
@@ -1178,6 +1187,26 @@ describe('ticketService.createOccurrence', () => {
     expect(data.building_id).toBe(BUILDING_ID);
     expect(data.responsible_id).toBe(RESPONSIBLE_ID);
     expect(mockStorage.uploadTicketPhoto).toHaveBeenCalledWith(data.ticket_id, expect.any(Buffer), 'image/jpeg');
+  });
+
+  it('conta o espaço da foto na conta do prédio', async () => {
+    comPapel('RESPONSAVEL');
+
+    await ticketService.createOccurrence(BUILDING_ID, responsavel, payload({ photos: [jpeg] }));
+
+    expect(mockUsage.recordPhotos).toHaveBeenCalledWith(BUILDING_ID, [
+      { url: expect.any(String), bytes: expect.any(Number) },
+    ]);
+  });
+
+  it('foto que subiu mas cuja ocorrência não gravou não entra na conta', async () => {
+    comPapel('RESPONSAVEL');
+    mockTicketRepo.createIndividualOccurrence.mockRejectedValue(new Error('banco fora'));
+
+    await expect(
+      ticketService.createOccurrence(BUILDING_ID, responsavel, payload({ photos: [jpeg] }))
+    ).rejects.toThrow('banco fora');
+    expect(mockUsage.recordPhotos).not.toHaveBeenCalled();
   });
 
   it('grava o dia do calendário local, não o dia UTC', async () => {
