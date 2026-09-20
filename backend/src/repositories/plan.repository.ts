@@ -1,4 +1,4 @@
-import { SubscriptionStatus } from '@prisma/client';
+import { PlanCode, SubscriptionStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 /**
@@ -49,5 +49,49 @@ export const planRepository = {
         status: { in: [...ACCESS_GRANTING_STATUSES] },
       },
     });
+  },
+
+  /**
+   * Abre uma concessão para a conta.
+   *
+   * `expires_at` nulo é sem prazo, e é escolha do admin — não um esquecimento:
+   * a rota pede os dias e só omite quando ele diz que não vence.
+   */
+  createGrant(data: {
+    manager_id: string;
+    plan: PlanCode;
+    reason: string;
+    granted_by: string | null;
+    expires_at: Date | null;
+  }) {
+    return prisma.planGrant.create({ data });
+  },
+
+  findGrantById(id: string) {
+    return prisma.planGrant.findUnique({ where: { id } });
+  },
+
+  /**
+   * Fecha a concessão agora.
+   *
+   * Carimba em vez de apagar: saber que uma conta teve PRO por duas semanas é
+   * o tipo de coisa que se precisa responder depois, e linha apagada não
+   * responde nada.
+   */
+  revokeGrant(id: string, at = new Date()) {
+    return prisma.planGrant.update({ where: { id }, data: { revoked_at: at } });
+  },
+
+  /** O histórico da conta, do mais recente para o mais antigo. */
+  listGrants(managerId: string) {
+    return prisma.planGrant.findMany({
+      where: { manager_id: managerId },
+      orderBy: { created_at: 'desc' },
+    });
+  },
+
+  /** Quantos prédios a conta paga hoje — os que ela criou e os que herdou. */
+  countOwnedBuildings(managerId: string) {
+    return prisma.building.count({ where: { owner_manager_id: managerId } });
   },
 };
