@@ -61,6 +61,22 @@ export const managerRepository = {
   },
 
   /**
+   * Suspende ou devolve a conta, pela mão do admin.
+   *
+   * Uma data, e não um booleano: "desde quando" é a primeira pergunta de quem
+   * abre o caso depois, e um `true` não a responde. Nulo é conta normal.
+   *
+   * Nada a ver com `status = DELETED`: a conta existe, os prédios dela existem,
+   * e voltar é tirar a data.
+   */
+  setSuspended(id: string, suspended: boolean) {
+    return prisma.manager.update({
+      where: { id },
+      data: { suspended_at: suspended ? new Date() : null },
+    });
+  },
+
+  /**
    * Mesma anonimização da conta de usuário: o registro fica, o nome e o e-mail
    * saem. As ações dele na auditoria continuam apontando para esta linha.
    */
