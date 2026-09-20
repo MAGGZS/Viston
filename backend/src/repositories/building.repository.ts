@@ -329,7 +329,14 @@ export const buildingRepository = {
       try {
         return await prisma.$transaction(async (tx) => {
           const building = await tx.building.create({
-            data: { ...data, share_key: generateShareKey() },
+            data: {
+              ...data,
+              share_key: generateShareKey(),
+              // Quem cria é quem paga. `created_by` é histórico e pode virar
+              // nulo quando a conta some; `owner_manager_id` é a cobrança, e
+              // nasce aqui — prédio sem dono é prédio que nenhum plano limita.
+              owner_manager_id: data.created_by,
+            },
           });
 
           await tx.buildingManager.create({
