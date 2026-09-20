@@ -6,6 +6,7 @@ import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
 import { useUnsavedGuard } from '@/app/hooks/useUnsavedGuard';
 import { useToastStore } from '@/app/store/toast';
 import { useCreateBuilding, useUpdateBuilding, useCreateFloor, useDeleteFloor, useFloors } from '@/app/hooks/useApi';
+import { detalheDoLimite, ehErroDePlano, mensagemDoErro } from '@/app/lib/erros';
 import { T, R } from '@/app/lib/theme';
 
 /** Lista de andares como tags, com campo de adição embaixo. */
@@ -82,7 +83,21 @@ export function CreateBuildingModal({ open, onClose }) {
       toast('Prédio criado!', 'success');
       doClose();
     } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao criar', 'error', e);
+      // O limite do plano tem uma segunda linha a dizer — quantos prédios já
+      // existem, e onde isso se resolve. O resto dos erros continua com a frase
+      // do servidor, que é quem escreve a regra.
+      if (ehErroDePlano(e)) {
+        const detalhe = detalheDoLimite(e);
+        toast(
+          mensagemDoErro(e, 'Erro ao criar'),
+          'error',
+          detalhe
+            ? `${detalhe} Veja os planos em Planos e cobrança.`
+            : 'Veja os planos em Planos e cobrança.'
+        );
+        return;
+      }
+      toast(mensagemDoErro(e, 'Erro ao criar'), 'error', e);
     }
   }
 
