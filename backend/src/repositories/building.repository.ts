@@ -295,6 +295,17 @@ export const buildingRepository = {
     });
   },
 
+  /**
+   * Quantas pessoas o prédio tem naquele papel.
+   *
+   * É a contagem que o limite do plano consulta antes de deixar entrar mais uma
+   * (ver `planGate.assertCanAddPerson`). Gestor não sai daqui — ele vive em
+   * `building_managers`, e quem o conta é `countManagers`.
+   */
+  countMembersByRole(buildingId: string, role: BuildingRole) {
+    return prisma.buildingMember.count({ where: { building_id: buildingId, role } });
+  },
+
   updateMemberRole(buildingId: string, userId: string, role: BuildingRole) {
     return prisma.buildingMember.update({
       where: { building_id_user_id: { building_id: buildingId, user_id: userId } },

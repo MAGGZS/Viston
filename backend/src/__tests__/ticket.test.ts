@@ -115,6 +115,14 @@ beforeEach(() => {
 
   mockUserRepo.findById.mockResolvedValue({ id: RESPONSIBLE_ID, name: 'Marina' } as any);
   mockManagerRepo.findById.mockResolvedValue({ id: 'gestor-1', name: 'Dona Célia' } as any);
+  // O prédio ativo é o estado normal: escrever num prédio inativo tem teste
+  // próprio, e é lá que `frozen_at` vem preenchido.
+  mockBuildingRepo.findById.mockResolvedValue({
+    id: BUILDING_ID,
+    name: 'Edifício Teste',
+    owner_manager_id: null,
+    frozen_at: null,
+  } as any);
   mockStorage.uploadTicketPhoto.mockResolvedValue('https://bucket/ticket_foto.jpg');
   mockStorage.removeTicketPhoto.mockResolvedValue(undefined);
   mockTicketRepo.findCloseLogs.mockResolvedValue(new Map());

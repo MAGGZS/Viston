@@ -4,6 +4,7 @@ import { buildingController } from '../controllers/building.controller';
 import { authenticate } from '../middlewares/authenticate';
 import { authorize } from '../middlewares/authorize';
 import { requireBuildingManager, requireBuildingMember } from '../middlewares/buildingAccess';
+import { requireBuildingActive } from '../middlewares/planGate';
 import { validate } from '../middlewares/validate';
 import { sensitiveLimiter } from '../middlewares/rateLimit';
 import {
@@ -29,6 +30,10 @@ const adminOnly = authorize('ADMIN');
 const manager = requireBuildingManager();
 // Leitura de dados do prédio exige vínculo (o gestor é membro do próprio prédio)
 const member = requireBuildingMember();
+// Predio inativo nao aceita trabalho novo: andar, gente, convite. Ler o que ja
+// existe continua liberado, e renomear e apagar tambem — o historico e do
+// cliente, e sair do produto nao pode depender de estar em dia com ele.
+const ativo = requireBuildingActive();
 
 // ── Listagens (antes de qualquer rota com :id) ────────────────────────────────
 router.get('/', auth, adminOnly, buildingController.findAll);
@@ -60,8 +65,8 @@ router.delete('/:id', auth, manager, buildingController.remove);
 
 // ── Andares ───────────────────────────────────────────────────────────────────
 router.get('/:id/floors', auth, member, buildingController.getFloors);
-router.post('/:id/floors', auth, manager, validate(createFloorSchema), buildingController.createFloor);
-router.delete('/:id/floors/:floorId', auth, manager, buildingController.deleteFloor);
+router.post('/:id/floors', auth, manager, ativo, validate(createFloorSchema), buildingController.createFloor);
+router.delete('/:id/floors/:floorId', auth, manager, ativo, buildingController.deleteFloor);
 
 // ── Dashboard e histórico ─────────────────────────────────────────────────────
 router.get('/:id/dashboard', auth, member, buildingController.getDashboard);
@@ -77,6 +82,7 @@ router.post(
   '/:id/managers',
   auth,
   manager,
+  ativo,
   sensitiveLimiter,
   validate(addManagerSchema),
   buildingController.addManager
@@ -90,6 +96,7 @@ router.patch(
   '/:id/members/:userId',
   auth,
   manager,
+  ativo,
   validate(updateMemberRoleSchema),
   buildingController.updateMemberRole
 );
@@ -115,13 +122,14 @@ router.patch(
   '/:id/access-requests/:requestId',
   auth,
   manager,
+  ativo,
   validate(reviewAccessRequestSchema),
   buildingController.reviewAccessRequest
 );
 
 // ── Tokens temporários de compartilhamento (QR Code / Link de 15 min) ────────
-router.get('/:id/share-token', auth, manager, buildingController.getShareToken);
-router.post('/:id/share-token/rotate', auth, manager, buildingController.rotateShareToken);
+router.get('/:id/share-token', auth, manager, ativo, buildingController.getShareToken);
+router.post('/:id/share-token/rotate', auth, manager, ativo, buildingController.rotateShareToken);
 
 export default router;
 

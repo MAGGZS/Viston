@@ -3,7 +3,7 @@ import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { auditRepository, buildingRepository } from '../repositories/building.repository';
 import { AccountKind, signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/jwt';
-import { EmailNotConfirmedError, UnauthorizedError } from '../utils/errors';
+import { AccountSuspendedError, EmailNotConfirmedError, UnauthorizedError } from '../utils/errors';
 import { enviarCodigo, normalizeEmail } from './confirmation.service';
 import { hashPassword, needsRehash } from '../utils/password';
 import { Actor } from '../middlewares/authenticate';
@@ -33,6 +33,8 @@ type Account = {
   token_version: number;
   /// Nulo é conta que existe e não entra — ver o passo 3 de `login`.
   email_verified_at: Date | null;
+  /// Só a conta de gestor tem: é o admin quem a carimba. Ver `login`.
+  suspended_at?: Date | null;
   kind: AccountKind;
   role: string;
 };
@@ -108,6 +110,17 @@ export const authService = {
      * de fora no dia do deploy.
      */
     if (!account.email_verified_at) throw new EmailNotConfirmedError();
+
+    /**
+     * Conta suspensa pelo admin não entra.
+     *
+     * Aqui e no refresh, e não a cada requisição: conferir em todas custaria
+     * uma ida ao banco por chamada, e o refresh acontece a cada quinze minutos
+     * — que é o tempo máximo que uma sessão já aberta sobrevive à suspensão.
+     * Barrar antes da senha diria quais e-mails estão suspensos a quem apenas
+     * chuta, pela mesma razão da confirmação de e-mail logo acima.
+     */
+    if (account.suspended_at) throw new AccountSuspendedError();
 
     // Custo antigo vira custo de hoje aqui, e só aqui: é o único ponto em que a
     // senha em claro existe depois do cadastro. Falhar em refazer o hash não
@@ -190,6 +203,9 @@ export const authService = {
       if (!manager || manager.status === 'DELETED') {
         throw new UnauthorizedError('Conta não encontrada');
       }
+      // A suspensão fecha a porta na renovação: a sessão já aberta vale até o
+      // token expirar, e não mais que isso.
+      if (manager.suspended_at) throw new AccountSuspendedError();
       assertCurrentSession(payload.tv, manager.token_version);
 
       return {
