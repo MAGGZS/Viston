@@ -131,6 +131,44 @@ enum AuditAction {
   SYNC_GOOGLE_FORM_FAILED
   FINISH_INSPECTION
   GENERATE_EXCEL
+  // Conceder, revogar e congelar mudam o que uma conta pode fazer. Sem data e
+  // dono, "por que este prédio parou" não tem resposta.
+  PLAN_GRANTED
+  PLAN_REVOKED
+  SUBSCRIPTION_UPDATED
+  BUILDING_FROZEN
+}
+
+/// Qual plano a conta tem — e só isso.
+///
+/// O que cada plano permite mora no código (`src/utils/plans.ts`), nunca no
+/// banco. Limite é regra de produto: muda com o produto, e não tem por que
+/// exigir migration nem ficar editável por quem alcança o banco.
+enum PlanCode {
+  LIVRE
+  ESSENCIAL
+  PRO
+}
+
+/// O status da assinatura no Stripe, com os nomes que chegam no webhook.
+///
+/// Traduzir os nomes aqui só criaria um dicionário a manter, errado no dia em
+/// que o Stripe acrescentasse um estado. Os três que dão acesso são TRIALING,
+/// ACTIVE e PAST_DUE — o último de propósito: a cobrança falhou e o Stripe vai
+/// tentar de novo por alguns dias, e cortar o produto no primeiro cartão
+/// recusado castiga quem só trocou de cartão.
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  UNPAID
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
 }
 
 // ─────────────────────────────────────────────
@@ -163,6 +201,7 @@ model User {
   email_tokens     EmailToken[]
   inspections      InspectionReport[]
   audit_logs       AuditLog[]
+  granted_plans    PlanGrant[]             @relation("PlanGrantedBy")
   building_members BuildingMember[]        @relation("BuildingMembers")
   access_requests  BuildingAccessRequest[] @relation("BuildingAccessRequests")
   feedbacks        Feedback[]
@@ -197,14 +236,24 @@ model Manager {
   /// Mesma confirmação da conta de usuário — ver `User.email_verified_at`.
   /// Gestor não tem passe livre: cadastro de gestor também é público.
   email_verified_at DateTime?
+  /// Conta suspensa pelo admin. Diferente de `status = DELETED`: a conta existe,
+  /// os prédios dela existem, e voltar é tirar a data.
+  suspended_at      DateTime?
   created_at        DateTime   @default(now())
   updated_at        DateTime   @updatedAt
 
   email_tokens      EmailToken[]
   created_buildings Building[]        @relation("BuildingCreator")
+  /// Os prédios que esta conta paga — ver `Building.owner_manager_id`.
+  owned_buildings   Building[]        @relation("BuildingOwner")
   managed_buildings BuildingManager[]
   audit_logs        AuditLog[]
   feedbacks         Feedback[]
+  subscription      Subscription?
+  plan_grants       PlanGrant[]
+  usage_counters    UsageCounter[]
+  transfers_sent    BuildingOwnershipTransfer[] @relation("TransferFrom")
+  transfers_received BuildingOwnershipTransfer[] @relation("TransferTo")
 
   @@map("managers")
 }
@@ -258,8 +307,23 @@ model Building {
   // Histórico de auditoria: qual gestor cadastrou o prédio. Não autoriza nada —
   // quem administra está em `managers`. Fica nulo se a conta sumir.
   created_by  String?
+  /// Quem paga por este prédio.
+  ///
+  /// Nasce apontando para quem o criou. O prédio tem vários gestores (ver
+  /// `BuildingManager`), mas um só dono: sem isso, "de quem é a cobrança" não
+  /// teria resposta. Não autoriza nada — o poder continua vindo do vínculo.
+  ///
+  /// Nulo é o prédio cujo dono sumiu: ele não some junto, fica sem dono até o
+  /// admin ou uma transferência resolver.
+  owner_manager_id String?
+  /// Prédio inativo: continua existindo e não aceita mais trabalho.
+  ///
+  /// É o destino de quem estourou o plano e não regularizou, e do prédio cuja
+  /// transferência de dono ninguém aceitou. Nulo é prédio normal.
+  frozen_at   DateTime?
 
   creator         Manager?                @relation("BuildingCreator", fields: [created_by], references: [id], onDelete: SetNull)
+  owner           Manager?                @relation("BuildingOwner", fields: [owner_manager_id], references: [id], onDelete: SetNull)
   floors          Floor[]
   inspections     InspectionReport[]
   managers        BuildingManager[]
@@ -267,7 +331,11 @@ model Building {
   access_requests BuildingAccessRequest[]
   audit_logs      AuditLog[]
   share_tokens    BuildingShareToken[]
+  photo_assets    PhotoAsset[]
+  ownership_transfers BuildingOwnershipTransfer[]
 
+  // "Os prédios desta conta" é a pergunta de toda contagem de limite.
+  @@index([owner_manager_id])
   @@map("buildings")
 }
 
@@ -561,4 +629,186 @@ model AuditLog {
   @@index([user_id, timestamp(sort: Desc)])
   @@index([manager_id])
   @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────
+// PLANOS E COBRANÇA
+// ─────────────────────────────────────────────
+
+/// O que a conta de gestor contratou no Stripe.
+///
+/// Uma por gestor — daí o `@unique` em `manager_id`. Duas assinaturas para a
+/// mesma conta não é um estado com significado: seria duas respostas para "qual
+/// é o plano dele".
+///
+/// A assinatura é da conta, e não do prédio: quem paga por um prédio é quem o
+/// criou (ver `Building.owner_manager_id`). Assinatura por prédio obrigaria
+/// quem tem três a passar três vezes pelo cartão.
+///
+/// Os ids do Stripe ficam nulos enquanto a assinatura não existir lá — é o caso
+/// de quem só tem concessão do admin.
+model Subscription {
+  id                     String             @id @default(uuid())
+  manager_id             String             @unique
+  plan                   PlanCode
+  status                 SubscriptionStatus
+  interval               BillingInterval    @default(MONTHLY)
+  /// Prédios comprados além dos inclusos no plano.
+  ///
+  /// Mora aqui, e não no catálogo, porque é quantidade contratada e muda por
+  /// conta; o teto de quanto se pode comprar é que está no código.
+  extra_buildings        Int                @default(0)
+  stripe_customer_id     String?
+  stripe_subscription_id String?            @unique
+  /// Até quando o período pago vai.
+  current_period_end     DateTime?
+  /// Cancelou, mas segue valendo até o fim do período já pago.
+  cancel_at_period_end   Boolean            @default(false)
+  created_at             DateTime           @default(now())
+  updated_at             DateTime           @updatedAt
+
+  manager Manager @relation(fields: [manager_id], references: [id], onDelete: Cascade)
+
+  @@index([stripe_customer_id])
+  @@map("subscriptions")
+}
+
+/// O plano que o admin liberou para uma conta sem passar pelo Stripe.
+///
+/// Cortesia, suporte, parceria, teste. A concessão ativa vence a assinatura —
+/// é a única forma de o suporte resolver na hora um problema de cobrança sem
+/// mexer no que o cliente contratou (ver `planService.resolvePlan`).
+///
+/// `expires_at` nulo é concessão sem prazo. `revoked_at` é o admin voltando
+/// atrás antes do prazo, e a linha fica: saber que alguém teve PRO por duas
+/// semanas é o tipo de coisa que se precisa responder depois.
+///
+/// `reason` é obrigatório de propósito: concessão sem motivo escrito é a que
+/// ninguém consegue explicar seis meses depois.
+model PlanGrant {
+  id         String    @id @default(uuid())
+  manager_id String
+  plan       PlanCode
+  reason     String
+  /// Qual conta de admin concedeu. Nulo quando a concessão não partiu de uma
+  /// pessoa (o grandfathering da migration) ou quando a conta do admin sumiu.
+  granted_by String?
+  starts_at  DateTime  @default(now())
+  expires_at DateTime?
+  revoked_at DateTime?
+  created_at DateTime  @default(now())
+
+  manager    Manager @relation(fields: [manager_id], references: [id], onDelete: Cascade)
+  granted_by_user User? @relation("PlanGrantedBy", fields: [granted_by], references: [id], onDelete: SetNull)
+
+  // A pergunta é sempre "a concessão que vale para esta conta agora", e a
+  // resposta é a mais recente entre as que ainda não venceram.
+  @@index([manager_id, created_at(sort: Desc)])
+  @@map("plan_grants")
+}
+
+/// Os eventos que o Stripe já entregou.
+///
+/// A chave primária é o id do evento no Stripe, e é só isso que torna o webhook
+/// idempotente: o Stripe reentrega o mesmo evento quando não recebe 200, e sem
+/// esta tabela o reenvio aplicaria a mesma mudança duas vezes.
+///
+/// O corpo fica guardado porque é o único registro do que o Stripe disse —
+/// quando o banco discordar do painel, é aqui que se descobre qual dos dois
+/// lados errou.
+model StripeEvent {
+  id           String   @id
+  type         String
+  payload      Json?
+  processed_at DateTime @default(now())
+
+  @@index([processed_at(sort: Desc)])
+  @@map("stripe_events")
+}
+
+/// O que a conta já gastou dos limites que se renovam.
+///
+/// Uma linha por conta e por mês (`period` em YYYY-MM), porque esses limites
+/// viram zero na virada. Um contador corrente exigiria alguém para zerá-lo todo
+/// dia 1 — e esse alguém falha.
+///
+/// O mês é texto e não data de propósito: é uma chave, não um instante.
+/// `2026-09` ordena e compara como string, sem ambiguidade de fuso.
+///
+/// Fotos não contam aqui: elas não viram zero na virada do mês, ficam até
+/// alguém apagar. O que está guardado é a soma de `PhotoAsset`.
+model UsageCounter {
+  id          String   @id @default(uuid())
+  manager_id  String
+  period      String
+  emails_sent Int      @default(0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  manager Manager @relation(fields: [manager_id], references: [id], onDelete: Cascade)
+
+  // Único por conta e mês: é o que permite somar com um upsert, sem ler antes
+  // de escrever e sem duas linhas do mesmo mês nascendo em requisições juntas.
+  @@unique([manager_id, period])
+  @@map("usage_counters")
+}
+
+/// Uma foto guardada no bucket, e o espaço que ela ocupa.
+///
+/// O limite de armazenamento é por conta de gestor, mas a foto pertence ao
+/// prédio: quem paga por ela é o dono dele (`Building.owner_manager_id`), e é
+/// por esse caminho que a soma é feita. Guardar o gestor aqui também criaria
+/// uma segunda verdade sobre de quem é a foto, e ela ficaria velha no dia em
+/// que o prédio trocasse de dono.
+///
+/// `path` é o caminho no bucket, e não a URL — a mesma escolha de
+/// `InspectionReport.excel_path`. `bytes` é BigInt porque a soma de uma conta
+/// com 150 GB não cabe em Int.
+model PhotoAsset {
+  id          String   @id @default(uuid())
+  building_id String
+  path        String   @unique
+  bytes       BigInt
+  created_at  DateTime @default(now())
+
+  building Building @relation(fields: [building_id], references: [id], onDelete: Cascade)
+
+  @@index([building_id])
+  @@map("photo_assets")
+}
+
+/// O pedido de troca de dono do prédio.
+///
+/// Trocar o dono é passar a conta adiante, então não pode ser um clique só de
+/// quem sai: o co-gestor indicado recebe uma solicitação de comprometimento e
+/// precisa aceitar. Aceite transfere; recusa ou silêncio de sete dias inativa o
+/// prédio, e reativar passa pelo admin.
+///
+/// `status` é texto e não enum, como em `BuildingAccessRequest`: são quatro
+/// valores de fluxo (PENDENTE, ACEITO, RECUSADO, EXPIRADO) que o produto ainda
+/// pode mexer, e um enum novo por fluxo custa migration a cada ajuste.
+///
+/// Um pedido de pé por prédio — o índice único parcial está na migration, que é
+/// onde ele cabe: o Prisma não modela índice com WHERE.
+model BuildingOwnershipTransfer {
+  id              String    @id @default(uuid())
+  building_id     String
+  from_manager_id String
+  to_manager_id   String
+  status          String    @default("PENDENTE")
+  requested_at    DateTime  @default(now())
+  /// Sete dias depois do pedido. Passado o prazo sem resposta, o prédio inativa.
+  expires_at      DateTime
+  /// Quando o indicado respondeu. Nulo enquanto o pedido está de pé.
+  responded_at    DateTime?
+  created_at      DateTime  @default(now())
+
+  building     Building @relation(fields: [building_id], references: [id], onDelete: Cascade)
+  from_manager Manager  @relation("TransferFrom", fields: [from_manager_id], references: [id], onDelete: Cascade)
+  to_manager   Manager  @relation("TransferTo", fields: [to_manager_id], references: [id], onDelete: Cascade)
+
+  // A tela do co-gestor é "os pedidos que esperam por mim".
+  @@index([to_manager_id, status])
+  @@index([building_id])
+  @@map("building_ownership_transfers")
 }

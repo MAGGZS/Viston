@@ -12,7 +12,13 @@ export function errorHandler(
 ): void {
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
-      error: { code: err.code, message: err.message },
+      error: {
+        code: err.code,
+        message: err.message,
+        // Só quando existe: acrescentar `details: undefined` mudaria o corpo de
+        // todos os erros que não têm nada a acrescentar.
+        ...(err.details !== undefined ? { details: err.details } : {}),
+      },
     });
     return;
   }

@@ -1,8 +1,18 @@
 export class AppError extends Error {
+  /**
+   * `details` é o que a tela precisa para montar a mensagem certa — qual limite
+   * estourou, quanto já se usou, qual plano resolve. Sai no corpo do erro pelo
+   * mesmo caminho que o `details` do zod já usa (ver `errorHandler`), então o
+   * app lê os dois do mesmo lugar.
+   *
+   * Opcional porque a maioria dos erros não tem nada a acrescentar: a mensagem
+   * já diz tudo.
+   */
   constructor(
     public readonly code: string,
     public readonly message: string,
-    public readonly statusCode: number = 400
+    public readonly statusCode: number = 400,
+    public readonly details?: unknown
   ) {
     super(message);
     this.name = 'AppError';
@@ -96,5 +106,48 @@ export class EmailDeliveryError extends AppError {
       'Não foi possível enviar o e-mail agora. Tente em alguns minutos.',
       502
     );
+  }
+}
+
+/**
+ * O plano da conta não comporta mais um.
+ *
+ * Mais um prédio, mais um inspetor, mais um e-mail no mês. 403 e não 402: quem
+ * está na frente da tela em geral não é quem paga — o inspetor que não
+ * consegue ser cadastrado não tem cartão a passar, e "pagamento necessário"
+ * mandaria a pessoa errada para a tela de cobrança.
+ *
+ * `details` leva o limite e o quanto já se usou, porque a tela precisa dizer
+ * "3 de 3 prédios" e não só "não pode".
+ */
+export class PlanLimitError extends AppError {
+  constructor(message: string, details?: { limit?: number; current?: number; plan?: string }) {
+    super('LIMITE_DO_PLANO', message, 403, details);
+  }
+}
+
+/**
+ * O recurso não existe neste plano.
+ *
+ * Diferente do limite: aqui não é "acabou", é "nunca houve". A tela que recebe
+ * isto oferece o plano que abre o recurso, e é por isso que `details` carrega o
+ * nome dele.
+ */
+export class FeatureLockedError extends AppError {
+  constructor(message: string, details?: { feature?: string; plan?: string }) {
+    super('RECURSO_DO_PLANO', message, 403, details);
+  }
+}
+
+/**
+ * O prédio está inativo.
+ *
+ * Congelado continua existindo e não aceita mais trabalho: nada de vistoria
+ * nova, chamado novo, upload. A leitura do que já existe é o que se preserva —
+ * o histórico é do cliente, não do plano.
+ */
+export class BuildingFrozenError extends AppError {
+  constructor(message = 'Este prédio está inativo. Regularize o plano para voltar a usá-lo.') {
+    super('PREDIO_CONGELADO', message, 403);
   }
 }
