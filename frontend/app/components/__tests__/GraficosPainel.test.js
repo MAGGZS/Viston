@@ -157,9 +157,12 @@ describe('OcorrenciasPorTipo', () => {
   it('ordena do tipo que mais pesou para o que menos', async () => {
     renderCard(<OcorrenciasPorTipo buildingId={BUILDING} />);
 
-    await screen.findByText('Elétrica');
-    const rotulos = screen.getByRole('img').querySelectorAll('span');
-    const textos = Array.from(rotulos).map((s) => s.textContent);
+    // Espera pelo gráfico, e não por um rótulo: a tabela de leitor de tela
+    // nasce junto com o cartão, com todos os tipos zerados, então "Elétrica" já
+    // está na tela enquanto o período ainda carrega. O desenho é o que só
+    // aparece com dado.
+    const grafico = await screen.findByRole('img');
+    const textos = Array.from(grafico.querySelectorAll('span')).map((s) => s.textContent);
 
     expect(textos).toContain('Elétrica');
     expect(textos).toContain('Infiltração');
