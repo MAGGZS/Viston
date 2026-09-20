@@ -209,7 +209,19 @@ export function ModalShareBuilding({
       `}</style>
 
       {/* Backdrop: escurecido no modo centralizado, transparente no modo ancorado */}
+      {/*
+        `aria-hidden` porque o fundo não é conteúdo: não há o que um leitor de
+        tela anuncie nele, e o painel em si já se apresenta logo abaixo.
+
+        É também o que responde ao lint de acessibilidade, e a resposta é
+        honesta: o clique no fundo é atalho de mouse, e o equivalente de teclado
+        já existe — o Escape fecha o painel (ver o efeito lá em cima). Dar
+        `tabIndex` e `onKeyDown` a esta camada criaria uma parada de tabulação
+        invisível cobrindo a tela inteira, pior para quem navega pelo teclado do
+        que a regra que ela calaria.
+      */}
       <div
+        aria-hidden="true"
         onClick={onClose}
         style={{
           position: 'fixed',
