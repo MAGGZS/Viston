@@ -145,6 +145,58 @@ export const buildingRepository = {
     });
   },
 
+  /**
+   * As contas que pagam por algum prédio.
+   *
+   * É por onde o ciclo diário anda (ver `planJobService`): conta sem prédio não
+   * tem o que congelar, e varrer `managers` inteira todo dia custaria sem
+   * responder nada.
+   */
+  async listOwnersWithBuildings(): Promise<string[]> {
+    const linhas = await prisma.building.groupBy({
+      by: ['owner_manager_id'],
+      where: { owner_manager_id: { not: null } },
+    });
+    return linhas.map((l) => l.owner_manager_id!).filter(Boolean);
+  },
+
+  /**
+   * Os prédios que a conta paga, do mais antigo para o mais novo.
+   *
+   * A idade vem de quando o gestor entrou no prédio, e não de uma coluna de
+   * criação: `buildings` nunca teve `created_at`, e `building_managers.joined_at`
+   * é a data mais próxima disso que existe — para quem criou o prédio, é o mesmo
+   * instante.
+   *
+   * A ordem não é enfeite: é ela que decide qual prédio para quando a conta cai
+   * de plano. O mais antigo é o que se usa todo dia, e cortá-lo primeiro seria
+   * cortar justamente o que a pessoa vai reclamar em seguida.
+   */
+  async listOwnedByManager(managerId: string) {
+    const predios = await prisma.building.findMany({
+      where: { owner_manager_id: managerId },
+      select: {
+        id: true,
+        name: true,
+        frozen_at: true,
+        managers: {
+          where: { manager_id: managerId },
+          select: { joined_at: true },
+          take: 1,
+        },
+      },
+    });
+
+    return predios
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        frozen_at: p.frozen_at,
+        desde: p.managers[0]?.joined_at ?? new Date(0),
+      }))
+      .sort((a, b) => a.desde.getTime() - b.desde.getTime() || a.id.localeCompare(b.id));
+  },
+
   addManager(buildingId: string, managerId: string) {
     return prisma.buildingManager.create({
       data: { building_id: buildingId, manager_id: managerId },
@@ -568,6 +620,21 @@ export const auditRepository = {
         // Nunca deixar falha de audit derrubar a operação principal
         logger.error({ err }, '[AuditLog] Falha ao registrar');
       });
+  },
+
+  /**
+   * O último congelamento (ou descongelamento) deste prédio.
+   *
+   * A trilha é quem sabe *por que* o prédio parou, e a resposta muda o que o
+   * ciclo diário pode fazer: o que ele mesmo congelou por plano ele descongela
+   * quando a conta se regulariza; o que parou por transferência recusada
+   * continua parado, porque o problema dele é outro — não tem dono que responda.
+   */
+  lastFreezeOf(buildingId: string) {
+    return prisma.auditLog.findFirst({
+      where: { building_id: buildingId, action: AuditAction.BUILDING_FROZEN },
+      orderBy: { timestamp: 'desc' },
+    });
   },
 };
 

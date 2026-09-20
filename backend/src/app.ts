@@ -17,6 +17,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import adminRoutes from './routes/admin.routes';
 import billingRoutes from './routes/billing.routes';
 import ownershipRoutes from './routes/ownership.routes';
+import jobRoutes from './routes/jobs.routes';
 import { errorHandler } from './middlewares/errorHandler';
 import { generalLimiter } from './middlewares/rateLimit';
 
@@ -129,6 +130,9 @@ app.use('/admin', adminRoutes);
 app.use('/billing', billingRoutes);
 // A troca de dono entra na raiz: o pedido e do predio, a resposta e do pedido.
 app.use('/', ownershipRoutes);
+// O gatilho do ciclo diario de planos. Sem sessao: a credencial de quem chama e
+// o JOB_SECRET (ver jobs.routes.ts).
+app.use('/', jobRoutes);
 app.use('/', inspectionRoutes);
 // Os chamados moram em dois caminhos — a fila é do prédio, a ação é da
 // ocorrência — e por isso a rota entra na raiz, como a de vistorias.

@@ -103,3 +103,8 @@ services:
         sync: false
       - key: STRIPE_PRICE_EXTRA_BUILDING_YEARLY
         sync: false
+      # O segredo do ciclo diario de planos, compartilhado com o workflow
+      # `.github/workflows/planos.yml`. Sem ele a rota do ciclo responde 404 e
+      # nada roda — que e o estado seguro.
+      - key: JOB_SECRET
+        sync: false
