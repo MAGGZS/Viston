@@ -3,11 +3,12 @@ import { Suspense, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { Eye, EyeOff } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthShell } from '@/app/components/AuthShell';
 import { useAuthStore } from '@/app/store/auth';
 import { T, R } from '@/app/lib/theme';
+import { Modal, Button } from '@/app/components/ui';
 import { useLogin, useResendConfirmation } from '@/app/hooks/useApi';
 import { guardarEmailPendente } from '@/app/lib/emailPendente';
 
@@ -44,6 +45,7 @@ function LoginForm() {
   const { mutateAsync, isPending, error, reset: limparErro } = useLogin();
   const { register, handleSubmit, formState: { errors } } = useForm({ resolver: yupResolver(schema) });
   const [showPassword, setShowPassword] = useState(false);
+  const [suspensaoFechada, setSuspensaoFechada] = useState(false);
 
   const [ultimaTentativa, setUltimaTentativa] = useState(null);
   const [segundosAteReenviar, setSegundosAteReenviar] = useState(0);
@@ -53,6 +55,7 @@ function LoginForm() {
   async function onSubmit(data) {
     setUltimaTentativa(data);
     setReenviado(false);
+    setSuspensaoFechada(false);
     try {
       const res = await mutateAsync(data);
       login(res.access_token, res.refresh_token, res.user);
@@ -84,6 +87,25 @@ function LoginForm() {
   // digitou: é um passo que ficou para trás, e o que a tela deve oferecer é o
   // caminho de volta a ele — não uma mensagem vermelha.
   const naoConfirmado = codigo === 'EMAIL_NAO_CONFIRMADO';
+
+  /**
+   * Conta suspensa pelo admin.
+   *
+   * Não é erro do que foi digitado, e tentar de novo não resolve — senha nova
+   * não levanta suspensão. Por isso sai em caixa de diálogo, com o caminho que
+   * existe (falar com o suporte), e não em vermelho sobre os campos.
+   */
+  const contaSuspensa = codigo === 'CONTA_SUSPENSA';
+
+  /**
+   * A resposta abre a caixa; fechá-la não desfaz a resposta.
+   *
+   * O estado guarda o fechamento, e não a abertura: assim a caixa é a resposta
+   * do servidor sendo mostrada, e não uma cópia dela que um efeito precisa
+   * manter em dia. O que a pessoa faz — fechar — é o que vira estado, e ele
+   * volta a `false` na tentativa seguinte, que é quando a resposta é outra.
+   */
+  const suspensaoAberta = contaSuspensa && !suspensaoFechada;
 
   /**
    * E-mail ou senha errados — o erro que é do que foi digitado.
@@ -250,7 +272,7 @@ function LoginForm() {
           // A caixa fica para o que não é de campo nenhum: rede fora, teto de
           // tentativas, servidor que caiu. Esses a pessoa não corrige digitando
           // de novo, e marcar os campos de vermelho mentiria sobre o que houve.
-          apiError && !credenciaisInvalidas && (
+          apiError && !credenciaisInvalidas && !contaSuspensa && (
             <div role="alert" style={S.errBox}><p style={{ color: T.danger, fontSize: 14 }}>{apiError}</p></div>
           )
         )}
@@ -258,6 +280,36 @@ function LoginForm() {
           {isPending ? 'Entrando...' : 'Entrar'}
         </button>
       </form>
+      {/*
+        A suspensão sai em caixa de diálogo, e não na faixa sob os campos.
+
+        As outras mensagens desta tela são sobre o que a pessoa acabou de
+        digitar: ela corrige e segue. Esta não. Senha nova não levanta
+        suspensão, e nada no formulário muda a resposta. Uma faixa entre o
+        campo e o botão convida a tentar de novo justamente onde tentar de novo
+        não leva a lugar nenhum. O diálogo para a tela, diz o que houve e
+        oferece a única saída que existe — falar com o suporte.
+
+        O ícone é do tom de aviso, e não do vermelho de erro: a conta está
+        inteira, os prédios estão guardados, e o que falta é uma conversa.
+      */}
+      <Modal open={suspensaoAberta} onClose={() => setSuspensaoFechada(true)} title="Conta suspensa">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <AlertTriangle size={18} color={T.accentInk} style={{ flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <p style={{ color: T.text, fontSize: 14, lineHeight: 1.6 }}>
+                Esta conta está suspensa e não entra no sistema.
+              </p>
+              <p style={{ color: T.mute, fontSize: 13, marginTop: 8, lineHeight: 1.6 }}>
+                Os prédios e o histórico continuam guardados. Escreva para o suporte do Viston pelo
+                e-mail de contato para entender o motivo e liberar o acesso.
+              </p>
+            </div>
+          </div>
+          <Button variant="secondary" onClick={() => setSuspensaoFechada(true)}>Entendi</Button>
+        </div>
+      </Modal>
     </AuthShell>
   );
 }

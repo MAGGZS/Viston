@@ -5,6 +5,7 @@ import { Button, Modal, Select, Textarea } from '@/app/components/ui';
 import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
 import { useUnsavedGuard } from '@/app/hooks/useUnsavedGuard';
 import { useToastStore } from '@/app/store/toast';
+import { avisarErro } from '@/app/lib/erros';
 import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
 import { useFloors, useCreateOccurrence } from '@/app/hooks/useApi';
 import {
@@ -126,7 +127,7 @@ export function RegistrarOcorrenciaModal({ open, onClose, onSuccess, defaultBuil
       onClose();
       onSuccess?.();
     } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao registrar ocorrência', 'error');
+      avisarErro(toast, e, 'Erro ao registrar ocorrência');
     }
   }
 

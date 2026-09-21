@@ -47,3 +47,30 @@ export function detalheDoLimite(err) {
   }
   return `Você está usando ${detalhes.current} de ${detalhes.limit}.`;
 }
+
+/**
+ * O toast de um erro, com a segunda linha que o plano merece.
+ *
+ * Existe para que os seis lugares que hoje escrevem
+ * `toast(e?.response?.data?.error?.message || '...', 'error', e)` não precisem
+ * repetir, cada um à sua maneira, a decisão de quando mostrar o detalhe do
+ * limite e para onde mandar a pessoa.
+ *
+ * Nos erros comuns, o terceiro argumento continua sendo o próprio erro — é o
+ * que o toast usa para o detalhe técnico. Nos de plano, ele vira a frase que
+ * diz onde resolver, porque o detalhe técnico ali não ajuda ninguém.
+ */
+export function avisarErro(toast, err, fallback = PADRAO) {
+  if (!ehErroDePlano(err)) {
+    toast(mensagemDoErro(err, fallback), 'error', err);
+    return;
+  }
+
+  const detalhe = detalheDoLimite(err);
+  const ondeResolve =
+    codigoDoErro(err) === 'PREDIO_CONGELADO'
+      ? 'O prédio volta quando o plano for regularizado — veja Planos e cobrança.'
+      : 'Veja os planos em Planos e cobrança.';
+
+  toast(mensagemDoErro(err, fallback), 'error', [detalhe, ondeResolve].filter(Boolean).join(' '));
+}

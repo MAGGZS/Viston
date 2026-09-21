@@ -1210,3 +1210,78 @@ export function useRespondTransfer() {
     },
   });
 }
+
+// ── Planos: o que o admin faz com a conta dos outros ──────────────────────────
+
+/**
+ * O plano de uma conta de gestor, pelos olhos do suporte: o que vale, de onde
+ * vem, o consumo do mês e o histórico das concessões.
+ */
+export function useManagerPlan(managerId) {
+  return useQuery({
+    queryKey: ['admin-plan', managerId],
+    queryFn: () => api.get(`/admin/managers/${managerId}/plan`).then((r) => r.data),
+    enabled: !!managerId,
+  });
+}
+
+/**
+ * As quatro ações do suporte sobre uma conta.
+ *
+ * Um gancho por ação, e não um só com um verbo no corpo: cada uma invalida
+ * coisas diferentes, e juntá-las faria a tela recarregar o que não mudou.
+ */
+export function useGrantPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ managerId, ...data }) =>
+      api.post(`/admin/managers/${managerId}/grants`, data).then((r) => r.data),
+    onSuccess: (_data, { managerId }) =>
+      qc.invalidateQueries({ queryKey: ['admin-plan', managerId] }),
+  });
+}
+
+export function useRevokeGrant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ grantId }) => api.delete(`/admin/grants/${grantId}`).then((r) => r.data),
+    onSuccess: (_data, { managerId }) =>
+      qc.invalidateQueries({ queryKey: ['admin-plan', managerId] }),
+  });
+}
+
+export function useSetSuspension() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ managerId, suspended }) =>
+      api.patch(`/admin/managers/${managerId}/suspension`, { suspended }).then((r) => r.data),
+    onSuccess: (_data, { managerId }) => {
+      qc.invalidateQueries({ queryKey: ['admin-plan', managerId] });
+      // A lista de gestores mostra a suspensão ao lado do nome.
+      qc.invalidateQueries({ queryKey: ['managers'] });
+    },
+  });
+}
+
+export function useSetBuildingFreeze() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ buildingId, frozen }) =>
+      api.patch(`/admin/buildings/${buildingId}/freeze`, { frozen }).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['buildings'] }),
+  });
+}
+
+/**
+ * O plano que vale para a conta que está logada, e quanto dela já se gastou.
+ *
+ * É o que permite avisar antes de a pessoa esbarrar: "2 de 3 prédios" dito a
+ * tempo evita o 403 que ela só descobriria ao tentar cadastrar o quarto.
+ */
+export function useMyPlan() {
+  return useQuery({
+    queryKey: ['my-plan'],
+    queryFn: () => api.get('/billing/plan').then((r) => r.data),
+    enabled: useAuthStore.getState().user?.kind === 'MANAGER',
+  });
+}

@@ -9,6 +9,8 @@ jest.mock('../repositories/ticket.repository');
 jest.mock('../repositories/analytics.repository');
 jest.mock('../repositories/emailToken.repository');
 jest.mock('../repositories/subscription.repository');
+jest.mock('../repositories/plan.repository');
+jest.mock('../services/usage.service');
 jest.mock('../lib/mailer');
 jest.mock('../services/excel.service');
 jest.mock('../services/storage.service');
@@ -27,12 +29,16 @@ import { PlanCode, SubscriptionStatus } from '@prisma/client';
 import { auditRepository } from '../repositories/building.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { subscriptionRepository } from '../repositories/subscription.repository';
+import { planRepository } from '../repositories/plan.repository';
+import { usageService } from '../services/usage.service';
 import { verifyWebhookSignature } from '../lib/stripe';
 import { signAccessToken } from '../utils/jwt';
 
 const mockManagers = managerRepository as jest.Mocked<typeof managerRepository>;
 const mockSubs = subscriptionRepository as jest.Mocked<typeof subscriptionRepository>;
 const mockAudit = auditRepository as jest.Mocked<typeof auditRepository>;
+const mockPlans = planRepository as jest.Mocked<typeof planRepository>;
+const mockUsage = usageService as jest.Mocked<typeof usageService>;
 
 const GESTOR_ID = 'aaaaaaaa-1111-4111-8111-111111111111';
 const USER_ID = 'bbbbbbbb-2222-4222-8222-222222222222';
@@ -84,6 +90,13 @@ beforeEach(() => {
   mockSubs.recordEvent.mockResolvedValue(true);
   mockSubs.upsertFromStripe.mockResolvedValue({} as never);
   mockAudit.log.mockResolvedValue(undefined as never);
+
+  mockPlans.findActiveGrant.mockResolvedValue(null);
+  mockPlans.findActiveSubscription.mockResolvedValue(null);
+  mockPlans.countOwnedBuildings.mockResolvedValue(0);
+  mockUsage.emailsSent.mockResolvedValue(0);
+  mockUsage.storageUsedBytes.mockResolvedValue(0);
+  mockUsage.currentPeriod.mockReturnValue('2026-09');
 
   fetchMock.mockResolvedValue({
     ok: true,
@@ -333,5 +346,55 @@ describe('POST /billing/webhook', () => {
     expect(mockSubs.upsertFromStripe).toHaveBeenCalledWith(
       expect.objectContaining({ interval: 'YEARLY' })
     );
+  });
+});
+
+describe('GET /billing/plan', () => {
+  it('diz o plano que vale e o que já se gastou dele', async () => {
+    mockPlans.findActiveSubscription.mockResolvedValue({
+      plan: PlanCode.PRO,
+      status: SubscriptionStatus.ACTIVE,
+      extra_buildings: 1,
+    } as never);
+    mockPlans.countOwnedBuildings.mockResolvedValue(4);
+    mockUsage.storageUsedBytes.mockResolvedValue(1024);
+
+    const res = await request(app)
+      .get('/billing/plan')
+      .set('Authorization', `Bearer ${tokenGestor}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      code: 'PRO',
+      buildings_allowed: 6,
+      usage: { buildings: 4, storage_bytes: 1024, period: '2026-09' },
+    });
+  });
+
+  it('o que é ilimitado vira nulo, porque Infinity não sobrevive ao JSON', async () => {
+    mockPlans.findActiveGrant.mockResolvedValue({ plan: PlanCode.ESSENCIAL } as never);
+
+    const res = await request(app)
+      .get('/billing/plan')
+      .set('Authorization', `Bearer ${tokenGestor}`);
+
+    expect(res.body.limits.people.INSPECTOR).toBeNull();
+  });
+
+  it('a conta sem nada é LIVRE, com um prédio', async () => {
+    const res = await request(app)
+      .get('/billing/plan')
+      .set('Authorization', `Bearer ${tokenGestor}`);
+
+    expect(res.body).toMatchObject({ code: 'LIVRE', buildings_allowed: 1, source: 'PADRAO' });
+    expect(res.body.limits.people.MODERADOR).toBe(0);
+  });
+
+  it('conta de usuário não tem plano a consultar', async () => {
+    const res = await request(app)
+      .get('/billing/plan')
+      .set('Authorization', `Bearer ${tokenUsuario}`);
+
+    expect(res.status).toBe(403);
   });
 });

@@ -6,7 +6,7 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { GestorHeader } from '@/app/components/GestorHeader';
 import { Badge, Button, Card, Skeleton } from '@/app/components/ui';
 import { useToastStore } from '@/app/store/toast';
-import { useBillingPortal, useCheckout, useMySubscription } from '@/app/hooks/useApi';
+import { useBillingPortal, useCheckout, useMyPlan, useMySubscription } from '@/app/hooks/useApi';
 import { emReais, nomeDoPlano, PLANOS, STATUS_LABEL } from '@/app/lib/planos';
 import { T, R, W } from '@/app/lib/theme';
 
@@ -40,6 +40,96 @@ function avisoDoCheckout(resultado) {
     return { tom: 'aviso', texto: 'Você saiu do pagamento antes de concluir. Nada foi cobrado.' };
   }
   return null;
+}
+
+const GB = 1024 ** 3;
+
+/** Espaço em número que se lê: MB abaixo de um décimo de giga, GB acima. */
+function emGigas(bytes) {
+  if (!bytes) return '0 GB';
+  const gigas = bytes / GB;
+  return gigas < 0.1 ? `${Math.round(bytes / (1024 * 1024))} MB` : `${gigas.toFixed(1)} GB`;
+}
+
+/**
+ * O que a conta já gastou do plano.
+ *
+ * Existe para avisar antes do esbarrão: "2 de 3 prédios" dito aqui evita o 403
+ * que a pessoa só descobriria ao tentar cadastrar o terceiro, no meio de outra
+ * tarefa. A barra acende quando passa de 80% — abaixo disso ela é informação,
+ * acima é recado.
+ *
+ * Pessoas não entram na lista: no Essencial e no Pro elas são ilimitadas, e no
+ * Livre o limite é por prédio, não por conta — um número só mentiria sobre ele.
+ */
+function Consumo({ plano }) {
+  if (!plano) return null;
+
+  const linhas = [
+    {
+      rotulo: 'Prédios',
+      atual: plano.usage.buildings,
+      teto: plano.buildings_allowed,
+      texto: `${plano.usage.buildings} de ${plano.buildings_allowed}`,
+    },
+    {
+      rotulo: 'Fotos',
+      atual: plano.usage.storage_bytes,
+      teto: plano.limits.storage_bytes,
+      texto: `${emGigas(plano.usage.storage_bytes)} de ${emGigas(plano.limits.storage_bytes)}`,
+    },
+    {
+      rotulo: `E-mails em ${plano.usage.period}`,
+      atual: plano.usage.emails_this_month,
+      teto: plano.limits.emails_per_month,
+      texto: `${plano.usage.emails_this_month} de ${plano.limits.emails_per_month}`,
+    },
+  ];
+
+  return (
+    <Card style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <h2 style={{ fontFamily: T.display, fontSize: 16, fontWeight: W.title, color: T.text }}>
+        O que você já usou
+      </h2>
+
+      {linhas.map(({ rotulo, atual, teto, texto }) => {
+        const fracao = teto > 0 ? Math.min(atual / teto, 1) : 0;
+        const apertado = fracao >= 0.8;
+
+        return (
+          <div key={rotulo} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ color: T.text, fontSize: 13 }}>{rotulo}</span>
+              <span style={{ color: apertado ? T.text : T.mute, fontSize: 13 }}>{texto}</span>
+            </div>
+            <div
+              role="progressbar"
+              aria-label={rotulo}
+              aria-valuenow={Math.round(fracao * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              style={{ height: 6, borderRadius: 999, background: T.chip, overflow: 'hidden' }}
+            >
+              <div
+                style={{
+                  width: `${fracao * 100}%`,
+                  height: '100%',
+                  background: apertado ? T.danger : T.accent,
+                }}
+              />
+            </div>
+          </div>
+        );
+      })}
+
+      {linhas.some(({ atual, teto }) => teto > 0 && atual / teto >= 0.8) && (
+        <p style={{ color: T.text, fontSize: 13, lineHeight: 1.6 }}>
+          Você está perto de um dos limites do plano. Trocar de plano antes evita a recusa no meio
+          de uma vistoria.
+        </p>
+      )}
+    </Card>
+  );
 }
 
 function PlanoAtual({ assinatura, carregando, onPortal, abrindoPortal }) {
@@ -182,6 +272,7 @@ function TelaDeCobranca() {
 
   const { show: toast } = useToastStore();
   const { data: assinatura, isLoading } = useMySubscription();
+  const { data: plano } = useMyPlan();
   const checkout = useCheckout();
   const portal = useBillingPortal();
 
@@ -212,7 +303,7 @@ function TelaDeCobranca() {
     }
   }
 
-  const planoAtual = assinatura?.plan ?? 'LIVRE';
+  const planoAtual = plano?.code ?? assinatura?.plan ?? 'LIVRE';
 
   return (
     <RouteGuard roles={['GESTOR']}>
@@ -248,6 +339,8 @@ function TelaDeCobranca() {
           onPortal={abrirPortal}
           abrindoPortal={portal.isPending}
         />
+
+        <Consumo plano={plano} />
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <h2 style={{ fontFamily: T.display, fontSize: 16, fontWeight: W.title, color: T.text }}>

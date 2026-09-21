@@ -23,6 +23,10 @@ export const billingController = {
     ok(res, await billingService.createPortal(asManager(req)));
   },
 
+  async myPlan(req: AuthenticatedRequest, res: Response) {
+    ok(res, await billingService.myPlan(asManager(req)));
+  },
+
   async mine(req: AuthenticatedRequest, res: Response) {
     ok(res, await billingService.mySubscription(asManager(req)));
   },
