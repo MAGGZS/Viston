@@ -35,7 +35,16 @@ const TICKET = {
 
 function Tela(tickets = [TICKET]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-  api.get.mockResolvedValue({ data: { tickets } });
+
+  // Por rota, e não uma resposta só para tudo: a tela pede duas coisas ao
+  // servidor. Os chamados vêm num objeto (`{ tickets }`), e os prédios da conta
+  // vêm numa lista — a caixa de registrar ocorrência consulta `/buildings/me`
+  // para saber em qual prédio a ocorrência entra. Com uma resposta única, a
+  // lista chegava como objeto e a caixa quebrava em `available.find`.
+  api.get.mockImplementation((url) => {
+    if (url.includes('/buildings/me')) return Promise.resolve({ data: [] });
+    return Promise.resolve({ data: { tickets } });
+  });
 
   return render(
     <QueryClientProvider client={client}>
