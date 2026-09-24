@@ -110,6 +110,23 @@ export class EmailDeliveryError extends AppError {
 }
 
 /**
+ * A conta de gestor foi suspensa pelo admin.
+ *
+ * 403 e não 401: 401 é "não sei quem você é", e aqui se sabe muito bem. O app
+ * usa o `code` para explicar em vez de mandar a pessoa tentar a senha de novo —
+ * senha nova não resolve suspensão.
+ */
+export class AccountSuspendedError extends AppError {
+  constructor() {
+    super(
+      'CONTA_SUSPENSA',
+      'Esta conta está suspensa. Fale com o suporte do Viston.',
+      403
+    );
+  }
+}
+
+/**
  * O plano da conta não comporta mais um.
  *
  * Mais um prédio, mais um inspetor, mais um e-mail no mês. 403 e não 402: quem

@@ -14,6 +14,7 @@ import feedbackRoutes from './routes/feedback.routes';
 import inspectionRoutes from './routes/inspection.routes';
 import ticketRoutes from './routes/ticket.routes';
 import analyticsRoutes from './routes/analytics.routes';
+import adminRoutes from './routes/admin.routes';
 import { errorHandler } from './middlewares/errorHandler';
 import { generalLimiter } from './middlewares/rateLimit';
 
@@ -113,6 +114,9 @@ app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
 app.use('/managers', managerRoutes);
 app.use('/feedbacks', feedbackRoutes);
+// As rotas de plano do suporte. Caminho próprio porque o que mora nelas é o
+// admin olhando para a conta dos outros, e não a conta olhando para si mesma.
+app.use('/admin', adminRoutes);
 app.use('/', inspectionRoutes);
 // Os chamados moram em dois caminhos — a fila é do prédio, a ação é da
 // ocorrência — e por isso a rota entra na raiz, como a de vistorias.

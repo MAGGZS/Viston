@@ -5,6 +5,7 @@ import { generateDayExcel } from './excel.service';
 import { storageService } from './storage.service';
 import { SubmitInspectionPayload } from '../validators/inspection.validator';
 import { canInspectBuilding, getBuildingStanding, isBuildingManager } from '../middlewares/buildingAccess';
+import { planGate } from '../middlewares/planGate';
 import { Actor } from '../middlewares/authenticate';
 import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
 import { floorRank } from '../utils/floorOrder';
@@ -229,6 +230,10 @@ export const inspectionService = {
     if (!(await canInspectBuilding(inspector, payload.building_id))) {
       throw new ForbiddenError('Você não tem permissão para vistoriar este prédio');
     }
+
+    // Prédio inativo não recebe vistoria nova. O que já foi vistoriado continua
+    // aberto para leitura — o histórico é do cliente, não do plano.
+    planGate.assertActive(building);
 
     const floorIds = payload.floors.map((f) => f.floor_id);
     if (new Set(floorIds).size !== floorIds.length) {

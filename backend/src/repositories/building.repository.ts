@@ -128,6 +128,23 @@ export const buildingRepository = {
     return prisma.buildingManager.count({ where: { building_id: buildingId } });
   },
 
+  /**
+   * Inativa ou reativa o prédio, pela mão do admin.
+   *
+   * Uma data, como a suspensão da conta: "desde quando" é o que o caso pergunta
+   * depois. Nulo é prédio normal.
+   *
+   * Congelado, o prédio continua existindo e continua sendo lido — o histórico
+   * é do cliente, não do plano. O que ele deixa de aceitar é trabalho novo, e
+   * essa recusa mora nas rotas, não aqui.
+   */
+  setFrozen(buildingId: string, frozen: boolean) {
+    return prisma.building.update({
+      where: { id: buildingId },
+      data: { frozen_at: frozen ? new Date() : null },
+    });
+  },
+
   addManager(buildingId: string, managerId: string) {
     return prisma.buildingManager.create({
       data: { building_id: buildingId, manager_id: managerId },
@@ -276,6 +293,17 @@ export const buildingRepository = {
       data: { building_id: buildingId, user_id: userId, role },
       include: { user: { select: ACCOUNT_FIELDS } },
     });
+  },
+
+  /**
+   * Quantas pessoas o prédio tem naquele papel.
+   *
+   * É a contagem que o limite do plano consulta antes de deixar entrar mais uma
+   * (ver `planGate.assertCanAddPerson`). Gestor não sai daqui — ele vive em
+   * `building_managers`, e quem o conta é `countManagers`.
+   */
+  countMembersByRole(buildingId: string, role: BuildingRole) {
+    return prisma.buildingMember.count({ where: { building_id: buildingId, role } });
   },
 
   updateMemberRole(buildingId: string, userId: string, role: BuildingRole) {

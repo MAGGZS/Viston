@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuditAction, BuildingRole } from '@prisma/client';
 import { AuthenticatedRequest } from '../middlewares/authenticate';
+import { planGate } from '../middlewares/planGate';
 import { actorAudit, buildingRepository, auditRepository } from '../repositories/building.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { inspectionRepository } from '../repositories/inspection.repository';
@@ -107,6 +108,11 @@ export const buildingController = {
     if (req.user.kind !== 'MANAGER') {
       throw new ForbiddenError('Só uma conta de gestor pode cadastrar prédio');
     }
+
+    // O teto de prédios do plano de quem cria, antes de escrever: prédio criado
+    // e desfeito depois deixaria uma chave de compartilhamento queimada e uma
+    // linha de auditoria de algo que não vingou.
+    await planGate.assertCanCreateBuilding(req.user.id, req.user);
 
     const { name, description } = req.body;
     const building = await buildingRepository.create({ name, description, created_by: req.user.id });
@@ -257,6 +263,9 @@ export const buildingController = {
     const existing = await buildingRepository.findManagerLink(req.params.id, manager.id);
     if (existing) throw new ConflictError('Esta pessoa já é gestora deste prédio');
 
+    // Co-gestor é o que o plano LIVRE não tem: um gestor por prédio.
+    await planGate.assertCanAddPerson(req.params.id, 'GESTOR', req.user);
+
     const link = await buildingRepository.addManager(req.params.id, manager.id);
 
     await auditRepository.log({
@@ -318,6 +327,13 @@ export const buildingController = {
     // responsável. Promover a gestor não passa por aqui, porque gestor é outro
     // tipo de conta (ver POST /buildings/:id/managers).
     const { role } = req.body as { role: BuildingRole };
+
+    // Só quando o papel muda de verdade: repetir o papel que a pessoa já tem
+    // contaria ela mesma contra o próprio limite, e recusaria um gesto que não
+    // acrescenta ninguém.
+    if (member.role !== role) {
+      await planGate.assertCanAddPerson(req.params.id, role, req.user);
+    }
 
     const updated = await buildingRepository.updateMemberRole(
       req.params.id,
@@ -399,6 +415,13 @@ export const buildingController = {
     const request = await buildingRepository.findAccessRequestById(req.params.requestId);
     if (!request || request.building_id !== req.params.id) throw new NotFoundError('Solicitação');
     if (request.status !== 'PENDING') throw new ConflictError('Solicitação já foi revisada');
+
+    // O teto de visualizadores do plano, antes de mexer na solicitação: se a
+    // vaga não existe, a fila não pode perder o pedido — aprovado sem vínculo,
+    // ele sairia da lista do gestor sem dar acesso a ninguém.
+    if (status === 'APPROVED') {
+      await planGate.assertCanAddPerson(req.params.id, BuildingRole.VIEWER, req.user);
+    }
 
     const updated = await buildingRepository.updateAccessRequest(req.params.requestId, status);
 
