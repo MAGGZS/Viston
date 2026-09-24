@@ -76,3 +76,30 @@ services:
         sync: false
       - key: EMAIL_FROM_NAME
         value: Viston
+      # Stripe. Nenhuma e obrigatoria: sem elas as rotas de cobranca respondem
+      # 503 e o resto do produto segue inteiro (ver src/config.ts). E o que
+      # permite este codigo ir para producao antes de a loja abrir.
+      #
+      # `sync: false` porque sao segredo e identificador de conta: entram pelo
+      # painel, como a chave da Brevo. Use a chave de teste enquanto a loja nao
+      # abre — ela falha alto em vez de cobrar de alguem de verdade.
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      # O segredo do endpoint de webhook: e ele que prova que o evento veio do
+      # Stripe. Sem ele, quem descobrir a URL promove a propria conta para PRO.
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      # As chaves de preco, criadas no painel do Stripe: uma por plano e por
+      # intervalo, mais a do predio extra, cobrado por unidade.
+      - key: STRIPE_PRICE_ESSENCIAL_MONTHLY
+        sync: false
+      - key: STRIPE_PRICE_ESSENCIAL_YEARLY
+        sync: false
+      - key: STRIPE_PRICE_PRO_MONTHLY
+        sync: false
+      - key: STRIPE_PRICE_PRO_YEARLY
+        sync: false
+      - key: STRIPE_PRICE_EXTRA_BUILDING_MONTHLY
+        sync: false
+      - key: STRIPE_PRICE_EXTRA_BUILDING_YEARLY
+        sync: false

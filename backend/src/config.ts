@@ -72,6 +72,39 @@ export const config = {
     fromName: process.env.EMAIL_FROM_NAME || 'Viston',
   },
 
+  /**
+   * O Stripe, e por que nada aqui é obrigatório.
+   *
+   * `required()` derrubaria o serviço na subida enquanto a conta do Stripe não
+   * existisse — e ela não existe ainda. Sem chave, as rotas de cobrança
+   * respondem 503 e o resto do produto segue inteiro; é o que permite este
+   * código ir para produção antes de a loja abrir.
+   *
+   * O que falta para ligar: as quatro chaves de preço no painel do Stripe, a
+   * secreta da conta e o segredo do endpoint de webhook. Todas entram pelo
+   * painel do Render (`sync: false`), como a da Brevo — segredo nenhum mora
+   * neste repositório.
+   */
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY || '',
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+    prices: {
+      ESSENCIAL: {
+        MONTHLY: process.env.STRIPE_PRICE_ESSENCIAL_MONTHLY || '',
+        YEARLY: process.env.STRIPE_PRICE_ESSENCIAL_YEARLY || '',
+      },
+      PRO: {
+        MONTHLY: process.env.STRIPE_PRICE_PRO_MONTHLY || '',
+        YEARLY: process.env.STRIPE_PRICE_PRO_YEARLY || '',
+      },
+      /** O prédio extra, cobrado por unidade em cima do plano. */
+      EXTRA_BUILDING: {
+        MONTHLY: process.env.STRIPE_PRICE_EXTRA_BUILDING_MONTHLY || '',
+        YEARLY: process.env.STRIPE_PRICE_EXTRA_BUILDING_YEARLY || '',
+      },
+    },
+  },
+
   cors: {
     /**
      * FRONTEND_URL aceita uma ou várias origens separadas por vírgula.
