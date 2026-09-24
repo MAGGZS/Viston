@@ -158,8 +158,8 @@ export const managerService = {
   },
 
   /** Lista do painel do admin. */
-  async findAll(page: number, limit: number) {
-    const [managers, total] = await managerRepository.findAll(page, limit);
+  async findAll(page: number, limit: number, search?: string) {
+    const [managers, total] = await managerRepository.findAll(page, limit, search);
     const withPlans = await Promise.all(
       managers.map(async ({ _count, ...manager }) => {
         const resolved = await planService.resolvePlan(manager.id);

@@ -488,10 +488,24 @@ export function useRemoveBuildingManager() {
 }
 
 /** Lista de gestores — painel do admin. */
-export function useManagers(page = 1) {
+/**
+ * A página de gestores do painel do admin.
+ *
+ * A busca vai ao servidor em vez de filtrar o que já chegou: com 20 por página,
+ * procurar pelo gestor de número 21 respondia "nenhum gestor encontrado" — um
+ * falso negativo em cima de uma conta que existe, na tela de quem dá suporte.
+ *
+ * `keepPreviousData` segura a página anterior enquanto a nova vem, para a lista
+ * não piscar a cada tecla digitada.
+ */
+export function useManagers(page = 1, search = '') {
   return useQuery({
-    queryKey: ['managers', page],
-    queryFn: () => api.get('/managers', { params: { page, limit: 20 } }).then((r) => r.data),
+    queryKey: ['managers', page, search],
+    queryFn: () =>
+      api
+        .get('/managers', { params: { page, limit: 20, ...(search ? { search } : {}) } })
+        .then((r) => r.data),
+    placeholderData: keepPreviousData,
   });
 }
 
