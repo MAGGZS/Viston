@@ -370,8 +370,14 @@ input:-webkit-autofill:focus {
 .anim-pop-in     { animation: pop-in 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
 .anim-fade-out   { animation: fade-out 0.18s ease both; }
 .anim-scale-out  { animation: scale-out 0.18s ease both; }
-.anim-slide-in-right  { animation: slide-in-right 0.28s cubic-bezier(0.32, 0.72, 0, 1) both; }
-.anim-slide-out-right { animation: slide-out-right 0.2s cubic-bezier(0.32, 0.72, 0, 1) both; }
+.anim-slide-in-right  {
+  animation: slide-in-right 260ms var(--ease-drawer) both;
+  will-change: transform;
+}
+.anim-slide-out-right {
+  animation: slide-out-right 200ms var(--ease-drawer) both;
+  will-change: transform;
+}
 
 @keyframes slide-in-right {
   from { transform: translateX(100%); }
@@ -380,6 +386,15 @@ input:-webkit-autofill:focus {
 @keyframes slide-out-right {
   from { transform: translateX(0); }
   to   { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-slide-in-right,
+  .anim-slide-out-right {
+    animation: none;
+    transform: none;
+    will-change: auto;
+  }
 }
 
 /**
@@ -396,6 +411,8 @@ input:-webkit-autofill:focus {
  */
 :root {
   --ease-saida: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 /**
@@ -636,6 +653,190 @@ input:-webkit-autofill:focus {
 }
 
 .dialog.is-closing::backdrop { animation: fade-out 0.18s ease both; }
+
+/* Backdrop do drawer lateral sincronizado com os tempos e curva de saída */
+.dialog-drawer::backdrop {
+  background: var(--backdrop);
+  animation: fade-in 0.26s var(--ease-drawer) both;
+}
+.dialog-drawer.is-closing::backdrop {
+  animation: fade-out 0.2s var(--ease-drawer) both;
+}
+
+/* Botão voltar do drawer com microinteração de resposta tátil */
+.drawer-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-control);
+  background: var(--color-chip);
+  border: 1px solid var(--color-line);
+  color: var(--color-ink);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 160ms var(--ease-saida), transform 160ms var(--ease-saida);
+}
+@media (hover: hover) and (pointer: fine) {
+  .drawer-back-btn:hover {
+    background-color: var(--color-hover);
+    transform: translateX(-2px);
+  }
+}
+.drawer-back-btn:active {
+  transform: translateX(-2px) scale(0.95);
+}
+
+/* Card de KPI interativo do Viston (Admin & Gestor) */
+.kpi-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px 18px;
+  background: var(--color-card);
+  border-radius: var(--radius-card);
+  border: none;
+  box-shadow: var(--card-ring);
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  min-width: 0;
+  transition: transform 180ms var(--ease-saida),
+              background-color 180ms var(--ease-saida);
+}
+@media (hover: hover) and (pointer: fine) {
+  .kpi-card:hover {
+    background: var(--color-hover-raised);
+    transform: translateY(-2px);
+  }
+}
+.kpi-card:active {
+  transform: translateY(0) scale(0.98);
+}
+.kpi-card:focus,
+.kpi-card:focus-visible {
+  outline: none;
+}
+.kpi-card.is-active {
+  background: var(--color-chip);
+}
+
+/* Container principal da página de planos com recuo responsivo */
+.planos-main {
+  flex: 1;
+  padding: clamp(20px, 2.5vw, 32px) clamp(16px, 2.5vw, 32px) 64px;
+  min-width: 0;
+}
+
+/* Grade de KPIs: 4 colunas em desktop, empilhados verticalmente na metade da tela (≤ 960px) */
+.planos-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1180px) and (min-width: 961px) {
+  .planos-kpi-grid {
+    gap: 10px;
+  }
+  .planos-kpi-grid .kpi-card {
+    padding: 13px 14px;
+  }
+}
+
+@media (max-width: 960px) {
+  .planos-kpi-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .planos-kpi-grid .kpi-card {
+    width: 100%;
+    padding: 14px 18px;
+  }
+}
+
+/* Barra de filtros: horizontal em desktop, vertical na metade da tela (≤ 960px) */
+.planos-filter-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.planos-select-group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-shrink: 0;
+}
+@media (max-width: 960px) {
+  .planos-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .planos-filter-bar .planos-search-box {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+  }
+  .planos-filter-bar .planos-select-group {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 10px;
+  }
+  .planos-filter-bar .planos-select-group > div {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+}
+
+/* Tabela em desktop e Lista Vertical de Cards na metade da tela (≤ 960px) */
+.planos-table-wrapper {
+  display: block;
+  background: var(--color-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-ring);
+  overflow-x: auto;
+}
+.planos-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.planos-table th,
+.planos-table td {
+  padding: 14px 18px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+@media (max-width: 1180px) and (min-width: 961px) {
+  .planos-table th,
+  .planos-table td {
+    padding: 12px 10px;
+    font-size: 13px;
+  }
+}
+.planos-mobile-list {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  .planos-table-wrapper {
+    display: none;
+  }
+  .planos-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+}
 
 /* Caixa que ocupa a tela inteira no telefone (o relatório do dia) */
 .dialog--full {
