@@ -21,7 +21,11 @@ export const managerController = {
   async findAll(req: AuthenticatedRequest, res: Response) {
     const page = parseInt(String(req.query.page ?? '1'), 10);
     const limit = parseInt(String(req.query.limit ?? '20'), 10);
-    ok(res, await managerService.findAll(page, limit));
+    // O termo vai cortado: quem procura digita um nome ou um domínio, e um
+    // texto de dez mil caracteres na querystring só serviria para fazer o
+    // banco varrer a tabela à toa.
+    const search = String(req.query.search ?? '').trim().slice(0, 120);
+    ok(res, await managerService.findAll(page, limit, search || undefined));
   },
 
   async remove(req: AuthenticatedRequest, res: Response) {

@@ -44,10 +44,33 @@ export const managerRepository = {
     });
   },
 
-  findAll(page: number, limit: number) {
+  /**
+   * A página de gestores, opcionalmente recortada por um termo de busca.
+   *
+   * A busca é do banco, e não da tela. Filtrar no cliente parecia funcionar e
+   * mentia: a tela recebia só a primeira página, então procurar pelo gestor de
+   * número 21 respondia "nenhum gestor encontrado" — um falso negativo em cima
+   * de uma conta que existe, na mesa de quem dá suporte.
+   *
+   * `contains` com `insensitive` em nome e e-mail: é como a pessoa procura —
+   * um pedaço do nome, ou o domínio da empresa.
+   */
+  findAll(page: number, limit: number, search?: string) {
     const skip = (page - 1) * limit;
+    const termo = search?.trim();
+
+    const where: Prisma.ManagerWhereInput = termo
+      ? {
+          OR: [
+            { name: { contains: termo, mode: 'insensitive' } },
+            { email: { contains: termo, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+
     return Promise.all([
       prisma.manager.findMany({
+        where,
         skip,
         take: limit,
         orderBy: { created_at: 'desc' },
@@ -56,7 +79,9 @@ export const managerRepository = {
           _count: { select: { managed_buildings: true } },
         },
       }),
-      prisma.manager.count(),
+      // O total acompanha o mesmo recorte: sem isto, a paginação da busca
+      // prometeria páginas que não existem.
+      prisma.manager.count({ where }),
     ]);
   },
 

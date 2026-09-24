@@ -356,3 +356,59 @@ describe('PATCH /admin/buildings/:id/freeze', () => {
     expect(res.status).toBe(404);
   });
 });
+
+/**
+ * A lista de gestores do painel de planos.
+ *
+ * A busca é do banco, e não da tela: com 20 por página, filtrar no cliente
+ * respondia "nenhum gestor encontrado" para o gestor de número 21 — um falso
+ * negativo em cima de uma conta que existe.
+ */
+describe('GET /managers — a busca do suporte', () => {
+  beforeEach(() => {
+    mockManagers.findAll.mockResolvedValue([[], 0] as never);
+  });
+
+  it('manda o termo para o repositório, e não filtra o que já chegou', async () => {
+    const res = await request(app)
+      .get('/managers?search=ana')
+      .set('Authorization', `Bearer ${tokenAdmin}`);
+
+    expect(res.status).toBe(200);
+    expect(mockManagers.findAll).toHaveBeenCalledWith(1, 20, 'ana');
+  });
+
+  it('sem termo, a busca não existe — e a página inteira volta', async () => {
+    await request(app).get('/managers').set('Authorization', `Bearer ${tokenAdmin}`);
+
+    expect(mockManagers.findAll).toHaveBeenCalledWith(1, 20, undefined);
+  });
+
+  it('termo só de espaços vale o mesmo que termo nenhum', async () => {
+    await request(app).get('/managers?search=%20%20').set('Authorization', `Bearer ${tokenAdmin}`);
+
+    expect(mockManagers.findAll).toHaveBeenCalledWith(1, 20, undefined);
+  });
+
+  it('termo gigante é cortado antes de chegar ao banco', async () => {
+    await request(app)
+      .get(`/managers?search=${'a'.repeat(500)}`)
+      .set('Authorization', `Bearer ${tokenAdmin}`);
+
+    const [, , termo] = mockManagers.findAll.mock.calls[0];
+    expect(termo).toHaveLength(120);
+  });
+
+  it('a página pedida é a página consultada', async () => {
+    await request(app).get('/managers?page=3&search=ana').set('Authorization', `Bearer ${tokenAdmin}`);
+
+    expect(mockManagers.findAll).toHaveBeenCalledWith(3, 20, 'ana');
+  });
+
+  it('gestor não entra no painel de gestores', async () => {
+    const res = await request(app).get('/managers').set('Authorization', `Bearer ${tokenGestor}`);
+
+    expect(res.status).toBe(403);
+    expect(mockManagers.findAll).not.toHaveBeenCalled();
+  });
+});

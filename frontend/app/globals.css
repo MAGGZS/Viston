@@ -688,6 +688,25 @@ input:-webkit-autofill:focus {
   transform: translateX(-2px) scale(0.95);
 }
 
+/**
+ * Cartão que só mostra — o do gestor na lista de planos, no telefone.
+ *
+ * Ele usava `.kpi-card`, que é a casca de um controle: cursor de mão, realce no
+ * hover, encolhida no toque. O cartão inteiro deixou de abrir o painel (quem
+ * abre é o botão "Gerenciar", que o teclado alcança), e a aparência precisava
+ * acompanhar — cartão que se anuncia clicável e não responde é pior do que
+ * cartão quieto.
+ */
+.cartao-estatico {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-ring);
+  min-width: 0;
+}
+
 /* Card de KPI interativo do Viston (Admin & Gestor) */
 .kpi-card {
   position: relative;
@@ -715,9 +734,18 @@ input:-webkit-autofill:focus {
 .kpi-card:active {
   transform: translateY(0) scale(0.98);
 }
-.kpi-card:focus,
+/**
+ * Dourado no foco, como `.btn` e `.fila-card`.
+ *
+ * Aqui estava `outline: none` nos dois estados, e os quatro cartões são o
+ * filtro rápido da tela — cada um é um controle de verdade. Sem realce, quem
+ * navega por teclado atravessava a fileira inteira sem saber em qual estava.
+ * `:focus-visible` e não `:focus`: quem clica com o mouse não vê anel nenhum, e
+ * quem chega pelo Tab vê.
+ */
 .kpi-card:focus-visible {
-  outline: none;
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 2px;
 }
 .kpi-card.is-active {
   background: var(--color-chip);
@@ -797,6 +825,43 @@ input:-webkit-autofill:focus {
   }
 }
 
+/* O campo de busca do painel de planos, e o botão que o limpa. */
+.busca-gestor:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 2px;
+}
+
+/**
+ * Alvo de 44px no botão de limpar, que é o mínimo confortável para o dedo —
+ * o `X` desenhado tem 14px, e o resto é área de toque, não tinta.
+ */
+.btn-limpar-busca {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 999px;
+  color: var(--color-mute);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-limpar-busca:hover {
+    background: var(--color-hover);
+    color: var(--color-ink);
+  }
+}
+.btn-limpar-busca:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 2px;
+}
+
 /* Tabela em desktop e Lista Vertical de Cards na metade da tela (≤ 960px) */
 .planos-table-wrapper {
   display: block;
@@ -821,6 +886,19 @@ input:-webkit-autofill:focus {
   .planos-table td {
     padding: 12px 10px;
     font-size: 13px;
+  }
+  /* A coluna que menos decide alguma coisa é a primeira a sair quando a janela
+     aperta — o nome da classe já existia no JSX, e a regra é esta. */
+  .planos-table .col-cadastro {
+    display: none;
+  }
+}
+
+/* O realce da linha mora aqui, e não num `onMouseEnter`: em JS ele fica
+   grudado depois do toque no telefone e não existe para o teclado. */
+@media (hover: hover) and (pointer: fine) {
+  .planos-table tbody tr:hover {
+    background-color: var(--color-hover-raised);
   }
 }
 .planos-mobile-list {

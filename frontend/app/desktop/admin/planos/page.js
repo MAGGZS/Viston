@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Ban,
@@ -36,6 +36,8 @@ import {
 import { mensagemDoErro } from '@/app/lib/erros';
 import { nomeDoPlano } from '@/app/lib/planos';
 import { CONTENT_ID } from '@/app/components/mobile/kit';
+import { Paginator } from '@/app/components/Paginator';
+import { useDebouncedValue } from '@/app/hooks/useDebouncedValue';
 import { T, R, W, NUM } from '@/app/lib/theme';
 
 const DE_ONDE_VEM = {
@@ -58,12 +60,16 @@ function dataCurta(valor) {
 
 /** O estado de uma concessão, em uma palavra — e por que ela não vale mais. */
 function estadoDaConcessao(grant) {
-  if (grant.revoked_at) return { label: `Revogada em ${dataCurta(grant.revoked_at)}`, variant: 'default' };
-  if (grant.expires_at && new Date(grant.expires_at) <= new Date()) {
-    return { label: `Venceu em ${dataCurta(grant.expires_at)}`, variant: 'default' };
+  if (grant.revoked_at) {
+    return { label: `Revogada em ${dataCurta(grant.revoked_at)}`, variant: 'default', ativa: false };
   }
-  if (grant.expires_at) return { label: `Vale até ${dataCurta(grant.expires_at)}`, variant: 'success' };
-  return { label: 'Sem prazo', variant: 'success' };
+  if (grant.expires_at && new Date(grant.expires_at) <= new Date()) {
+    return { label: `Venceu em ${dataCurta(grant.expires_at)}`, variant: 'default', ativa: false };
+  }
+  if (grant.expires_at) {
+    return { label: `Vale até ${dataCurta(grant.expires_at)}`, variant: 'success', ativa: true };
+  }
+  return { label: 'Sem prazo', variant: 'success', ativa: true };
 }
 
 function PlanoBadge({ plan }) {
@@ -89,37 +95,41 @@ function ConcederModal({ open, gestor, onClose }) {
   const [plan, setPlan] = useState('ESSENCIAL');
   const [reason, setReason] = useState('');
   const [days, setDays] = useState('30');
+  // O erro mora no campo, e não num toast: o `Input` já monta `aria-invalid` e
+  // aponta a mensagem por `aria-describedby`. Em toast, ele aparecia longe do
+  // que precisa ser corrigido — e sumia em três segundos.
+  const [erros, setErros] = useState({});
 
   function fechar() {
     setPlan('ESSENCIAL');
     setReason('');
     setDays('30');
+    setErros({});
     onClose();
   }
 
   async function enviar() {
-    if (reason.trim().length < 3) {
-      toast('Escreva o motivo da concessão', 'error');
-      return;
-    }
-
     const numDays = days.trim() ? Number(days) : undefined;
-    if (numDays !== undefined && (isNaN(numDays) || numDays <= 0)) {
-      toast('O prazo precisa ser de ao menos 1 dia (ou deixe em branco para sem prazo)', 'error');
-      return;
+    const novosErros = {};
+
+    if (reason.trim().length < 3) {
+      novosErros.reason = 'Escreva o motivo da concessão';
+    }
+    if (numDays !== undefined && (Number.isNaN(numDays) || numDays <= 0)) {
+      novosErros.days = 'Ao menos 1 dia — ou deixe em branco para sem prazo';
     }
 
-    const planCode =
-      typeof plan === 'object' && plan !== null ? (plan.target?.value ?? plan.value) : plan;
+    setErros(novosErros);
+    if (Object.keys(novosErros).length > 0) return;
 
     try {
       await conceder.mutateAsync({
         managerId: gestor.id,
-        plan: planCode,
+        plan,
         reason: reason.trim(),
         ...(numDays ? { days: numDays } : {}),
       });
-      toast(`${nomeDoPlano(planCode)} concedido a ${gestor.name}`, 'success');
+      toast(`${nomeDoPlano(plan)} concedido a ${gestor.name}`, 'success');
       fechar();
     } catch (err) {
       toast(mensagemDoErro(err, 'Não foi possível conceder'), 'error');
@@ -143,7 +153,11 @@ function ConcederModal({ open, gestor, onClose }) {
         <Input
           label="Motivo"
           value={reason}
-          onChange={(e) => setReason(e.target.value)}
+          error={erros.reason}
+          onChange={(e) => {
+            setReason(e.target.value);
+            if (erros.reason) setErros((atuais) => ({ ...atuais, reason: undefined }));
+          }}
           placeholder="Ex.: cobrança travada, parceria, teste de duas semanas"
         />
 
@@ -151,7 +165,11 @@ function ConcederModal({ open, gestor, onClose }) {
           label="Prazo em dias (vazio = sem prazo)"
           value={days}
           inputMode="numeric"
-          onChange={(e) => setDays(e.target.value.replace(/\D/g, ''))}
+          error={erros.days}
+          onChange={(e) => {
+            setDays(e.target.value.replace(/\D/g, ''));
+            if (erros.days) setErros((atuais) => ({ ...atuais, days: undefined }));
+          }}
           placeholder="30"
         />
 
@@ -173,20 +191,42 @@ function ConcederModal({ open, gestor, onClose }) {
   );
 }
 
-/** Modal de detalhes ocupando 2/3 da tela, alinhado à direita conforme o anexo */
+/**
+ * O painel da conta, numa gaveta que entra pela direita.
+ *
+ * Gaveta e não caixa centralizada porque o que ela mostra é uma leitura longa —
+ * consumo, prédios e histórico de concessões — e a lista de gestores continua
+ * visível ao lado, que é de onde a pessoa veio e para onde ela volta.
+ */
 function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
   const { show: toast } = useToastStore();
+  // O nome da gaveta para quem usa leitor de tela: aponta para o `<h2>` com o
+  // nome do gestor, que é o que uma pessoa vidente lê primeiro ali.
+  const tituloId = useId();
   const DRAWER_EXIT_MS = 200;
   const { mounted, closing } = useExitTransition(open, DRAWER_EXIT_MS);
   const shownGestor = useKeepWhileClosing(gestor, open);
 
-  const { data, isLoading } = useManagerPlan(shownGestor?.id);
-  const { data: todosOsPredios = [] } = useBuildings();
+  const { data, isLoading, isError, refetch } = useManagerPlan(shownGestor?.id);
+  const {
+    data: todosOsPredios = [],
+    isLoading: carregandoPredios,
+    isError: erroNosPredios,
+  } = useBuildings();
   const revogar = useRevokeGrant();
   const suspender = useSetSuspension();
   const congelar = useSetBuildingFreeze();
 
   const [confirmacao, setConfirmacao] = useState(null);
+
+  /**
+   * A caixa de confirmação gira pela ação que ela mesma disparou.
+   *
+   * Antes ela olhava as três mutações somadas, então revogar uma concessão
+   * travava a caixa de inativar prédio — e vice-versa. Cada confirmação carrega
+   * a sua (`mutacao`), e o botão só espera o que ele pediu.
+   */
+  const emCurso = confirmacao?.mutacao ?? { isPending: false };
 
   if (!mounted || !shownGestor) return null;
 
@@ -219,12 +259,15 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
     <>
       <Dialog
         onClose={onClose}
+        // Sem isto a gaveta abria como "diálogo" e nada mais para quem usa
+        // leitor de tela. Os outros Dialogs do produto passam `labelledBy`.
+        labelledBy={tituloId}
         className={`dialog-drawer ${closing ? 'is-closing' : ''}`}
         style={{
           width: 'clamp(640px, 66.66vw, 1100px)',
           maxWidth: '100vw',
-          height: '100vh',
-          maxHeight: '100vh',
+          height: '100dvh',
+          maxHeight: '100dvh',
           margin: '0 0 0 auto',
           background: 'transparent',
           padding: 0,
@@ -271,6 +314,7 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <h2
+                    id={tituloId}
                     style={{
                       fontSize: 17,
                       fontWeight: W.title,
@@ -283,7 +327,7 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
                   </h2>
                   <span
                     style={{
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: W.strong,
                       textTransform: 'uppercase',
                       letterSpacing: '0.05em',
@@ -342,9 +386,12 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
                     borderRadius: R.badge,
                     fontSize: 11,
                     fontWeight: W.strong,
-                    background: suspenso ? T.dangerSoft : 'rgba(34, 197, 94, 0.1)',
+                    // Tokens do tema, e não verde e vermelho crus: cor fixa não
+                    // acompanha a troca de tema, e no claro o selo se apagava
+                    // contra o cartão.
+                    background: suspenso ? T.dangerSoft : T.chip,
                     color: suspenso ? T.danger : T.success,
-                    border: `1px solid ${suspenso ? 'rgba(239, 68, 68, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`,
+                    border: `1px solid ${suspenso ? T.dangerSoft : T.line}`,
                     height: 26,
                   }}
                 >
@@ -361,7 +408,7 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
 
                 <Button
                   variant={suspenso ? 'secondary' : 'danger'}
-                  style={{ padding: '3px 10px', fontSize: 11, height: 26 }}
+                  style={{ padding: '6px 12px', fontSize: 11, minHeight: 32 }}
                   onClick={() =>
                     setConfirmacao({
                       titulo: suspenso ? 'Liberar a conta?' : 'Suspender a conta?',
@@ -370,6 +417,7 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
                         : `${shownGestor.name} deixa de entrar e de renovar a sessão. Os prédios continuam existindo.`,
                       confirmar: suspenso ? 'Liberar' : 'Suspender',
                       acao: alternarSuspensao,
+                      mutacao: suspender,
                     })
                   }
                 >
@@ -379,7 +427,23 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
               </div>
             </div>
 
-            {isLoading || !data ? (
+            {/*
+              O erro vem antes do carregamento, e não depois: sem este ramo,
+              `data` ficava indefinido para sempre quando a chamada falhava, e o
+              painel mostrava três esqueletos eternos — a pessoa esperava por
+              algo que nunca ia chegar, sem saber que havia erro.
+            */}
+            {isError ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12, padding: '24px 0' }}>
+                <p style={{ color: T.text, fontSize: 14, lineHeight: 1.6 }}>
+                  Não foi possível carregar o plano desta conta.
+                </p>
+                <Button variant="secondary" onClick={() => refetch()}>
+                  <RefreshCw size={14} style={{ marginRight: 6 }} aria-hidden="true" />
+                  Tentar de novo
+                </Button>
+              </div>
+            ) : isLoading || !data ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <Skeleton style={{ height: 60 }} />
                 <Skeleton style={{ height: 80 }} />
@@ -463,7 +527,7 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
                               style={{
                                 height: 4,
                                 width: '100%',
-                                background: 'rgba(255, 255, 255, 0.08)',
+                                background: T.chip,
                                 borderRadius: 999,
                                 overflow: 'hidden',
                               }}
@@ -479,10 +543,10 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
                               />
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-                              <span style={{ fontSize: 10, color: isFull ? T.danger : T.mute }}>
+                              <span style={{ fontSize: 11, color: isFull ? T.danger : T.mute }}>
                                 {isFull ? 'Cota esgotada' : `${pct}% utilizado`}
                               </span>
-                              <span style={{ fontSize: 10, color: T.mute, ...NUM }}>
+                              <span style={{ fontSize: 11, color: T.mute, ...NUM }}>
                                 {Math.max(0, data.plan.buildings_allowed - data.usage.buildings)} livres
                               </span>
                             </div>
@@ -511,7 +575,7 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
                         <div style={{ fontSize: 18, fontFamily: T.display, fontWeight: W.title, color: T.text, lineHeight: 1.1, ...NUM }}>
                           {data.usage.emails_this_month}
                         </div>
-                        <span style={{ fontSize: 10, color: T.mute, marginTop: 2, display: 'block' }}>
+                        <span style={{ fontSize: 11, color: T.mute, marginTop: 2, display: 'block' }}>
                           Disparos em {data.usage.period}
                         </span>
                       </div>
@@ -537,7 +601,7 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
                         <div style={{ fontSize: 18, fontFamily: T.display, fontWeight: W.title, color: T.text, lineHeight: 1.1, ...NUM }}>
                           {emGigas(data.usage.storage_bytes)}
                         </div>
-                        <span style={{ fontSize: 10, color: T.mute, marginTop: 2, display: 'block' }}>
+                        <span style={{ fontSize: 11, color: T.mute, marginTop: 2, display: 'block' }}>
                           Fotos de vistorias e laudos
                         </span>
                       </div>
@@ -548,15 +612,27 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
                 {/* Prédios vinculados */}
                 <div>
                   <h4 style={{ fontSize: 11, fontWeight: W.strong, color: T.mute, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Prédios desta conta ({predios.length})
+                    Prédios desta conta{carregandoPredios ? '' : ` (${predios.length})`}
                   </h4>
 
-                  {predios.length === 0 ? (
+                  {/*
+                    "Nenhum prédio" só depois de a lista chegar. Enquanto ela
+                    carregava, o filtro devolvia vazio e a gaveta afirmava que
+                    uma conta com doze prédios não tinha nenhum — com o botão de
+                    inativar sumindo junto.
+                  */}
+                  {carregandoPredios ? (
+                    <Skeleton style={{ height: 44 }} />
+                  ) : erroNosPredios ? (
+                    <p style={{ color: T.mute, fontSize: 13, padding: '4px 0', margin: 0 }}>
+                      Não foi possível carregar os prédios desta conta.
+                    </p>
+                  ) : predios.length === 0 ? (
                     <p style={{ color: T.mute, fontSize: 13, padding: '4px 0', margin: 0 }}>
                       Esta conta ainda não gerencia nenhum prédio.
                     </p>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {predios.map((p) => {
                         const inativo = !!p.frozen_at;
                         return (
@@ -587,8 +663,8 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
                               </Badge>
                               <Button
                                 variant="secondary"
-                                style={{ padding: '4px 10px', fontSize: 12 }}
-                                loading={congelar.isPending}
+                                style={{ padding: '6px 12px', fontSize: 12, minHeight: 32 }}
+                                loading={congelar.isPending && congelar.variables?.buildingId === p.id}
                                 onClick={() =>
                                   setConfirmacao({
                                     titulo: inativo ? 'Reativar prédio?' : 'Inativar prédio?',
@@ -597,6 +673,7 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
                                       : `O prédio "${p.name}" fica congelado no painel do gestor.`,
                                     confirmar: inativo ? 'Reativar' : 'Inativar',
                                     acao: () => alternarCongelamento(p),
+                                    mutacao: congelar,
                                   })
                                 }
                               >
@@ -622,10 +699,13 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
                       Nenhuma concessão registrada para esta conta.
                     </p>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {data.grants.map((grant) => {
                         const estado = estadoDaConcessao(grant);
-                        const ativa = estado.variant === 'success';
+                        // `ativa` vem do estado, e não da cor dele: trocar a
+                        // variante visual apagaria o botão de revogar sem
+                        // ninguém perceber.
+                        const ativa = estado.ativa;
 
                         return (
                           <div
@@ -656,13 +736,14 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
                             {ativa && (
                               <Button
                                 variant="secondary"
-                                style={{ padding: '5px 12px', fontSize: 12 }}
-                                loading={revogar.isPending}
+                                style={{ padding: '6px 12px', fontSize: 12, minHeight: 32 }}
+                                loading={revogar.isPending && revogar.variables?.grantId === grant.id}
                                 onClick={() =>
                                   setConfirmacao({
                                     titulo: `Revogar concessão ${nomeDoPlano(grant.plan)}?`,
                                     mensagem: `A concessão será cancelada e a conta de ${shownGestor.name} voltará imediatamente para o plano Livre.`,
                                     confirmar: 'Revogar concessão',
+                                    mutacao: revogar,
                                     acao: async () => {
                                       try {
                                         await revogar.mutateAsync({ grantId: grant.id, managerId: shownGestor.id });
@@ -697,7 +778,7 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
         message={confirmacao?.mensagem}
         confirmLabel={confirmacao?.confirmar}
         confirmVariant="danger"
-        loading={suspender.isPending || congelar.isPending || revogar.isPending}
+        loading={emCurso.isPending}
         onConfirm={() => confirmacao?.acao()}
         onCancel={() => setConfirmacao(null)}
       />
@@ -712,12 +793,39 @@ export default function AdminPlanosPage() {
 
   const [gestorSelecionado, setGestorSelecionado] = useState(null);
   const [concedendoGestor, setConcedendoGestor] = useState(null);
+  const [pagina, setPagina] = useState(1);
 
-  const { data: managersData, isLoading, refetch, isFetching } = useManagers(1);
+  /**
+   * A busca é do servidor; os dois filtros de chip continuam no cliente.
+   *
+   * O termo vai ao banco porque a lista chega paginada: filtrar aqui só
+   * enxergava os 20 desta página, e procurar pelo gestor 21 respondia "nenhum
+   * gestor encontrado" — uma resposta errada com cara de certa, justo na tela
+   * de quem dá suporte. Plano e status ficam no cliente de propósito: são dois
+   * valores fechados, e o recorte deles é sobre o que está à vista.
+   */
+  const buscaNoServidor = useDebouncedValue(busca.trim(), 300);
+
+  const {
+    data: managersData,
+    isLoading,
+    isError,
+    refetch,
+    isFetching,
+  } = useManagers(pagina, buscaNoServidor);
+
   const gestores = useMemo(
     () => managersData?.managers ?? managersData?.data ?? [],
     [managersData]
   );
+
+  const totalDeGestores = managersData?.total ?? gestores.length;
+  const tamanhoDaPagina = managersData?.limit ?? 20;
+  const paginas = Math.max(1, Math.ceil(totalDeGestores / tamanhoDaPagina));
+
+  // Termo novo recomeça na primeira página: a terceira página do termo antigo
+  // quase nunca existe no novo, e a tela abriria vazia sem dizer por quê.
+  const paginaAtual = Math.min(pagina, paginas);
 
   // Contadores e métricas de distribuição para os cards do topo
   const contadores = useMemo(() => {
@@ -745,21 +853,15 @@ export default function AdminPlanosPage() {
   // Gestores filtrados
   const gestoresFiltrados = useMemo(() => {
     return gestores.filter((gestor) => {
-      const termo = busca.trim().toLowerCase();
-      const matchBusca =
-        !termo ||
-        gestor.name?.toLowerCase().includes(termo) ||
-        gestor.email?.toLowerCase().includes(termo);
-
       const planoGestor = gestor.plan?.code ?? 'LIVRE';
       const matchPlano = !filtroPlano || planoGestor === filtroPlano;
 
       const statusGestor = gestor.suspended_at ? 'SUSPENSO' : 'ATIVO';
       const matchStatus = !filtroStatus || statusGestor === filtroStatus;
 
-      return matchBusca && matchPlano && matchStatus;
+      return matchPlano && matchStatus;
     });
-  }, [gestores, busca, filtroPlano, filtroStatus]);
+  }, [gestores, filtroPlano, filtroStatus]);
 
   const temFiltroAtivo = Boolean(busca.trim() || filtroPlano || filtroStatus);
 
@@ -767,6 +869,13 @@ export default function AdminPlanosPage() {
     setBusca('');
     setFiltroPlano('');
     setFiltroStatus('');
+    setPagina(1);
+  }
+
+  // Cada tecla nova recomeça a lista do começo.
+  function trocarBusca(valor) {
+    setBusca(valor);
+    setPagina(1);
   }
 
   return (
@@ -848,14 +957,14 @@ export default function AdminPlanosPage() {
                   </span>
                 </div>
                 {!filtroPlano && (
-                  <span style={{ fontSize: 10, fontWeight: W.strong, color: T.accentInk, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, fontWeight: W.strong, color: T.accentInk, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>
                     Todos
                   </span>
                 )}
               </div>
 
               <div style={{ height: 3, width: '100%', borderRadius: 999, background: T.chip, overflow: 'hidden', marginTop: 10 }}>
-                <div style={{ height: '100%', width: '100%', background: 'rgba(255, 255, 255, 0.22)', borderRadius: 999 }} />
+                <div style={{ height: '100%', width: '100%', background: T.mute, borderRadius: 999 }} />
               </div>
             </div>
 
@@ -896,7 +1005,7 @@ export default function AdminPlanosPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 11, color: T.faint, lineHeight: '16px', minHeight: 16 }}>
                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Gratuito · 1 prédio incluso</span>
                 {filtroPlano === 'LIVRE' && (
-                  <span style={{ fontSize: 10, fontWeight: W.strong, color: T.accentInk, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, fontWeight: W.strong, color: T.accentInk, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>
                     Filtrando
                   </span>
                 )}
@@ -907,7 +1016,7 @@ export default function AdminPlanosPage() {
                   style={{
                     height: '100%',
                     width: `${contadores.pctLivre}%`,
-                    background: 'rgba(255, 255, 255, 0.5)',
+                    background: T.mute,
                     borderRadius: 999,
                     transition: 'width 300ms var(--ease-saida)',
                   }}
@@ -961,7 +1070,7 @@ export default function AdminPlanosPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 11, color: T.faint, lineHeight: '16px', minHeight: 16 }}>
                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>R$ 79/mês · até 3 prédios</span>
                 {filtroPlano === 'ESSENCIAL' && (
-                  <span style={{ fontSize: 10, fontWeight: W.strong, color: T.accentInk, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, fontWeight: W.strong, color: T.accentInk, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>
                     Filtrando
                   </span>
                 )}
@@ -1029,7 +1138,7 @@ export default function AdminPlanosPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 11, color: T.faint, lineHeight: '16px', minHeight: 16 }}>
                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>R$ 249/mês · até 25 prédios</span>
                 {filtroPlano === 'PRO' && (
-                  <span style={{ fontSize: 10, fontWeight: W.strong, color: T.accentInk, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, fontWeight: W.strong, color: T.accentInk, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>
                     Filtrando
                   </span>
                 )}
@@ -1061,9 +1170,13 @@ export default function AdminPlanosPage() {
                 />
                 <input
                   value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
+                  onChange={(e) => trocarBusca(e.target.value)}
                   placeholder="Buscar gestor por nome ou e-mail..."
                   aria-label="Buscar gestor"
+                  // Sem `outline: none`: o campo é o controle mais usado desta
+                  // tela, e quem chega por teclado precisa ver onde parou. O
+                  // dourado no foco é o mesmo de `.btn` e `.select-trigger`.
+                  className="busca-gestor"
                   style={{
                     width: '100%',
                     background: T.chip,
@@ -1072,16 +1185,16 @@ export default function AdminPlanosPage() {
                     padding: '10px 14px 10px 38px',
                     color: T.text,
                     fontSize: 14,
-                    outline: 'none',
                   }}
                 />
                 {busca && (
                   <button
                     type="button"
-                    onClick={() => setBusca('')}
-                    style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: T.mute, cursor: 'pointer' }}
+                    onClick={() => trocarBusca('')}
+                    aria-label="Limpar busca"
+                    className="btn-limpar-busca"
                   >
-                    <X size={14} />
+                    <X size={14} aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -1134,22 +1247,22 @@ export default function AdminPlanosPage() {
             <table className="planos-table">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-soft)', background: 'transparent' }}>
-                  <th style={{ color: T.mute, fontSize: 11, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <th scope="col" style={{ color: T.mute, fontSize: 11, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Gestor
                   </th>
-                  <th className="col-cadastro" style={{ color: T.mute, fontSize: 11, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <th scope="col" className="col-cadastro" style={{ color: T.mute, fontSize: 11, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Cadastro
                   </th>
-                  <th style={{ color: T.mute, fontSize: 11, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <th scope="col" style={{ color: T.mute, fontSize: 11, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Prédios
                   </th>
-                  <th style={{ color: T.mute, fontSize: 11, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <th scope="col" style={{ color: T.mute, fontSize: 11, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Plano Atual
                   </th>
-                  <th style={{ color: T.mute, fontSize: 11, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <th scope="col" style={{ color: T.mute, fontSize: 11, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Status
                   </th>
-                  <th style={{ color: T.mute, fontSize: 11, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>
+                  <th scope="col" style={{ color: T.mute, fontSize: 11, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>
                     Ações
                   </th>
                 </tr>
@@ -1167,7 +1280,27 @@ export default function AdminPlanosPage() {
                     </tr>
                   ))}
 
-                {!isLoading && gestoresFiltrados.length === 0 && (
+                {/* Erro tem ramo próprio: cair no vazio faria o suporte
+                    concluir que a conta não existe quando o que caiu foi a
+                    rede. */}
+                {!isLoading && isError && (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '48px 20px', textAlign: 'center' }}>
+                      <p style={{ color: T.text, fontSize: 15, fontWeight: W.title }}>
+                        Não foi possível carregar os gestores
+                      </p>
+                      <p style={{ color: T.mute, fontSize: 13, marginTop: 4 }}>
+                        A lista não chegou. Isto é um erro de conexão, e não uma conta que não existe.
+                      </p>
+                      <Button variant="secondary" onClick={() => refetch()} style={{ marginTop: 14 }}>
+                        <RefreshCw size={14} style={{ marginRight: 6 }} aria-hidden="true" />
+                        Tentar de novo
+                      </Button>
+                    </td>
+                  </tr>
+                )}
+
+                {!isLoading && !isError && gestoresFiltrados.length === 0 && (
                   <tr>
                     <td colSpan={6} style={{ padding: '48px 20px', textAlign: 'center' }}>
                       <Users size={32} color={T.faint} style={{ margin: '0 auto 12px' }} />
@@ -1192,16 +1325,17 @@ export default function AdminPlanosPage() {
                     const qtdPredios = gestor.buildings ?? 0;
 
                     return (
+                      // A linha não abre mais o painel: era `<tr onClick>`, que o
+                      // teclado não alcança, e o botão "Gerenciar" da última
+                      // coluna já faz isso — alcançável, com nome, e no lugar
+                      // onde a pessoa procura a ação.
+                      //
+                      // O realce do hover foi para o CSS (ver `.planos-table
+                      // tbody tr:hover`): em JS ele fica grudado depois do toque
+                      // no telefone e não existe para quem navega por teclado.
                       <tr
                         key={gestor.id}
-                        onClick={() => setGestorSelecionado(gestor)}
-                        style={{
-                          borderBottom: '1px solid var(--border-soft)',
-                          cursor: 'pointer',
-                          transition: 'background-color 0.15s ease',
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = T.chip)}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        style={{ borderBottom: '1px solid var(--border-soft)' }}
                       >
                         {/* Coluna 1: Gestor */}
                         <td>
@@ -1261,10 +1395,8 @@ export default function AdminPlanosPage() {
                           <Button
                             variant="secondary"
                             style={{ padding: '6px 10px', fontSize: 12, whiteSpace: 'nowrap' }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setGestorSelecionado(gestor);
-                            }}
+                            onClick={() => setGestorSelecionado(gestor)}
+                            aria-label={`Gerenciar ${gestor.name}`}
                           >
                             Gerenciar
                             <ChevronRight size={14} style={{ marginLeft: 4 }} />
@@ -1281,7 +1413,7 @@ export default function AdminPlanosPage() {
           <div className="planos-mobile-list">
             {isLoading &&
               [1, 2, 3].map((i) => (
-                <div key={i} className="kpi-card" style={{ padding: '16px 18px', gap: 12 }}>
+                <div key={i} className="cartao-estatico" style={{ padding: '16px 18px', gap: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <Skeleton style={{ height: 38, width: 38, borderRadius: '50%' }} />
                     <div style={{ flex: 1 }}>
@@ -1327,13 +1459,8 @@ export default function AdminPlanosPage() {
                   // existia para ele, e que o teclado alcança.
                   <div
                     key={gestor.id}
-                    className="kpi-card"
-                    style={{
-                      padding: '16px 18px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 12,
-                    }}
+                    className="cartao-estatico"
+                    style={{ padding: '16px 18px', gap: 12 }}
                   >
                     {/* Linha 1: Gestor (Avatar, Nome, Email) + Status */}
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
@@ -1348,9 +1475,14 @@ export default function AdminPlanosPage() {
                           </span>
                         </div>
                       </div>
-                      <Badge variant={suspenso ? 'danger' : 'success'} style={{ flexShrink: 0 }}>
-                        {suspenso ? 'Suspenso' : 'Ativo'}
-                      </Badge>
+                      {/* O `Badge` não aceita `style` (ver components/ui): a prop
+                          era engolida em silêncio, e o selo espremia quando o
+                          nome do gestor era longo. O recuo mora no invólucro. */}
+                      <span style={{ flexShrink: 0 }}>
+                        <Badge variant={suspenso ? 'danger' : 'success'}>
+                          {suspenso ? 'Suspenso' : 'Ativo'}
+                        </Badge>
+                      </span>
                     </div>
 
                     {/* Linha 2: Metadados (Plano, Prédios, Data de Cadastro) */}
@@ -1393,6 +1525,23 @@ export default function AdminPlanosPage() {
                 );
               })}
           </div>
+
+          {/*
+            O rodapé de páginas, que faltava: a lista sempre trouxe 20 e nunca
+            ofereceu a vigésima primeira conta. `Paginator` some sozinho quando
+            só há uma página, então ele não vira enfeite em base pequena.
+          */}
+          <Paginator
+            page={paginaAtual}
+            pages={paginas}
+            total={totalDeGestores}
+            count={gestoresFiltrados.length}
+            pageSize={tamanhoDaPagina}
+            isFetching={isFetching}
+            onPrev={() => setPagina((atual) => Math.max(1, atual - 1))}
+            onNext={() => setPagina((atual) => Math.min(paginas, atual + 1))}
+            style={{ marginTop: 16 }}
+          />
 
           <p style={{ color: T.faint, fontSize: 12, marginTop: 24, display: 'flex', alignItems: 'center', gap: 6 }}>
             <CheckCircle2 size={13} aria-hidden="true" />
