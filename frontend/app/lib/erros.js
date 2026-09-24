@@ -10,6 +10,8 @@
  * resolve. Sem isso, "seu plano comporta 3 prédios" deixa a pessoa procurando
  * sozinha a tela de planos.
  */
+import { useUpgradeModalStore } from '@/app/store/upgradeModal';
+
 const PADRAO = 'Não foi possível concluir. Tente de novo em instantes.';
 
 export function mensagemDoErro(err, fallback = PADRAO) {
@@ -46,4 +48,27 @@ export function detalheDoLimite(err) {
     return null;
   }
   return `Você está usando ${detalhes.current} de ${detalhes.limit}.`;
+}
+
+/**
+ * Trata a notificação ou modal de um erro.
+ *
+ * Nos erros de plano (limites, recursos bloqueados, prédio inativo), abre
+ * diretamente o modal de sugestão de upgrade comercial, sem poluir a tela
+ * com toast de erro de sistema ou link técnico de "ver log".
+ *
+ * Nos erros comuns de aplicação, mantém o toast com mensagem clara e detalhe técnico.
+ */
+export function avisarErro(toast, err, fallback = PADRAO) {
+  if (ehErroDePlano(err)) {
+    useUpgradeModalStore.getState().openFromError(err, fallback);
+    return;
+  }
+
+  toast(mensagemDoErro(err, fallback), 'error', err);
+}
+
+/** Dispara explicitamente o modal de sugestão de upgrade a partir de um erro de plano. */
+export function dispararUpgrade(err, fallback = PADRAO) {
+  useUpgradeModalStore.getState().openFromError(err, fallback);
 }

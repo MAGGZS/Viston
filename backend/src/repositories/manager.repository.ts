@@ -8,6 +8,10 @@ const PUBLIC_MANAGER_FIELDS = {
   email: true,
   avatar_url: true,
   status: true,
+  /// A suspensão sai junto: é o que o painel de planos mostra ao lado do nome,
+  /// e sem ela a tela teria de perguntar conta a conta para saber quem está
+  /// suspenso. É uma data, e não um segredo — quem a lê já é o admin.
+  suspended_at: true,
   created_at: true,
   updated_at: true,
 } as const;

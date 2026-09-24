@@ -5,6 +5,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
   usePathname: () => '/login',
+  // A tela de login lê a URL para saber de onde a pessoa veio (`?next=`), e o
+  // mock precisa devolver os três ganchos que ela usa — faltando um, o React
+  // chama `undefined` e a suíte inteira cai antes de qualquer expectativa.
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 // Caminho relativo, e não o alias `@/`: o `jest.mock` é içado para antes dos

@@ -143,4 +143,11 @@ describe('perfil no desktop', () => {
     await screen.findByText('Configurações da conta');
     expect(within(secoes()).queryByRole('button', { name: 'Prédio' })).not.toBeInTheDocument();
   });
+
+  it('o gestor vê a seção de planos e cobrança no perfil', async () => {
+    Tela(conta({ kind: 'MANAGER', memberships: [{ building_id: 'p1', name: 'Aurora', role: 'GESTOR' }] }));
+
+    await screen.findByText('Configurações da conta');
+    expect(within(secoes()).getByRole('button', { name: 'Planos e cobrança' })).toBeInTheDocument();
+  });
 });

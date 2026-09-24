@@ -18,6 +18,7 @@ import {
   useRemoveBuildingManager,
 } from '@/app/hooks/useApi';
 import { useToastStore } from '@/app/store/toast';
+import { avisarErro } from '@/app/lib/erros';
 import { T, R, W } from '@/app/lib/theme';
 
 // Gestor não está aqui: é outro tipo de conta, e entra pelo e-mail (ver
@@ -63,7 +64,7 @@ function MemberRow({ member, buildingId, onRemove, className = '' }) {
       await updateRole.mutateAsync({ buildingId, userId: member.user_id, role });
       toast(ROLE_TOAST[role], 'success');
     } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao alterar o papel', 'error', e);
+      avisarErro(toast, e, 'Erro ao alterar o papel');
     }
   }
 
@@ -167,7 +168,7 @@ function AddManagerForm({ buildingId }) {
       setEmail('');
       toast('Gestor adicionado ao prédio', 'success');
     } catch (err) {
-      toast(err?.response?.data?.error?.message || 'Erro ao adicionar gestor', 'error', err);
+      avisarErro(toast, err, 'Erro ao adicionar gestor');
     }
   }
 
@@ -202,7 +203,7 @@ function RequestRow({ request, buildingId, className = '' }) {
         status === 'APPROVED' ? 'success' : 'info'
       );
     } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao revisar solicitação', 'error', e);
+      avisarErro(toast, e, 'Erro ao revisar solicitação');
     }
   }
 

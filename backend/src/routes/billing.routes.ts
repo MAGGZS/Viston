@@ -19,6 +19,10 @@ const auth = authenticate;
  */
 router.post('/webhook', billingController.webhook);
 
+// O plano que vale e o quanto já se gastou dele. Serve ao aviso que a tela dá
+// antes de a pessoa esbarrar no limite.
+router.get('/plan', auth, billingController.myPlan);
+
 // O que a conta contratou — a tela de cobrança abre com isto.
 router.get('/subscription', auth, billingController.mine);
 

@@ -7,6 +7,9 @@ import { stripeRequest, BillingUnavailableError } from '../lib/stripe';
 import { logger } from '../lib/logger';
 import { ConflictError, NotFoundError, ValidationError } from '../utils/errors';
 import { PLANS } from '../utils/plans';
+import { planService } from './plan.service';
+import { planRepository } from '../repositories/plan.repository';
+import { usageService } from './usage.service';
 
 /**
  * A ponte com o Stripe: o que o gestor contrata, e o que o Stripe responde
@@ -118,8 +121,8 @@ export const billingService = {
       customer,
       // O front volta para a tela de cobrança nos dois casos; o que muda é o
       // aviso que ela mostra.
-      success_url: `${config.cors.origins[0]}/gestor/cobranca?checkout=ok`,
-      cancel_url: `${config.cors.origins[0]}/gestor/cobranca?checkout=cancelado`,
+      success_url: `${config.cors.origins[0]}/perfil?secao=cobranca&checkout=ok`,
+      cancel_url: `${config.cors.origins[0]}/perfil?secao=cobranca&checkout=cancelado`,
       ...linhas,
       'subscription_data[metadata][manager_id]': managerId,
       'subscription_data[metadata][plan]': data.plan,
@@ -145,10 +148,54 @@ export const billingService = {
 
     const session = await stripeRequest<StripeSession>('/billing_portal/sessions', {
       customer: assinatura.stripe_customer_id,
-      return_url: `${config.cors.origins[0]}/gestor/cobranca`,
+      return_url: `${config.cors.origins[0]}/perfil?secao=cobranca`,
     });
 
     return { url: session.url };
+  },
+
+  /**
+   * O plano que vale para esta conta, e quanto dele já se gastou.
+   *
+   * É o que a tela de cobrança precisa para avisar antes de a pessoa esbarrar:
+   * "2 de 3 prédios" dito a tempo evita o 403 que ela só descobriria ao tentar
+   * cadastrar o quarto. Os números são os mesmos que o gating usa — vêm da
+   * mesma resolução de plano, e não de uma segunda conta paralela.
+   */
+  async myPlan(managerId: string) {
+    const [plano, buildings, emails, storageBytes] = await Promise.all([
+      planService.resolvePlan(managerId),
+      planRepository.countOwnedBuildings(managerId),
+      usageService.emailsSent(managerId),
+      usageService.storageUsedBytes(managerId),
+    ]);
+
+    return {
+      code: plano.code,
+      name: PLANS[plano.code].name,
+      source: plano.source,
+      features: plano.features,
+      buildings_allowed: plano.buildingsAllowed,
+      extra_buildings: plano.extraBuildings,
+      limits: {
+        // Infinity não sobrevive ao JSON (vira null): a API diz `null` de
+        // propósito, e a tela lê nulo como "sem teto".
+        people: Object.fromEntries(
+          Object.entries(plano.limits.people).map(([papel, teto]) => [
+            papel,
+            Number.isFinite(teto) ? teto : null,
+          ])
+        ),
+        storage_bytes: plano.limits.storageBytes,
+        emails_per_month: plano.limits.emailsPerMonth,
+      },
+      usage: {
+        buildings,
+        emails_this_month: emails,
+        storage_bytes: storageBytes,
+        period: usageService.currentPeriod(),
+      },
+    };
   },
 
   /** O que a tela de cobrança mostra: o que a conta contratou, sem o Stripe. */

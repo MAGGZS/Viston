@@ -1,233 +1,149 @@
 'use client';
 import { Suspense, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Check, CreditCard, ExternalLink } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowLeft, Check, ShieldCheck, ArrowRight } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { GestorHeader } from '@/app/components/GestorHeader';
-import { Badge, Button, Card, Skeleton } from '@/app/components/ui';
+import { Button, Card, Badge } from '@/app/components/ui';
 import { useToastStore } from '@/app/store/toast';
-import { useBillingPortal, useCheckout, useMySubscription } from '@/app/hooks/useApi';
-import { emReais, nomeDoPlano, PLANOS, STATUS_LABEL } from '@/app/lib/planos';
+import { useCheckout, useMyPlan, useMySubscription } from '@/app/hooks/useApi';
+import { PLANOS, emReais } from '@/app/lib/planos';
 import { T, R, W } from '@/app/lib/theme';
-
-/**
- * A tela de planos e cobrança do gestor.
- *
- * Uma tela só para as duas coisas de propósito: "o que eu tenho" e "o que eu
- * poderia ter" são a mesma pergunta para quem chega aqui, e separá-las faria a
- * comparação exigir ida e volta.
- *
- * Nada de cartão passa por esta página. Assinar abre o checkout do Stripe;
- * trocar cartão, baixar nota e cancelar abrem o portal dele. É o provedor que
- * cuida do que não deve tocar o nosso servidor.
- */
+import { avisoDoCheckout } from '@/app/components/CobrancaSection';
 
 const INTERVALOS = [
   { id: 'MONTHLY', label: 'Mensal' },
-  { id: 'YEARLY', label: 'Anual' },
+  { id: 'YEARLY', label: 'Anual', desconto: '-17%' },
 ];
 
-/** O aviso de volta do checkout, lido da URL que o Stripe devolveu. */
-function avisoDoCheckout(resultado) {
-  if (resultado === 'ok') {
-    return {
-      tom: 'sucesso',
-      texto:
-        'Pagamento recebido. O plano entra em vigor assim que o provedor confirmar — em geral, alguns segundos.',
-    };
-  }
-  if (resultado === 'cancelado') {
-    return { tom: 'aviso', texto: 'Você saiu do pagamento antes de concluir. Nada foi cobrado.' };
-  }
-  return null;
-}
-
-function PlanoAtual({ assinatura, carregando, onPortal, abrindoPortal }) {
-  if (carregando) {
-    return (
-      <Card style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Skeleton style={{ height: 14, width: 120 }} />
-        <Skeleton style={{ height: 28, width: 180 }} />
-        <Skeleton style={{ height: 14, width: 220 }} />
-      </Card>
-    );
-  }
-
-  const plano = assinatura?.plan ?? 'LIVRE';
-  const semAssinatura = !assinatura;
-
-  return (
-    <Card style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-        <div>
-          <p style={{ color: T.mute, fontSize: 12 }}>Seu plano</p>
-          <h2 style={{ fontFamily: T.display, fontSize: 24, fontWeight: W.title, color: T.text, marginTop: 2 }}>
-            {nomeDoPlano(plano)}
-          </h2>
-        </div>
-
-        {!semAssinatura && (
-          <Badge variant={assinatura.status === 'ACTIVE' ? 'success' : 'default'}>
-            {STATUS_LABEL[assinatura.status] ?? assinatura.status}
-          </Badge>
-        )}
-      </div>
-
-      {semAssinatura ? (
-        <p style={{ color: T.mute, fontSize: 14, lineHeight: 1.6 }}>
-          O Livre não vence e não cobra nada. Ele comporta um prédio e uma pessoa por papel —
-          quando a equipe crescer, os planos abaixo continuam de onde você parou.
-        </p>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, color: T.mute, fontSize: 14 }}>
-          {assinatura.extra_buildings > 0 && (
-            <span>
-              {assinatura.extra_buildings} {assinatura.extra_buildings === 1 ? 'prédio extra' : 'prédios extras'} contratados
-            </span>
-          )}
-          {assinatura.current_period_end && (
-            <span>
-              {assinatura.cancel_at_period_end ? 'Vale até ' : 'Renova em '}
-              {new Date(assinatura.current_period_end).toLocaleDateString('pt-BR')}
-            </span>
-          )}
-          {assinatura.status === 'PAST_DUE' && (
-            <span style={{ color: T.text }}>
-              A última cobrança falhou. O acesso continua por alguns dias — atualize o cartão no portal.
-            </span>
-          )}
-        </div>
-      )}
-
-      {!semAssinatura && (
-        <div>
-          <Button variant="secondary" loading={abrindoPortal} onClick={onPortal}>
-            <CreditCard size={16} style={{ marginRight: 8 }} />
-            Cartão, notas e cancelamento
-            <ExternalLink size={14} style={{ marginLeft: 8, opacity: 0.7 }} />
-          </Button>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function CartaoDePlano({ plano, intervalo, atual, onAssinar, assinando }) {
-  const preco = plano.preco[intervalo];
-  const gratuito = preco === 0;
-
-  return (
-    <Card
-      style={{
-        padding: 22,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 16,
-        border: atual ? `1px solid ${T.accent}` : undefined,
-      }}
-    >
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <h3 style={{ fontFamily: T.display, fontSize: 17, fontWeight: W.title, color: T.text }}>
-            {plano.nome}
-          </h3>
-          {atual && <Badge variant="success">Seu plano</Badge>}
-        </div>
-        <p style={{ color: T.mute, fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>{plano.resumo}</p>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <span style={{ fontFamily: T.display, fontSize: 26, fontWeight: W.title, color: T.text }}>
-          {gratuito ? 'Grátis' : emReais(preco)}
-        </span>
-        {!gratuito && (
-          <span style={{ color: T.mute, fontSize: 13 }}>
-            {intervalo === 'MONTHLY' ? '/mês' : '/ano'}
-          </span>
-        )}
-      </div>
-
-      <ul style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {[...plano.limites, ...plano.recursos].map((linha) => (
-          <li key={linha} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', color: T.text, fontSize: 13 }}>
-            <Check size={15} color={T.accent} style={{ flexShrink: 0, marginTop: 2 }} aria-hidden="true" />
-            <span style={{ lineHeight: 1.5 }}>{linha}</span>
-          </li>
-        ))}
-      </ul>
-
-      <div style={{ marginTop: 'auto' }}>
-        {gratuito ? (
-          <p style={{ color: T.mute, fontSize: 12 }}>
-            {atual ? 'É onde você está.' : 'Disponível para toda conta.'}
-          </p>
-        ) : (
-          <Button
-            style={{ width: '100%' }}
-            variant={atual ? 'secondary' : 'primary'}
-            loading={assinando}
-            onClick={() => onAssinar(plano.code)}
-          >
-            {atual ? 'Mudar contratação' : `Assinar o ${plano.nome}`}
-          </Button>
-        )}
-      </div>
-    </Card>
-  );
-}
-
-function TelaDeCobranca() {
+function CobrancaContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const aviso = avisoDoCheckout(searchParams?.get('checkout'));
 
   const { show: toast } = useToastStore();
-  const { data: assinatura, isLoading } = useMySubscription();
+  const { data: assinatura } = useMySubscription();
+  const { data: plano } = useMyPlan();
   const checkout = useCheckout();
-  const portal = useBillingPortal();
 
   const [intervalo, setIntervalo] = useState('MONTHLY');
   const [planoEmCurso, setPlanoEmCurso] = useState(null);
+  const [isMorphingPrice, setIsMorphingPrice] = useState(false);
 
-  /**
-   * A saída para o Stripe é `window.location`, e não o router do Next: o
-   * destino é outro domínio, e a navegação de aplicação não o alcança.
-   */
-  async function assinar(plan) {
-    setPlanoEmCurso(plan);
+  const planoAtualCodigo = plano?.code ?? assinatura?.plan ?? 'LIVRE';
+
+  function handleTrocarIntervalo(novoIntervalo) {
+    if (novoIntervalo === intervalo) return;
+    setIsMorphingPrice(true);
+    setTimeout(() => {
+      setIntervalo(novoIntervalo);
+      setTimeout(() => {
+        setIsMorphingPrice(false);
+      }, 50);
+    }, 90);
+  }
+
+  async function assinar(planCode) {
+    if (planCode === 'LIVRE') return;
+    setPlanoEmCurso(planCode);
     try {
-      const { url } = await checkout.mutateAsync({ plan, interval: intervalo });
+      const { url } = await checkout.mutateAsync({ plan: planCode, interval: intervalo });
       window.location.href = url;
     } catch (err) {
       setPlanoEmCurso(null);
-      toast(err.response?.data?.error?.message ?? 'Não foi possível abrir o pagamento', 'error');
+      toast(err.response?.data?.error?.message ?? 'Não foi possível abrir a sessão de pagamento', 'error');
     }
   }
-
-  async function abrirPortal() {
-    try {
-      const { url } = await portal.mutateAsync();
-      window.location.href = url;
-    } catch (err) {
-      toast(err.response?.data?.error?.message ?? 'Não foi possível abrir o portal', 'error');
-    }
-  }
-
-  const planoAtual = assinatura?.plan ?? 'LIVRE';
 
   return (
-    <RouteGuard roles={['GESTOR']}>
+    <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', flexDirection: 'column' }}>
       <GestorHeader />
 
-      <main style={{ maxWidth: 1080, margin: '0 auto', padding: '28px 20px 64px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-        <div>
-          <h1 style={{ fontFamily: T.display, fontSize: 22, fontWeight: W.title, color: T.text }}>
-            Planos e cobrança
-          </h1>
-          <p style={{ color: T.mute, fontSize: 14, marginTop: 4 }}>
-            O plano vale para a conta inteira, e cobre os prédios que você criou.
-          </p>
+      {/* Estilos de animação e micro-interações segundo a skill emil-design-eng */}
+      <style>{`
+        @keyframes planStaggerEnter {
+          0% {
+            opacity: 0;
+            transform: translateY(12px) scale(0.985);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        @keyframes planFadeInUp {
+          0% {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .plan-card-interactive {
+          transition: transform 220ms cubic-bezier(0.23, 1, 0.32, 1),
+                      border-color 220ms cubic-bezier(0.23, 1, 0.32, 1),
+                      box-shadow 220ms cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+          .plan-card-interactive:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 16px 32px -8px rgba(0, 0, 0, 0.45);
+          }
+        }
+
+        .plan-btn-interactive {
+          transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1),
+                      opacity 160ms ease-out,
+                      background-color 160ms ease-out;
+        }
+
+        .plan-btn-interactive:active {
+          transform: scale(0.97);
+        }
+
+        .plan-price-display {
+          transition: filter 160ms cubic-bezier(0.23, 1, 0.32, 1),
+                      opacity 160ms cubic-bezier(0.23, 1, 0.32, 1),
+                      transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .plan-price-display.morphing {
+          filter: blur(2px);
+          opacity: 0.55;
+          transform: scale(0.98);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .plan-card-interactive,
+          .plan-btn-interactive,
+          .plan-price-display {
+            animation: none !important;
+            transition: opacity 150ms ease !important;
+            transform: none !important;
+          }
+        }
+      `}</style>
+
+      <main style={{ flex: 1, maxWidth: 1040, width: '100%', margin: '0 auto', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {/* Navegação de retorno */}
+        <div style={{ animation: 'planFadeInUp 240ms cubic-bezier(0.23, 1, 0.32, 1) both' }}>
+          <Button
+            variant="ghost"
+            onClick={() => router.push('/perfil?secao=cobranca')}
+            className="group plan-btn-interactive"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: T.mute }}
+          >
+            <ArrowLeft size={16} className="transition-transform duration-150 group-hover:-translate-x-1" />
+            Voltar ao perfil
+          </Button>
         </div>
 
+        {/* Notificação de retorno do checkout Stripe */}
         {aviso && (
           <Card
             style={{
@@ -236,85 +152,363 @@ function TelaDeCobranca() {
               color: T.text,
               fontSize: 14,
               lineHeight: 1.6,
+              animation: 'planFadeInUp 240ms cubic-bezier(0.23, 1, 0.32, 1) 20ms both',
             }}
           >
             {aviso.texto}
           </Card>
         )}
 
-        <PlanoAtual
-          assinatura={assinatura}
-          carregando={isLoading}
-          onPortal={abrirPortal}
-          abrindoPortal={portal.isPending}
-        />
+        {/* Título e apresentação da página */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            animation: 'planFadeInUp 280ms cubic-bezier(0.23, 1, 0.32, 1) 40ms both',
+          }}
+        >
+          <span
+            style={{
+              color: T.mute,
+              fontSize: 11,
+              fontWeight: W.strong,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+            }}
+          >
+            Planos e Assinatura
+          </span>
+          <h1
+            style={{
+              fontFamily: T.display,
+              fontSize: 28,
+              fontWeight: W.title,
+              color: T.text,
+              letterSpacing: '-0.02em',
+              margin: 0,
+            }}
+          >
+            Escolha o plano ideal para a sua gestão
+          </h1>
+          <p style={{ color: T.mute, fontSize: 14, lineHeight: 1.6, maxWidth: 640, margin: 0 }}>
+            Cobrança centralizada por conta. Adicione colaboradores ilimitados em todos os papéis a partir
+            do plano Essencial, sem surpresas por usuário.
+          </p>
+        </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <h2 style={{ fontFamily: T.display, fontSize: 16, fontWeight: W.title, color: T.text }}>
-            Comparar planos
-          </h2>
+        {/* Seletor de Intervalo Compacto com Sliding Pill suave */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '6px 0 2px',
+            animation: 'planFadeInUp 280ms cubic-bezier(0.23, 1, 0.32, 1) 80ms both',
+          }}
+        >
+          <div
+            role="group"
+            aria-label="Ciclo de cobrança"
+            style={{
+              position: 'relative',
+              display: 'flex',
+              background: T.card,
+              borderRadius: R.pill,
+              padding: 3,
+              border: `1px solid ${T.line}`,
+              boxShadow: T.cardRing,
+              width: '100%',
+              maxWidth: 240,
+              height: 35,
+            }}
+          >
+            {/* Sliding Pill animado com curva física iOS-like */}
+            <span
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                top: 3,
+                bottom: 3,
+                left: 3,
+                width: 'calc(50% - 3px)',
+                borderRadius: R.pill,
+                background: T.accent,
+                boxShadow: `inset 0 0 0 1px ${T.accentEdge}`,
+                transform: intervalo === 'MONTHLY' ? 'translateX(0)' : 'translateX(100%)',
+                transition: 'transform 220ms cubic-bezier(0.32, 0.72, 0, 1)',
+                pointerEvents: 'none',
+              }}
+            />
 
-          {/* O anual sai mais barato, e é por isso que ele existe aqui: sem a
-              escolha visível, a comparação mostraria só um dos dois preços. */}
-          <div role="group" aria-label="Intervalo de cobrança" style={{ display: 'flex', gap: 4, background: T.card, borderRadius: R.pill, padding: 4, border: `1px solid ${T.line}` }}>
-            {INTERVALOS.map((opcao) => (
-              <button
-                key={opcao.id}
-                type="button"
-                onClick={() => setIntervalo(opcao.id)}
-                aria-pressed={intervalo === opcao.id}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: R.pill,
-                  fontSize: 13,
-                  fontWeight: intervalo === opcao.id ? W.title : 400,
-                  color: intervalo === opcao.id ? T.onAccent : T.mute,
-                  background: intervalo === opcao.id ? T.accent : 'transparent',
-                  cursor: 'pointer',
-                }}
-              >
-                {opcao.label}
-              </button>
-            ))}
+            {INTERVALOS.map((opcao) => {
+              const ativo = intervalo === opcao.id;
+              return (
+                <button
+                  key={opcao.id}
+                  type="button"
+                  onClick={() => handleTrocarIntervalo(opcao.id)}
+                  aria-pressed={ativo}
+                  className="plan-btn-interactive"
+                  style={{
+                    flex: 1,
+                    position: 'relative',
+                    zIndex: 1,
+                    padding: '0 8px',
+                    borderRadius: R.pill,
+                    fontSize: 12,
+                    fontWeight: ativo ? W.strong : 400,
+                    color: ativo ? T.onAccent : T.mute,
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 5,
+                    whiteSpace: 'nowrap',
+                    transition: 'color 180ms ease-out',
+                  }}
+                >
+                  <span>{opcao.label}</span>
+                  {opcao.desconto && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        lineHeight: 1,
+                        padding: '2px 5px',
+                        borderRadius: R.pill,
+                        background: ativo ? 'rgba(0, 0, 0, 0.16)' : T.accentSoft,
+                        color: ativo ? T.onAccent : T.accentInk,
+                        letterSpacing: '-0.01em',
+                      }}
+                    >
+                      {opcao.desconto}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
+        {/* Grade de Planos com Entrada em Cascata (Stagger) */}
         <div
           style={{
             display: 'grid',
-            gap: 16,
             gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 20,
             alignItems: 'stretch',
           }}
         >
-          {PLANOS.map((plano) => (
-            <CartaoDePlano
-              key={plano.code}
-              plano={plano}
-              intervalo={intervalo}
-              atual={plano.code === planoAtual}
-              assinando={checkout.isPending && planoEmCurso === plano.code}
-              onAssinar={assinar}
-            />
-          ))}
+          {PLANOS.map((p, index) => {
+            const ehAtual = p.code === planoAtualCodigo;
+            const preco = p.preco[intervalo];
+            const gratuito = preco === 0;
+            const estaAssinando = checkout.isPending && planoEmCurso === p.code;
+            const destaque = p.code === 'ESSENCIAL';
+            const staggerDelay = 120 + index * 60; // 120ms, 180ms, 240ms
+
+            return (
+              <Card
+                key={p.code}
+                className="plan-card-interactive"
+                style={{
+                  padding: 24,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 18,
+                  borderRadius: 16,
+                  border: ehAtual
+                    ? `2px solid ${T.accent}`
+                    : destaque
+                    ? `1px solid ${T.accentLine}`
+                    : `1px solid ${T.line}`,
+                  position: 'relative',
+                  background: T.card,
+                  animation: `planStaggerEnter 320ms cubic-bezier(0.23, 1, 0.32, 1) ${staggerDelay}ms both`,
+                }}
+              >
+                {/* Cabeçalho do Card */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <h2
+                      style={{
+                        fontFamily: T.display,
+                        fontSize: 20,
+                        fontWeight: W.title,
+                        color: T.text,
+                        margin: 0,
+                      }}
+                    >
+                      {p.nome}
+                    </h2>
+                    {ehAtual ? (
+                      <Badge variant="success">Seu plano atual</Badge>
+                    ) : destaque ? (
+                      <Badge variant="default">Mais popular</Badge>
+                    ) : null}
+                  </div>
+                  <p style={{ color: T.mute, fontSize: 13, marginTop: 6, lineHeight: 1.5, minHeight: 38 }}>
+                    {p.resumo}
+                  </p>
+                </div>
+
+                {/* Preço com Transição de Desfoque Suave (Emil Blur Technique) */}
+                <div
+                  className={`plan-price-display ${isMorphingPrice ? 'morphing' : ''}`}
+                  style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}
+                >
+                  <span
+                    style={{
+                      fontFamily: T.display,
+                      fontSize: 32,
+                      fontWeight: W.title,
+                      color: T.text,
+                      letterSpacing: '-0.02em',
+                    }}
+                  >
+                    {gratuito ? 'Grátis' : emReais(preco)}
+                  </span>
+                  {!gratuito && (
+                    <span style={{ color: T.mute, fontSize: 13 }}>
+                      {intervalo === 'MONTHLY' ? '/ mês' : '/ ano'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Divisor */}
+                <div style={{ height: 1, background: T.line }} />
+
+                {/* Lista de Recursos e Limites */}
+                <ul
+                  style={{
+                    listStyle: 'none',
+                    margin: 0,
+                    padding: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    flex: 1,
+                  }}
+                >
+                  {[...p.limites, ...p.recursos].map((linha) => (
+                    <li
+                      key={linha}
+                      style={{
+                        display: 'flex',
+                        gap: 10,
+                        alignItems: 'flex-start',
+                        color: T.text,
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      <Check
+                        size={16}
+                        color={T.accent}
+                        style={{ flexShrink: 0, marginTop: 2 }}
+                        aria-hidden="true"
+                      />
+                      <span>{linha}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Botão de Ação com Feedback Tátil */}
+                <div style={{ marginTop: 'auto', paddingTop: 12 }}>
+                  {ehAtual ? (
+                    <Button
+                      variant="secondary"
+                      disabled
+                      style={{ width: '100%', opacity: 0.8, cursor: 'default' }}
+                    >
+                      Plano atual em uso
+                    </Button>
+                  ) : gratuito ? (
+                    <Button
+                      variant="secondary"
+                      disabled
+                      style={{ width: '100%', opacity: 0.7, cursor: 'default' }}
+                    >
+                      Plano inicial
+                    </Button>
+                  ) : (
+                    <Button
+                      variant={destaque ? 'primary' : 'secondary'}
+                      className="group plan-btn-interactive"
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                      }}
+                      loading={estaAssinando}
+                      onClick={() => assinar(p.code)}
+                    >
+                      <span>Assinar o {p.nome}</span>
+                      <ArrowRight size={15} className="transition-transform duration-150 group-hover:translate-x-1" />
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
         </div>
 
-        <p style={{ color: T.mute, fontSize: 12, lineHeight: 1.6 }}>
-          Prédios extras são contratados no Essencial e no Pro, e cobrados por unidade em cima do
-          plano. O pagamento é processado pelo Stripe — nenhum dado de cartão passa pelo Viston.
-        </p>
+        {/* Rodapé Informativo / Segurança */}
+        <div
+          style={{
+            marginTop: 16,
+            padding: '20px 24px',
+            borderRadius: R.card,
+            background: T.chip,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            flexWrap: 'wrap',
+            animation: 'planFadeInUp 300ms cubic-bezier(0.23, 1, 0.32, 1) 300ms both',
+          }}
+        >
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: T.card,
+              border: `1px solid ${T.line}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: T.accent,
+              flexShrink: 0,
+            }}
+          >
+            <ShieldCheck size={20} />
+          </div>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <p style={{ color: T.text, fontSize: 13, fontWeight: W.strong, margin: 0 }}>
+              Pagamento 100% seguro processado pelo Stripe
+            </p>
+            <p style={{ color: T.mute, fontSize: 12, lineHeight: 1.5, margin: '2px 0 0' }}>
+              Nenhum dado de cartão passa pelos nossos servidores. Prédios extras são contratados no
+              Essencial e no Pro. Cancele ou mude de plano a qualquer momento sem burocracia.
+            </p>
+          </div>
+        </div>
       </main>
-    </RouteGuard>
+    </div>
   );
 }
 
 export default function CobrancaPage() {
   return (
-    // `useSearchParams` — usado para ler a volta do checkout — precisa de uma
-    // fronteira de suspensão para a rota continuar sendo pré-renderizada; sem
-    // ela o build recusa a página.
-    <Suspense fallback={null}>
-      <TelaDeCobranca />
-    </Suspense>
+    <RouteGuard roles={['GESTOR']}>
+      <Suspense fallback={<div style={{ minHeight: '100vh', background: T.bg }} />}>
+        <CobrancaContent />
+      </Suspense>
+    </RouteGuard>
   );
 }

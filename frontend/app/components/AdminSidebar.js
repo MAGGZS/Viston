@@ -1,6 +1,6 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
-import { Users, LayoutDashboard, LogOut, MessageSquare } from 'lucide-react';
+import { Users, LayoutDashboard, LogOut, MessageSquare, CreditCard } from 'lucide-react';
 import { SidebarShell, SidebarBrand, SidebarNav, SidebarFooter, SidebarItem } from '@/app/components/Sidebar';
 import { useSidebar } from '@/app/store/sidebar';
 import { useAuthStore } from '@/app/store/auth';
@@ -11,6 +11,7 @@ import { useFeedbacks } from '@/app/hooks/useApi';
 const items = [
   { href: '/desktop/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/desktop/admin', icon: Users, label: 'Usuários' },
+  { href: '/desktop/admin/planos', icon: CreditCard, label: 'Planos' },
   { href: '/desktop/admin/feedbacks', icon: MessageSquare, label: 'Feedbacks' },
 ];
 

@@ -4,7 +4,7 @@ import { Building2 } from 'lucide-react';
 import { Button, Card } from '@/app/components/ui';
 import { useToastStore } from '@/app/store/toast';
 import { useOwnershipTransfers, useRespondTransfer } from '@/app/hooks/useApi';
-import { detalheDoLimite, ehErroDePlano, mensagemDoErro } from '@/app/lib/erros';
+import { detalheDoLimite, dispararUpgrade, ehErroDePlano, mensagemDoErro } from '@/app/lib/erros';
 import { T, R, W } from '@/app/lib/theme';
 
 /**
@@ -36,14 +36,7 @@ export function ConvitesDeTransferencia() {
       );
     } catch (err) {
       if (ehErroDePlano(err)) {
-        const detalhe = detalheDoLimite(err);
-        toast(
-          mensagemDoErro(err),
-          'error',
-          detalhe
-            ? `${detalhe} O convite continua de pé — veja Planos e cobrança.`
-            : 'O convite continua de pé — veja Planos e cobrança.'
-        );
+        dispararUpgrade(err, 'Limite de prédios atingido');
       } else {
         toast(mensagemDoErro(err), 'error');
       }
