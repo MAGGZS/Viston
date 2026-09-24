@@ -1316,16 +1316,23 @@ export default function AdminPlanosPage() {
                 const qtdPredios = gestor.buildings ?? 0;
 
                 return (
+                  // O cartão inteiro não abre mais o painel, e o "Gerenciar"
+                  // abaixo continua abrindo.
+                  //
+                  // O cartão era um `<div onClick>`: quem navega pelo teclado
+                  // não o alcançava, e transformá-lo em `<button>` não resolve
+                  // — ele tem um botão de verdade dentro, e botão dentro de
+                  // botão é marcação inválida, que os navegadores desmontam de
+                  // um jeito imprevisível. O gesto fica no controle que já
+                  // existia para ele, e que o teclado alcança.
                   <div
                     key={gestor.id}
-                    onClick={() => setGestorSelecionado(gestor)}
                     className="kpi-card"
                     style={{
                       padding: '16px 18px',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 12,
-                      cursor: 'pointer',
                     }}
                   >
                     {/* Linha 1: Gestor (Avatar, Nome, Email) + Status */}
@@ -1377,10 +1384,7 @@ export default function AdminPlanosPage() {
                     <Button
                       variant="secondary"
                       style={{ width: '100%', justifyContent: 'center', padding: '8px 12px', fontSize: 13, marginTop: 2 }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setGestorSelecionado(gestor);
-                      }}
+                      onClick={() => setGestorSelecionado(gestor)}
                     >
                       Gerenciar
                       <ChevronRight size={14} style={{ marginLeft: 4 }} />

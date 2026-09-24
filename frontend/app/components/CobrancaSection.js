@@ -7,6 +7,7 @@ import { useToastStore } from '@/app/store/toast';
 import { useBillingPortal, useMyPlan, useMySubscription } from '@/app/hooks/useApi';
 import { emReais, nomeDoPlano, PLANOS, STATUS_LABEL } from '@/app/lib/planos';
 import { T, R, W } from '@/app/lib/theme';
+import { irPara } from '@/app/lib/navegacao';
 
 /** O aviso de volta do checkout, lido da URL que o Stripe devolveu. */
 export function avisoDoCheckout(resultado) {
@@ -472,7 +473,7 @@ export function CobrancaSection() {
   async function abrirPortal() {
     try {
       const { url } = await portal.mutateAsync();
-      window.location.href = url;
+      irPara(url);
     } catch (err) {
       toast(err.response?.data?.error?.message ?? 'Não foi possível abrir o portal', 'error');
     }

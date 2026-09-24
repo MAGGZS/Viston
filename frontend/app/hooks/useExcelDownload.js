@@ -2,6 +2,7 @@
 import { useCallback, useState } from 'react';
 import api from '@/app/lib/api';
 import { useToastStore } from '@/app/store/toast';
+import { irPara } from '@/app/lib/navegacao';
 
 /**
  * Baixar a planilha de uma vistoria.
@@ -37,7 +38,7 @@ export function useExcelDownload() {
           if (e?.response?.status !== 404) throw e;
           ({ data: { excel_url: url } = {} } = await api.post(`/inspections/${reportId}/excel`));
         }
-        if (url) window.location.href = url;
+        irPara(url);
       } catch (e) {
         toast(e?.response?.data?.error?.message || 'Erro ao baixar a planilha', 'error');
       } finally {
