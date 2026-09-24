@@ -23,6 +23,7 @@ import { comprimirImagem } from '@/app/lib/imagem';
 import { T, R, W } from '@/app/lib/theme';
 import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
+import { avisarErro } from '@/app/lib/erros';
 
 /**
  * Os estados em que existe manutenção a contar.
@@ -438,7 +439,7 @@ function Compositor({ ticketId, ultimo = true }) {
       setFotos([]);
       toast('Atualização registrada', 'success');
     } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao registrar a atualização', 'error');
+      avisarErro(toast, e, 'Erro ao registrar a atualização');
     }
   }
 

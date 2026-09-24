@@ -1,12 +1,13 @@
 'use client';
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { LogOut, ArrowLeft, Building2, Check, ChevronRight, KeyRound, MessageSquarePlus, Palette, Pencil, Trash2, UserRound } from 'lucide-react';
+import { LogOut, ArrowLeft, Building2, Check, ChevronRight, CreditCard, KeyRound, MessageSquarePlus, Palette, Pencil, Trash2, UserRound } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
+import { CobrancaSection } from '@/app/components/CobrancaSection';
 import { SenhaChecklist, senhaValida, useFocoSenha } from '@/app/components/SenhaChecklist';
 import { Avatar } from '@/app/components/Avatar';
 import { AvatarEditorModal } from '@/app/components/AvatarEditorModal';
@@ -343,6 +344,15 @@ function PainelDaConta({ secao, user, theme, buildingLabel, onEditarFoto, onAbri
     );
   }
 
+  if (secao === 'cobranca') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <TituloDaSecao>Planos e cobrança</TituloDaSecao>
+        <CobrancaSection />
+      </div>
+    );
+  }
+
   if (secao === 'seguranca') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -658,6 +668,7 @@ function PerfilContent() {
    */
   const secoes = [
     { id: 'perfil', label: 'Meu perfil' },
+    isManager(user) && { id: 'cobranca', label: 'Planos e cobrança' },
     { id: 'seguranca', label: 'Segurança' },
     { id: 'aparencia', label: 'Aparência' },
     !isManager(user) && { id: 'predio', label: 'Prédio' },
@@ -665,7 +676,22 @@ function PerfilContent() {
     { id: 'excluir', label: 'Excluir conta', tone: 'danger' },
   ].filter(Boolean);
 
-  const [secao, setSecao] = useState('perfil');
+  const secaoQuery = searchParams?.get('secao');
+  const [secao, setSecao] = useState(() => {
+    if (secaoQuery && ['perfil', 'cobranca', 'seguranca', 'aparencia', 'predio', 'feedback', 'excluir'].includes(secaoQuery)) {
+      return secaoQuery;
+    }
+    return 'perfil';
+  });
+
+  useEffect(() => {
+    if (secaoQuery && secoes.some((s) => s.id === secaoQuery)) {
+      setSecao(secaoQuery);
+      if (secaoQuery === 'cobranca' && isManager(user)) {
+        setSheet('cobranca');
+      }
+    }
+  }, [secaoQuery, user]);
   const secaoAtual = secoes.find((s) => s.id === secao) ?? secoes[0];
   const temBarra = contaTemBarra(user, buildingId);
 
@@ -873,6 +899,13 @@ function PerfilContent() {
 
           <Group title="Conta" />
           <Row icon={UserRound} label="Identificação" onClick={() => setSheet('identity')} />
+          {isManager(user) && (
+            <Row
+              icon={CreditCard}
+              label="Planos e cobrança"
+              onClick={() => setSheet('cobranca')}
+            />
+          )}
           {!isManager(user) && (
             <Row
               icon={Building2}
@@ -947,6 +980,10 @@ function PerfilContent() {
           o foco a cada tecla. */}
       <Modal open={sheet === 'building'} onClose={() => setSheet(null)} title="Prédio vinculado" maxWidth={440}>
         {BuildingSection()}
+      </Modal>
+
+      <Modal open={sheet === 'cobranca'} onClose={() => setSheet(null)} title="Planos e cobrança" maxWidth={640}>
+        <CobrancaSection />
       </Modal>
 
       <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Excluir conta">

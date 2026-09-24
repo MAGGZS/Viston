@@ -1,0 +1,40 @@
+# O ciclo diário dos planos.
+#
+# Três coisas do produto acontecem porque o tempo passou, e não porque alguém
+# clicou: o pedido de transferência que ninguém respondeu em sete dias, a
+# assinatura que caiu e deixou a conta com mais prédios do que ela comporta, e a
+# concessão do admin que venceu. Sem alguém para perguntar as horas, nenhuma
+# delas acontece.
+#
+# Actions e não Cron Job do Render: o Render cobra por serviço de cron, e
+# minutos de Actions em repositório público não são cobrados — a mesma conta que
+# o keep-alive já faz.
+#
+# A credencial é o `JOB_SECRET`, que mora nos segredos do repositório e no
+# painel do Render. Sem ele, a rota responde 404 e este workflow falha alto, que
+# é o que se quer: ciclo que não roda em silêncio é ciclo que ninguém percebe
+# parado.
+name: Planos — ciclo diário
+
+on:
+  schedule:
+    # 06:10 UTC, que é 03:10 em São Paulo: fora do horário de uso, e depois da
+    # virada do dia no fuso do produto. O agendador do GitHub atrasa alguns
+    # minutos com frequência, e aqui isso não muda nada.
+    - cron: '10 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  ciclo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rodar o ciclo de planos
+        run: |
+          resposta=$(curl --silent --show-error --fail --max-time 300 \
+            --request POST \
+            --header "X-Job-Secret: ${JOB_SECRET}" \
+            "${API_URL}/jobs/planos")
+          echo "POST ${API_URL}/jobs/planos -> ${resposta}"
+        env:
+          API_URL: https://viston.onrender.com
+          JOB_SECRET: ${{ secrets.JOB_SECRET }}

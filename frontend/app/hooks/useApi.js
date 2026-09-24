@@ -1149,3 +1149,139 @@ export function useCalendar(params) {
     enabled: !!params,
   });
 }
+
+// ── Planos e cobrança ─────────────────────────────────────────────────────────
+
+/**
+ * O que a conta contratou.
+ *
+ * `null` é conta sem assinatura — o que, no produto, quer dizer plano Livre. A
+ * tela trata o nulo como um estado normal, e não como erro: é onde toda conta
+ * nova começa.
+ */
+export function useMySubscription() {
+  return useQuery({
+    queryKey: ['my-subscription'],
+    queryFn: () => api.get('/billing/subscription').then((r) => r.data),
+  });
+}
+
+/**
+ * Abre a sessão de pagamento e devolve para onde mandar a pessoa.
+ *
+ * Quem navega é a tela, e não este gancho: a mutação devolve a URL, e a tela
+ * decide a hora de sair — assim o botão pode mostrar o giro até o navegador
+ * trocar de página.
+ */
+export function useCheckout() {
+  return useMutation({
+    mutationFn: (data) => api.post('/billing/checkout', data).then((r) => r.data),
+  });
+}
+
+/** A porta do portal do Stripe: cartão, nota fiscal e cancelamento moram lá. */
+export function useBillingPortal() {
+  return useMutation({
+    mutationFn: () => api.post('/billing/portal').then((r) => r.data),
+  });
+}
+
+/** Os pedidos de transferência de prédio que esperam resposta desta conta. */
+export function useOwnershipTransfers() {
+  return useQuery({
+    queryKey: ['ownership-transfers'],
+    queryFn: () => api.get('/ownership-transfers/me').then((r) => r.data),
+  });
+}
+
+/** Aceitar traz o prédio para esta conta; recusar inativa o prédio. */
+export function useRespondTransfer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, accept }) =>
+      api.patch(`/ownership-transfers/${id}`, { accept }).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ownership-transfers'] });
+      // O prédio entra (ou sai) da lista de quem administra, e a contagem de
+      // prédios da conta muda junto.
+      queryClient.invalidateQueries({ queryKey: ['managed-buildings'] });
+      queryClient.invalidateQueries({ queryKey: ['my-subscription'] });
+    },
+  });
+}
+
+// ── Planos: o que o admin faz com a conta dos outros ──────────────────────────
+
+/**
+ * O plano de uma conta de gestor, pelos olhos do suporte: o que vale, de onde
+ * vem, o consumo do mês e o histórico das concessões.
+ */
+export function useManagerPlan(managerId) {
+  return useQuery({
+    queryKey: ['admin-plan', managerId],
+    queryFn: () => api.get(`/admin/managers/${managerId}/plan`).then((r) => r.data),
+    enabled: !!managerId,
+  });
+}
+
+/**
+ * As quatro ações do suporte sobre uma conta.
+ *
+ * Um gancho por ação, e não um só com um verbo no corpo: cada uma invalida
+ * coisas diferentes, e juntá-las faria a tela recarregar o que não mudou.
+ */
+export function useGrantPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ managerId, ...data }) =>
+      api.post(`/admin/managers/${managerId}/grants`, data).then((r) => r.data),
+    onSuccess: (_data, { managerId }) =>
+      qc.invalidateQueries({ queryKey: ['admin-plan', managerId] }),
+  });
+}
+
+export function useRevokeGrant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ grantId }) => api.delete(`/admin/grants/${grantId}`).then((r) => r.data),
+    onSuccess: (_data, { managerId }) =>
+      qc.invalidateQueries({ queryKey: ['admin-plan', managerId] }),
+  });
+}
+
+export function useSetSuspension() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ managerId, suspended }) =>
+      api.patch(`/admin/managers/${managerId}/suspension`, { suspended }).then((r) => r.data),
+    onSuccess: (_data, { managerId }) => {
+      qc.invalidateQueries({ queryKey: ['admin-plan', managerId] });
+      // A lista de gestores mostra a suspensão ao lado do nome.
+      qc.invalidateQueries({ queryKey: ['managers'] });
+    },
+  });
+}
+
+export function useSetBuildingFreeze() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ buildingId, frozen }) =>
+      api.patch(`/admin/buildings/${buildingId}/freeze`, { frozen }).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['buildings'] }),
+  });
+}
+
+/**
+ * O plano que vale para a conta que está logada, e quanto dela já se gastou.
+ *
+ * É o que permite avisar antes de a pessoa esbarrar: "2 de 3 prédios" dito a
+ * tempo evita o 403 que ela só descobriria ao tentar cadastrar o quarto.
+ */
+export function useMyPlan() {
+  return useQuery({
+    queryKey: ['my-plan'],
+    queryFn: () => api.get('/billing/plan').then((r) => r.data),
+    enabled: useAuthStore.getState().user?.kind === 'MANAGER',
+  });
+}

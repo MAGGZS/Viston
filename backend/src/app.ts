@@ -15,6 +15,9 @@ import inspectionRoutes from './routes/inspection.routes';
 import ticketRoutes from './routes/ticket.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import adminRoutes from './routes/admin.routes';
+import billingRoutes from './routes/billing.routes';
+import ownershipRoutes from './routes/ownership.routes';
+import jobRoutes from './routes/jobs.routes';
 import { errorHandler } from './middlewares/errorHandler';
 import { generalLimiter } from './middlewares/rateLimit';
 
@@ -58,6 +61,11 @@ app.use(
   ['/buildings/:id/occurrences', '/tickets/:id/updates'],
   express.json({ limit: '9mb' })
 );
+// O webhook do Stripe recebe o corpo cru, e pelo mesmo motivo de ordem: a
+// assinatura dele é calculada sobre os bytes que o Stripe mandou, e um
+// `JSON.parse` seguido de `stringify` muda espaços e ordem — a assinatura
+// deixaria de bater e todo evento seria recusado.
+app.use('/billing/webhook', express.raw({ type: 'application/json', limit: '1mb' }));
 // Teto da vistoria: 20 andares × 20 ocorrências × 2000 caracteres cabe em 2mb.
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
@@ -117,6 +125,14 @@ app.use('/feedbacks', feedbackRoutes);
 // As rotas de plano do suporte. Caminho próprio porque o que mora nelas é o
 // admin olhando para a conta dos outros, e não a conta olhando para si mesma.
 app.use('/admin', adminRoutes);
+// Cobranca. O webhook mora dentro deste roteador e le o corpo cru — por isso o
+// roteador entra antes do `express.json` global (ver billing.routes.ts).
+app.use('/billing', billingRoutes);
+// A troca de dono entra na raiz: o pedido e do predio, a resposta e do pedido.
+app.use('/', ownershipRoutes);
+// O gatilho do ciclo diario de planos. Sem sessao: a credencial de quem chama e
+// o JOB_SECRET (ver jobs.routes.ts).
+app.use('/', jobRoutes);
 app.use('/', inspectionRoutes);
 // Os chamados moram em dois caminhos — a fila é do prédio, a ação é da
 // ocorrência — e por isso a rota entra na raiz, como a de vistorias.

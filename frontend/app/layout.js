@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import { QueryProvider } from '@/app/lib/QueryProvider';
 import { AuthProvider } from '@/app/lib/AuthProvider';
 import { Toast } from '@/app/components/Toast';
+import { UpgradeModal } from '@/app/components/UpgradeModal';
 import { UnsavedGuard } from '@/app/components/UnsavedGuard';
 import { BRAND, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from '@/app/lib/site';
 import { THEME_COLOR, THEME_KEY } from '@/app/lib/theme';
@@ -139,6 +140,7 @@ export default function RootLayout({ children }) {
         <QueryProvider>
           <AuthProvider>
             <Toast />
+            <UpgradeModal />
             {/* Pergunta antes de tirar alguém de um formulário mexido — o
                 registro de quem está pendente é global (ver store/unsaved.js). */}
             <UnsavedGuard />

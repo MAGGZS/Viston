@@ -1,4 +1,5 @@
 'use client';
+import { Snowflake } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { GestorSidebar } from '@/app/components/GestorSidebar';
 import { useManagedBuildings } from '@/app/hooks/useApi';
@@ -51,6 +52,41 @@ function DesktopOnly() {
  * diz outra coisa — é o que o painel quer, e é o que a tela sem nome nenhum
  * deveria mostrar.
  */
+/**
+ * O aviso de prédio inativo.
+ *
+ * Congelado, o prédio continua abrindo e continua sendo lido — e é justamente
+ * por isso que ele precisa dizer o que é: sem esta faixa, a pessoa descobriria
+ * o congelamento tentando cadastrar um andar e levando um 403 que não explica
+ * por que hoje é diferente de ontem.
+ *
+ * Fica acima do cabeçalho, e não dentro da tela: vale para todas as abas do
+ * prédio, e repetir a faixa em cada uma seria quatro lugares para esquecer.
+ */
+function FaixaDeCongelamento({ desde }) {
+  return (
+    <div
+      role="status"
+      style={{
+        background: T.accentSoft,
+        borderBottom: `1px solid ${T.accentLine}`,
+        padding: '12px 32px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        flexShrink: 0,
+      }}
+    >
+      <Snowflake size={16} color={T.accentInk} aria-hidden="true" style={{ flexShrink: 0 }} />
+      <p style={{ color: T.accentInk, fontSize: 13, lineHeight: 1.5 }}>
+        Este prédio está inativo desde {new Date(desde).toLocaleDateString('pt-BR')}. O histórico
+        continua aberto para leitura, mas vistoria, chamado e convite novos estão suspensos —
+        regularize o plano em <a href="/perfil?secao=cobranca" style={{ textDecoration: 'underline' }}>Planos e cobrança</a>.
+      </p>
+    </div>
+  );
+}
+
 export function GestorShell({ buildingId, title, subtitle, actions, ownHeader = false, children }) {
   const { building, isLoading } = useManagedBuilding(buildingId);
 
@@ -63,6 +99,7 @@ export function GestorShell({ buildingId, title, subtitle, actions, ownHeader = 
         <GestorSidebar buildingId={buildingId} buildingName={building?.name} />
 
         <main id={CONTENT_ID} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: '100vh', overflow: 'hidden' }}>
+          {building?.frozen_at && <FaixaDeCongelamento desde={building.frozen_at} />}
           {/* A barra lateral não anima na entrada: ela remonta a cada troca de
               aba, e piscar o menu inteiro a cada clique seria ruído. Quem entra
               é o conteúdo, que é o que mudou.

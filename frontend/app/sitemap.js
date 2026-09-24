@@ -4,7 +4,9 @@ import { PUBLIC_ROUTES, SITE_URL } from '@/app/lib/site';
  * Só as rotas abertas entram. As telas do sistema exigem login — indexá-las
  * geraria resultados que levam direto para um redirect.
  */
-const PRIORITY = { '/': 1, '/login': 0.6, '/register': 0.6, '/register/gestor': 0.5 };
+// `/planos` logo abaixo da raiz: é a página que alguém manda por link para
+// explicar o produto, e a única, fora da inicial, feita para ser achada.
+const PRIORITY = { '/': 1, '/planos': 0.9, '/login': 0.6, '/register': 0.6, '/register/gestor': 0.5 };
 
 export default function sitemap() {
   const lastModified = new Date();
@@ -13,7 +15,7 @@ export default function sitemap() {
     // A raiz sai com a barra final para bater com o canonical da metadata.
     url: `${SITE_URL}${route}`,
     lastModified,
-    changeFrequency: route === '/' ? 'monthly' : 'yearly',
+    changeFrequency: route === '/' || route === '/planos' ? 'monthly' : 'yearly',
     priority: PRIORITY[route] ?? 0.5,
   }));
 }
