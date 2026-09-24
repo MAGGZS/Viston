@@ -1149,3 +1149,64 @@ export function useCalendar(params) {
     enabled: !!params,
   });
 }
+
+// ── Planos e cobrança ─────────────────────────────────────────────────────────
+
+/**
+ * O que a conta contratou.
+ *
+ * `null` é conta sem assinatura — o que, no produto, quer dizer plano Livre. A
+ * tela trata o nulo como um estado normal, e não como erro: é onde toda conta
+ * nova começa.
+ */
+export function useMySubscription() {
+  return useQuery({
+    queryKey: ['my-subscription'],
+    queryFn: () => api.get('/billing/subscription').then((r) => r.data),
+  });
+}
+
+/**
+ * Abre a sessão de pagamento e devolve para onde mandar a pessoa.
+ *
+ * Quem navega é a tela, e não este gancho: a mutação devolve a URL, e a tela
+ * decide a hora de sair — assim o botão pode mostrar o giro até o navegador
+ * trocar de página.
+ */
+export function useCheckout() {
+  return useMutation({
+    mutationFn: (data) => api.post('/billing/checkout', data).then((r) => r.data),
+  });
+}
+
+/** A porta do portal do Stripe: cartão, nota fiscal e cancelamento moram lá. */
+export function useBillingPortal() {
+  return useMutation({
+    mutationFn: () => api.post('/billing/portal').then((r) => r.data),
+  });
+}
+
+/** Os pedidos de transferência de prédio que esperam resposta desta conta. */
+export function useOwnershipTransfers() {
+  return useQuery({
+    queryKey: ['ownership-transfers'],
+    queryFn: () => api.get('/ownership-transfers/me').then((r) => r.data),
+  });
+}
+
+/** Aceitar traz o prédio para esta conta; recusar inativa o prédio. */
+export function useRespondTransfer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, accept }) =>
+      api.patch(`/ownership-transfers/${id}`, { accept }).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ownership-transfers'] });
+      // O prédio entra (ou sai) da lista de quem administra, e a contagem de
+      // prédios da conta muda junto.
+      queryClient.invalidateQueries({ queryKey: ['managed-buildings'] });
+      queryClient.invalidateQueries({ queryKey: ['my-subscription'] });
+    },
+  });
+}

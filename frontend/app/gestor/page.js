@@ -11,6 +11,7 @@ import { useManagedBuildings, useDeleteBuilding } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { formatShareKey } from '@/app/lib/shareKey';
 import { ModalShareBuilding } from '@/app/components/ModalShareBuilding';
+import { ConvitesDeTransferencia } from '@/app/components/ConvitesDeTransferencia';
 import { T, R, W } from '@/app/lib/theme';
 import { CONTENT_ID } from '@/app/components/mobile/kit';
 
@@ -154,6 +155,9 @@ export default function GestorHomePage() {
           flex: 1, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center', padding: '48px 24px 72px', gap: 28,
         }}>
+          {/* Antes de tudo: é a única coisa desta tela que tem prazo. */}
+          <ConvitesDeTransferencia />
+
           {isLoading && (
             <div style={{ width: CARD_WIDTH, height: 172, background: T.card, borderRadius: R.card }} className="anim-fade-in animate-pulse" />
           )}
