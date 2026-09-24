@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { useForm, useWatch } from 'react-hook-form';
@@ -644,7 +644,12 @@ function PerfilContent() {
   const buildingId = searchParams?.get('buildingId') ?? null;
   const [deleteModal, setDeleteModal] = useState(false);
   // Qual caixa está aberta: 'identity' | 'password' | 'building' | 'feedback'
-  const [sheet, setSheet] = useState(null);
+  //
+  // `undefined` é "ninguém mexeu nas caixas ainda", e é o que permite a URL
+  // abrir a de cobrança sozinha (ver `sheet`, logo abaixo das seções). `null`
+  // é caixa fechada de propósito — fechar continua fechando, mesmo com a URL
+  // ainda pedindo cobrança.
+  const [sheetEscolhido, setSheet] = useState(undefined);
   const [avatarModal, setAvatarModal] = useState(false);
 
   /**
@@ -676,22 +681,38 @@ function PerfilContent() {
     { id: 'excluir', label: 'Excluir conta', tone: 'danger' },
   ].filter(Boolean);
 
+  /**
+   * A seção aberta: a escolha de quem clicou, e a URL enquanto ninguém clicou.
+   *
+   * Derivada, e não copiada para o estado por um efeito. Copiar custava duas
+   * coisas: o React reclama de `setState` dentro de `useEffect` (é render em
+   * cascata, e o lint reprova), e a conta chegava depois — `user` vem da sessão
+   * e começa nulo, então o efeito rodava uma vez sem saber se a pessoa era
+   * gestora e a aba de cobrança não abria.
+   *
+   * `null` em `secaoEscolhida` quer dizer "ninguém mexeu ainda", e é o que
+   * deixa a URL mandar. Depois do primeiro clique, manda o clique — inclusive
+   * para voltar a uma seção que a URL não cita.
+   */
   const secaoQuery = searchParams?.get('secao');
-  const [secao, setSecao] = useState(() => {
-    if (secaoQuery && ['perfil', 'cobranca', 'seguranca', 'aparencia', 'predio', 'feedback', 'excluir'].includes(secaoQuery)) {
-      return secaoQuery;
-    }
-    return 'perfil';
-  });
+  const secaoDaUrl = secoes.some((s) => s.id === secaoQuery) ? secaoQuery : null;
 
-  useEffect(() => {
-    if (secaoQuery && secoes.some((s) => s.id === secaoQuery)) {
-      setSecao(secaoQuery);
-      if (secaoQuery === 'cobranca' && isManager(user)) {
-        setSheet('cobranca');
-      }
-    }
-  }, [secaoQuery, user]);
+  const [secaoEscolhida, setSecaoEscolhida] = useState(null);
+  const secao = secaoEscolhida ?? secaoDaUrl ?? 'perfil';
+  const setSecao = setSecaoEscolhida;
+
+  /**
+   * `?secao=cobranca` abre a caixa de cobrança no telefone, onde a seção não
+   * tem coluna própria. Derivado pelo mesmo motivo da seção: a conta pode
+   * chegar depois, e um efeito perderia o momento.
+   */
+  const sheet =
+    sheetEscolhido !== undefined
+      ? sheetEscolhido
+      : secaoDaUrl === 'cobranca' && isManager(user)
+        ? 'cobranca'
+        : null;
+
   const secaoAtual = secoes.find((s) => s.id === secao) ?? secoes[0];
   const temBarra = contaTemBarra(user, buildingId);
 

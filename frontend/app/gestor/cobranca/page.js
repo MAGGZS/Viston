@@ -10,6 +10,7 @@ import { useCheckout, useMyPlan, useMySubscription } from '@/app/hooks/useApi';
 import { PLANOS, emReais } from '@/app/lib/planos';
 import { T, R, W } from '@/app/lib/theme';
 import { avisoDoCheckout } from '@/app/components/CobrancaSection';
+import { irPara } from '@/app/lib/navegacao';
 
 const INTERVALOS = [
   { id: 'MONTHLY', label: 'Mensal' },
@@ -48,7 +49,7 @@ function CobrancaContent() {
     setPlanoEmCurso(planCode);
     try {
       const { url } = await checkout.mutateAsync({ plan: planCode, interval: intervalo });
-      window.location.href = url;
+      irPara(url);
     } catch (err) {
       setPlanoEmCurso(null);
       toast(err.response?.data?.error?.message ?? 'Não foi possível abrir a sessão de pagamento', 'error');

@@ -14,6 +14,7 @@ import { parseReportDate } from '@/app/lib/date';
 import { MAINTENANCE_TYPES, CATEGORIES, PRIORITIES, RECORD_STATUS, FLOOR_STATUS_LABEL, labelOf } from '@/app/lib/maintenanceOptions';
 import { useToastStore } from '@/app/store/toast';
 import { T, R, W } from '@/app/lib/theme';
+import { irPara } from '@/app/lib/navegacao';
 
 // Folha do documento: mesma paleta do app, com cara de impresso — tipografia e filete.
 const PAPER = T.card;
@@ -300,7 +301,7 @@ export function ReportDocumentModal({ open, onClose, reportId }) {
       const { excel_url } = await generateExcel.mutateAsync(shownId);
       toast('Planilha gerada!', 'success');
       // A URL vem assinada e vale minutos: a planilha desce agora, não depois.
-      if (excel_url) window.location.href = excel_url;
+      irPara(excel_url);
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao gerar planilha', 'error');
     }
