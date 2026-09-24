@@ -105,6 +105,17 @@ export const config = {
     },
   },
 
+  /**
+   * O segredo do ciclo diário de planos.
+   *
+   * A rota que o dispara não tem sessão: quem a chama é um agendador, não uma
+   * pessoa. A credencial dele é este valor, comparado em tempo constante — e,
+   * sem ele configurado, a rota responde 404, como se não existisse. Vazio é o
+   * estado seguro: melhor o ciclo não rodar do que rodar para quem descobriu a
+   * URL.
+   */
+  jobSecret: process.env.JOB_SECRET || '',
+
   cors: {
     /**
      * FRONTEND_URL aceita uma ou várias origens separadas por vírgula.
