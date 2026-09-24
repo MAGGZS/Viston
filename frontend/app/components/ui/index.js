@@ -582,7 +582,9 @@ export function Select({
   const listId = useId();
   const errorId = `${listId}-erro`;
 
-  const selectedIndex = options.findIndex((o) => String(o.value) === String(value));
+  const resolvedValue =
+    typeof value === 'object' && value !== null && 'target' in value ? value.target?.value : value;
+  const selectedIndex = options.findIndex((o) => String(o.value) === String(resolvedValue));
   const selected = options[selectedIndex];
 
   // Controle miúdo (a linha de colaborador) pede item miúdo: opção com a altura
@@ -655,7 +657,7 @@ export function Select({
   function commit(index) {
     const option = options[index];
     setOpen(false);
-    if (!option || String(option.value) === String(value)) return;
+    if (!option || String(option.value) === String(resolvedValue)) return;
     onChange?.({ target: { name, value: option.value } });
   }
 

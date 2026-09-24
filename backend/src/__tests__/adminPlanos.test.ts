@@ -76,6 +76,7 @@ beforeEach(() => {
   mockPlans.createGrant.mockResolvedValue(grant());
   mockPlans.findGrantById.mockResolvedValue(grant());
   mockPlans.revokeGrant.mockResolvedValue(grant({ revoked_at: new Date() }));
+  mockPlans.revokeAllActiveGrants.mockResolvedValue({ count: 1 } as never);
 
   mockUsage.emailsSent.mockResolvedValue(0);
   mockUsage.storageUsedBytes.mockResolvedValue(0);

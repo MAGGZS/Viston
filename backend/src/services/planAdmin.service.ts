@@ -86,6 +86,10 @@ export const planAdminService = {
   ) {
     await assertManagerExists(managerId);
 
+    // Fecha concessões anteriores ativas antes de abrir a nova,
+    // garantindo que não fiquem concessões duplicadas concorrendo.
+    await planRepository.revokeAllActiveGrants(managerId);
+
     const expires_at = data.days
       ? new Date(Date.now() + data.days * 24 * 60 * 60 * 1000)
       : null;
@@ -112,8 +116,9 @@ export const planAdminService = {
   /**
    * Fecha a concessão agora.
    *
-   * Revogar de novo é conflito, e não um segundo carimbo: a data de revogação
-   * é quando o acesso caiu, e reescrevê-la contaria a história errada.
+   * Revoga todas as concessões ativas deste gestor, garantindo que
+   * a conta volte imediatamente para o plano LIVRE (sem concessões antigas
+   * "revivendo" no histórico).
    */
   async revoke(grantId: string, actor: Actor) {
     const grant = await planRepository.findGrantById(grantId);
@@ -121,6 +126,7 @@ export const planAdminService = {
     if (grant.revoked_at) throw new ConflictError('Esta concessão já foi revogada');
 
     const revoked = await planRepository.revokeGrant(grantId);
+    await planRepository.revokeAllActiveGrants(grant.manager_id);
 
     await auditRepository.log({
       ...actorAudit(actor),

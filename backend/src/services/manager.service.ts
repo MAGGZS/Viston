@@ -11,6 +11,8 @@ import {
   outraTabelaLivre,
   RESPOSTA_CADASTRO,
 } from './confirmation.service';
+import { planService } from './plan.service';
+import { PLANS } from '../utils/plans';
 
 /**
  * Recusa apagar a conta que é a única gestora de algum prédio.
@@ -158,11 +160,23 @@ export const managerService = {
   /** Lista do painel do admin. */
   async findAll(page: number, limit: number) {
     const [managers, total] = await managerRepository.findAll(page, limit);
+    const withPlans = await Promise.all(
+      managers.map(async ({ _count, ...manager }) => {
+        const resolved = await planService.resolvePlan(manager.id);
+        return {
+          ...manager,
+          buildings: _count.managed_buildings,
+          plan: {
+            code: resolved.code,
+            name: PLANS[resolved.code].name,
+            source: resolved.source,
+          },
+        };
+      })
+    );
+
     return {
-      managers: managers.map(({ _count, ...manager }) => ({
-        ...manager,
-        buildings: _count.managed_buildings,
-      })),
+      managers: withPlans,
       total,
       page,
       limit,

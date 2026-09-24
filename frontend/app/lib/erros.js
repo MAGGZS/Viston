@@ -15,7 +15,11 @@ import { useUpgradeModalStore } from '@/app/store/upgradeModal';
 const PADRAO = 'Não foi possível concluir. Tente de novo em instantes.';
 
 export function mensagemDoErro(err, fallback = PADRAO) {
-  return err?.response?.data?.error?.message ?? fallback;
+  const data = err?.response?.data?.error;
+  if (Array.isArray(data?.details) && data.details.length > 0 && data.details[0]?.message) {
+    return data.details[0].message;
+  }
+  return data?.message ?? fallback;
 }
 
 /** O código do erro, quando a tela precisa decidir o que mostrar ao lado. */

@@ -82,6 +82,17 @@ export const planRepository = {
     return prisma.planGrant.update({ where: { id }, data: { revoked_at: at } });
   },
 
+  /** Fecha todas as concessões ativas desta conta. */
+  revokeAllActiveGrants(managerId: string, at = new Date()) {
+    return prisma.planGrant.updateMany({
+      where: {
+        manager_id: managerId,
+        revoked_at: null,
+      },
+      data: { revoked_at: at },
+    });
+  },
+
   /** O histórico da conta, do mais recente para o mais antigo. */
   listGrants(managerId: string) {
     return prisma.planGrant.findMany({

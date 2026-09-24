@@ -1,12 +1,28 @@
 'use client';
-import { useState } from 'react';
-import { Ban, CheckCircle2, Search, Snowflake, Undo2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import {
+  ArrowLeft,
+  Ban,
+  Building2,
+  CheckCircle2,
+  ChevronRight,
+  HardDrive,
+  Mail,
+  RefreshCw,
+  Search,
+  Snowflake,
+  Sparkles,
+  Undo2,
+  Users,
+  X,
+} from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { Avatar } from '@/app/components/Avatar';
-import { Badge, Button, Card, Input, Modal, Select, Skeleton } from '@/app/components/ui';
+import { Badge, Button, Card, Dialog, Input, Modal, Select, Skeleton } from '@/app/components/ui';
 import { ConfirmModal } from '@/app/components/ConfirmModal';
 import { useToastStore } from '@/app/store/toast';
+import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import {
   useBuildings,
   useGrantPlan,
@@ -20,20 +36,6 @@ import { mensagemDoErro } from '@/app/lib/erros';
 import { nomeDoPlano } from '@/app/lib/planos';
 import { CONTENT_ID } from '@/app/components/mobile/kit';
 import { T, R, W } from '@/app/lib/theme';
-
-/**
- * O painel de planos do suporte.
- *
- * As rotas existem desde que o gating entrou, e até agora só eram alcançáveis
- * por chamada direta à API — o que quer dizer que, na prática, resolver um caso
- * exigia alguém com o token na mão e a rota na memória. Esta tela é a mesma
- * coisa com nome e botão.
- *
- * Uma conta por vez, escolhida na lista da esquerda. Não existe ação em massa
- * de propósito: conceder plano e suspender conta são decisões sobre uma pessoa,
- * e um botão que as aplica a vinte de uma vez é um botão que um dia vai ser
- * clicado sem querer.
- */
 
 const DE_ONDE_VEM = {
   CONCESSAO: 'Concessão do suporte',
@@ -50,7 +52,7 @@ function emGigas(bytes) {
 }
 
 function dataCurta(valor) {
-  return valor ? new Date(valor).toLocaleDateString('pt-BR') : null;
+  return valor ? new Date(valor).toLocaleDateString('pt-BR') : '—';
 }
 
 /** O estado de uma concessão, em uma palavra — e por que ela não vale mais. */
@@ -63,71 +65,20 @@ function estadoDaConcessao(grant) {
   return { label: 'Sem prazo', variant: 'success' };
 }
 
-function ListaDeGestores({ gestores, carregando, selecionado, onSelect, busca, onBusca }) {
-  return (
-    <Card style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12, minWidth: 260 }}>
-      <div style={{ position: 'relative' }}>
-        <Search
-          size={15}
-          color={T.faint}
-          aria-hidden="true"
-          style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}
-        />
-        <input
-          value={busca}
-          onChange={(e) => onBusca(e.target.value)}
-          placeholder="Buscar por nome ou e-mail"
-          aria-label="Buscar gestor"
-          style={{
-            width: '100%',
-            background: T.chip,
-            borderRadius: R.pill,
-            padding: '9px 12px 9px 34px',
-            color: T.text,
-            fontSize: 14,
-            outline: 'none',
-          }}
-        />
+function PlanoBadge({ plan }) {
+  const code = typeof plan === 'string' ? plan : plan?.code ?? 'LIVRE';
+  const name = nomeDoPlano(code);
+  const isConcessao = plan?.source === 'CONCESSAO';
+
+  if (code === 'PRO' || code === 'ESSENCIAL') {
+    return (
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <Badge variant="accent">{name}</Badge>
+        {isConcessao && <span style={{ color: T.mute, fontSize: 11 }}>cortesia</span>}
       </div>
-
-      {carregando && [1, 2, 3].map((i) => <Skeleton key={i} style={{ height: 46 }} />)}
-
-      {!carregando && gestores.length === 0 && (
-        <p style={{ color: T.mute, fontSize: 13, padding: '8px 4px' }}>Nenhum gestor encontrado.</p>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 520, overflowY: 'auto' }}>
-        {gestores.map((gestor) => (
-          <button
-            key={gestor.id}
-            type="button"
-            onClick={() => onSelect(gestor)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '9px 10px',
-              borderRadius: R.control,
-              background: selecionado?.id === gestor.id ? T.accentSoft : 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            <Avatar user={gestor} size={28} />
-            <span style={{ minWidth: 0 }}>
-              <span style={{ display: 'block', color: T.text, fontSize: 14, fontWeight: W.title, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {gestor.name}
-              </span>
-              <span style={{ display: 'block', color: T.mute, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {gestor.email}
-              </span>
-            </span>
-          </button>
-        ))}
-      </div>
-    </Card>
-  );
+    );
+  }
+  return <Badge variant="default">{name}</Badge>;
 }
 
 function ConcederModal({ open, gestor, onClose }) {
@@ -138,36 +89,49 @@ function ConcederModal({ open, gestor, onClose }) {
   const [reason, setReason] = useState('');
   const [days, setDays] = useState('30');
 
+  function fechar() {
+    setPlan('ESSENCIAL');
+    setReason('');
+    setDays('30');
+    onClose();
+  }
+
   async function enviar() {
     if (reason.trim().length < 3) {
       toast('Escreva o motivo da concessão', 'error');
       return;
     }
 
+    const numDays = days.trim() ? Number(days) : undefined;
+    if (numDays !== undefined && (isNaN(numDays) || numDays <= 0)) {
+      toast('O prazo precisa ser de ao menos 1 dia (ou deixe em branco para sem prazo)', 'error');
+      return;
+    }
+
+    const planCode =
+      typeof plan === 'object' && plan !== null ? (plan.target?.value ?? plan.value) : plan;
+
     try {
       await conceder.mutateAsync({
         managerId: gestor.id,
-        plan,
+        plan: planCode,
         reason: reason.trim(),
-        // Campo vazio é concessão sem prazo, e o backend trata a ausência como
-        // decisão explícita — por isso `undefined`, e não zero.
-        ...(days.trim() ? { days: Number(days) } : {}),
+        ...(numDays ? { days: numDays } : {}),
       });
-      toast(`${nomeDoPlano(plan)} concedido a ${gestor.name}`, 'success');
-      setReason('');
-      onClose();
+      toast(`${nomeDoPlano(planCode)} concedido a ${gestor.name}`, 'success');
+      fechar();
     } catch (err) {
       toast(mensagemDoErro(err, 'Não foi possível conceder'), 'error');
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={`Conceder plano — ${gestor?.name ?? ''}`} maxWidth={440}>
+    <Modal open={open} onClose={fechar} title={`Conceder plano — ${gestor?.name ?? ''}`} maxWidth={440}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <Select
           label="Plano"
           value={plan}
-          onChange={setPlan}
+          onChange={(e) => setPlan(e.target.value)}
           options={[
             { value: 'LIVRE', label: 'Livre' },
             { value: 'ESSENCIAL', label: 'Essencial' },
@@ -196,7 +160,7 @@ function ConcederModal({ open, gestor, onClose }) {
         </p>
 
         <div style={{ display: 'flex', gap: 12 }}>
-          <Button variant="secondary" style={{ flex: 1 }} onClick={onClose}>
+          <Button variant="secondary" style={{ flex: 1 }} onClick={fechar}>
             Cancelar
           </Button>
           <Button style={{ flex: 1 }} loading={conceder.isPending} onClick={enviar}>
@@ -208,43 +172,28 @@ function ConcederModal({ open, gestor, onClose }) {
   );
 }
 
-function PainelDaConta({ gestor }) {
+/** Modal de detalhes ocupando 2/3 da tela, alinhado à direita conforme o anexo */
+function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
   const { show: toast } = useToastStore();
-  const { data, isLoading } = useManagerPlan(gestor?.id);
+  const { mounted, closing } = useExitTransition(open);
+  const shownGestor = useKeepWhileClosing(gestor, open);
+
+  const { data, isLoading } = useManagerPlan(shownGestor?.id);
   const { data: todosOsPredios = [] } = useBuildings();
   const revogar = useRevokeGrant();
   const suspender = useSetSuspension();
   const congelar = useSetBuildingFreeze();
 
-  const [concedendo, setConcedendo] = useState(false);
   const [confirmacao, setConfirmacao] = useState(null);
 
-  if (!gestor) {
-    return (
-      <Card style={{ padding: 28 }}>
-        <p style={{ color: T.mute, fontSize: 14 }}>
-          Escolha um gestor na lista para ver o plano, o consumo e o histórico de concessões.
-        </p>
-      </Card>
-    );
-  }
+  if (!mounted || !shownGestor) return null;
 
-  if (isLoading || !data) {
-    return (
-      <Card style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Skeleton style={{ height: 22, width: 200 }} />
-        <Skeleton style={{ height: 14, width: 280 }} />
-        <Skeleton style={{ height: 80 }} />
-      </Card>
-    );
-  }
-
-  const suspenso = !!gestor.suspended_at;
-  const predios = todosOsPredios.filter((p) => p.owner_manager_id === gestor.id);
+  const suspenso = !!shownGestor.suspended_at;
+  const predios = todosOsPredios.filter((p) => p.owner_manager_id === shownGestor.id);
 
   async function alternarSuspensao() {
     try {
-      await suspender.mutateAsync({ managerId: gestor.id, suspended: !suspenso });
+      await suspender.mutateAsync({ managerId: shownGestor.id, suspended: !suspenso });
       toast(suspenso ? 'Conta liberada' : 'Conta suspensa', suspenso ? 'success' : 'info');
     } catch (err) {
       toast(mensagemDoErro(err), 'error');
@@ -265,160 +214,381 @@ function PainelDaConta({ gestor }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1, minWidth: 0 }}>
-      <Card style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <div>
-            <h2 style={{ fontFamily: T.display, fontSize: 20, fontWeight: W.title, color: T.text }}>
-              {gestor.name}
-            </h2>
-            <p style={{ color: T.mute, fontSize: 13, marginTop: 2 }}>{gestor.email}</p>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Badge variant={data.plan.source === 'PADRAO' ? 'default' : 'accent'}>
-              {data.plan.name}
-            </Badge>
-            {suspenso && <Badge variant="danger">Suspensa</Badge>}
-          </div>
-        </div>
-
-        <p style={{ color: T.mute, fontSize: 13 }}>
-          De onde vem: {DE_ONDE_VEM[data.plan.source]} · {data.plan.buildings_allowed}{' '}
-          {data.plan.buildings_allowed === 1 ? 'prédio' : 'prédios'} no teto
-          {data.plan.extra_buildings > 0 ? ` (${data.plan.extra_buildings} extras)` : ''}
-        </p>
-
-        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
-          {[
-            { rotulo: 'Prédios', valor: `${data.usage.buildings} de ${data.plan.buildings_allowed}` },
-            { rotulo: `E-mails em ${data.usage.period}`, valor: data.usage.emails_this_month },
-            { rotulo: 'Fotos', valor: emGigas(data.usage.storage_bytes) },
-          ].map(({ rotulo, valor }) => (
-            <div key={rotulo} style={{ background: T.chip, borderRadius: R.control, padding: '12px 14px' }}>
-              <p style={{ color: T.mute, fontSize: 12 }}>{rotulo}</p>
-              <p style={{ color: T.text, fontSize: 18, fontFamily: T.display, fontWeight: W.title, marginTop: 2 }}>
-                {valor}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Button onClick={() => setConcedendo(true)}>Conceder plano</Button>
-          <Button
-            variant={suspenso ? 'secondary' : 'danger'}
-            onClick={() =>
-              setConfirmacao({
-                titulo: suspenso ? 'Liberar a conta?' : 'Suspender a conta?',
-                mensagem: suspenso
-                  ? `${gestor.name} volta a entrar normalmente.`
-                  : `${gestor.name} deixa de entrar e de renovar a sessão. Os prédios continuam existindo.`,
-                confirmar: suspenso ? 'Liberar' : 'Suspender',
-                acao: alternarSuspensao,
-              })
-            }
-          >
-            {suspenso ? <Undo2 size={15} style={{ marginRight: 8 }} /> : <Ban size={15} style={{ marginRight: 8 }} />}
-            {suspenso ? 'Liberar conta' : 'Suspender conta'}
-          </Button>
-        </div>
-      </Card>
-
-      <Card style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <h3 style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text }}>
-          Prédios desta conta ({predios.length})
-        </h3>
-
-        {predios.length === 0 && (
-          <p style={{ color: T.mute, fontSize: 13 }}>Esta conta não paga por nenhum prédio.</p>
-        )}
-
-        {predios.map((predio) => (
+    <>
+      <Dialog
+        onClose={onClose}
+        className={closing ? 'is-closing' : ''}
+        style={{
+          width: 'clamp(640px, 66.66vw, 1100px)',
+          maxWidth: '100vw',
+          height: '100vh',
+          maxHeight: '100vh',
+          margin: '0 0 0 auto',
+          background: 'transparent',
+          padding: 0,
+          border: 'none',
+          outline: 'none',
+        }}
+      >
+        <div
+          className={closing ? 'anim-slide-out-right' : 'anim-slide-in-right'}
+          style={{
+            background: T.card,
+            height: '100vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '-12px 0 36px rgba(0, 0, 0, 0.18)',
+            borderLeft: '1px solid var(--border-soft)',
+            borderRadius: '16px 0 0 16px',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Header com seta de voltar no canto superior esquerdo */}
           <div
-            key={predio.id}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}
+            style={{
+              padding: '20px 28px',
+              borderBottom: '1px solid var(--border-soft)',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+              background: T.card,
+            }}
           >
-            <div>
-              <p style={{ color: T.text, fontSize: 14 }}>{predio.name}</p>
-              {predio.frozen_at && (
-                <p style={{ color: T.mute, fontSize: 12 }}>
-                  Inativo desde {dataCurta(predio.frozen_at)}
-                </p>
-              )}
-            </div>
-            <Button
-              variant="secondary"
-              onClick={() =>
-                setConfirmacao({
-                  titulo: predio.frozen_at ? 'Reativar o prédio?' : 'Inativar o prédio?',
-                  mensagem: predio.frozen_at
-                    ? `${predio.name} volta a aceitar vistoria, chamado e gente.`
-                    : `${predio.name} para de aceitar trabalho novo. A leitura do histórico continua.`,
-                  confirmar: predio.frozen_at ? 'Reativar' : 'Inativar',
-                  acao: () => alternarCongelamento(predio),
-                })
-              }
-            >
-              {predio.frozen_at ? <Undo2 size={15} style={{ marginRight: 8 }} /> : <Snowflake size={15} style={{ marginRight: 8 }} />}
-              {predio.frozen_at ? 'Reativar' : 'Inativar'}
-            </Button>
-          </div>
-        ))}
-      </Card>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Voltar para a lista de gestores"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 38,
+                  height: 38,
+                  borderRadius: R.control,
+                  background: T.chip,
+                  border: '1px solid var(--border-soft)',
+                  color: T.text,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'background-color 0.15s ease, transform 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = T.hover;
+                  e.currentTarget.style.transform = 'translateX(-2px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = T.chip;
+                  e.currentTarget.style.transform = 'none';
+                }}
+              >
+                <ArrowLeft size={18} />
+              </button>
 
-      <Card style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <h3 style={{ fontFamily: T.display, fontSize: 15, fontWeight: W.title, color: T.text }}>
-          Concessões ({data.grants.length})
-        </h3>
-
-        {data.grants.length === 0 && (
-          <p style={{ color: T.mute, fontSize: 13 }}>Nenhuma concessão nesta conta.</p>
-        )}
-
-        {data.grants.map((grant) => {
-          const estado = estadoDaConcessao(grant);
-          const ativa = estado.variant === 'success';
-
-          return (
-            <div
-              key={grant.id}
-              style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ color: T.text, fontSize: 14, fontWeight: W.title }}>
-                    {nomeDoPlano(grant.plan)}
-                  </span>
-                  <Badge variant={estado.variant}>{estado.label}</Badge>
-                </div>
-                <p style={{ color: T.mute, fontSize: 12, marginTop: 3, lineHeight: 1.5 }}>
-                  {grant.reason} · aberta em {dataCurta(grant.created_at)}
-                </p>
-              </div>
-
-              {ativa && (
-                <Button
-                  variant="secondary"
-                  loading={revogar.isPending}
-                  onClick={async () => {
-                    try {
-                      await revogar.mutateAsync({ grantId: grant.id, managerId: gestor.id });
-                      toast('Concessão revogada', 'info');
-                    } catch (err) {
-                      toast(mensagemDoErro(err), 'error');
-                    }
+              <div>
+                <h2
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: T.text,
+                    margin: 0,
+                    fontFamily: T.display,
                   }}
                 >
-                  Revogar
-                </Button>
-              )}
+                  Gestor — {shownGestor.name}
+                </h2>
+                <p style={{ color: T.mute, fontSize: 13, marginTop: 2, margin: '2px 0 0' }}>
+                  Gerenciamento de plano, consumo de recursos e controle de prédios
+                </p>
+              </div>
             </div>
-          );
-        })}
-      </Card>
+          </div>
 
-      <ConcederModal open={concedendo} gestor={gestor} onClose={() => setConcedendo(false)} />
+          {/* Miolo que rola */}
+          <div style={{ overflowY: 'auto', minHeight: 0, padding: '24px 32px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Cabeçalho do Gestor */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 16,
+                background: T.chip,
+                padding: '14px 18px',
+                borderRadius: R.control,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <Avatar user={shownGestor} size={44} />
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: W.title, color: T.text, margin: 0 }}>
+                    {shownGestor.name}
+                  </h3>
+                  <p style={{ color: T.mute, fontSize: 13, margin: '2px 0 0' }}>{shownGestor.email}</p>
+                  <p style={{ color: T.faint, fontSize: 12, margin: '2px 0 0' }}>
+                    Cadastrado em {dataCurta(shownGestor.created_at)}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                {data && (
+                  <Badge variant={data.plan.source === 'PADRAO' ? 'default' : 'accent'}>
+                    {data.plan.name}
+                  </Badge>
+                )}
+                <Badge variant={suspenso ? 'danger' : 'success'}>
+                  {suspenso ? 'Conta Suspensa' : 'Conta Ativa'}
+                </Badge>
+              </div>
+            </div>
+
+            {isLoading || !data ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <Skeleton style={{ height: 90 }} />
+                <Skeleton style={{ height: 110 }} />
+                <Skeleton style={{ height: 120 }} />
+              </div>
+            ) : (
+              <>
+                {/* Card 1: Plano Atual & Ações */}
+                <div
+                  style={{
+                    background: T.card,
+                    border: '1px solid var(--border-soft)',
+                    borderRadius: R.control,
+                    padding: 18,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 14,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                    <div>
+                      <span style={{ fontSize: 12, color: T.mute, fontWeight: W.body, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Plano Atual
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+                        <span style={{ fontSize: 20, fontWeight: W.title, color: T.text, fontFamily: T.display }}>
+                          {data.plan.name}
+                        </span>
+                        <span style={{ color: T.mute, fontSize: 13 }}>
+                          · {DE_ONDE_VEM[data.plan.source]}
+                        </span>
+                      </div>
+                      <p style={{ color: T.mute, fontSize: 13, marginTop: 4 }}>
+                        Teto contratado: {data.plan.buildings_allowed} {data.plan.buildings_allowed === 1 ? 'prédio' : 'prédios'}
+                        {data.plan.extra_buildings > 0 ? ` (+${data.plan.extra_buildings} extras)` : ''}
+                      </p>
+                    </div>
+
+                    {/* Ações */}
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      <Button onClick={() => onConceder(shownGestor)}>
+                        <Sparkles size={15} style={{ marginRight: 6 }} />
+                        Conceder plano
+                      </Button>
+                      <Button
+                        variant={suspenso ? 'secondary' : 'danger'}
+                        onClick={() =>
+                          setConfirmacao({
+                            titulo: suspenso ? 'Liberar a conta?' : 'Suspender a conta?',
+                            mensagem: suspenso
+                              ? `${shownGestor.name} volta a entrar normalmente no sistema.`
+                              : `${shownGestor.name} deixa de entrar e de renovar a sessão. Os prédios continuam existindo.`,
+                            confirmar: suspenso ? 'Liberar' : 'Suspender',
+                            acao: alternarSuspensao,
+                          })
+                        }
+                      >
+                        {suspenso ? <Undo2 size={15} style={{ marginRight: 6 }} /> : <Ban size={15} style={{ marginRight: 6 }} />}
+                        {suspenso ? 'Liberar conta' : 'Suspender conta'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 2: Consumo */}
+                <div>
+                  <h4 style={{ fontSize: 13, fontWeight: W.title, color: T.mute, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Consumo de Recursos
+                  </h4>
+                  <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+                    <div style={{ background: T.chip, borderRadius: R.control, padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: T.mute, fontSize: 12 }}>
+                        <Building2 size={14} />
+                        <span>Prédios</span>
+                      </div>
+                      <p style={{ color: T.text, fontSize: 18, fontFamily: T.display, fontWeight: W.title, marginTop: 4, margin: '4px 0 0' }}>
+                        {data.usage.buildings} de {data.plan.buildings_allowed}
+                      </p>
+                    </div>
+
+                    <div style={{ background: T.chip, borderRadius: R.control, padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: T.mute, fontSize: 12 }}>
+                        <Mail size={14} />
+                        <span>E-mails em {data.usage.period}</span>
+                      </div>
+                      <p style={{ color: T.text, fontSize: 18, fontFamily: T.display, fontWeight: W.title, marginTop: 4, margin: '4px 0 0' }}>
+                        {data.usage.emails_this_month}
+                      </p>
+                    </div>
+
+                    <div style={{ background: T.chip, borderRadius: R.control, padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: T.mute, fontSize: 12 }}>
+                        <HardDrive size={14} />
+                        <span>Fotos / Espaço</span>
+                      </div>
+                      <p style={{ color: T.text, fontSize: 18, fontFamily: T.display, fontWeight: W.title, marginTop: 4, margin: '4px 0 0' }}>
+                        {emGigas(data.usage.storage_bytes)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 3: Prédios Gerenciados */}
+                <div>
+                  <h4 style={{ fontSize: 13, fontWeight: W.title, color: T.mute, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Prédios desta conta ({predios.length})
+                  </h4>
+                  {predios.length === 0 ? (
+                    <p style={{ color: T.mute, fontSize: 13, padding: '8px 0', margin: 0 }}>
+                      Esta conta ainda não gerencia nenhum prédio.
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 200, overflowY: 'auto' }}>
+                      {predios.map((p) => (
+                        <div
+                          key={p.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '10px 14px',
+                            background: T.chip,
+                            borderRadius: R.control,
+                            gap: 12,
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <span style={{ fontSize: 14, fontWeight: W.title, color: T.text }}>
+                              {p.name}
+                            </span>
+                            <span style={{ color: T.mute, fontSize: 12, marginLeft: 8 }}>
+                              {p.city ? `${p.city} - ${p.state}` : ''}
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <Badge variant={p.frozen_at ? 'danger' : 'success'}>
+                              {p.frozen_at ? 'Inativo' : 'Ativo'}
+                            </Badge>
+                            <Button
+                              variant="secondary"
+                              style={{ padding: '4px 10px', fontSize: 12 }}
+                              loading={congelar.isPending}
+                              onClick={() =>
+                                setConfirmacao({
+                                  titulo: p.frozen_at ? 'Reativar prédio?' : 'Inativar prédio?',
+                                  mensagem: p.frozen_at
+                                    ? `O prédio "${p.name}" volta a ser visível e editável.`
+                                    : `O prédio "${p.name}" fica congelado no painel do gestor.`,
+                                  confirmar: p.frozen_at ? 'Reativar' : 'Inativar',
+                                  acao: () => alternarCongelamento(p),
+                                })
+                              }
+                            >
+                              <Snowflake size={13} style={{ marginRight: 4 }} />
+                              {p.frozen_at ? 'Reativar' : 'Inativar'}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Card 4: Histórico de Concessões */}
+                <div>
+                  <h4 style={{ fontSize: 13, fontWeight: W.title, color: T.mute, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Histórico de Concessões ({data.grants.length})
+                  </h4>
+                  {data.grants.length === 0 ? (
+                    <p style={{ color: T.mute, fontSize: 13, padding: '8px 0', margin: 0 }}>
+                      Nenhuma concessão registrada para esta conta.
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
+                      {data.grants.map((grant) => {
+                        const estado = estadoDaConcessao(grant);
+                        const ativa = estado.variant === 'success';
+
+                        return (
+                          <div
+                            key={grant.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '10px 14px',
+                              background: T.chip,
+                              borderRadius: R.control,
+                              gap: 12,
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ color: T.text, fontSize: 14, fontWeight: W.title }}>
+                                  {nomeDoPlano(grant.plan)}
+                                </span>
+                                <Badge variant={estado.variant}>{estado.label}</Badge>
+                              </div>
+                              <p style={{ color: T.mute, fontSize: 12, marginTop: 2, margin: '2px 0 0' }}>
+                                {grant.reason} · registrada em {dataCurta(grant.created_at)}
+                              </p>
+                            </div>
+
+                            {ativa && (
+                              <Button
+                                variant="secondary"
+                                style={{ padding: '6px 12px', fontSize: 12 }}
+                                loading={revogar.isPending}
+                                onClick={() =>
+                                  setConfirmacao({
+                                    titulo: `Revogar concessão ${nomeDoPlano(grant.plan)}?`,
+                                    mensagem: `A concessão será cancelada e a conta de ${shownGestor.name} voltará imediatamente para o plano Livre.`,
+                                    confirmar: 'Revogar concessão',
+                                    acao: async () => {
+                                      try {
+                                        await revogar.mutateAsync({ grantId: grant.id, managerId: shownGestor.id });
+                                        toast('Concessão revogada. A conta voltou para o Livre.', 'info');
+                                      } catch (err) {
+                                        toast(mensagemDoErro(err), 'error');
+                                      } finally {
+                                        setConfirmacao(null);
+                                      }
+                                    },
+                                  })
+                                }
+                              >
+                                Revogar
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </Dialog>
 
       <ConfirmModal
         open={!!confirmacao}
@@ -426,59 +596,394 @@ function PainelDaConta({ gestor }) {
         message={confirmacao?.mensagem}
         confirmLabel={confirmacao?.confirmar}
         confirmVariant="danger"
-        loading={suspender.isPending || congelar.isPending}
+        loading={suspender.isPending || congelar.isPending || revogar.isPending}
         onConfirm={() => confirmacao?.acao()}
         onCancel={() => setConfirmacao(null)}
       />
-    </div>
+    </>
   );
 }
 
 export default function AdminPlanosPage() {
   const [busca, setBusca] = useState('');
-  const [selecionado, setSelecionado] = useState(null);
-  const { data, isLoading } = useManagers(1);
+  const [filtroPlano, setFiltroPlano] = useState('');
+  const [filtroStatus, setFiltroStatus] = useState('');
 
-  const gestores = (data?.managers ?? data?.data ?? []).filter((gestor) => {
-    const termo = busca.trim().toLowerCase();
-    if (!termo) return true;
-    return (
-      gestor.name?.toLowerCase().includes(termo) || gestor.email?.toLowerCase().includes(termo)
-    );
-  });
+  const [gestorSelecionado, setGestorSelecionado] = useState(null);
+  const [concedendoGestor, setConcedendoGestor] = useState(null);
+
+  const { data: managersData, isLoading, refetch, isFetching } = useManagers(1);
+  const gestores = useMemo(
+    () => managersData?.managers ?? managersData?.data ?? [],
+    [managersData]
+  );
+
+  // Contadores para os cards do topo
+  const contadores = useMemo(() => {
+    let livre = 0;
+    let essencial = 0;
+    let pro = 0;
+    let suspensos = 0;
+
+    for (const g of gestores) {
+      if (g.suspended_at) suspensos++;
+      const code = g.plan?.code;
+      if (code === 'PRO') pro++;
+      else if (code === 'ESSENCIAL') essencial++;
+      else livre++;
+    }
+
+    return { total: gestores.length, livre, essencial, pro, suspensos };
+  }, [gestores]);
+
+  // Gestores filtrados
+  const gestoresFiltrados = useMemo(() => {
+    return gestores.filter((gestor) => {
+      const termo = busca.trim().toLowerCase();
+      const matchBusca =
+        !termo ||
+        gestor.name?.toLowerCase().includes(termo) ||
+        gestor.email?.toLowerCase().includes(termo);
+
+      const planoGestor = gestor.plan?.code ?? 'LIVRE';
+      const matchPlano = !filtroPlano || planoGestor === filtroPlano;
+
+      const statusGestor = gestor.suspended_at ? 'SUSPENSO' : 'ATIVO';
+      const matchStatus = !filtroStatus || statusGestor === filtroStatus;
+
+      return matchBusca && matchPlano && matchStatus;
+    });
+  }, [gestores, busca, filtroPlano, filtroStatus]);
+
+  const temFiltroAtivo = Boolean(busca.trim() || filtroPlano || filtroStatus);
+
+  function limparFiltros() {
+    setBusca('');
+    setFiltroPlano('');
+    setFiltroStatus('');
+  }
 
   return (
     <RouteGuard roles={['ADMIN']}>
       <div style={{ display: 'flex', minHeight: '100vh', background: T.bg }}>
         <AdminSidebar />
 
-        <main id={CONTENT_ID} style={{ flex: 1, padding: '28px 24px 64px', minWidth: 0 }}>
-          <div style={{ marginBottom: 20 }}>
-            <h1 style={{ fontFamily: T.display, fontSize: 22, fontWeight: W.title, color: T.text }}>
-              Planos
-            </h1>
-            <p style={{ color: T.mute, fontSize: 14, marginTop: 4 }}>
-              Conceder plano, suspender conta e inativar prédio — o que o suporte faz quando a
-              cobrança não resolve sozinha.
-            </p>
+        <main id={CONTENT_ID} style={{ flex: 1, padding: '32px 32px 64px', minWidth: 0 }}>
+          {/* Cabeçalho */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, gap: 16, flexWrap: 'wrap' }}>
+            <div>
+              <h1 style={{ fontFamily: T.display, fontSize: 24, fontWeight: W.title, color: T.text }}>
+                Planos & Gestores
+              </h1>
+              <p style={{ color: T.mute, fontSize: 14, marginTop: 4 }}>
+                Acompanhe o plano atual, histórico de concessões e consumo de recursos de cada gestor.
+              </p>
+            </div>
+
+            <Button variant="secondary" onClick={() => refetch()} loading={isFetching}>
+              <RefreshCw size={15} style={{ marginRight: 6 }} />
+              Atualizar
+            </Button>
           </div>
 
-          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <ListaDeGestores
-              gestores={gestores}
-              carregando={isLoading}
-              selecionado={selecionado}
-              onSelect={setSelecionado}
-              busca={busca}
-              onBusca={setBusca}
-            />
-            <PainelDaConta gestor={selecionado} />
+          {/* Cards de Resumo no Topo */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 24 }}>
+            <Card style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ background: T.chip, padding: 10, borderRadius: R.control, color: T.accentInk }}>
+                <Users size={20} />
+              </div>
+              <div>
+                <p style={{ fontSize: 12, color: T.mute }}>Total de Gestores</p>
+                <p style={{ fontSize: 22, fontWeight: W.title, fontFamily: T.display, color: T.text, marginTop: 2 }}>
+                  {contadores.total}
+                </p>
+              </div>
+            </Card>
+
+            <Card style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ background: T.chip, padding: 10, borderRadius: R.control, color: T.mute }}>
+                <Building2 size={20} />
+              </div>
+              <div>
+                <p style={{ fontSize: 12, color: T.mute }}>Plano Livre</p>
+                <p style={{ fontSize: 22, fontWeight: W.title, fontFamily: T.display, color: T.text, marginTop: 2 }}>
+                  {contadores.livre}
+                </p>
+              </div>
+            </Card>
+
+            <Card style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ background: 'var(--color-accent-soft)', padding: 10, borderRadius: R.control, color: 'var(--color-accent)' }}>
+                <Sparkles size={20} />
+              </div>
+              <div>
+                <p style={{ fontSize: 12, color: T.mute }}>Plano Essencial</p>
+                <p style={{ fontSize: 22, fontWeight: W.title, fontFamily: T.display, color: T.text, marginTop: 2 }}>
+                  {contadores.essencial}
+                </p>
+              </div>
+            </Card>
+
+            <Card style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ background: 'var(--color-accent-soft)', padding: 10, borderRadius: R.control, color: 'var(--color-accent)' }}>
+                <Sparkles size={20} />
+              </div>
+              <div>
+                <p style={{ fontSize: 12, color: T.mute }}>Plano Pro</p>
+                <p style={{ fontSize: 22, fontWeight: W.title, fontFamily: T.display, color: T.text, marginTop: 2 }}>
+                  {contadores.pro}
+                </p>
+              </div>
+            </Card>
+          </div>
+
+          {/* Barra de Filtros */}
+          <Card style={{ padding: '14px 18px', marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Campo de Busca */}
+              <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
+                <Search
+                  size={16}
+                  color={T.faint}
+                  style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+                />
+                <input
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar gestor por nome ou e-mail..."
+                  aria-label="Buscar gestor"
+                  style={{
+                    width: '100%',
+                    background: T.chip,
+                    border: '1px solid var(--border-soft)',
+                    borderRadius: R.pill,
+                    padding: '10px 14px 10px 38px',
+                    color: T.text,
+                    fontSize: 14,
+                    outline: 'none',
+                  }}
+                />
+                {busca && (
+                  <button
+                    type="button"
+                    onClick={() => setBusca('')}
+                    style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: T.mute, cursor: 'pointer' }}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Filtro por Plano */}
+              <div style={{ width: 170 }}>
+                <Select
+                  value={filtroPlano}
+                  onChange={(e) => setFiltroPlano(e.target.value)}
+                  placeholder="Todos os planos"
+                  aria-label="Filtrar por plano"
+                  options={[
+                    { value: '', label: 'Todos os planos' },
+                    { value: 'LIVRE', label: 'Livre' },
+                    { value: 'ESSENCIAL', label: 'Essencial' },
+                    { value: 'PRO', label: 'Pro' },
+                  ]}
+                  style={{ padding: '9px 34px 9px 12px', fontSize: 13 }}
+                />
+              </div>
+
+              {/* Filtro por Status */}
+              <div style={{ width: 170 }}>
+                <Select
+                  value={filtroStatus}
+                  onChange={(e) => setFiltroStatus(e.target.value)}
+                  placeholder="Todos os status"
+                  aria-label="Filtrar por status"
+                  options={[
+                    { value: '', label: 'Todos os status' },
+                    { value: 'ATIVO', label: 'Ativos' },
+                    { value: 'SUSPENSO', label: 'Suspensos' },
+                  ]}
+                  style={{ padding: '9px 34px 9px 12px', fontSize: 13 }}
+                />
+              </div>
+
+              {temFiltroAtivo && (
+                <Button variant="ghost" onClick={limparFiltros} style={{ fontSize: 13, padding: '8px 12px' }}>
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+          </Card>
+
+          {/* Tabela de Gestores */}
+          <div style={{ background: T.card, borderRadius: R.card, boxShadow: T.cardRing, overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-soft)', background: 'transparent' }}>
+                    <th style={{ padding: '14px 20px', color: T.mute, fontSize: 12, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Gestor
+                    </th>
+                    <th style={{ padding: '14px 20px', color: T.mute, fontSize: 12, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Data de Cadastro
+                    </th>
+                    <th style={{ padding: '14px 20px', color: T.mute, fontSize: 12, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Prédios
+                    </th>
+                    <th style={{ padding: '14px 20px', color: T.mute, fontSize: 12, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Plano Atual
+                    </th>
+                    <th style={{ padding: '14px 20px', color: T.mute, fontSize: 12, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Status
+                    </th>
+                    <th style={{ padding: '14px 20px', color: T.mute, fontSize: 12, fontWeight: W.strong, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoading &&
+                    [1, 2, 3, 4, 5].map((i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                        <td style={{ padding: '14px 20px' }}><Skeleton style={{ height: 36, width: 220 }} /></td>
+                        <td style={{ padding: '14px 20px' }}><Skeleton style={{ height: 20, width: 90 }} /></td>
+                        <td style={{ padding: '14px 20px' }}><Skeleton style={{ height: 20, width: 70 }} /></td>
+                        <td style={{ padding: '14px 20px' }}><Skeleton style={{ height: 24, width: 100 }} /></td>
+                        <td style={{ padding: '14px 20px' }}><Skeleton style={{ height: 24, width: 80 }} /></td>
+                        <td style={{ padding: '14px 20px', textAlign: 'right' }}><Skeleton style={{ height: 30, width: 90, marginLeft: 'auto' }} /></td>
+                      </tr>
+                    ))}
+
+                  {!isLoading && gestoresFiltrados.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ padding: '48px 20px', textAlign: 'center' }}>
+                        <Users size={32} color={T.faint} style={{ margin: '0 auto 12px' }} />
+                        <p style={{ color: T.text, fontSize: 15, fontWeight: W.title }}>
+                          Nenhum gestor encontrado
+                        </p>
+                        <p style={{ color: T.mute, fontSize: 13, marginTop: 4 }}>
+                          Tente mudar os termos da busca ou limpar os filtros aplicados.
+                        </p>
+                        {temFiltroAtivo && (
+                          <Button variant="secondary" onClick={limparFiltros} style={{ marginTop: 14 }}>
+                            Limpar filtros
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+
+                  {!isLoading &&
+                    gestoresFiltrados.map((gestor) => {
+                      const suspenso = !!gestor.suspended_at;
+                      const qtdPredios = gestor.buildings ?? 0;
+
+                      return (
+                        <tr
+                          key={gestor.id}
+                          onClick={() => setGestorSelecionado(gestor)}
+                          style={{
+                            borderBottom: '1px solid var(--border-soft)',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = T.chip)}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          {/* Coluna 1: Gestor */}
+                          <td style={{ padding: '14px 20px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <Avatar user={gestor} size={36} />
+                              <div style={{ minWidth: 0 }}>
+                                <span style={{ display: 'block', color: T.text, fontSize: 14, fontWeight: W.title }}>
+                                  {gestor.name}
+                                </span>
+                                <span style={{ display: 'block', color: T.mute, fontSize: 12 }}>
+                                  {gestor.email}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Coluna 2: Cadastro */}
+                          <td style={{ padding: '14px 20px', color: T.mute, fontSize: 13 }}>
+                            {dataCurta(gestor.created_at)}
+                          </td>
+
+                          {/* Coluna 3: Prédios */}
+                          <td style={{ padding: '14px 20px' }}>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '4px 10px',
+                                borderRadius: R.pill,
+                                background: T.chip,
+                                color: qtdPredios > 0 ? T.text : T.faint,
+                                fontSize: 12,
+                                fontWeight: W.strong,
+                              }}
+                            >
+                              <Building2 size={13} />
+                              {qtdPredios} {qtdPredios === 1 ? 'prédio' : 'prédios'}
+                            </span>
+                          </td>
+
+                          {/* Coluna 4: Plano Atual */}
+                          <td style={{ padding: '14px 20px' }}>
+                            <PlanoBadge plan={gestor.plan} />
+                          </td>
+
+                          {/* Coluna 5: Status */}
+                          <td style={{ padding: '14px 20px' }}>
+                            <Badge variant={suspenso ? 'danger' : 'success'}>
+                              {suspenso ? 'Suspenso' : 'Ativo'}
+                            </Badge>
+                          </td>
+
+                          {/* Coluna 6: Ações */}
+                          <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                            <Button
+                              variant="secondary"
+                              style={{ padding: '6px 12px', fontSize: 12 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setGestorSelecionado(gestor);
+                              }}
+                            >
+                              Gerenciar
+                              <ChevronRight size={14} style={{ marginLeft: 4 }} />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <p style={{ color: T.faint, fontSize: 12, marginTop: 24, display: 'flex', alignItems: 'center', gap: 6 }}>
             <CheckCircle2 size={13} aria-hidden="true" />
-            Toda ação desta tela entra na trilha de auditoria, com autor, data e motivo.
+            Toda concessão, suspensão ou congelamento entra na trilha de auditoria com autor, data e motivo.
           </p>
+
+          {/* Modal de Detalhes do Gestor (cobre 2/3 da tela) */}
+          <GestorDetalhesModal
+            key={gestorSelecionado?.id || 'none'}
+            gestor={gestorSelecionado}
+            open={!!gestorSelecionado}
+            onClose={() => setGestorSelecionado(null)}
+            onConceder={(g) => setConcedendoGestor(g)}
+          />
+
+          {/* Modal de Concessão de Plano */}
+          <ConcederModal
+            gestor={concedendoGestor}
+            open={!!concedendoGestor}
+            onClose={() => setConcedendoGestor(null)}
+          />
         </main>
       </div>
     </RouteGuard>

@@ -1236,8 +1236,10 @@ export function useGrantPlan() {
   return useMutation({
     mutationFn: ({ managerId, ...data }) =>
       api.post(`/admin/managers/${managerId}/grants`, data).then((r) => r.data),
-    onSuccess: (_data, { managerId }) =>
-      qc.invalidateQueries({ queryKey: ['admin-plan', managerId] }),
+    onSuccess: (_data, { managerId }) => {
+      qc.invalidateQueries({ queryKey: ['admin-plan', managerId] });
+      qc.invalidateQueries({ queryKey: ['managers'] });
+    },
   });
 }
 
@@ -1245,8 +1247,10 @@ export function useRevokeGrant() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ grantId }) => api.delete(`/admin/grants/${grantId}`).then((r) => r.data),
-    onSuccess: (_data, { managerId }) =>
-      qc.invalidateQueries({ queryKey: ['admin-plan', managerId] }),
+    onSuccess: (_data, { managerId }) => {
+      qc.invalidateQueries({ queryKey: ['admin-plan', managerId] });
+      qc.invalidateQueries({ queryKey: ['managers'] });
+    },
   });
 }
 
