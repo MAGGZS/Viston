@@ -10,6 +10,8 @@
  * resolve. Sem isso, "seu plano comporta 3 prédios" deixa a pessoa procurando
  * sozinha a tela de planos.
  */
+import { useUpgradeModalStore } from '@/app/store/upgradeModal';
+
 const PADRAO = 'Não foi possível concluir. Tente de novo em instantes.';
 
 export function mensagemDoErro(err, fallback = PADRAO) {
@@ -49,28 +51,24 @@ export function detalheDoLimite(err) {
 }
 
 /**
- * O toast de um erro, com a segunda linha que o plano merece.
+ * Trata a notificação ou modal de um erro.
  *
- * Existe para que os seis lugares que hoje escrevem
- * `toast(e?.response?.data?.error?.message || '...', 'error', e)` não precisem
- * repetir, cada um à sua maneira, a decisão de quando mostrar o detalhe do
- * limite e para onde mandar a pessoa.
+ * Nos erros de plano (limites, recursos bloqueados, prédio inativo), abre
+ * diretamente o modal de sugestão de upgrade comercial, sem poluir a tela
+ * com toast de erro de sistema ou link técnico de "ver log".
  *
- * Nos erros comuns, o terceiro argumento continua sendo o próprio erro — é o
- * que o toast usa para o detalhe técnico. Nos de plano, ele vira a frase que
- * diz onde resolver, porque o detalhe técnico ali não ajuda ninguém.
+ * Nos erros comuns de aplicação, mantém o toast com mensagem clara e detalhe técnico.
  */
 export function avisarErro(toast, err, fallback = PADRAO) {
-  if (!ehErroDePlano(err)) {
-    toast(mensagemDoErro(err, fallback), 'error', err);
+  if (ehErroDePlano(err)) {
+    useUpgradeModalStore.getState().openFromError(err, fallback);
     return;
   }
 
-  const detalhe = detalheDoLimite(err);
-  const ondeResolve =
-    codigoDoErro(err) === 'PREDIO_CONGELADO'
-      ? 'O prédio volta quando o plano for regularizado — veja Planos e cobrança.'
-      : 'Veja os planos em Planos e cobrança.';
+  toast(mensagemDoErro(err, fallback), 'error', err);
+}
 
-  toast(mensagemDoErro(err, fallback), 'error', [detalhe, ondeResolve].filter(Boolean).join(' '));
+/** Dispara explicitamente o modal de sugestão de upgrade a partir de um erro de plano. */
+export function dispararUpgrade(err, fallback = PADRAO) {
+  useUpgradeModalStore.getState().openFromError(err, fallback);
 }

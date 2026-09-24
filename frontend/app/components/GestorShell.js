@@ -81,7 +81,7 @@ function FaixaDeCongelamento({ desde }) {
       <p style={{ color: T.accentInk, fontSize: 13, lineHeight: 1.5 }}>
         Este prédio está inativo desde {new Date(desde).toLocaleDateString('pt-BR')}. O histórico
         continua aberto para leitura, mas vistoria, chamado e convite novos estão suspensos —
-        regularize o plano em <a href="/gestor/cobranca" style={{ textDecoration: 'underline' }}>Planos e cobrança</a>.
+        regularize o plano em <a href="/perfil?secao=cobranca" style={{ textDecoration: 'underline' }}>Planos e cobrança</a>.
       </p>
     </div>
   );

@@ -7,7 +7,8 @@ import { GestorHeader } from '@/app/components/GestorHeader';
 import { CreateBuildingModal, EditBuildingModal } from '@/app/components/BuildingFormModals';
 import { Button, Modal } from '@/app/components/ui';
 import { useToastStore } from '@/app/store/toast';
-import { useManagedBuildings, useDeleteBuilding } from '@/app/hooks/useApi';
+import { useUpgradeModalStore } from '@/app/store/upgradeModal';
+import { useManagedBuildings, useDeleteBuilding, useMyPlan } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { formatShareKey } from '@/app/lib/shareKey';
 import { ModalShareBuilding } from '@/app/components/ModalShareBuilding';
@@ -122,12 +123,30 @@ export default function GestorHomePage() {
   const router = useRouter();
   const { show: toast } = useToastStore();
   const { data: buildings = [], isLoading } = useManagedBuildings();
+  const { data: myPlan } = useMyPlan();
   const deleteBuilding = useDeleteBuilding();
 
   const [createModal, setCreateModal] = useState(false);
   const [editModal, setEditModal] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null);
   const [shareModal, setShareModal] = useState(null);
+
+  function handleOpenCreate() {
+    if (myPlan && myPlan.usage && typeof myPlan.buildings_allowed === 'number') {
+      if (myPlan.usage.buildings >= myPlan.buildings_allowed) {
+        useUpgradeModalStore.getState().open({
+          code: 'LIMITE_DO_PLANO',
+          message: `Seu plano comporta ${myPlan.buildings_allowed} ${myPlan.buildings_allowed === 1 ? 'prédio' : 'prédios'}.`,
+          limit: myPlan.buildings_allowed,
+          current: myPlan.usage.buildings,
+          currentPlan: myPlan.code,
+          targetPlan: myPlan.code === 'ESSENCIAL' ? 'PRO' : 'ESSENCIAL',
+        });
+        return;
+      }
+    }
+    setCreateModal(true);
+  }
 
   const { mounted: editMounted } = useExitTransition(!!editModal);
   const editBuilding = useKeepWhileClosing(editModal, !!editModal);
@@ -173,7 +192,7 @@ export default function GestorHomePage() {
                 </p>
               </div>
               {/* Único elemento da tela vazia: o pop dá o empurrão que o texto não dá */}
-              <CreateTile standalone className="anim-pop-in anim-d2" onClick={() => setCreateModal(true)} />
+              <CreateTile standalone className="anim-pop-in anim-d2" onClick={handleOpenCreate} />
             </>
           )}
 
@@ -201,7 +220,7 @@ export default function GestorHomePage() {
                 {/* O "+" fecha a fila, sempre depois do último cartão */}
                 <CreateTile
                   className={`anim-fade-up anim-d${Math.min(buildings.length + 1, 6)}`}
-                  onClick={() => setCreateModal(true)}
+                  onClick={handleOpenCreate}
                 />
               </div>
             </>

@@ -121,8 +121,8 @@ export const billingService = {
       customer,
       // O front volta para a tela de cobrança nos dois casos; o que muda é o
       // aviso que ela mostra.
-      success_url: `${config.cors.origins[0]}/gestor/cobranca?checkout=ok`,
-      cancel_url: `${config.cors.origins[0]}/gestor/cobranca?checkout=cancelado`,
+      success_url: `${config.cors.origins[0]}/perfil?secao=cobranca&checkout=ok`,
+      cancel_url: `${config.cors.origins[0]}/perfil?secao=cobranca&checkout=cancelado`,
       ...linhas,
       'subscription_data[metadata][manager_id]': managerId,
       'subscription_data[metadata][plan]': data.plan,
@@ -148,7 +148,7 @@ export const billingService = {
 
     const session = await stripeRequest<StripeSession>('/billing_portal/sessions', {
       customer: assinatura.stripe_customer_id,
-      return_url: `${config.cors.origins[0]}/gestor/cobranca`,
+      return_url: `${config.cors.origins[0]}/perfil?secao=cobranca`,
     });
 
     return { url: session.url };

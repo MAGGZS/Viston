@@ -1,6 +1,6 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, ChartNoAxesColumn, Inbox, Workflow, CheckCheck, UserCheck, Building2, CreditCard, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, ChartNoAxesColumn, Inbox, Workflow, CheckCheck, UserCheck, Building2, LogOut, User } from 'lucide-react';
 import { SidebarShell, SidebarBrand, SidebarNav, SidebarFooter, SidebarItem } from '@/app/components/Sidebar';
 import { useSidebar } from '@/app/store/sidebar';
 import { useAuthStore } from '@/app/store/auth';
@@ -68,10 +68,6 @@ export function GestorSidebar({ buildingId, buildingName }) {
 
       <SidebarFooter>
         <SidebarItem href="/gestor" icon={Building2} label="Meus prédios" collapsed={collapsed} animated={animated} />
-        {/* No rodapé, junto de "Meus prédios" e do perfil: cobrança é assunto
-            da conta, e não daquele prédio — as abas de cima são todas do
-            prédio aberto. */}
-        <SidebarItem href="/gestor/cobranca" icon={CreditCard} label="Planos e cobrança" collapsed={collapsed} animated={animated} />
         <SidebarItem href={buildingId ? `/perfil?buildingId=${buildingId}` : '/perfil'} icon={User} label="Perfil" collapsed={collapsed} animated={animated} />
         <SidebarItem
           icon={LogOut}
