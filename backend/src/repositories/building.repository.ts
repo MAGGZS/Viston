@@ -295,6 +295,17 @@ export const buildingRepository = {
     });
   },
 
+  /**
+   * Quantas pessoas o prédio tem naquele papel.
+   *
+   * É a contagem que o limite do plano consulta antes de deixar entrar mais uma
+   * (ver `planGate.assertCanAddPerson`). Gestor não sai daqui — ele vive em
+   * `building_managers`, e quem o conta é `countManagers`.
+   */
+  countMembersByRole(buildingId: string, role: BuildingRole) {
+    return prisma.buildingMember.count({ where: { building_id: buildingId, role } });
+  },
+
   updateMemberRole(buildingId: string, userId: string, role: BuildingRole) {
     return prisma.buildingMember.update({
       where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
@@ -346,7 +357,14 @@ export const buildingRepository = {
       try {
         return await prisma.$transaction(async (tx) => {
           const building = await tx.building.create({
-            data: { ...data, share_key: generateShareKey() },
+            data: {
+              ...data,
+              share_key: generateShareKey(),
+              // Quem cria é quem paga. `created_by` é histórico e pode virar
+              // nulo quando a conta some; `owner_manager_id` é a cobrança, e
+              // nasce aqui — prédio sem dono é prédio que nenhum plano limita.
+              owner_manager_id: data.created_by,
+            },
           });
 
           await tx.buildingManager.create({

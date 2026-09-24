@@ -11,6 +11,7 @@ import { managerRepository } from '../repositories/manager.repository';
 import { userRepository } from '../repositories/user.repository';
 import { storageService } from './storage.service';
 import { usageService } from './usage.service';
+import { planGate } from '../middlewares/planGate';
 import { decodeImageDataUrl, MAX_PHOTO_BYTES } from '../utils/image';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { randomUUID } from 'node:crypto';
@@ -261,6 +262,20 @@ export const ticketService = {
       throw new NotFoundError('Andar');
     }
 
+    // Prédio inativo não recebe ocorrência nova, e o espaço de fotos do plano é
+    // conferido antes de qualquer byte subir: recusar depois do upload deixaria
+    // o bucket com o que a conta não podia guardar.
+    const building = await buildingRepository.findById(buildingId);
+    if (!building) throw new NotFoundError('Prédio');
+    planGate.assertActive(building);
+
+    const fotos = data.photos.map((dataUrl) => decodeImageDataUrl(dataUrl, MAX_PHOTO_BYTES));
+    await planGate.assertStorageRoom(
+      buildingId,
+      fotos.reduce((soma, f) => soma + f.buffer.length, 0),
+      user
+    );
+
     const name = await actorName(user);
 
     // O id sai antes para que as fotos já subam com o nome do chamado de verdade
@@ -274,8 +289,7 @@ export const ticketService = {
 
     let ticket: TicketRow;
     try {
-      for (const dataUrl of data.photos) {
-        const { buffer, contentType } = decodeImageDataUrl(dataUrl, MAX_PHOTO_BYTES);
+      for (const { buffer, contentType } of fotos) {
         const url = await storageService.uploadTicketPhoto(ticketId, buffer, contentType);
         photos.push(url);
         enviadas.push({ url, bytes: buffer.length });
@@ -835,10 +849,22 @@ export const ticketService = {
       throw new ConflictError('Receba o chamado antes de registrar o andamento');
     }
 
+    // Prédio inativo não recebe andamento novo; o espaço do plano é conferido
+    // antes de subir qualquer byte, e não depois.
+    const building = await buildingRepository.findById(buildingId);
+    if (!building) throw new NotFoundError('Prédio');
+    planGate.assertActive(building);
+
+    const fotos = data.photos.map((dataUrl) => decodeImageDataUrl(dataUrl, MAX_PHOTO_BYTES));
+    await planGate.assertStorageRoom(
+      buildingId,
+      fotos.reduce((soma, f) => soma + f.buffer.length, 0),
+      user
+    );
+
     const photos: string[] = [];
     const enviadas: { url: string; bytes: number }[] = [];
-    for (const dataUrl of data.photos) {
-      const { buffer, contentType } = decodeImageDataUrl(dataUrl, MAX_PHOTO_BYTES);
+    for (const { buffer, contentType } of fotos) {
       const url = await storageService.uploadTicketPhoto(id, buffer, contentType);
       photos.push(url);
       enviadas.push({ url, bytes: buffer.length });
