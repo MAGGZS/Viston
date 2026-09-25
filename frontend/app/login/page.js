@@ -40,7 +40,11 @@ const S = {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams?.get('redirect');
+  const rawRedirect = searchParams?.get('redirect');
+  const redirectUrl =
+    rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') && !rawRedirect.startsWith('/\\')
+      ? rawRedirect
+      : null;
   const { login } = useAuthStore();
   const { mutateAsync, isPending, error, reset: limparErro } = useLogin();
   const { register, handleSubmit, formState: { errors } } = useForm({ resolver: yupResolver(schema) });

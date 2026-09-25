@@ -31,6 +31,8 @@ export interface TokenPayload {
   type: 'access' | 'refresh';
   /** Ausente nos tokens emitidos antes da revogação existir: valem como 0. */
   tv?: number;
+  /** Identificador único do refresh token para rotação e detecção de reuso (SEC-09). */
+  jti?: string;
 }
 
 /**
@@ -55,10 +57,18 @@ export function signRefreshToken(
   userId: string,
   role: string,
   kind: AccountKind = 'USER',
-  tokenVersion = 0
+  tokenVersion = 0,
+  jti?: string
 ): string {
   return jwt.sign(
-    { sub: userId, kind, role, type: 'refresh', tv: tokenVersion } as TokenPayload,
+    {
+      sub: userId,
+      kind,
+      role,
+      type: 'refresh',
+      tv: tokenVersion,
+      ...(jti ? { jti } : {}),
+    } as TokenPayload,
     config.jwt.refreshSecret,
     { algorithm: ALGORITHM, expiresIn: config.jwt.refreshExpiresIn } as jwt.SignOptions
   );

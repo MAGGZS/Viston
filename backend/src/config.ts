@@ -30,6 +30,7 @@ export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   isProduction,
+  trustProxy: process.env.TRUST_PROXY !== undefined ? parseInt(process.env.TRUST_PROXY, 10) || false : 1,
 
   database: {
     url: required('DATABASE_URL'),

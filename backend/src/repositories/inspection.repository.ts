@@ -21,8 +21,8 @@ import { withExcelFlag } from '../utils/reportShape';
 export const ONLY_INSPECTIONS = ReportOrigin.VISTORIA;
 
 const reportInclude = {
-  inspector: { select: { id: true, name: true, email: true, role: true, avatar_url: true } },
-  building: true,
+  inspector: { select: { id: true, name: true, avatar_url: true } },
+  building: { select: { id: true, name: true, description: true } },
   floor_form_entries: {
     include: {
       floor: true,

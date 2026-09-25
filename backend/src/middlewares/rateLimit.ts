@@ -39,6 +39,34 @@ export const authLimiter = rateLimit({
 });
 
 /**
+ * Teto por IP puro nas rotas de autenticação (SEC-07): impede que um único IP
+ * contorne o `authLimiter` trocando o e-mail a cada tentativa (credential
+ * stuffing / password spraying).
+ */
+export const authIpLimiter = rateLimit({
+  ...base,
+  windowMs: 15 * 60_000,
+  limit: 60,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? ''),
+  message: tooMany('Muitas tentativas a partir deste endereço. Tente de novo em alguns minutos.'),
+});
+
+/**
+ * Teto por conta (e-mail) independente de IP (SEC-07): impede força bruta
+ * distribuída de vários IPs contra o mesmo endereço de e-mail.
+ */
+export const authEmailLimiter = rateLimit({
+  ...base,
+  windowMs: 15 * 60_000,
+  limit: 30,
+  skipSuccessfulRequests: true,
+  skip: (req) => typeof req.body?.email !== 'string' || !req.body.email.trim(),
+  keyGenerator: (req) => String(req.body.email).trim().toLowerCase(),
+  message: tooMany('Muitas tentativas para esta conta. Tente de novo em alguns minutos.'),
+});
+
+/**
  * Registro de ocorrência avulsa: cada chamada cria relatório, chamado e até
  * quatro arquivos no bucket. A cota é por conta — a rota só existe depois do
  * login — e cobre com folga quem registra em campo.

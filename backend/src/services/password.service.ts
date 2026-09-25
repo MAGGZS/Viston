@@ -1,5 +1,6 @@
 import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
+import { emailTokenRepository } from '../repositories/emailToken.repository';
 import { hashPassword } from '../utils/password';
 import { logger } from '../lib/logger';
 import { EmailDeliveryError, TooManyEmailsError } from '../utils/errors';
@@ -47,6 +48,10 @@ export const passwordService = {
     const achado = await acharConta(email);
 
     if (!achado || achado.conta.status === 'DELETED' || !achado.conta.email_verified_at) {
+      // SEC-05: igualar as consultas de banco no caminho sem conta para reduzir
+      // diferença de tempo entre e-mail cadastrado e não cadastrado.
+      await emailTokenRepository.lastSentAt(email, 'PASSWORD_RESET');
+      await emailTokenRepository.countRecent(email, 'PASSWORD_RESET', 60 * 60_000);
       return RESPOSTA_RECUPERACAO;
     }
 

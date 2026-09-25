@@ -1,7 +1,8 @@
 import bcrypt from 'bcrypt';
+import { AuditAction } from '@prisma/client';
 import { managerRepository } from '../repositories/manager.repository';
 import { PASSWORD_ROUNDS } from '../utils/password';
-import { buildingRepository } from '../repositories/building.repository';
+import { auditRepository, buildingRepository } from '../repositories/building.repository';
 import { storageService } from './storage.service';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { decodeAvatarDataUrl } from '../utils/image';
@@ -53,15 +54,18 @@ export const managerService = {
 
     const email = normalizeEmail(data.email);
     const existing = await managerRepository.findByEmail(email);
+    const password_hash = await bcrypt.hash(data.password, PASSWORD_ROUNDS);
 
     if (existing?.email_verified_at) return RESPOSTA_CADASTRO;
     if (!existing && !(await outraTabelaLivre('MANAGER', email))) return RESPOSTA_CADASTRO;
 
-    const password_hash = await bcrypt.hash(data.password, PASSWORD_ROUNDS);
-
     if (existing) {
-      await managerRepository.update(existing.id, { name: data.name, password_hash });
-      await enviarConfirmacaoDeCadastro({ kind: 'MANAGER', id: existing.id }, data.name, email);
+      await enviarConfirmacaoDeCadastro(
+        { kind: 'MANAGER', id: existing.id },
+        data.name,
+        email,
+        password_hash
+      );
       return RESPOSTA_CADASTRO;
     }
 
@@ -183,11 +187,17 @@ export const managerService = {
     };
   },
 
-  async remove(id: string) {
+  async remove(id: string, requesterId?: string) {
     const manager = await managerRepository.findById(id);
     if (!manager) throw new NotFoundError('Gestor');
 
     await assertNotSoleManager(id);
     await managerRepository.hardDelete(id);
+    await auditRepository.log?.({
+      ...(requesterId ? { user_id: requesterId } : {}),
+      action: AuditAction.DELETE,
+      entity: 'Manager',
+      entity_id: id,
+    });
   },
 };

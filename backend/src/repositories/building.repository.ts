@@ -68,10 +68,15 @@ export const buildingRepository = {
     return this.rotateShareToken(buildingId);
   },
 
-  /** Força a emissão imediata de um novo token temporário de 15 minutos. */
+  /** Força a emissão imediata de um novo token temporário de 15 minutos, invalidando os anteriores (SEC-13). */
   async rotateShareToken(buildingId: string) {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + SHARE_TOKEN_TTL_MS);
+
+    await prisma.buildingShareToken.updateMany({
+      where: { building_id: buildingId, expires_at: { gt: now } },
+      data: { expires_at: now },
+    });
 
     for (let attempt = 0; attempt < 5; attempt++) {
       const token = generateShareToken();
@@ -98,17 +103,43 @@ export const buildingRepository = {
     throw new Error('Não foi possível gerar um token de compartilhamento único');
   },
 
+  /** Rotaciona a chave permanente (`share_key`) do prédio (SEC-13). */
+  async rotateShareKey(buildingId: string) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const share_key = generateShareKey();
+      try {
+        return await prisma.building.update({
+          where: { id: buildingId },
+          data: { share_key },
+        });
+      } catch (err) {
+        const isDup =
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === 'P2002';
+        if (!isDup) throw err;
+      }
+    }
+    throw new Error('Não foi possível gerar uma chave de compartilhamento única');
+  },
+
   // ── Gestores ───────────────────────────────────────────────────────────────
-  /** O vínculo de gestão, que é o que autoriza tudo que altera o prédio. */
+  /** O vínculo de gestão, que é o que autoriza tudo que altera o prédio (SEC-15: só conta ativa e não suspensa). */
   findManagerLink(buildingId: string, managerId: string) {
-    return prisma.buildingManager.findUnique({
-      where: { building_id_manager_id: { building_id: buildingId, manager_id: managerId } },
+    return prisma.buildingManager.findFirst({
+      where: {
+        building_id: buildingId,
+        manager_id: managerId,
+        manager: { status: 'ACTIVE', suspended_at: null },
+      },
     });
   },
 
   async getManagedBuildingIds(managerId: string): Promise<string[]> {
     const rows = await prisma.buildingManager.findMany({
-      where: { manager_id: managerId },
+      where: {
+        manager_id: managerId,
+        manager: { status: 'ACTIVE', suspended_at: null },
+      },
       select: { building_id: true },
     });
     return rows.map((row) => row.building_id);
@@ -237,10 +268,10 @@ export const buildingRepository = {
   },
 
   // ── Membros (usuarios comuns) ──────────────────────────────────────────────
-  /** Ids dos prédios em que o usuário tem vínculo — usado para filtrar listagens. */
+  /** Ids dos prédios em que o usuário tem vínculo — usado para filtrar listagens (SEC-15: só conta ativa). */
   async getMemberBuildingIds(userId: string): Promise<string[]> {
     const rows = await prisma.buildingMember.findMany({
-      where: { user_id: userId },
+      where: { user_id: userId, user: { status: 'ACTIVE' } },
       select: { building_id: true },
     });
     return rows.map((row) => row.building_id);
@@ -319,8 +350,12 @@ export const buildingRepository = {
   },
 
   findMember(buildingId: string, userId: string) {
-    return prisma.buildingMember.findUnique({
-      where: { building_id_user_id: { building_id: buildingId, user_id: userId } },
+    return prisma.buildingMember.findFirst({
+      where: {
+        building_id: buildingId,
+        user_id: userId,
+        user: { status: 'ACTIVE' },
+      },
     });
   },
 

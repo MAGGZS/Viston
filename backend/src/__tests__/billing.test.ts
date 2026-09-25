@@ -60,6 +60,7 @@ function assinar(payload: string, segundos = Math.floor(Date.now() / 1000)) {
 const evento = (overrides: Record<string, unknown> = {}) => ({
   id: 'evt_1',
   type: 'customer.subscription.updated',
+  created: 1700000000,
   data: {
     object: {
       id: 'sub_1',
@@ -68,7 +69,12 @@ const evento = (overrides: Record<string, unknown> = {}) => ({
       cancel_at_period_end: false,
       current_period_end: 1790000000,
       metadata: { manager_id: GESTOR_ID, plan: 'PRO', extra_buildings: '2' },
-      items: { data: [{ price: { recurring: { interval: 'month' } } }] },
+      items: {
+        data: [
+          { price: { id: 'price_pro_m', recurring: { interval: 'month' } } },
+          { price: { id: 'price_extra_m', recurring: { interval: 'month' } }, quantity: 2 },
+        ],
+      },
     },
   },
   ...overrides,
@@ -88,6 +94,7 @@ beforeEach(() => {
   } as never);
   mockSubs.findByManager.mockResolvedValue(null);
   mockSubs.recordEvent.mockResolvedValue(true);
+  mockSubs.removeEvent.mockResolvedValue(undefined as never);
   mockSubs.upsertFromStripe.mockResolvedValue({} as never);
   mockAudit.log.mockResolvedValue(undefined as never);
 
@@ -333,7 +340,7 @@ describe('POST /billing/webhook', () => {
   it('o intervalo sai do preço, e não de um palpite', async () => {
     const anual = evento();
     (anual.data.object as { items: unknown }).items = {
-      data: [{ price: { recurring: { interval: 'year' } } }],
+      data: [{ price: { id: 'price_pro_y', recurring: { interval: 'year' } } }],
     };
     const payload = JSON.stringify(anual);
 
@@ -344,8 +351,101 @@ describe('POST /billing/webhook', () => {
       .send(payload);
 
     expect(mockSubs.upsertFromStripe).toHaveBeenCalledWith(
-      expect.objectContaining({ interval: 'YEARLY' })
+      expect.objectContaining({ interval: 'YEARLY', plan: PlanCode.PRO })
     );
+  });
+
+  it('ignora metadata.plan e metadata.extra_buildings e deriva tudo dos price IDs (SEC-03)', async () => {
+    const adulterado = evento();
+    (adulterado.data.object as { metadata: unknown; items: unknown }).metadata = {
+      manager_id: GESTOR_ID,
+      plan: 'PRO',
+      extra_buildings: '5',
+    };
+    (adulterado.data.object as { items: unknown }).items = {
+      data: [{ price: { id: 'price_essencial_m', recurring: { interval: 'month' } } }],
+    };
+    const payload = JSON.stringify(adulterado);
+
+    await request(app)
+      .post('/billing/webhook')
+      .set('Content-Type', 'application/json')
+      .set('Stripe-Signature', assinar(payload))
+      .send(payload);
+
+    expect(mockSubs.upsertFromStripe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plan: PlanCode.ESSENCIAL,
+        interval: 'MONTHLY',
+        extra_buildings: 0,
+      })
+    );
+  });
+
+  it('rejeita evento com price.id fora do catalogo (SEC-03)', async () => {
+    const desconhecido = evento();
+    (desconhecido.data.object as { items: unknown }).items = {
+      data: [{ price: { id: 'price_inventado', recurring: { interval: 'month' } } }],
+    };
+    const payload = JSON.stringify(desconhecido);
+
+    const res = await request(app)
+      .post('/billing/webhook')
+      .set('Content-Type', 'application/json')
+      .set('Stripe-Signature', assinar(payload))
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    expect(mockSubs.upsertFromStripe).not.toHaveBeenCalled();
+  });
+
+  it('rejeita evento quando sub.customer diverge do stripe_customer_id da conta (SEC-03)', async () => {
+    mockSubs.findByManager.mockResolvedValue({
+      stripe_customer_id: 'cus_legitimo',
+      last_event_at: null,
+    } as never);
+    const payload = JSON.stringify(evento());
+
+    const res = await request(app)
+      .post('/billing/webhook')
+      .set('Content-Type', 'application/json')
+      .set('Stripe-Signature', assinar(payload))
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    expect(mockSubs.upsertFromStripe).not.toHaveBeenCalled();
+  });
+
+  it('ignora evento atrasado fora de ordem quando event.created < last_event_at (SEC-08)', async () => {
+    mockSubs.findByManager.mockResolvedValue({
+      stripe_customer_id: 'cus_1',
+      last_event_at: new Date(1800000000 * 1000),
+    } as never);
+    const atrasado = evento({ created: 1700000000 });
+    const payload = JSON.stringify(atrasado);
+
+    const res = await request(app)
+      .post('/billing/webhook')
+      .set('Content-Type', 'application/json')
+      .set('Stripe-Signature', assinar(payload))
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    expect(mockSubs.upsertFromStripe).not.toHaveBeenCalled();
+  });
+
+  it('remove o evento de stripe_events se upsertFromStripe falhar para permitir retentativa do Stripe (SEC-08)', async () => {
+    mockSubs.upsertFromStripe.mockRejectedValueOnce(new Error('DB timeout'));
+    const payload = JSON.stringify(evento());
+
+    const res = await request(app)
+      .post('/billing/webhook')
+      .set('Content-Type', 'application/json')
+      .set('Stripe-Signature', assinar(payload))
+      .send(payload);
+
+    expect(res.status).toBe(500);
+    expect(mockSubs.removeEvent).toHaveBeenCalledWith('evt_1');
   });
 });
 

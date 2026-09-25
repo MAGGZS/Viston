@@ -41,7 +41,11 @@ const S = {
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams?.get('redirect');
+  const rawRedirect = searchParams?.get('redirect');
+  const redirectUrl =
+    rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') && !rawRedirect.startsWith('/\\')
+      ? rawRedirect
+      : null;
   const createUser = useCreateUser();
   // Campos vazios declarados: sem eles `isDirty` nunca volta a falso, e o
   // cadastro passa a perguntar "descartar alterações?" ao sair mesmo com tudo

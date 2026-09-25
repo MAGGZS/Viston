@@ -188,12 +188,12 @@ model User {
   /// existem — é o que faz sair, trocar de senha e excluir a conta valerem de
   /// verdade, em vez de só apagar o token do navegador de quem saiu.
   token_version     Int         @default(0)
+  /// Identificador do último refresh token emitido, para rotação e detecção de reuso.
+  refresh_token_jti String?
   /// Quando o dono do endereço provou ser o dono, clicando no link enviado.
   ///
   /// Nulo é conta que existe e não entra: o login para no 403 depois de
-  /// conferir a senha (ver `authService.login`). Nulo também é o que permite
-  /// um segundo cadastro no mesmo e-mail sobrescrever nome e senha — ninguém
-  /// provou ser dono ainda, e a conta não tem dado nenhum.
+  /// conferir a senha (ver `authService.login`).
   email_verified_at DateTime?
   created_at        DateTime    @default(now())
   updated_at        DateTime    @updatedAt
@@ -233,6 +233,8 @@ model Manager {
   status            UserStatus @default(ACTIVE)
   /// Mesma geração de sessões da conta de usuário — ver `User.token_version`.
   token_version     Int        @default(0)
+  /// Identificador do último refresh token emitido, para rotação e detecção de reuso.
+  refresh_token_jti String?
   /// Mesma confirmação da conta de usuário — ver `User.email_verified_at`.
   /// Gestor não tem passe livre: cadastro de gestor também é público.
   email_verified_at DateTime?
@@ -273,22 +275,25 @@ enum TokenPurpose {
 /// uma das duas colunas é preenchida — o CHECK `email_tokens_one_owner`, na
 /// migration, é quem garante isso; o Prisma não modela CHECK.
 model EmailToken {
-  id         String       @id @default(uuid())
-  purpose    TokenPurpose @default(EMAIL_VERIFY)
-  user_id    String?
-  manager_id String?
+  id                    String       @id @default(uuid())
+  purpose               TokenPurpose @default(EMAIL_VERIFY)
+  user_id               String?
+  manager_id            String?
   /// O endereço para onde o código foi. Guardado à parte da conta porque é por
   /// ele que o teto de envios por hora conta, antes mesmo de saber quem é.
-  email      String
-  code_hash  String?
-  expires_at DateTime
+  email                 String
+  code_hash             String?
+  /// Hash da senha enviada num segundo cadastro enquanto a conta ainda não foi
+  /// confirmada; só vai para a conta quando o código correspondente é validado.
+  pending_password_hash String?
+  expires_at            DateTime
   /// Chutes errados. No quinto o registro morre — é isto, e não o prazo, que
   /// torna a força bruta inviável contra seis dígitos.
-  attempts   Int          @default(0)
+  attempts              Int          @default(0)
   /// Carimbado no consumo e também quando um código novo é emitido: só o mais
   /// recente vale. Nulo é o único estado em que o código ainda abre.
-  used_at    DateTime?
-  created_at DateTime     @default(now())
+  used_at               DateTime?
+  created_at            DateTime     @default(now())
 
   user    User?    @relation(fields: [user_id], references: [id], onDelete: Cascade)
   manager Manager? @relation(fields: [manager_id], references: [id], onDelete: Cascade)
@@ -664,6 +669,8 @@ model Subscription {
   current_period_end     DateTime?
   /// Cancelou, mas segue valendo até o fim do período já pago.
   cancel_at_period_end   Boolean            @default(false)
+  /// Carimbo de tempo do último evento do Stripe aplicado, para ignorar eventos fora de ordem.
+  last_event_at          DateTime?
   created_at             DateTime           @default(now())
   updated_at             DateTime           @updatedAt
 

@@ -56,6 +56,7 @@ export const emailTokenRepository = {
     email: string;
     code_hash: string;
     expires_at: Date;
+    pending_password_hash?: string | null;
   }) {
     const { owner, ...resto } = data;
     return prisma.emailToken.create({ data: { ...ownerColumns(owner), ...resto } });
@@ -75,6 +76,7 @@ export const emailTokenRepository = {
       select: {
         id: true,
         code_hash: true,
+        pending_password_hash: true,
         expires_at: true,
         attempts: true,
         user_id: true,

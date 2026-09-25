@@ -168,3 +168,29 @@ export function requireBuildingActive(param = 'id') {
     next();
   };
 }
+
+const lockQueues = new Map<string, Promise<unknown>>();
+
+/**
+ * Serializa verificação de limite e escrita por chave (`owner` ou `building`)
+ * para fechar a janela TOCTOU entre contar e gravar em requisições paralelas (SEC-14).
+ */
+export async function withPlanLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const prev = lockQueues.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const next = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const tail = prev.then(() => next);
+  lockQueues.set(key, tail);
+
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (lockQueues.get(key) === tail) {
+      lockQueues.delete(key);
+    }
+  }
+}

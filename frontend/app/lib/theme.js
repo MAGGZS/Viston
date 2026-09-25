@@ -42,6 +42,9 @@ export const THEME_PREFS = ['system', 'dark', 'light'];
 /** Cor da barra do sistema no telefone. Acompanha --color-page de cada tema. */
 export const THEME_COLOR = { dark: '#0B0B0B', light: '#F5F6F8' };
 
+/** Script de inicialização do tema antes da primeira pintura (compartilhado com o hash SHA-256 do CSP em next.config.mjs). */
+export const THEME_SCRIPT = `(function(){try{var p=localStorage.getItem('${THEME_KEY}');if(p!=='light'&&p!=='dark')p='system';var t=p;if(p==='system'){t='dark';try{if(window.matchMedia('(prefers-color-scheme: light)').matches)t='light'}catch(e){}}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',${JSON.stringify(THEME_COLOR)}[t]);}catch(e){document.documentElement.dataset.theme='dark'}})();`;
+
 export const T = {
   bg: 'var(--color-page)',
   card: 'var(--color-card)',

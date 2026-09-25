@@ -54,7 +54,14 @@ export const userRepository = {
   bumpTokenVersion(id: string) {
     return prisma.user.update({
       where: { id },
-      data: { token_version: { increment: 1 } },
+      data: { token_version: { increment: 1 }, refresh_token_jti: null },
+    });
+  },
+
+  setRefreshTokenJti(id: string, jti: string | null) {
+    return prisma.user.update({
+      where: { id },
+      data: { refresh_token_jti: jti },
     });
   },
 

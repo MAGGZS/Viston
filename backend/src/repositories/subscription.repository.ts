@@ -23,6 +23,7 @@ export const subscriptionRepository = {
     stripe_subscription_id: string;
     current_period_end: Date | null;
     cancel_at_period_end: boolean;
+    last_event_at?: Date | null;
   }) {
     const { manager_id, ...resto } = data;
     return prisma.subscription.upsert({
@@ -51,5 +52,13 @@ export const subscriptionRepository = {
       }
       throw err;
     }
+  },
+
+  /**
+   * Remove o registro do evento caso a aplicação da mudança falhe no meio,
+   * permitindo que a reentrega do Stripe tente novamente (SEC-08).
+   */
+  removeEvent(id: string) {
+    return prisma.stripeEvent.deleteMany({ where: { id } });
   },
 };

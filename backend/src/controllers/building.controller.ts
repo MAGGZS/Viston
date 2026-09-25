@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuditAction, BuildingRole } from '@prisma/client';
 import { AuthenticatedRequest } from '../middlewares/authenticate';
-import { planGate } from '../middlewares/planGate';
+import { planGate, withPlanLock } from '../middlewares/planGate';
 import { actorAudit, buildingRepository, auditRepository } from '../repositories/building.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { inspectionRepository } from '../repositories/inspection.repository';
@@ -109,13 +109,15 @@ export const buildingController = {
       throw new ForbiddenError('Só uma conta de gestor pode cadastrar prédio');
     }
 
-    // O teto de prédios do plano de quem cria, antes de escrever: prédio criado
-    // e desfeito depois deixaria uma chave de compartilhamento queimada e uma
-    // linha de auditoria de algo que não vingou.
-    await planGate.assertCanCreateBuilding(req.user.id, req.user);
-
     const { name, description } = req.body;
-    const building = await buildingRepository.create({ name, description, created_by: req.user.id });
+    const building = await withPlanLock(`owner:${req.user.id}`, async () => {
+      // O teto de prédios do plano de quem cria, antes de escrever: prédio criado
+      // e desfeito depois deixaria uma chave de compartilhamento queimada e uma
+      // linha de auditoria de algo que não vingou.
+      await planGate.assertCanCreateBuilding(req.user.id, req.user);
+      return buildingRepository.create({ name, description, created_by: req.user.id });
+    });
+
     await auditRepository.log({
       ...actorAudit(req.user),
       building_id: building.id,
@@ -139,6 +141,16 @@ export const buildingController = {
   },
 
   async remove(req: AuthenticatedRequest, res: Response) {
+    const building = await buildingRepository.findById(req.params.id);
+    if (!building) throw new NotFoundError('Prédio');
+    if (
+      building.owner_manager_id &&
+      req.user.role !== 'ADMIN' &&
+      building.owner_manager_id !== req.user.id
+    ) {
+      throw new ForbiddenError('Só quem paga pelo prédio pode excluí-lo');
+    }
+
     await buildingRepository.delete(req.params.id);
     // Sem building_id: o prédio deixou de existir, e a FK levaria o registro
     // junto. O id fica em entity_id, que é texto solto.
@@ -254,19 +266,24 @@ export const buildingController = {
    * a saída do último é recusada.
    */
   async addManager(req: AuthenticatedRequest, res: Response) {
-    const email = normalizeEmail(req.body.email);
-    const manager = await managerRepository.findByEmail(email);
-    if (!manager || manager.status === 'DELETED') {
-      throw new NotFoundError('Conta de gestor com este e-mail');
-    }
+    const { link, managerId } = await withPlanLock(`building:${req.params.id}`, async () => {
+      // Co-gestor é o que o plano LIVRE não tem: checar o limite antes de
+      // procurar o e-mail evita que uma conta gratuita use a rota para varrer
+      // quais endereços são contas de gestor (SEC-11).
+      await planGate.assertCanAddPerson(req.params.id, 'GESTOR', req.user);
 
-    const existing = await buildingRepository.findManagerLink(req.params.id, manager.id);
-    if (existing) throw new ConflictError('Esta pessoa já é gestora deste prédio');
+      const email = normalizeEmail(req.body.email);
+      const manager = await managerRepository.findByEmail(email);
+      if (!manager || manager.status === 'DELETED') {
+        throw new NotFoundError('Conta de gestor com este e-mail');
+      }
 
-    // Co-gestor é o que o plano LIVRE não tem: um gestor por prédio.
-    await planGate.assertCanAddPerson(req.params.id, 'GESTOR', req.user);
+      const existing = await buildingRepository.findManagerLink(req.params.id, manager.id);
+      if (existing) throw new ConflictError('Esta pessoa já é gestora deste prédio');
 
-    const link = await buildingRepository.addManager(req.params.id, manager.id);
+      const createdLink = await buildingRepository.addManager(req.params.id, manager.id);
+      return { link: createdLink, managerId: manager.id };
+    });
 
     await auditRepository.log({
       ...actorAudit(req.user),
@@ -274,7 +291,7 @@ export const buildingController = {
       action: AuditAction.CREATE,
       entity: 'BuildingManager',
       entity_id: link.id,
-      metadata: { manager_id: manager.id },
+      metadata: { manager_id: managerId },
     });
 
     created(res, link);
@@ -286,6 +303,15 @@ export const buildingController = {
     if (!link) throw new NotFoundError('Gestor deste prédio');
 
     await assertNotLastManager(req.params.id, 'sair da gestão');
+
+    const building = await buildingRepository.findById(req.params.id);
+    if (building?.owner_manager_id && req.params.managerId === building.owner_manager_id) {
+      if (req.user.role !== 'ADMIN' && req.user.id !== building.owner_manager_id) {
+        throw new ForbiddenError('Um co-gestor não pode remover o dono do prédio da gestão');
+      }
+      throw new ConflictError('Transfira a propriedade do prédio antes de sair da gestão');
+    }
+
     await buildingRepository.removeManager(req.params.id, req.params.managerId);
 
     await auditRepository.log({
@@ -320,26 +346,26 @@ export const buildingController = {
 
   /** O gestor define o papel de quem está vinculado ao prédio. */
   async updateMemberRole(req: AuthenticatedRequest, res: Response) {
-    const member = await buildingRepository.findMember(req.params.id, req.params.userId);
-    if (!member) throw new NotFoundError('Vínculo');
-
-    // Um dos quatro papéis de vínculo — inspetor, visualizador, moderador ou
-    // responsável. Promover a gestor não passa por aqui, porque gestor é outro
-    // tipo de conta (ver POST /buildings/:id/managers).
     const { role } = req.body as { role: BuildingRole };
 
-    // Só quando o papel muda de verdade: repetir o papel que a pessoa já tem
-    // contaria ela mesma contra o próprio limite, e recusaria um gesto que não
-    // acrescenta ninguém.
-    if (member.role !== role) {
-      await planGate.assertCanAddPerson(req.params.id, role, req.user);
-    }
+    const { member, updated } = await withPlanLock(`building:${req.params.id}`, async () => {
+      const current = await buildingRepository.findMember(req.params.id, req.params.userId);
+      if (!current) throw new NotFoundError('Vínculo');
 
-    const updated = await buildingRepository.updateMemberRole(
-      req.params.id,
-      req.params.userId,
-      role
-    );
+      // Só quando o papel muda de verdade: repetir o papel que a pessoa já tem
+      // contaria ela mesma contra o próprio limite, e recusaria um gesto que não
+      // acrescenta ninguém.
+      if (current.role !== role) {
+        await planGate.assertCanAddPerson(req.params.id, role, req.user);
+      }
+
+      const row = await buildingRepository.updateMemberRole(
+        req.params.id,
+        req.params.userId,
+        role
+      );
+      return { member: current, updated: row };
+    });
 
     await auditRepository.log({
       ...actorAudit(req.user),
@@ -410,24 +436,30 @@ export const buildingController = {
   async reviewAccessRequest(req: AuthenticatedRequest, res: Response) {
     const { status } = req.body as { status: 'APPROVED' | 'REJECTED' };
 
-    // A solicitação precisa ser do prédio da rota — caso contrário aprovaria-se
-    // acesso a um prédio só informando o id de outra solicitação.
-    const request = await buildingRepository.findAccessRequestById(req.params.requestId);
-    if (!request || request.building_id !== req.params.id) throw new NotFoundError('Solicitação');
-    if (request.status !== 'PENDING') throw new ConflictError('Solicitação já foi revisada');
+    const updated = await withPlanLock(`building:${req.params.id}`, async () => {
+      // A solicitação precisa ser do prédio da rota — caso contrário aprovaria-se
+      // acesso a um prédio só informando o id de outra solicitação.
+      const request = await buildingRepository.findAccessRequestById(req.params.requestId);
+      if (!request || request.building_id !== req.params.id) throw new NotFoundError('Solicitação');
+      if (request.status !== 'PENDING') throw new ConflictError('Solicitação já foi revisada');
 
-    // O teto de visualizadores do plano, antes de mexer na solicitação: se a
-    // vaga não existe, a fila não pode perder o pedido — aprovado sem vínculo,
-    // ele sairia da lista do gestor sem dar acesso a ninguém.
+      // O teto de visualizadores do plano, antes de mexer na solicitação: se a
+      // vaga não existe, a fila não pode perder o pedido — aprovado sem vínculo,
+      // ele sairia da lista do gestor sem dar acesso a ninguém.
+      if (status === 'APPROVED') {
+        await planGate.assertCanAddPerson(req.params.id, BuildingRole.VIEWER, req.user);
+      }
+
+      const row = await buildingRepository.updateAccessRequest(req.params.requestId, status);
+
+      // Entra sempre como visualizador — o gestor promove depois, se quiser.
+      if (status === 'APPROVED') {
+        await buildingRepository.addMember(req.params.id, row.user_id);
+      }
+      return row;
+    });
+
     if (status === 'APPROVED') {
-      await planGate.assertCanAddPerson(req.params.id, BuildingRole.VIEWER, req.user);
-    }
-
-    const updated = await buildingRepository.updateAccessRequest(req.params.requestId, status);
-
-    // Entra sempre como visualizador — o gestor promove depois, se quiser.
-    if (status === 'APPROVED') {
-      await buildingRepository.addMember(req.params.id, updated.user_id);
       await auditRepository.log({
         ...actorAudit(req.user),
         building_id: req.params.id,
@@ -449,5 +481,17 @@ export const buildingController = {
   async rotateShareToken(req: AuthenticatedRequest, res: Response) {
     const tokenData = await buildingRepository.rotateShareToken(req.params.id);
     ok(res, tokenData);
+  },
+
+  async rotateShareKey(req: AuthenticatedRequest, res: Response) {
+    const updated = await buildingRepository.rotateShareKey(req.params.id);
+    await auditRepository.log({
+      ...actorAudit(req.user),
+      building_id: req.params.id,
+      action: AuditAction.UPDATE,
+      entity: 'BuildingShareKey',
+      entity_id: req.params.id,
+    });
+    ok(res, { share_key: updated.share_key });
   },
 };

@@ -23,7 +23,7 @@ export const userController = {
   },
 
   async update(req: AuthenticatedRequest, res: Response) {
-    const user = await userService.update(req.params.id, req.body);
+    const user = await userService.update(req.params.id, req.body, req.user.id);
     ok(res, user);
   },
 

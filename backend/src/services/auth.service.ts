@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 import { userRepository } from '../repositories/user.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { auditRepository, buildingRepository } from '../repositories/building.repository';
@@ -31,6 +32,7 @@ type Account = {
   avatar_url: string | null;
   status: string;
   token_version: number;
+  refresh_token_jti?: string | null;
   /// Nulo é conta que existe e não entra — ver o passo 3 de `login`.
   email_verified_at: Date | null;
   /// Só a conta de gestor tem: é o admin quem a carimba. Ver `login`.
@@ -125,13 +127,18 @@ export const authService = {
     // Custo antigo vira custo de hoje aqui, e só aqui: é o único ponto em que a
     // senha em claro existe depois do cadastro. Falhar em refazer o hash não
     // pode barrar quem acertou a senha — o hash antigo continua correto.
+    const repo = account.kind === 'MANAGER' ? managerRepository : userRepository;
     if (needsRehash(account.password_hash)) {
       const password_hash = await hashPassword(password);
-      const repo = account.kind === 'MANAGER' ? managerRepository : userRepository;
       await repo.update(account.id, { password_hash }).catch((err: unknown) =>
         logger.error({ err, account_id: account.id }, '[Auth] Falha ao atualizar o custo do hash')
       );
     }
+
+    const jti = randomUUID();
+    await Promise.resolve(repo.setRefreshTokenJti?.(account.id, jti)).catch((err: unknown) =>
+      logger.error({ err, account_id: account.id }, '[Auth] Falha ao gravar jti do refresh token')
+    );
 
     await auditRepository.log(
       account.kind === 'MANAGER'
@@ -149,7 +156,8 @@ export const authService = {
         account.id,
         account.role,
         account.kind,
-        account.token_version
+        account.token_version,
+        jti
       ),
       user: {
         id: account.id,
@@ -178,7 +186,10 @@ export const authService = {
   async reenviarConfirmacao(emailBruto: string, password: string) {
     const email = normalizeEmail(emailBruto);
     const account = await findAccountByEmail(email);
-    if (!account || account.status === 'DELETED') return;
+    if (!account || account.status === 'DELETED') {
+      await bcrypt.compare(password, await hashFalso());
+      return;
+    }
     if (!(await bcrypt.compare(password, account.password_hash))) return;
     if (account.email_verified_at) return;
 
@@ -192,6 +203,10 @@ export const authService = {
    * excluído incrementa `token_version`, e todo refresh token emitido antes
    * disso para de valer na hora — sem tabela de sessões, e sem esperar os sete
    * dias de validade.
+   *
+   * Além da geração (`tv`), o `jti` do refresh token é rotacionado a cada
+   * renovação (SEC-09): se um token já substituído for reapresentado, toda a
+   * família de sessões é revogada com `bumpTokenVersion`.
    */
   async refresh(refreshToken: string) {
     const payload = verifyRefreshToken(refreshToken);
@@ -208,9 +223,25 @@ export const authService = {
       if (manager.suspended_at) throw new AccountSuspendedError();
       assertCurrentSession(payload.tv, manager.token_version);
 
+      if (manager.refresh_token_jti && payload.jti !== manager.refresh_token_jti) {
+        await managerRepository.bumpTokenVersion(manager.id);
+        throw new UnauthorizedError('Sessão encerrada');
+      }
+
+      const nextJti = randomUUID();
+      await Promise.resolve(managerRepository.setRefreshTokenJti?.(manager.id, nextJti)).catch(
+        () => undefined
+      );
+
       return {
         access_token: signAccessToken(manager.id, 'NONE', 'MANAGER'),
-        refresh_token: signRefreshToken(manager.id, 'NONE', 'MANAGER', manager.token_version),
+        refresh_token: signRefreshToken(
+          manager.id,
+          'NONE',
+          'MANAGER',
+          manager.token_version,
+          nextJti
+        ),
       };
     }
 
@@ -220,9 +251,19 @@ export const authService = {
     }
     assertCurrentSession(payload.tv, user.token_version);
 
+    if (user.refresh_token_jti && payload.jti !== user.refresh_token_jti) {
+      await userRepository.bumpTokenVersion(user.id);
+      throw new UnauthorizedError('Sessão encerrada');
+    }
+
+    const nextJti = randomUUID();
+    await Promise.resolve(userRepository.setRefreshTokenJti?.(user.id, nextJti)).catch(
+      () => undefined
+    );
+
     return {
       access_token: signAccessToken(user.id, user.role, 'USER'),
-      refresh_token: signRefreshToken(user.id, user.role, 'USER', user.token_version),
+      refresh_token: signRefreshToken(user.id, user.role, 'USER', user.token_version, nextJti),
     };
   },
 

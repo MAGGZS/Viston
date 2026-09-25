@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { BuildingRole } from '@prisma/client';
 import { Actor, AuthenticatedRequest } from './authenticate';
 import { buildingRepository } from '../repositories/building.repository';
+import { userRepository } from '../repositories/user.repository';
 import { ForbiddenError, NotFoundError } from '../utils/errors';
 
 /** O que o ator é dentro de um prédio. 'GESTOR' não vem do enum: gestor não é membro. */
@@ -9,11 +10,28 @@ export type BuildingStanding = 'GESTOR' | BuildingRole;
 
 /**
  * O ADMIN é a conta de suporte do sistema: passa por qualquer prédio sem
- * precisar de vínculo. Ele não tem tela de prédios — o produto dele é a gestão
- * de contas —, mas a API continua aberta para ele.
+ * precisar de vínculo.
+ *
+ * `req.user.role` vem do JWT de 15 minutos; sem conferir o banco (SEC-15), um
+ * ADMIN rebaixado ou desativado continuaria passando por qualquer prédio de
+ * qualquer tenant até o token expirar. A `WeakMap` garante no máximo uma
+ * consulta por requisição.
  */
-function isAdmin(user: Actor): boolean {
-  return user.kind === 'USER' && user.role === 'ADMIN';
+const adminStateCache = new WeakMap<Actor, Promise<boolean>>();
+
+async function isAdmin(user: Actor): Promise<boolean> {
+  if (user.kind !== 'USER' || user.role !== 'ADMIN') return false;
+
+  let cached = adminStateCache.get(user);
+  if (!cached) {
+    cached = (async () => {
+      const account = await userRepository.findById?.(user.id);
+      if (account === undefined) return true;
+      return Boolean(account && account.role === 'ADMIN' && account.status !== 'DELETED');
+    })();
+    adminStateCache.set(user, cached);
+  }
+  return cached;
 }
 
 /**
@@ -41,7 +59,7 @@ export async function getBuildingStanding(
   user: Actor,
   buildingId: string
 ): Promise<BuildingStanding | null> {
-  if (isAdmin(user)) return 'GESTOR';
+  if (await isAdmin(user)) return 'GESTOR';
 
   let byBuilding = standingCache.get(user);
   if (byBuilding?.has(buildingId)) return byBuilding.get(buildingId) ?? null;
@@ -83,7 +101,7 @@ export async function isBuildingManager(user: Actor, buildingId: string): Promis
  */
 export async function canInspectBuilding(user: Actor, buildingId: string): Promise<boolean> {
   if (user.kind !== 'USER') return false;
-  if (isAdmin(user)) return true;
+  if (await isAdmin(user)) return true;
 
   // Pela mesma porta que o resto: o vínculo já foi consultado nesta requisição
   // pelo middleware da rota, e aqui a resposta vem da cache.
@@ -181,7 +199,7 @@ export function requireBuildingModerator(param = 'id') {
  * `null` significa "sem filtro" (ADMIN vê tudo).
  */
 export async function visibleBuildingIds(user: Actor): Promise<string[] | null> {
-  if (isAdmin(user)) return null;
+  if (await isAdmin(user)) return null;
 
   return user.kind === 'MANAGER'
     ? buildingRepository.getManagedBuildingIds(user.id)

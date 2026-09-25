@@ -1323,3 +1323,94 @@ describe('cabeçalhos de segurança', () => {
     expect(res.headers['content-security-policy']).toContain("default-src 'none'");
   });
 });
+
+describe('proteções adicionais da auditoria (SEC-02, SEC-10, SEC-15)', () => {
+  const OUTRO_GESTOR_ID = 'd4444444-4444-4444-8444-444444444444';
+  const tokenCoGestor = signAccessToken(OUTRO_GESTOR_ID, 'NONE', 'MANAGER');
+
+  it('co-gestor não consegue excluir o prédio do dono (SEC-02)', async () => {
+    mockBuildingRepo.findById.mockResolvedValue({
+      ...building,
+      owner_manager_id: 'a1111111-1111-4111-8111-111111111111',
+    } as any);
+    mockBuildingRepo.findManagerLink.mockResolvedValue({ id: 'bm-co' } as any);
+
+    const res = await request(app)
+      .delete(`/buildings/${BUILDING_ID}`)
+      .set('Authorization', `Bearer ${tokenCoGestor}`);
+
+    expect(res.status).toBe(403);
+    expect(mockBuildingRepo.delete).not.toHaveBeenCalled();
+  });
+
+  it('co-gestor não consegue remover o dono da gestão do prédio (SEC-02)', async () => {
+    const ownerId = 'a1111111-1111-4111-8111-111111111111';
+    mockBuildingRepo.findById.mockResolvedValue({
+      ...building,
+      owner_manager_id: ownerId,
+    } as any);
+    mockBuildingRepo.findManagerLink.mockResolvedValue({ id: 'bm-co' } as any);
+
+    const res = await request(app)
+      .delete(`/buildings/${BUILDING_ID}/managers/${ownerId}`)
+      .set('Authorization', `Bearer ${tokenCoGestor}`);
+
+    expect(res.status).toBe(403);
+    expect(mockBuildingRepo.removeManager).not.toHaveBeenCalled();
+  });
+
+  it('dono não consegue se remover sem antes transferir a titularidade (SEC-02)', async () => {
+    const ownerId = 'a1111111-1111-4111-8111-111111111111';
+    mockBuildingRepo.findById.mockResolvedValue({
+      ...building,
+      owner_manager_id: ownerId,
+    } as any);
+    comoGestorDoPredio();
+
+    const res = await request(app)
+      .delete(`/buildings/${BUILDING_ID}/managers/${ownerId}`)
+      .set('Authorization', `Bearer ${tokenGestor}`);
+
+    expect(res.status).toBe(409);
+    expect(mockBuildingRepo.removeManager).not.toHaveBeenCalled();
+  });
+
+  it('VIEWER recebe maintenance_cost e maintenance_note mascarados nos chamados (SEC-10)', async () => {
+    comoMembro('VIEWER');
+    mockTicketRepo.findById.mockResolvedValue(
+      chamadoDoPredio({
+        maintenance_cost: '1500.00',
+        maintenance_note: 'Nota fiscal confidencial',
+        responsible_user: {
+          id: RESPONSIBLE_ID,
+          name: 'Responsável',
+          email: 'resp@privado.com',
+          avatar_url: null,
+        },
+      })
+    );
+
+    const res = await request(app)
+      .get(`/tickets/${TICKET_ID}`)
+      .set('Authorization', `Bearer ${tokenViewer}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.maintenance_cost).toBeNull();
+    expect(res.body.maintenance_note).toBeNull();
+    expect(res.body.responsible_user).not.toHaveProperty('email');
+  });
+
+  it('ADMIN rebaixado no banco não passa mais pelas guardas de prédio mesmo com JWT antigo (SEC-15)', async () => {
+    mockUserRepo.findById.mockResolvedValue({
+      ...ADMIN_ATIVO,
+      role: 'NONE',
+    } as any);
+
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/dashboard`)
+      .set('Authorization', `Bearer ${tokenAdmin}`);
+
+    expect(res.status).toBe(403);
+  });
+});
+

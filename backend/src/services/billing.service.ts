@@ -218,70 +218,159 @@ export const billingService = {
    *
    * A idempotência é a chave primária de `stripe_events`: o Stripe reentrega o
    * mesmo evento quando não recebe 200, e sem isso o reenvio aplicaria a mesma
-   * mudança duas vezes. Gravar primeiro e aplicar depois é a ordem certa —
-   * aplicar primeiro deixaria a janela em que o processo morre entre uma coisa
-   * e outra.
+   * mudança duas vezes. Gravar primeiro e aplicar depois é a ordem certa — se a
+   * aplicação falhar, `removeEvent` desfaz a marca para a reentrega tentar de
+   * novo (SEC-08).
    *
    * Evento que não interessa também é gravado: é o que faz o reenvio dele parar
    * de custar trabalho.
    */
-  async handleEvent(event: { id: string; type: string; data: { object: Record<string, unknown> } }) {
+  async handleEvent(event: {
+    id: string;
+    type: string;
+    created?: number;
+    data: { object: Record<string, unknown> };
+  }) {
     const novo = await subscriptionRepository.recordEvent(event.id, event.type, event);
     if (!novo) {
       logger.info({ event_id: event.id, type: event.type }, '[Stripe] Evento repetido, ignorado');
       return { duplicate: true };
     }
 
-    if (!event.type.startsWith('customer.subscription.')) return { ignored: true };
+    try {
+      if (!event.type.startsWith('customer.subscription.')) return { ignored: true };
 
-    const sub = event.data.object as {
-      id: string;
-      customer: string;
-      status: string;
-      cancel_at_period_end?: boolean;
-      current_period_end?: number;
-      metadata?: Record<string, string>;
-      items?: { data: { price?: { recurring?: { interval?: string } } }[] };
-    };
+      const sub = event.data.object as {
+        id: string;
+        customer: string;
+        status: string;
+        cancel_at_period_end?: boolean;
+        current_period_end?: number;
+        metadata?: Record<string, string>;
+        items?: {
+          data: {
+            price?: { id?: string; recurring?: { interval?: string } };
+            quantity?: number;
+          }[];
+        };
+      };
 
-    const managerId = sub.metadata?.manager_id;
-    if (!managerId) {
-      logger.error({ event_id: event.id, subscription: sub.id }, '[Stripe] Assinatura sem manager_id');
-      return { ignored: true };
+      const managerId = sub.metadata?.manager_id;
+      if (!managerId) {
+        logger.error({ event_id: event.id, subscription: sub.id }, '[Stripe] Assinatura sem manager_id');
+        return { ignored: true };
+      }
+
+      const status = toStatus(sub.status);
+      if (!status) {
+        logger.error({ event_id: event.id, status: sub.status }, '[Stripe] Status desconhecido');
+        return { ignored: true };
+      }
+
+      // SEC-03: se o gestor já tem customer registrado no banco, recusar evento
+      // cuja assinatura pertença a outro customer do Stripe.
+      const existente = await subscriptionRepository.findByManager(managerId);
+      if (existente?.stripe_customer_id && existente.stripe_customer_id !== sub.customer) {
+        logger.error(
+          {
+            event_id: event.id,
+            subscription: sub.id,
+            expected_customer: existente.stripe_customer_id,
+            actual_customer: sub.customer,
+          },
+          '[Stripe] Assinatura com customer divergente do registrado para o gestor'
+        );
+        return { ignored: true };
+      }
+
+      // SEC-08: ignorar evento entregue fora de ordem (mais antigo que o último já aplicado).
+      const eventAt = typeof event.created === 'number' ? new Date(event.created * 1000) : null;
+      if (existente?.last_event_at && eventAt && eventAt < existente.last_event_at) {
+        logger.info(
+          { event_id: event.id, event_at: eventAt, last_event_at: existente.last_event_at },
+          '[Stripe] Evento fora de ordem ignorado'
+        );
+        return { ignored: true };
+      }
+
+      // SEC-03: derivar plano, periodicidade e prédios extras dos price.id reais
+      // contratados nos itens da assinatura, e não de metadata editável.
+      const prices = config.stripe.prices;
+      let plan: PlanCode | null = null;
+      let interval: BillingInterval | null = null;
+      let extra_buildings = 0;
+
+      const items = sub.items?.data ?? [];
+      if (items.length === 0) {
+        logger.error({ event_id: event.id, subscription: sub.id }, '[Stripe] Assinatura sem itens');
+        return { ignored: true };
+      }
+
+      for (const item of items) {
+        const priceId = item.price?.id;
+        if (!priceId) {
+          logger.error({ event_id: event.id, subscription: sub.id }, '[Stripe] Item sem price.id');
+          return { ignored: true };
+        }
+        if (priceId === prices.ESSENCIAL.MONTHLY) {
+          plan = PlanCode.ESSENCIAL;
+          interval = BillingInterval.MONTHLY;
+        } else if (priceId === prices.ESSENCIAL.YEARLY) {
+          plan = PlanCode.ESSENCIAL;
+          interval = BillingInterval.YEARLY;
+        } else if (priceId === prices.PRO.MONTHLY) {
+          plan = PlanCode.PRO;
+          interval = BillingInterval.MONTHLY;
+        } else if (priceId === prices.PRO.YEARLY) {
+          plan = PlanCode.PRO;
+          interval = BillingInterval.YEARLY;
+        } else if (
+          priceId === prices.EXTRA_BUILDING.MONTHLY ||
+          priceId === prices.EXTRA_BUILDING.YEARLY
+        ) {
+          extra_buildings += Math.max(0, Number(item.quantity ?? 1));
+        } else {
+          logger.error(
+            { event_id: event.id, subscription: sub.id, price_id: priceId },
+            '[Stripe] Price ID desconhecido na assinatura'
+          );
+          return { ignored: true };
+        }
+      }
+
+      if (!plan || !interval) {
+        logger.error(
+          { event_id: event.id, subscription: sub.id },
+          '[Stripe] Assinatura sem preço de plano válido'
+        );
+        return { ignored: true };
+      }
+
+      await subscriptionRepository.upsertFromStripe({
+        manager_id: managerId,
+        plan,
+        status,
+        interval,
+        extra_buildings,
+        stripe_customer_id: sub.customer,
+        stripe_subscription_id: sub.id,
+        current_period_end: sub.current_period_end ? new Date(sub.current_period_end * 1000) : null,
+        cancel_at_period_end: Boolean(sub.cancel_at_period_end),
+        ...(eventAt ? { last_event_at: eventAt } : {}),
+      });
+
+      await auditRepository.log({
+        manager_id: managerId,
+        action: AuditAction.SUBSCRIPTION_UPDATED,
+        entity: 'Subscription',
+        entity_id: sub.id,
+        metadata: { event: event.type, status, plan },
+      });
+
+      return { applied: true };
+    } catch (err) {
+      await subscriptionRepository.removeEvent?.(event.id);
+      throw err;
     }
-
-    const status = toStatus(sub.status);
-    if (!status) {
-      logger.error({ event_id: event.id, status: sub.status }, '[Stripe] Status desconhecido');
-      return { ignored: true };
-    }
-
-    const plan = (sub.metadata?.plan as PlanCode) ?? PlanCode.ESSENCIAL;
-    const interval =
-      sub.items?.data?.[0]?.price?.recurring?.interval === 'year'
-        ? BillingInterval.YEARLY
-        : BillingInterval.MONTHLY;
-
-    await subscriptionRepository.upsertFromStripe({
-      manager_id: managerId,
-      plan,
-      status,
-      interval,
-      extra_buildings: Number(sub.metadata?.extra_buildings ?? 0),
-      stripe_customer_id: sub.customer,
-      stripe_subscription_id: sub.id,
-      current_period_end: sub.current_period_end ? new Date(sub.current_period_end * 1000) : null,
-      cancel_at_period_end: Boolean(sub.cancel_at_period_end),
-    });
-
-    await auditRepository.log({
-      manager_id: managerId,
-      action: AuditAction.SUBSCRIPTION_UPDATED,
-      entity: 'Subscription',
-      entity_id: sub.id,
-      metadata: { event: event.type, status, plan },
-    });
-
-    return { applied: true };
   },
 };

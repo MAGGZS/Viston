@@ -6,7 +6,7 @@ import { Toast } from '@/app/components/Toast';
 import { UpgradeModal } from '@/app/components/UpgradeModal';
 import { UnsavedGuard } from '@/app/components/UnsavedGuard';
 import { BRAND, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from '@/app/lib/site';
-import { THEME_COLOR, THEME_KEY } from '@/app/lib/theme';
+import { THEME_SCRIPT } from '@/app/lib/theme';
 
 /**
  * Uma família para o produto inteiro. Os quatro pesos carregam a hierarquia:
@@ -118,8 +118,6 @@ export const viewport = {
  * cada carregamento com o app claro e a barra preta em cima. O `<meta>` está no
  * `<head>`, que o navegador já leu quando chega aqui.
  */
-const THEME_SCRIPT = `(function(){try{var p=localStorage.getItem('${THEME_KEY}');if(p!=='light'&&p!=='dark')p='system';var t=p;if(p==='system'){t='dark';try{if(window.matchMedia('(prefers-color-scheme: light)').matches)t='light'}catch(e){}}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',${JSON.stringify(THEME_COLOR)}[t]);}catch(e){document.documentElement.dataset.theme='dark'}})();`;
-
 export default function RootLayout({ children }) {
   return (
     // `suppressHydrationWarning`: o script acima muda um atributo do `<html>`

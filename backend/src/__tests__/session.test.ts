@@ -127,6 +127,19 @@ describe('authService.refresh', () => {
       authService.refresh(signRefreshToken('gestor-1', 'NONE', 'MANAGER', 1))
     ).rejects.toThrow(UnauthorizedError);
   });
+
+  it('reutilizar um refresh token já rotacionado revoga toda a família de tokens (SEC-09)', async () => {
+    mockUserRepo.findById.mockResolvedValue(
+      makeUser({ token_version: 0, refresh_token_jti: 'jti-atual' })
+    );
+    mockUserRepo.bumpTokenVersion.mockResolvedValue(makeUser({ token_version: 1 }));
+
+    await expect(
+      authService.refresh(signRefreshToken('user-1', 'NONE', 'USER', 0, 'jti-antigo'))
+    ).rejects.toThrow(UnauthorizedError);
+
+    expect(mockUserRepo.bumpTokenVersion).toHaveBeenCalledWith('user-1');
+  });
 });
 
 // ── Sair ──────────────────────────────────────────────────────────────────────
@@ -197,6 +210,23 @@ describe('eventos que encerram a sessão', () => {
     await managerService.softDelete('gestor-1');
 
     expect(mockManagerRepo.bumpTokenVersion).toHaveBeenCalledWith('gestor-1');
+  });
+
+  it('desativar usuário pelo admin (update status=DELETED) derruba sessão e grava auditoria (SEC-17)', async () => {
+    mockUserRepo.findById.mockResolvedValue(makeUser());
+    mockUserRepo.update.mockResolvedValue(makeUser({ status: 'DELETED' }));
+    mockUserRepo.bumpTokenVersion.mockResolvedValue(makeUser({ token_version: 1 }));
+    mockAuditRepo.log.mockResolvedValue(undefined as any);
+
+    await userService.update('user-1', { status: 'DELETED' as any }, 'admin-1');
+
+    expect(mockUserRepo.bumpTokenVersion).toHaveBeenCalledWith('user-1');
+    expect(mockAuditRepo.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AuditAction.UPDATE,
+        user_id: 'admin-1',
+      })
+    );
   });
 });
 

@@ -29,7 +29,7 @@ export const managerController = {
   },
 
   async remove(req: AuthenticatedRequest, res: Response) {
-    await managerService.remove(req.params.id);
+    await managerService.remove(req.params.id, req.user.id);
     noContent(res);
   },
 

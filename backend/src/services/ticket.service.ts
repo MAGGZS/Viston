@@ -11,7 +11,7 @@ import { managerRepository } from '../repositories/manager.repository';
 import { userRepository } from '../repositories/user.repository';
 import { storageService } from './storage.service';
 import { usageService } from './usage.service';
-import { planGate } from '../middlewares/planGate';
+import { planGate, withPlanLock } from '../middlewares/planGate';
 import { decodeImageDataUrl, MAX_PHOTO_BYTES } from '../utils/image';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { randomUUID } from 'node:crypto';
@@ -97,6 +97,27 @@ async function toTicketsWithCloser(rows: TicketRow[]) {
     : new Map<string, { id: string | null; name: string }>();
 
   return rows.map((r) => toTicket(r, closeLogs.get(r.id)));
+}
+
+/**
+ * Remove campos restritos a gestores e moderadores (`maintenance_cost`,
+ * `maintenance_note` e `responsible_user.email`) quando a resposta vai para
+ * VIEWER, INSPECTOR ou RESPONSAVEL (SEC-10).
+ */
+function maskForNonModerator<T extends ReturnType<typeof toTicket>>(ticket: T): T {
+  const responsible_user = ticket.responsible_user
+    ? {
+        id: ticket.responsible_user.id,
+        name: ticket.responsible_user.name,
+        avatar_url: ticket.responsible_user.avatar_url,
+      }
+    : null;
+  return {
+    ...ticket,
+    maintenance_cost: null,
+    maintenance_note: null,
+    responsible_user: responsible_user as T['responsible_user'],
+  };
 }
 
 /** Carrega o chamado e o prédio a que ele pertence, ou 404. */
@@ -270,55 +291,56 @@ export const ticketService = {
     planGate.assertActive(building);
 
     const fotos = data.photos.map((dataUrl) => decodeImageDataUrl(dataUrl, MAX_PHOTO_BYTES));
-    await planGate.assertStorageRoom(
-      buildingId,
-      fotos.reduce((soma, f) => soma + f.buffer.length, 0),
-      user
-    );
-
     const name = await actorName(user);
-
-    // O id sai antes para que as fotos já subam com o nome do chamado de verdade
-    // (`ticket_<id>_…`), que é o prefixo pelo qual elas são achadas e apagadas.
     const ticketId = randomUUID();
-    const photos: string[] = [];
-    // O tamanho de cada foto vai junto porque é o que conta no espaço do plano
-    // (ver `usageService.recordPhotos`), e aqui é o único lugar onde ele se
-    // sabe sem ir buscar o objeto de volta no bucket.
-    const enviadas: { url: string; bytes: number }[] = [];
 
-    let ticket: TicketRow;
-    try {
-      for (const { buffer, contentType } of fotos) {
-        const url = await storageService.uploadTicketPhoto(ticketId, buffer, contentType);
-        photos.push(url);
-        enviadas.push({ url, bytes: buffer.length });
+    const ticket = await withPlanLock(
+      `storage:${building.owner_manager_id ?? buildingId}`,
+      async () => {
+        await planGate.assertStorageRoom(
+          buildingId,
+          fotos.reduce((soma, f) => soma + f.buffer.length, 0),
+          user
+        );
+
+        const photos: string[] = [];
+        const enviadas: { url: string; bytes: number }[] = [];
+
+        let createdTicket: TicketRow;
+        try {
+          for (const { buffer, contentType } of fotos) {
+            const url = await storageService.uploadTicketPhoto(ticketId, buffer, contentType);
+            photos.push(url);
+            enviadas.push({ url, bytes: buffer.length });
+          }
+
+          createdTicket = await ticketRepository.createIndividualOccurrence({
+            ticket_id: ticketId,
+            building_id: buildingId,
+            floor_id: data.floor_id,
+            // Coluna DATE: o dia do calendário de quem registrou, como na vistoria.
+            date: zonedDateOnly(new Date()),
+            responsible_id: user.id,
+            responsible_name: name,
+            maintenance_type: data.maintenance_type,
+            category: data.category,
+            priority: data.priority,
+            description: data.description,
+            photos,
+          });
+        } catch (err) {
+          // A criação é uma transação só: se falhou, nada no banco aponta para as
+          // fotos que já subiram, e elas ficariam no bucket para sempre.
+          await Promise.all(photos.map((url) => storageService.removeTicketPhoto(url)));
+          throw err;
+        }
+
+        // Depois do banco, e não antes: contar foto de ocorrência que não chegou a
+        // existir faria a conta cobrar espaço que ninguém ocupa.
+        await usageService.recordPhotos(buildingId, enviadas);
+        return createdTicket;
       }
-
-      ticket = await ticketRepository.createIndividualOccurrence({
-        ticket_id: ticketId,
-        building_id: buildingId,
-        floor_id: data.floor_id,
-        // Coluna DATE: o dia do calendário de quem registrou, como na vistoria.
-        date: zonedDateOnly(new Date()),
-        responsible_id: user.id,
-        responsible_name: name,
-        maintenance_type: data.maintenance_type,
-        category: data.category,
-        priority: data.priority,
-        description: data.description,
-        photos,
-      });
-    } catch (err) {
-      // A criação é uma transação só: se falhou, nada no banco aponta para as
-      // fotos que já subiram, e elas ficariam no bucket para sempre.
-      await Promise.all(photos.map((url) => storageService.removeTicketPhoto(url)));
-      throw err;
-    }
-
-    // Depois do banco, e não antes: contar foto de ocorrência que não chegou a
-    // existir faria a conta cobrar espaço que ninguém ocupa.
-    await usageService.recordPhotos(buildingId, enviadas);
+    );
 
     await auditRepository.log({
       ...actorAudit(user),
@@ -343,7 +365,8 @@ export const ticketService = {
    */
   async listByBuilding(
     buildingId: string,
-    filters: { group: TicketGroup; page: number; limit: number } & TicketQuery
+    filters: { group: TicketGroup; page: number; limit: number } & TicketQuery,
+    user?: Actor
   ) {
     const doGrupo = [...TICKET_GROUPS[filters.group]] as RecordStatus[];
     const statuses = filters.status
@@ -380,8 +403,11 @@ export const ticketService = {
       sort,
     });
 
+    const rawTickets = await toTicketsWithCloser(rows);
+    const podeModerar = user ? await canModerateBuilding(user, buildingId) : true;
+
     return {
-      tickets: await toTicketsWithCloser(rows),
+      tickets: podeModerar ? rawTickets : rawTickets.map(maskForNonModerator),
       total,
       page: filters.page,
       limit: filters.limit,
@@ -440,7 +466,8 @@ export const ticketService = {
   async listMine(user: Actor, includeClosed = false) {
     if (user.kind !== 'USER') return { tickets: [] };
     const rows = await ticketRepository.findByResponsible(user.id, includeClosed);
-    return { tickets: await toTicketsWithCloser(rows) };
+    const rawTickets = await toTicketsWithCloser(rows);
+    return { tickets: rawTickets.map(maskForNonModerator) };
   },
 
   /**
@@ -454,7 +481,8 @@ export const ticketService = {
     const { ticket, buildingId } = await loadTicket(id);
     await assertCanRead(ticket, buildingId, user);
     const [t] = await toTicketsWithCloser([ticket]);
-    return t;
+    const podeModerar = await canModerateBuilding(user, buildingId);
+    return podeModerar ? t : maskForNonModerator(t);
   },
 
   /**
@@ -856,33 +884,39 @@ export const ticketService = {
     planGate.assertActive(building);
 
     const fotos = data.photos.map((dataUrl) => decodeImageDataUrl(dataUrl, MAX_PHOTO_BYTES));
-    await planGate.assertStorageRoom(
-      buildingId,
-      fotos.reduce((soma, f) => soma + f.buffer.length, 0),
-      user
+    const row = await withPlanLock(
+      `storage:${building.owner_manager_id ?? buildingId}`,
+      async () => {
+        await planGate.assertStorageRoom(
+          buildingId,
+          fotos.reduce((soma, f) => soma + f.buffer.length, 0),
+          user
+        );
+
+        const photos: string[] = [];
+        const enviadas: { url: string; bytes: number }[] = [];
+        for (const { buffer, contentType } of fotos) {
+          const url = await storageService.uploadTicketPhoto(id, buffer, contentType);
+          photos.push(url);
+          enviadas.push({ url, bytes: buffer.length });
+        }
+
+        const createdRow = await ticketRepository.createUpdate({
+          ticket_id: id,
+          // Nulo quando quem escreve é gestor: ele não está em `users`. O nome
+          // congelado ao lado é o que faz a linha continuar dizendo quem foi.
+          author_id: user.kind === 'USER' ? user.id : null,
+          author_name: await actorName(user),
+          description: data.description,
+          photos,
+        });
+
+        // Depois da linha, pela mesma razão da ocorrência avulsa: só se conta o que
+        // ficou de pé.
+        await usageService.recordPhotos(buildingId, enviadas);
+        return createdRow;
+      }
     );
-
-    const photos: string[] = [];
-    const enviadas: { url: string; bytes: number }[] = [];
-    for (const { buffer, contentType } of fotos) {
-      const url = await storageService.uploadTicketPhoto(id, buffer, contentType);
-      photos.push(url);
-      enviadas.push({ url, bytes: buffer.length });
-    }
-
-    const row = await ticketRepository.createUpdate({
-      ticket_id: id,
-      // Nulo quando quem escreve é gestor: ele não está em `users`. O nome
-      // congelado ao lado é o que faz a linha continuar dizendo quem foi.
-      author_id: user.kind === 'USER' ? user.id : null,
-      author_name: await actorName(user),
-      description: data.description,
-      photos,
-    });
-
-    // Depois da linha, pela mesma razão da ocorrência avulsa: só se conta o que
-    // ficou de pé.
-    await usageService.recordPhotos(buildingId, enviadas);
 
     await logTicket(user, buildingId, id, { update_added: row.id });
     return toUpdate(row);

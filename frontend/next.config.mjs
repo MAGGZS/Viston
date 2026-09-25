@@ -1,3 +1,8 @@
+import { createHash } from 'node:crypto';
+import { THEME_SCRIPT } from './app/lib/theme.js';
+
+const THEME_SCRIPT_HASH = createHash('sha256').update(THEME_SCRIPT).digest('base64');
+
 /**
  * De onde a API pode ser chamada.
  *
@@ -28,14 +33,15 @@ const LOCAL_API_ORIGIN = 'http://localhost:4000';
  * o CSP que decide se um script de fora chega a rodar.
  *
  * `'unsafe-inline'` no `style-src` não é escolha: o Next injeta estilos inline
- * nas páginas e o styled-jsx depende disso. Em `script-src` ele não aparece.
+ * nas páginas e o styled-jsx depende disso. Em `script-src` de produção entra
+ * apenas o hash SHA-256 exato do `THEME_SCRIPT` (SEC-09).
  */
 const csp = [
   "default-src 'self'",
   // `'unsafe-eval'` só em desenvolvimento: o refresh rápido do Next precisa dele.
   process.env.NODE_ENV === 'development'
     ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
-    : "script-src 'self' 'unsafe-inline'",
+    : `script-src 'self' 'sha256-${THEME_SCRIPT_HASH}'`,
   "style-src 'self' 'unsafe-inline'",
   // Avatar e planilha vêm do Storage do Supabase; `data:` é o recorte no canvas.
   "img-src 'self' https://*.supabase.co data: blob:",

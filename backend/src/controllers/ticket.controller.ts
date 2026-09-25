@@ -31,7 +31,7 @@ export const ticketController = {
     // de lista que se esquece de atualizar — o filtro passava a existir na URL
     // e a lista voltava sem ele, sem erro nenhum.
     const filters = ticketFiltersSchema.parse(req.query);
-    const result = await ticketService.listByBuilding(req.params.id, filters);
+    const result = await ticketService.listByBuilding(req.params.id, filters, req.user);
     ok(res, result);
   },
 

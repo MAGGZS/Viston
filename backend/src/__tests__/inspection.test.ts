@@ -10,6 +10,7 @@ import { inspectionFiltersSchema } from '../validators/inspection.validator';
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 jest.mock('../repositories/inspection.repository');
 jest.mock('../repositories/building.repository');
+jest.mock('../repositories/user.repository');
 jest.mock('../services/excel.service');
 jest.mock('../services/storage.service');
 jest.mock('../repositories/usage.repository');

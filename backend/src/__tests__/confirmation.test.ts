@@ -88,6 +88,7 @@ function makeRegistro(overrides: Record<string, unknown> = {}) {
     attempts: 0,
     user_id: 'user-1',
     manager_id: null,
+    pending_password_hash: null,
     ...overrides,
   } as never;
 }
@@ -380,17 +381,31 @@ describe('cadastro: uma resposta so', () => {
     expect(tokens.create).not.toHaveBeenCalled();
   });
 
-  it('conta nao confirmada e sobrescrita e ganha codigo novo', async () => {
+  it('recadastro em conta nao confirmada guarda pending_password_hash no token sem trocar a senha da conta antes da confirmacao (SEC-01)', async () => {
     users.findByEmail.mockResolvedValue(makeAccount({ email_verified_at: null }));
     mockBcrypt.hash.mockResolvedValue('$2b$12$novo' as never);
 
     await userService.create({ ...dados, name: 'Carlos Novo' });
 
+    expect(users.update).not.toHaveBeenCalled();
+    expect(tokens.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pending_password_hash: '$2b$12$novo',
+      })
+    );
+  });
+
+  it('confirmar codigo com pending_password_hash aplica a senha associada aquele codigo (SEC-01)', async () => {
+    tokens.findOpen.mockResolvedValue(
+      makeRegistro({ pending_password_hash: '$2b$12$senha_do_recadastro' })
+    );
+
+    await confirmationService.confirmar('carlos@test.com', CODIGO);
+
     expect(users.update).toHaveBeenCalledWith('user-1', {
-      name: 'Carlos Novo',
-      password_hash: '$2b$12$novo',
+      email_verified_at: expect.any(Date),
+      password_hash: '$2b$12$senha_do_recadastro',
     });
-    expect(tokens.create).toHaveBeenCalled();
   });
 
   it('a conta nasce sem acesso', async () => {

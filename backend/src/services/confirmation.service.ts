@@ -76,7 +76,8 @@ export async function enviarCodigo(
   owner: TokenOwner,
   purpose: TokenPurpose,
   nome: string,
-  emailBruto: string
+  emailBruto: string,
+  pendingPasswordHash?: string
 ): Promise<void> {
   const email = normalizeEmail(emailBruto);
 
@@ -100,6 +101,7 @@ export async function enviarCodigo(
     email,
     code_hash: hashCodigo(codigo),
     expires_at: new Date(Date.now() + VALIDADE_MINUTOS * 60_000),
+    ...(pendingPasswordHash !== undefined ? { pending_password_hash: pendingPasswordHash } : {}),
   });
 
   const { assunto, html, texto } =
@@ -132,7 +134,7 @@ export async function verificarCodigo(
   purpose: TokenPurpose,
   codigo: string,
   opcoes: { consumir: boolean }
-): Promise<{ user_id: string | null; manager_id: string | null }> {
+): Promise<{ user_id: string | null; manager_id: string | null; pending_password_hash: string | null }> {
   const email = normalizeEmail(emailBruto);
   const registro = await emailTokenRepository.findOpen(email, purpose);
 
@@ -161,7 +163,11 @@ export async function verificarCodigo(
     throw new InvalidCodeError();
   }
 
-  return { user_id: registro.user_id, manager_id: registro.manager_id };
+  return {
+    user_id: registro.user_id,
+    manager_id: registro.manager_id,
+    pending_password_hash: registro.pending_password_hash ?? null,
+  };
 }
 
 export const confirmationService = {
@@ -176,10 +182,14 @@ export const confirmationService = {
     const dono = await verificarCodigo(email, 'EMAIL_VERIFY', codigo, { consumir: true });
 
     const agora = new Date();
+    const patch = {
+      email_verified_at: agora,
+      ...(dono.pending_password_hash ? { password_hash: dono.pending_password_hash } : {}),
+    };
     if (dono.user_id) {
-      await userRepository.update(dono.user_id, { email_verified_at: agora });
+      await userRepository.update(dono.user_id, patch);
     } else if (dono.manager_id) {
-      await managerRepository.update(dono.manager_id, { email_verified_at: agora });
+      await managerRepository.update(dono.manager_id, patch);
     }
   },
 };
@@ -248,10 +258,11 @@ export async function outraTabelaLivre(
 export async function enviarConfirmacaoDeCadastro(
   owner: TokenOwner,
   nome: string,
-  email: string
+  email: string,
+  pendingPasswordHash?: string
 ): Promise<void> {
   try {
-    await enviarCodigo(owner, 'EMAIL_VERIFY', nome, email);
+    await enviarCodigo(owner, 'EMAIL_VERIFY', nome, email, pendingPasswordHash);
   } catch (err) {
     if (err instanceof TooManyEmailsError) {
       logger.warn({ owner }, '[Confirmacao] Teto de reenvio no cadastro; resposta única mantida');

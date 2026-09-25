@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { supabase } from '../lib/supabase';
 import { config } from '../config';
 import { logger } from '../lib/logger';
@@ -175,9 +176,9 @@ export const storageService = {
    */
   async uploadTicketPhoto(ticketId: string, buffer: Buffer, contentType: string): Promise<string> {
     const extension = contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg';
-    // O sufixo aleatório separa duas fotos enviadas no mesmo milissegundo — o
-    // que acontece quando a atualização vai com quatro de uma vez.
-    const unique = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    // Sufixo CSPRNG (SEC-16) para evitar enumeração no bucket público e separar
+    // fotos enviadas no mesmo milissegundo.
+    const unique = `${Date.now()}_${randomUUID()}`;
     const fileName = `ticket_${ticketId}_${unique}.${extension}`;
     const bucket = config.supabase.bucketPhotos;
 

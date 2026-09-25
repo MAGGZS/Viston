@@ -1,7 +1,8 @@
 import bcrypt from 'bcrypt';
+import { AuditAction } from '@prisma/client';
 import { userRepository } from '../repositories/user.repository';
 import { PASSWORD_ROUNDS } from '../utils/password';
-import { buildingRepository } from '../repositories/building.repository';
+import { auditRepository, buildingRepository } from '../repositories/building.repository';
 import { storageService } from './storage.service';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { decodeAvatarDataUrl } from '../utils/image';
@@ -36,6 +37,7 @@ async function register(data: {
 
   const email = normalizeEmail(data.email);
   const existing = await userRepository.findByEmail(email);
+  const password_hash = await bcrypt.hash(data.password, PASSWORD_ROUNDS);
 
   // Conta confirmada: nada é criado, nada é alterado, nada é enviado. Quem já
   // tem conta e digitou de novo não pode ser distinguido de quem nunca teve.
@@ -43,15 +45,17 @@ async function register(data: {
 
   if (!existing && !(await outraTabelaLivre('USER', email))) return RESPOSTA_CADASTRO;
 
-  const password_hash = await bcrypt.hash(data.password, PASSWORD_ROUNDS);
-
-  // Existe e nunca foi confirmada: ninguém provou ser dono dela, e ela não tem
-  // dado nenhum — sem confirmar não se entra, sem entrar não se cria nada.
-  // Sobrescrever nome e senha é seguro porque o link vai para o endereço real
-  // de qualquer forma: quem não abre a caixa não fica com a conta.
+  // Existe e nunca foi confirmada: ninguém provou ser dono dela, mas não
+  // sobrescrevemos a senha na conta antes da confirmação — a nova senha fica
+  // pendurada no código recém-emitido e só entra na conta quando esse código
+  // for validado.
   if (existing) {
-    await userRepository.update(existing.id, { name: data.name, password_hash });
-    await enviarConfirmacaoDeCadastro({ kind: 'USER', id: existing.id }, data.name, email);
+    await enviarConfirmacaoDeCadastro(
+      { kind: 'USER', id: existing.id },
+      data.name,
+      email,
+      password_hash
+    );
     return RESPOSTA_CADASTRO;
   }
 
@@ -123,13 +127,27 @@ export const userService = {
    * Edição pelo ADMIN: nome e status. O papel ficou de fora de propósito —
    * ver `buildingService`/`PATCH /buildings/:id/members/:userId`.
    */
-  async update(id: string, data: { name?: string; status?: 'ACTIVE' | 'DELETED' }) {
+  async update(
+    id: string,
+    data: { name?: string; status?: 'ACTIVE' | 'DELETED' },
+    requesterId?: string
+  ) {
     // Sem `findById` aqui: ele esconde quem está DELETED, e reativar um usuário
     // desativado é justamente uma das edições permitidas.
     const user = await userRepository.findById(id);
     if (!user) throw new NotFoundError('Usuário');
 
     const updated = await userRepository.update(id, data);
+    if (data.status === 'DELETED') {
+      await userRepository.bumpTokenVersion(id);
+    }
+    await auditRepository.log?.({
+      ...(requesterId ? { user_id: requesterId } : {}),
+      action: AuditAction.UPDATE,
+      entity: 'User',
+      entity_id: id,
+      metadata: data,
+    });
     const { password_hash: _, ...safe } = updated;
     return safe;
   },
@@ -219,5 +237,11 @@ export const userService = {
     if (!user) throw new NotFoundError('Usuário');
 
     await userRepository.hardDelete(id);
+    await auditRepository.log?.({
+      user_id: requesterId,
+      action: AuditAction.DELETE,
+      entity: 'User',
+      entity_id: id,
+    });
   },
 };

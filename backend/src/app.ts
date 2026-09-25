@@ -24,7 +24,8 @@ import { generalLimiter } from './middlewares/rateLimit';
 const app = express();
 
 // Render fica atrás de proxy: sem isso o rate limit enxerga um IP só para todos.
-app.set('trust proxy', 1);
+// Configurável via TRUST_PROXY para ambientes com Cloudflare ou mais saltos (SEC-19).
+app.set('trust proxy', config.trustProxy ?? 1);
 app.disable('x-powered-by');
 
 // ── Cabeçalhos de segurança ───────────────────────────────────────────────────
@@ -68,7 +69,7 @@ app.use(
 app.use('/billing/webhook', express.raw({ type: 'application/json', limit: '1mb' }));
 // Teto da vistoria: 20 andares × 20 ocorrências × 2000 caracteres cabe em 2mb.
 app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+app.use(express.urlencoded({ extended: false, limit: '2mb' }));
 
 // ── Log de requisição ─────────────────────────────────────────────────────────
 //
