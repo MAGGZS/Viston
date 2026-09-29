@@ -1,15 +1,23 @@
+import { useState } from 'react';
 import { render, screen, act, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Inbox, LayoutDashboard } from 'lucide-react';
 import {
-  SidebarShell, SidebarBrand, SidebarNav, SidebarItem, SIDEBAR_OPEN, SIDEBAR_RAIL,
+  SidebarShell,
+  SidebarBrand,
+  SidebarNav,
+  SidebarItem,
+  SIDEBAR_OPEN,
+  SIDEBAR_RAIL,
+  SIDEBAR_STEP,
+  esquecerAbaAnterior,
 } from '@/app/components/Sidebar';
 import { useSidebar, useSidebarStore } from '@/app/store/sidebar';
 
 jest.mock('next/navigation', () => ({ usePathname: () => '/', useRouter: () => ({ replace: jest.fn() }) }));
 
 /**
- * A barra lateral que abre e fecha.
+ * A barra lateral que abre e fecha, e a pílula dourada que corre entre as abas.
  *
  * O que se testa aqui é o que quebraria calado. Recolhida, a barra é só ícone —
  * e o rótulo que some da tela não pode sumir do leitor de tela junto, senão a
@@ -19,26 +27,46 @@ jest.mock('next/navigation', () => ({ usePathname: () => '/', useRouter: () => (
  * justamente quando a barra está estreita que ele mais importa, porque não há
  * mais texto nenhum dizendo o que está esperando ali.
  */
-function Barra() {
+function Barra({ abaInicial = '/painel' }) {
   const { collapsed, animated, toggle } = useSidebar();
+  const [ativa, setAtiva] = useState(abaInicial);
 
   return (
     <SidebarShell collapsed={collapsed} animated={animated} onToggle={toggle}>
       <SidebarBrand collapsed={collapsed} animated={animated} subtitle="Edifício Aurora" />
       <SidebarNav>
-        <SidebarItem href="/painel" icon={LayoutDashboard} label="Painel" active collapsed={collapsed} animated={animated} />
-        <SidebarItem href="/novos" icon={Inbox} label="Novos chamados" count={7} collapsed={collapsed} animated={animated} />
+        <SidebarItem
+          href="/painel"
+          icon={LayoutDashboard}
+          label="Painel"
+          active={ativa === '/painel'}
+          collapsed={collapsed}
+          animated={animated}
+          onClick={() => setAtiva('/painel')}
+        />
+        <SidebarItem
+          href="/novos"
+          icon={Inbox}
+          label="Novos chamados"
+          count={7}
+          active={ativa === '/novos'}
+          collapsed={collapsed}
+          animated={animated}
+          onClick={() => setAtiva('/novos')}
+        />
       </SidebarNav>
     </SidebarShell>
   );
 }
 
 const aside = () => document.querySelector('aside');
+const pilula = (container) => container.querySelector('.sidebar-pill');
 const recolher = () => screen.getByRole('button', { name: 'Recolher menu' });
 const expandir = () => screen.getByRole('button', { name: 'Expandir menu' });
 
 beforeEach(() => {
   window.localStorage.clear();
+  esquecerAbaAnterior();
   useSidebarStore.setState({ collapsed: false, animated: false, hydrated: false });
 });
 
@@ -75,7 +103,7 @@ describe('Sidebar', () => {
     expect(aside()).toHaveStyle({ width: `${SIDEBAR_RAIL}px` });
   });
 
-  it('mantém o rótulo no DOM quando recolhida, só invisível', async () => {
+  it('mantém o rótulo no DOM quando recolhida, deslizando para a esquerda e ficando invisível', async () => {
     render(<Barra />);
     await userEvent.click(recolher());
 
@@ -84,7 +112,10 @@ describe('Sidebar', () => {
     expect(link).toBeInTheDocument();
     // Dentro do link, e não na tela toda: o balão do trilho também escreve
     // "Painel", e o que se afirma aqui é sobre o rótulo de verdade.
-    expect(within(link).getByText('Painel')).toHaveStyle({ opacity: '0' });
+    expect(within(link).getByText('Painel')).toHaveStyle({
+      opacity: '0',
+      transform: 'translateX(-8px)',
+    });
   });
 
   /**
@@ -128,5 +159,32 @@ describe('Sidebar', () => {
     expect(within(link).queryByText('7')).not.toBeInTheDocument();
     // O aviso continua: o que muda é a forma dele.
     expect(link.querySelector('span[aria-hidden="true"]')).toBeInTheDocument();
+  });
+
+  it('desliza a pílula dourada de uma aba à outra, inclusive quando a barra remonta entre telas', () => {
+    const animateSpy = jest.fn();
+    Element.prototype.animate = animateSpy;
+
+    const { container, unmount } = render(<Barra abaInicial="/painel" />);
+    expect(pilula(container)).toHaveStyle({ transform: 'translateY(0px)' });
+    expect(screen.getByRole('link', { name: 'Painel' })).toHaveAttribute('aria-current', 'page');
+    expect(animateSpy).not.toHaveBeenCalled();
+
+    // Simula a troca de rota do Next.js: a página anterior desmonta e a nova
+    // monta a barra já na segunda aba.
+    unmount();
+    const segunda = render(<Barra abaInicial="/novos" />);
+
+    expect(pilula(segunda.container)).toHaveStyle({ transform: `translateY(${SIDEBAR_STEP}px)` });
+    expect(screen.getByRole('link', { name: /Novos chamados/ })).toHaveAttribute('aria-current', 'page');
+    expect(animateSpy).toHaveBeenCalledWith(
+      [
+        { transform: 'translateY(0px)' },
+        { transform: `translateY(${SIDEBAR_STEP}px)` },
+      ],
+      expect.objectContaining({ duration: 260 })
+    );
+
+    delete Element.prototype.animate;
   });
 });

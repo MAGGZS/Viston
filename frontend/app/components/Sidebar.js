@@ -1,8 +1,9 @@
 'use client';
+import { Children, createContext, useContext, useLayoutEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 import { Logo } from '@/app/components/Logo';
-import { T, R, W, NUM } from '@/app/lib/theme';
+import { T, R, W, NUM, MOTION } from '@/app/lib/theme';
 
 /**
  * A barra lateral do sistema — a mesma peça no admin, no moderador e no gestor.
@@ -20,6 +21,17 @@ import { T, R, W, NUM } from '@/app/lib/theme';
 export const SIDEBAR_OPEN = 224;
 export const SIDEBAR_RAIL = 72;
 
+/**
+ * A geometria vertical das abas.
+ *
+ * Altura e vão fixos permitem que a pílula dourada corra de uma aba à outra por
+ * aritmética pura (`índice × 44px`), sem medir o DOM e sem depender de fonte já
+ * carregada: toda aba tem uma linha só (`white-space: nowrap`) e 40px de caixa.
+ */
+export const SIDEBAR_ITEM_HEIGHT = 40;
+export const SIDEBAR_GAP = 4;
+export const SIDEBAR_STEP = SIDEBAR_ITEM_HEIGHT + SIDEBAR_GAP;
+
 /** Sai rápido e assenta no fim — a curva de painel que desliza. */
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const WIDTH_MS = 280;
@@ -34,21 +46,44 @@ const WIDTH_MS = 280;
  */
 const INSET = 16;
 
+/**
+ * Diz ao `SidebarItem` se ele está dentro de `SidebarNav`.
+ *
+ * Dentro da navegação, o fundo dourado é a pílula única que corre por trás das
+ * abas; fora dela (no rodapé ou num item solto), o próprio item pinta o fundo.
+ */
+const NavContext = createContext(false);
+
+/**
+ * De qual aba a seleção veio, guardado fora do React.
+ *
+ * A barra lateral é remontada a cada troca de rota (quem a monta é a casca de
+ * cada página). Como variável de módulo — a mesma estratégia de `telaMovel.js`
+ * —, o índice anterior sobrevive à desmontagem e a pílula do novo `<nav>` sabe
+ * de onde partir para deslizar até a aba atual.
+ */
+let abaAnterior = null;
+
+/** Só para os testes: devolve o módulo ao estado inicial da sessão. */
+export function esquecerAbaAnterior() {
+  abaAnterior = null;
+}
+
 const itemBase = {
   display: 'flex', alignItems: 'center', gap: 12,
+  height: SIDEBAR_ITEM_HEIGHT, boxSizing: 'border-box',
   // `R.pill`, e não os 14 soltos que estavam aqui: a seleção é a única forma
   // sólida da barra, e ficava com um canto que não existia em mais lugar nenhum
   // do produto.
-  padding: `10px ${INSET}px`, borderRadius: R.pill,
+  padding: `0 ${INSET}px`, borderRadius: R.pill,
   fontFamily: T.display, fontSize: 14, textDecoration: 'none',
   whiteSpace: 'nowrap', overflow: 'hidden',
-  transition: 'background-color 0.15s, color 0.15s',
 };
 
 /**
  * A medida do aviso, seja ele pílula na barra aberta ou dentro do balão.
  *
- * 18 num item de 41: o contador é aviso, não título. A 20 ele disputava altura
+ * 18 num item de 40: o contador é aviso, não título. A 20 ele disputava altura
  * com a própria seleção que o carrega — e é ela que diz onde a pessoa está.
  * Altura fixa e `inline-flex` centrado, para o número não pender de um lado
  * conforme a fonte resolva a entrelinha.
@@ -62,17 +97,23 @@ const COUNT_SIZE = {
 /**
  * Como o texto entra e sai.
  *
- * Os dois tempos são diferentes de propósito. Ao recolher, o rótulo some em
- * 100ms — bem antes da borda chegar nele —, senão a palavra é vista sendo
- * cortada ao meio. Ao abrir, ele espera 120ms: aparecer enquanto ainda não há
- * largura para ele daria o mesmo corte, agora de trás para frente.
+ * Os dois tempos são diferentes de propósito. Ao recolher, o rótulo desliza
+ * 8px para a esquerda e some em 100ms — bem antes da borda chegar nele —,
+ * senão a palavra é vista sendo cortada ao meio. Ao abrir, ele espera 110ms e
+ * desliza de volta ao lugar junto com a margem que se abre.
  */
 function labelStyle(collapsed, animated) {
-  if (!animated) return { opacity: collapsed ? 0 : 1 };
+  const base = {
+    opacity: collapsed ? 0 : 1,
+    transform: collapsed ? 'translateX(-8px)' : 'translateX(0)',
+  };
+  if (!animated) return base;
 
   return {
-    opacity: collapsed ? 0 : 1,
-    transition: collapsed ? 'opacity 0.1s ease' : 'opacity 0.18s ease 0.12s',
+    ...base,
+    transition: collapsed
+      ? `opacity 0.1s ease, transform 0.16s ${EASE}`
+      : `opacity 0.18s ease 0.11s, transform 0.22s ${EASE} 0.11s`,
   };
 }
 
@@ -89,12 +130,15 @@ function labelStyle(collapsed, animated) {
  */
 function CountBadge({ count, active }) {
   return (
-    <span style={{
-      ...COUNT_SIZE,
-      marginLeft: 'auto',
-      background: active ? T.onAccent : T.accent,
-      color: active ? T.accent : T.onAccent,
-    }}>
+    <span
+      className="sidebar-badge"
+      style={{
+        ...COUNT_SIZE,
+        marginLeft: 'auto',
+        background: active ? T.onAccent : T.accent,
+        color: active ? T.accent : T.onAccent,
+      }}
+    >
       {count}
     </span>
   );
@@ -115,6 +159,7 @@ function CountDot({ active }) {
   return (
     <span
       aria-hidden="true"
+      className="sidebar-dot"
       style={{
         position: 'absolute', top: -3, right: -4,
         width: 9, height: 9, borderRadius: R.badge,
@@ -137,16 +182,22 @@ function CountDot({ active }) {
 export function SidebarItem({
   href, onClick, icon: Icon, label, active = false, collapsed, animated, count,
 }) {
+  const insideNav = useContext(NavContext);
+
   const style = {
     ...itemBase,
     fontWeight: active ? W.strong : W.body,
-    background: active ? T.accent : 'transparent',
+    // Dentro de `SidebarNav`, quem pinta o dourado é a pílula que corre por
+    // trás das abas; fora dela, o próprio item segura a cor.
+    background: active && !insideNav ? T.accent : 'transparent',
     color: active ? T.onAccent : T.mute,
   };
 
+  const className = `sidebar-item${active ? ' is-active' : ''}${collapsed ? ' is-collapsed' : ''}`;
+
   const inner = (
     <>
-      <span style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
+      <span className="sidebar-item__icon" style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
         <Icon size={16} strokeWidth={active ? 2.2 : 1.8} />
         {!!count && collapsed && <CountDot active={active} />}
       </span>
@@ -155,21 +206,21 @@ export function SidebarItem({
     </>
   );
 
-  const hover = {
-    onMouseEnter: (e) => { if (!active) e.currentTarget.style.background = T.chip; },
-    onMouseLeave: (e) => { if (!active) e.currentTarget.style.background = 'transparent'; },
-  };
-
   const item = href ? (
-    <Link href={href} style={style} {...hover}>
+    <Link
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      className={className}
+      style={style}
+    >
       {inner}
     </Link>
   ) : (
     <button
       type="button"
       onClick={onClick}
+      className={className}
       style={{ ...style, border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }}
-      {...hover}
     >
       {inner}
     </button>
@@ -248,20 +299,20 @@ function ToggleButton({ collapsed, animated, onToggle }) {
       aria-label={label}
       aria-expanded={!collapsed}
       title={label}
-      className="transition-colors duration-150"
+      className="sidebar-toggle"
       style={{
         position: 'absolute', top: 30, right: -13, zIndex: 1,
         width: 26, height: 26, padding: 0, borderRadius: R.badge,
         background: T.chip, border: `1px solid ${T.line}`, color: T.mute,
         display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.color = T.text; e.currentTarget.style.background = T.card; }}
-      onMouseLeave={(e) => { e.currentTarget.style.color = T.mute; e.currentTarget.style.background = T.chip; }}
     >
       <ChevronLeft
         size={14}
         style={{
-          transform: collapsed ? 'rotate(180deg)' : 'none',
+          transform: collapsed
+            ? 'rotate(180deg) translateX(var(--toggle-nudge, 0px))'
+            : 'translateX(var(--toggle-nudge, 0px))',
           transition: animated ? `transform ${WIDTH_MS}ms ${EASE}` : 'none',
         }}
       />
@@ -294,19 +345,77 @@ export function SidebarShell({ collapsed, animated, onToggle, children }) {
   );
 }
 
-/** As abas, ocupando o meio da barra. */
+/**
+ * As abas, ocupando o meio da barra, e a pílula dourada que corre entre elas.
+ *
+ * Antes cada aba acendia o próprio fundo e a anterior apagava — dois cortes
+ * secos que a pessoa juntava no olho. Agora o dourado é uma peça só que desliza
+ * na vertical (`MOTION.slide`, a mesma curva do alternador de histórico e do
+ * seletor de fila). Como a barra remonta a cada troca de rota, `abaAnterior`
+ * guarda o último índice ativo fora do React e dispara a viagem via Web
+ * Animations API antes da primeira pintura.
+ */
 export function SidebarNav({ children }) {
+  const items = Children.toArray(children);
+  const activeIndex = items.findIndex((child) => Boolean(child?.props?.active));
+  const pillRef = useRef(null);
+
+  useLayoutEffect(() => {
+    if (activeIndex < 0) {
+      abaAnterior = null;
+      return;
+    }
+
+    const origem = abaAnterior;
+    abaAnterior = activeIndex;
+
+    if (origem === null || origem === activeIndex) return;
+
+    const el = pillRef.current;
+    if (!el || typeof el.animate !== 'function') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return;
+
+    el.animate(
+      [
+        { transform: `translateY(${origem * SIDEBAR_STEP}px)` },
+        { transform: `translateY(${activeIndex * SIDEBAR_STEP}px)` },
+      ],
+      { duration: 260, easing: MOTION.slideEase }
+    );
+  }, [activeIndex]);
+
   return (
-    <nav style={{ flex: 1, padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {children}
-    </nav>
+    <NavContext.Provider value={true}>
+      <nav style={{ position: 'relative', flex: 1, padding: '0 12px', display: 'flex', flexDirection: 'column', gap: SIDEBAR_GAP }}>
+        {activeIndex >= 0 && (
+          <span
+            ref={pillRef}
+            aria-hidden="true"
+            className="sidebar-pill"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 12,
+              right: 12,
+              height: SIDEBAR_ITEM_HEIGHT,
+              borderRadius: R.pill,
+              background: T.accent,
+              transform: `translateY(${activeIndex * SIDEBAR_STEP}px)`,
+              transition: MOTION.slide,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+        {children}
+      </nav>
+    </NavContext.Provider>
   );
 }
 
 /** O pé: conta e saída, separados das abas pelo espaço que sobra. */
 export function SidebarFooter({ children }) {
   return (
-    <div style={{ padding: '0 12px 22px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <div style={{ padding: '0 12px 22px', display: 'flex', flexDirection: 'column', gap: SIDEBAR_GAP }}>
       {children}
     </div>
   );

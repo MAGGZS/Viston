@@ -62,7 +62,7 @@ export function ModeradorSidebar({ buildingId, buildingName }) {
       </SidebarNav>
 
       <SidebarFooter>
-        <SidebarItem href="/perfil" icon={User} label="Perfil" collapsed={collapsed} animated={animated} />
+        <SidebarItem href="/perfil" icon={User} label="Perfil" active={pathname.startsWith('/perfil')} collapsed={collapsed} animated={animated} />
         <SidebarItem
           icon={LogOut}
           label="Sair"
