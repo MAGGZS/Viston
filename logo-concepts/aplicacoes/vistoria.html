@@ -1,0 +1,43 @@
+<!doctype html><meta charset="utf-8"><style>
+*{box-sizing:border-box}body{margin:0;background:#EDEDEA;font-family:Poppins,Segoe UI,Arial,sans-serif;width:1400px;height:900px;padding:40px}
+h1{margin:0 0 22px;font-size:28px;color:#0B0B0B}h1 span{color:#8A6B00;font-weight:500;font-size:18px;margin-left:12px}
+.g{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:24px;height:730px}
+.c{border-radius:22px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.c b{z-index:2;position:absolute;left:18px;bottom:16px;font:500 13px Segoe UI,Arial;background:rgba(255,255,255,.85);padding:5px 12px;border-radius:99px;color:#333}
+.dark{background:linear-gradient(158deg,#26231A,#0E0D0A)}.grey{background:#D9DADD}.warm{background:#DDD6C6}
+img{display:block}.lock{height:70px}
+/* relatorio */
+.doc{width:220px;height:290px;margin-bottom:24px;background:#fff;box-shadow:0 18px 40px rgba(0,0,0,.25);border-radius:4px;overflow:hidden;position:relative}
+.doc .top{height:120px;background:linear-gradient(158deg,#2E2A1D,#0E0D0A);display:flex;align-items:center;justify-content:center}
+.doc h3{margin:20px 22px 4px;font-size:15px}.doc p{margin:0 22px;font-size:10px;color:#666}.doc i{display:block;margin:10px 22px 0;height:6px;background:#E6E6E6;border-radius:3px}
+.doc .bar{position:absolute;left:0;bottom:0;right:0;height:10px;background:linear-gradient(90deg,#FFE884,#F5C518,#A9841A)}
+/* capacete */
+.hat{width:300px;height:230px;position:relative}
+.hat .dome{position:absolute;left:20px;top:0;width:260px;height:180px;border-radius:130px 130px 20px 20px;background:linear-gradient(160deg,#FFE884,#F5C518 55%,#A9841A);box-shadow:0 22px 40px rgba(0,0,0,.35)}
+.hat .rib{position:absolute;left:135px;top:0;width:30px;height:60px;background:rgba(0,0,0,.14);border-radius:0 0 12px 12px}
+.hat .brim{position:absolute;left:0;top:160px;width:300px;height:36px;border-radius:0 0 150px 150px/0 0 36px 36px;background:#B08A1C}
+.hat img{position:absolute;left:104px;top:64px;width:92px}
+/* colete */
+.vest{width:215px;height:250px;margin-bottom:20px;position:relative;filter:drop-shadow(0 20px 26px rgba(0,0,0,.35))}
+.vest svg{position:absolute;inset:0}.vest img{position:absolute;left:32px;top:78px;width:64px}
+/* email */
+.mail{width:370px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,.18);padding:26px 28px}
+.mail .l{font-size:13px;color:#444;line-height:1.7;margin-bottom:18px}.mail .sig{border-top:3px solid #F5C518;padding-top:16px;display:flex;gap:16px;align-items:center}
+.mail .sig div{font-size:12px;color:#333;line-height:1.5}
+/* placa de obra */
+.sign{width:340px;height:230px;background:linear-gradient(158deg,#2E2A1D,#0E0D0A);border-radius:12px;border:8px solid #F5C518;box-shadow:0 22px 40px rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#fff;position:relative}
+.sign small{font-size:12px;letter-spacing:.14em;color:#F5C518}
+/* pen drive/relatorio xls */
+.xls{width:370px;background:#fff;border-radius:10px;box-shadow:0 18px 40px rgba(0,0,0,.2);overflow:hidden;font-size:12px}
+.xls .h{background:#0B0B0B;padding:14px 18px;display:flex;align-items:center;gap:12px}.xls .h img{height:30px}
+.xls table{border-collapse:collapse;width:100%}.xls td,.xls th{padding:8px 14px;text-align:left;border-bottom:1px solid #EEE}.xls th{background:#F5C518;color:#000}
+</style>
+<h1>Viston <span>aplicações na vistoria predial</span></h1>
+<div class="g">
+<div class="c grey"><div class="doc"><div class="top"><img class="lock" src="horizontal-escuro.svg" style="height:44px"></div><h3>Relatório de vistoria</h3><p>Edifício Aurora · 12 andares</p><i></i><i style="width:70%"></i><i></i><i style="width:55%"></i><div class="bar"></div></div><b>Capa do relatório (PDF)</b></div>
+<div class="c warm"><div class="hat"><div class="dome"></div><div class="rib"></div><div class="brim"></div><img src="simbolo.svg" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))"></div><b>Capacete do inspetor</b></div>
+<div class="c dark"><div class="sign"><img src="simbolo.svg" style="height:78px"><img src="horizontal-escuro.svg" style="height:0"><small>VISTORIA PREDIAL EM ANDAMENTO</small></div><b>Placa de obra</b></div>
+<div class="c grey"><div class="mail"><div class="l">Olá, segue o relatório da vistoria do 7º andar, gerado automaticamente.</div><div class="sig"><img src="simbolo-icone.svg" style="width:56px"><div><strong>Alex Morgan</strong><br>Inspetor · Viston<br>alex@viston.com</div></div></div><b>Assinatura de e-mail</b></div>
+<div class="c warm"><div class="vest"><svg viewBox="0 0 250 290"><path d="M60 0L100 0L125 34L150 0L190 0L250 50L226 92L206 80L206 290L44 290L44 80L24 92L0 50Z" fill="#161410"/><path d="M44 200H206V222H44Z" fill="#F5C518"/><path d="M44 236H206V250H44Z" fill="#C9CDD2"/></svg><img src="simbolo.svg"></div><b>Colete</b></div>
+<div class="c grey"><div class="xls"><div class="h"><img src="horizontal-escuro.svg"></div><table><tr><th>Andar</th><th>Ocorrência</th><th>Status</th></tr><tr><td>7º</td><td>Infiltração</td><td>Aberta</td></tr><tr><td>5º</td><td>Fissura</td><td>Em análise</td></tr><tr><td>2º</td><td>Extintor</td><td>Resolvida</td></tr></table></div><b>Planilha do relatório</b></div>
+</div>

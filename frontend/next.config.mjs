@@ -1,75 +1,17 @@
-import { createHash } from 'node:crypto';
-import { THEME_SCRIPT } from './app/lib/theme.js';
-import { sentryOrigin } from './app/lib/sentry.js';
-
-const THEME_SCRIPT_HASH = createHash('sha256').update(THEME_SCRIPT).digest('base64');
-
-/**
- * De onde a API pode ser chamada.
- *
- * O `connect-src` precisa listar o backend explicitamente: `'self'` cobre só o
- * próprio domínio, e a API mora em outro. A variável manda; sem ela, o Render
- * conhecido entra no lugar — a alternativa seria uma diretiva vazia, que
- * bloqueia o app inteiro em produção.
- */
-const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL || 'https://viston.onrender.com';
-
-/**
- * O backend rodando na máquina, que `app/lib/api.js` escolhe sozinho quando a
- * página é servida de localhost. Sem ele no `connect-src`, o navegador barra a
- * chamada antes de sair — o login local falha com a API no ar e o backend sem
- * receber requisição nenhuma, que é o pior lugar para começar a procurar.
- *
- * Entra só em desenvolvimento: em produção a origem não existe, e listá-la
- * abriria o app a um servidor local qualquer.
- */
-const LOCAL_API_ORIGIN = 'http://localhost:4000';
-
-/**
- * Para onde o Sentry manda os erros do navegador. Vazio quando não há DSN: aí
- * nada é enviado e o `connect-src` fica como estava.
- */
-const SENTRY_ORIGIN = sentryOrigin(process.env.NEXT_PUBLIC_SENTRY_DSN || '');
-
 /**
  * Cabeçalhos de segurança do app.
  *
- * O `helmet` do backend protege a API, que só devolve JSON. O que faltava era
- * isto: o CSP do *navegador*, que é onde o token vive. Enquanto o access e o
- * refresh token ficarem em `localStorage`, um único script injetado os lê — e é
- * o CSP que decide se um script de fora chega a rodar.
+ * O CSP não mora aqui: ele leva um nonce novo a cada requisição, e só o
+ * `proxy.js` tem a requisição na mão. Ficam os cabeçalhos fixos.
  *
- * `'unsafe-inline'` no `style-src` não é escolha: o Next injeta estilos inline
- * nas páginas e o styled-jsx depende disso. Em `script-src` de produção entra
- * apenas o hash SHA-256 exato do `THEME_SCRIPT` (SEC-09).
+ * @type {import('next').NextConfig}
  */
-const csp = [
-  "default-src 'self'",
-  // `'unsafe-eval'` só em desenvolvimento: o refresh rápido do Next precisa dele.
-  process.env.NODE_ENV === 'development'
-    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
-    : `script-src 'self' 'sha256-${THEME_SCRIPT_HASH}'`,
-  "style-src 'self' 'unsafe-inline'",
-  // Avatar e planilha vêm do Storage do Supabase; `data:` é o recorte no canvas.
-  "img-src 'self' https://*.supabase.co data: blob:",
-  "font-src 'self' data:",
-  process.env.NODE_ENV === 'development'
-    ? `connect-src 'self' ${API_ORIGIN} ${LOCAL_API_ORIGIN} https://*.supabase.co ${SENTRY_ORIGIN}`.trim()
-    : `connect-src 'self' ${API_ORIGIN} https://*.supabase.co ${SENTRY_ORIGIN}`.trim(),
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "object-src 'none'",
-].join('; ');
-
-/** @type {import('next').NextConfig} */
 const nextConfig = {
   async headers() {
     return [
       {
         source: '/:path*',
         headers: [
-          { key: 'Content-Security-Policy', value: csp },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },

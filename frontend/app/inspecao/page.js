@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Building2, Check, Search } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
+import { SoNoCelular } from '@/app/components/TelaPorLargura';
 import { FloorForm } from '@/app/components/FloorForm';
 import { Button, Card, Modal, Spinner } from '@/app/components/ui';
 import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
@@ -364,6 +365,11 @@ export default function InspecaoPage() {
 
   return (
     <RouteGuard roles={['ADMIN', 'GESTOR', 'INSPECTOR']}>
+      {/* A vistoria é feita andando pelo prédio, com o telefone na mão. No
+          computador a conta vai para a tela dela; se a janela for alargada no
+          meio de uma vistoria, o formulário continua montado por baixo do aviso
+          (ver `SoNoCelular`) e nada do que foi preenchido se perde. */}
+      <SoNoCelular>
       <div style={{ minHeight: '100vh', background: M.bg, paddingBottom: 40 }}>
         {/* Header */}
         <div style={{ position: 'sticky', top: 0, background: M.bg, padding: '48px 16px 14px', zIndex: 10 }}>
@@ -500,6 +506,7 @@ export default function InspecaoPage() {
           onCancel={saida.cancel}
         />
       </div>
+      </SoNoCelular>
     </RouteGuard>
   );
 }

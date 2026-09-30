@@ -132,8 +132,9 @@ Só a home, o login e o cadastro (inclusive o de gestor) são indexáveis. As
 telas internas ficam bloqueadas no `robots.txt` e marcadas com `noindex` no
 layout de cada rota.
 
-Os cabeçalhos de segurança do app — CSP inclusive — ficam em
-[`next.config.mjs`](next.config.mjs): é no navegador que o token vive.
+Os cabeçalhos de segurança do app ficam em [`next.config.mjs`](next.config.mjs),
+e o CSP, que leva um nonce por requisição, em [`proxy.js`](proxy.js): é no
+navegador que o token vive.
 
 ## Scripts
 

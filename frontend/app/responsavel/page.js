@@ -6,6 +6,7 @@ import { ptBR } from 'date-fns/locale';
 import { ChevronRight, ClipboardList, Inbox, Plus } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
+import { SoNoCelular } from '@/app/components/TelaPorLargura';
 import { Badge } from '@/app/components/ui';
 import { M, MPage, MTopBar, MCard, MButton, MRound } from '@/app/components/mobile/kit';
 import { RegistrarOcorrenciaModal } from '@/app/components/RegistrarOcorrenciaModal';
@@ -372,6 +373,9 @@ export default function ResponsavelPage() {
 
   return (
     <RouteGuard roles={['RESPONSAVEL']}>
+      {/* No computador o mesmo trabalho tem mesa própria: painel, quadro e
+          históricos (ver `responsavel/painel`). */}
+      <SoNoCelular destino="/responsavel/painel">
       <MPage>
         <MTopBar
           className="anim-fade-down"
@@ -454,6 +458,7 @@ export default function ResponsavelPage() {
           onSuccess={() => setAba('ANDAMENTO')}
         />
       </MPage>
+      </SoNoCelular>
     </RouteGuard>
   );
 }

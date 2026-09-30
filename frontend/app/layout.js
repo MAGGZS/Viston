@@ -1,5 +1,6 @@
 import './globals.css';
 import localFont from 'next/font/local';
+import { headers } from 'next/headers';
 import { QueryProvider } from '@/app/lib/QueryProvider';
 import { AuthProvider } from '@/app/lib/AuthProvider';
 import { Toast } from '@/app/components/Toast';
@@ -118,14 +119,17 @@ export const viewport = {
  * cada carregamento com o app claro e a barra preta em cima. O `<meta>` está no
  * `<head>`, que o navegador já leu quando chega aqui.
  */
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  // Nonce da requisição, gerado em `proxy.js`: sem ele o CSP barra o script.
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
+
   return (
     // `suppressHydrationWarning`: o script acima muda um atributo do `<html>`
     // antes da hidratação, e sem isso o React reclama da diferença que ele
     // mesmo deve encontrar.
     <html lang="pt-BR" className={poppins.variable} suppressHydrationWarning>
       <body>
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         {/*
           Primeira parada do Tab em qualquer tela.
 

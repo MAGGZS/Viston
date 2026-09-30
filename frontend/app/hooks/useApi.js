@@ -927,7 +927,7 @@ export function useTicketStats(buildingId) {
  * porque são duas listas diferentes, e compartilhá-la faria uma sobrescrever a
  * outra no cache.
  */
-export function useMyTickets(enabled = true, includeClosed = false) {
+export function useMyTickets(enabled = true, includeClosed = false, options = {}) {
   return useQuery({
     queryKey: ['my-tickets', includeClosed],
     queryFn: () =>
@@ -935,6 +935,9 @@ export function useMyTickets(enabled = true, includeClosed = false) {
         .get('/tickets/me', { params: includeClosed ? { closed: 'true' } : undefined })
         .then((r) => r.data),
     enabled,
+    // `options` é da mesa do computador, que pede a lista de tempos em tempos
+    // para avisar do chamado que chegou (ver `useAvisoDeChamadosNovos`).
+    ...options,
   });
 }
 

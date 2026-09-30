@@ -880,7 +880,10 @@ export default function AdminPlanosPage() {
 
   return (
     <RouteGuard roles={['ADMIN']}>
-      <div style={{ display: 'flex', minHeight: '100vh', background: T.bg }}>
+      {/* `display` na classe, e não no `style`: inline vence o `hidden` da
+          folha de estilo, e a tela aparecia espremida no telefone em vez do
+          aviso que as outras telas do admin já mostram. */}
+      <div className="hidden lg:flex" style={{ minHeight: '100vh', background: T.bg }}>
         <AdminSidebar />
 
         <main id={CONTENT_ID} className="planos-main">
@@ -1563,6 +1566,14 @@ export default function AdminPlanosPage() {
             onClose={() => setConcedendoGestor(null)}
           />
         </main>
+      </div>
+
+      <div className="lg:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
+        <div>
+          <p className="text-4xl mb-4">🖥️</p>
+          <p className="text-ink font-semibold text-lg">Painel Admin</p>
+          <p className="text-mute text-sm mt-2">Acesse pelo computador para gerenciar os planos</p>
+        </div>
       </div>
     </RouteGuard>
   );

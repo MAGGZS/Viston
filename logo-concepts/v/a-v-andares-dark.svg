@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Viston — V de andares</title>
+  <rect width="256" height="256" rx="56" fill="#0B0B0B"/>
+  <g transform="translate(32 34) scale(.75)">
+  <rect x="24" y="24" width="208" height="40" rx="10" fill="#FFFFFF"/>
+  <rect x="48" y="80" width="160" height="40" rx="10" fill="#FFFFFF"/>
+  <rect x="72" y="136" width="112" height="40" rx="10" fill="#F5C518"/>
+  <rect x="96" y="192" width="64" height="40" rx="10" fill="#FFFFFF"/>
+  </g>
+</svg>

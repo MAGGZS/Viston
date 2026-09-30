@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Viston — V fissurado</title>
+  <rect width="256" height="256" rx="56" fill="#0B0B0B"/>
+  <g transform="translate(32 34) scale(.75)">
+  <g transform="translate(16 0)">
+  <path fill="#FFFFFF" d="M8.0 32.0L68.0 32.0L93.4 100.0L46.4 100.0Z M216.0 32.0L156.0 32.0L130.6 100.0L177.6 100.0Z M73.7 120.0L116.8 120.0L128.0 150.0L139.2 120.0L182.3 120.0L128.0 216.0Z"/>
+  <path fill="#F5C518" d="M62.4 100.0L109.4 100.0L116.8 120.0L73.7 120.0Z M193.6 100.0L146.6 100.0L139.2 120.0L182.3 120.0Z"/>
+  </g>
+  </g>
+</svg>

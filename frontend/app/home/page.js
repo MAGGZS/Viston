@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList } from 'lucide
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { Avatar } from '@/app/components/Avatar';
 import { BottomNav } from '@/app/components/BottomNav';
+import { SoNoCelular } from '@/app/components/TelaPorLargura';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { NotificacaoChamados } from '@/app/components/NotificacaoChamados';
 import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
@@ -63,6 +64,10 @@ export default function HomePage() {
 
   return (
     <RouteGuard>
+      {/* A tela inicial é do telefone. No computador cada conta tem a sua
+          (ver `destinoNoComputador`) — sem isto, quem chegava aqui por link ou
+          pelo "voltar" via a tela de celular esticada no monitor inteiro. */}
+      <SoNoCelular>
       <MPage>
         <MTopBar
           className="anim-fade-down"
@@ -169,6 +174,7 @@ export default function HomePage() {
 
         <BottomNav />
       </MPage>
+      </SoNoCelular>
     </RouteGuard>
   );
 }

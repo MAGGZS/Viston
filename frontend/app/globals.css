@@ -1615,3 +1615,15 @@ input:-webkit-autofill:focus {
   white-space: nowrap;
   border: 0;
 }
+
+/*
+ * Linha e cartão clicáveis da mesa do responsável (painel e quadro).
+ *
+ * Em classe, e não em `onMouseEnter` pintando o `style`: o hover por JS não
+ * volta atrás quando o elemento some debaixo do cursor (a caixa abre por cima),
+ * e a linha ficava acesa até o próximo movimento do mouse.
+ */
+@media (hover: hover) {
+  .linha-clicavel { transition: background-color 120ms ease; }
+  .linha-clicavel:hover { background-color: var(--color-hover); }
+}

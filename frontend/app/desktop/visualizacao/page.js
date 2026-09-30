@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Download, Building2, Eye } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronLeft, ChevronRight, Download, Building2, Eye, SquareKanban } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { MenuDaConta } from '@/app/components/MenuDaConta';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
@@ -19,6 +20,7 @@ import { Paginator } from '@/app/components/Paginator';
 import { parseReportDate } from '@/app/lib/date';
 import { CELL_PAD_Y, placeholderCellHeight } from '@/app/lib/pagination';
 import { useAuthStore } from '@/app/store/auth';
+import { isResponsible } from '@/app/lib/roles';
 import { CONTENT_ID } from '@/app/components/mobile/kit';
 import { HEAT, T } from '@/app/lib/theme';
 
@@ -109,7 +111,21 @@ export default function VisualizacaoPage() {
               lateral, então sair exigia abrir o perfil para achar o botão lá
               dentro, e trocar o tema exigia o mesmo desvio — duas telas para
               dois gestos de um toque. */}
-          <MenuDaConta user={user} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* Quem vistoria e também atende chamado cai aqui no computador, e
+                os chamados dele moram na mesa do responsável. Sem este atalho,
+                a única porta para ela era o endereço digitado à mão. */}
+            {isResponsible(user) && (
+              <Link
+                href="/responsavel/chamados"
+                className="linha-clicavel"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 12px', borderRadius: 999, color: T.text, fontSize: 13, textDecoration: 'none', border: `1px solid ${T.line}` }}
+              >
+                <SquareKanban size={15} color={T.accentInk} /> Meus chamados
+              </Link>
+            )}
+            <MenuDaConta user={user} />
+          </div>
         </header>
 
         {/* Main */}

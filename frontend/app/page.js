@@ -42,7 +42,8 @@ export default function RootPage() {
     // O responsável que não vistoria também tem uma tela só dele. Quem faz as
     // duas coisas entra pelo app normal e chega aos chamados pela barra de baixo.
     if (isResponsible(user) && !canInspect(user)) {
-      router.replace('/responsavel');
+      // No computador ele tem mesa própria — painel, quadro e históricos.
+      router.replace(isDesktop ? '/responsavel/painel' : '/responsavel');
       return;
     }
 

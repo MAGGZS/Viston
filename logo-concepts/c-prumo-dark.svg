@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Viston — Prumo</title>
+  <rect width="256" height="256" rx="56" fill="#0B0B0B"/>
+  <g transform="translate(32 32) scale(.75)">
+  <circle cx="128" cy="40" r="16" fill="#FFFFFF"/>
+  <rect x="120" y="40" width="16" height="72" fill="#FFFFFF"/>
+  <path d="M128 100L184 166L128 232L72 166Z" fill="#F5C518"/>
+</g>
+</svg>

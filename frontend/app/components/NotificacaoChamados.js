@@ -59,8 +59,11 @@ function ChamadoNovo({ ticket, onReceive, receiving }) {
  *
  * Só aparece para quem atende chamado em algum prédio; para o resto seria um
  * sino que nunca toca.
+ *
+ * `destino` é para onde o aceite leva. A mesa do computador (ver
+ * `ResponsavelShell`) manda para o quadro; o padrão é a lista do telefone.
  */
-export function NotificacaoChamados() {
+export function NotificacaoChamados({ destino = '/responsavel' } = {}) {
   const { user } = useAuthStore();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -78,7 +81,9 @@ export function NotificacaoChamados() {
       await receive.mutateAsync(ticket.id);
       setOpen(false);
       toast('Chamado recebido. Ele está com você agora.', 'success');
-      router.push('/responsavel');
+      // No computador o chamado abre no quadro, já com a caixa dele aberta; no
+      // telefone, a lista de chamados é o próprio destino.
+      router.push(destino === '/responsavel' ? destino : `${destino}?abrir=${ticket.id}`);
     } catch (e) {
       toast(e?.response?.data?.error?.message || 'Erro ao receber o chamado', 'error');
     }

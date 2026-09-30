@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Viston — V nível</title>
+  <rect width="256" height="256" rx="56" fill="#0B0B0B"/>
+  <g transform="translate(32 34) scale(.75)">
+  <path fill="#FFFFFF" d="M24 32H84L128 150L172 32H232L128 216Z"/>
+  <circle cx="128" cy="93" r="20" fill="#F5C518"/>
+  </g>
+</svg>

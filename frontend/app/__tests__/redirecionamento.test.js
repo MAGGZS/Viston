@@ -100,6 +100,15 @@ describe('para onde a raiz manda cada conta', () => {
     expect(replace).toHaveBeenLastCalledWith('/desktop/visualizacao');
   });
 
+  it('o responsável que não vistoria tem mesa própria no desktop', () => {
+    comoUsuario(
+      { kind: 'USER', role: 'NONE', memberships: [{ building_id: 'p1', role: 'RESPONSAVEL' }] },
+      { desktop: true }
+    );
+    render(<RootPage />);
+    expect(replace).toHaveBeenCalledWith('/responsavel/painel');
+  });
+
   it('o ADMIN vai para o painel no desktop', () => {
     comoUsuario({ kind: 'USER', role: 'ADMIN', memberships: [] }, { desktop: true });
     render(<RootPage />);

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Viston — Andares</title>
+  <rect width="256" height="256" rx="56" fill="#0B0B0B"/>
+  <g transform="translate(32 32) scale(.75)">
+  <path fill="#FFFFFF" fill-rule="evenodd" d="M76 24H140A16 16 0 0 1 156 40V216A16 16 0 0 1 140 232H76A16 16 0 0 1 60 216V40A16 16 0 0 1 76 24ZM60 61V81H156V61ZM60 118V138H156V118ZM60 175V195H156V175Z"/>
+  <path fill="#F5C518" d="M60 118H180A10 10 0 0 1 180 138H60Z"/>
+</g>
+</svg>

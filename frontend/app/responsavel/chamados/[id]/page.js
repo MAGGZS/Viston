@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ArrowLeft, CheckCheck, FileText, Hourglass, Inbox } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
+import { SoNoCelular } from '@/app/components/TelaPorLargura';
 import { Badge, Skeleton } from '@/app/components/ui';
 import { M, MCard, MButton, MRound, CONTENT_ID, RESPIRO_TOPO } from '@/app/components/mobile/kit';
 import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
@@ -281,9 +282,14 @@ function TelaDaOcorrencia() {
 }
 
 export default function OcorrenciaDoResponsavelPage() {
+  const { id } = useParams();
+
   return (
     <RouteGuard roles={['RESPONSAVEL']}>
-      <TelaDaOcorrencia />
+      {/* No computador o chamado abre no quadro, com a caixa dele aberta. */}
+      <SoNoCelular destino={`/responsavel/chamados?abrir=${id}`}>
+        <TelaDaOcorrencia />
+      </SoNoCelular>
     </RouteGuard>
   );
 }

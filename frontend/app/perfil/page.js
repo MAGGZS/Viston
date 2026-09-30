@@ -17,6 +17,7 @@ import { Logo } from '@/app/components/Logo';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { GestorSidebar } from '@/app/components/GestorSidebar';
 import { ModeradorSidebar } from '@/app/components/ModeradorSidebar';
+import { ResponsavelSidebar } from '@/app/components/ResponsavelSidebar';
 import { M, MPage, MRound, MField, MButton, RESPIRO_TOPO, CONTENT_ID } from '@/app/components/mobile/kit';
 import { BottomNav } from '@/app/components/BottomNav';
 import { Button, Modal, Textarea } from '@/app/components/ui';
@@ -33,7 +34,7 @@ import {
   useSendFeedback,
   useMyFeedbacks,
 } from '@/app/hooks/useApi';
-import { isAdmin, isManager, isManagerAccount, managedBuildings, moderatedBuilding, roleLabel } from '@/app/lib/roles';
+import { canInspect, isAdmin, isManager, isManagerAccount, isResponsible, managedBuildings, moderatedBuilding, roleLabel } from '@/app/lib/roles';
 import { useTheme } from '@/app/lib/tema';
 import { T, R, W, NUM, HERO_SURFACE } from '@/app/lib/theme';
 
@@ -177,7 +178,15 @@ function BarraLateralDaConta({ user, buildingId }) {
   if (predioModerado) {
     return <ModeradorSidebar buildingId={predioModerado.building_id} buildingName={predioModerado.name} />;
   }
+  // O responsável que não vistoria tem mesa própria no computador — e é de lá
+  // que ele chega aqui, pelo rodapé do menu.
+  if (temMesaDeResponsavel(user)) return <ResponsavelSidebar />;
   return null;
+}
+
+/** A mesma regra da raiz: quem atende chamado e não vistoria usa a mesa do responsável. */
+function temMesaDeResponsavel(user) {
+  return isResponsible(user) && !canInspect(user);
 }
 
 /** Se esta conta tem barra lateral — a mesma pergunta que `BarraLateralDaConta` responde. */
@@ -186,7 +195,7 @@ function contaTemBarra(user, buildingId) {
   if (isManagerAccount(user)) {
     return Boolean(buildingId && managedBuildings(user).some((b) => b.building_id === buildingId));
   }
-  return Boolean(moderatedBuilding(user));
+  return Boolean(moderatedBuilding(user)) || temMesaDeResponsavel(user);
 }
 
 /**
