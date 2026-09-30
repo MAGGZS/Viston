@@ -219,7 +219,7 @@ export function requireBuildingMember(param = 'id') {
 export function requireBuildingModerator(param = 'id') {
   return async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
     const standing = await loadBuildingAndStanding(req.user, req.params[param]);
-    if (standing !== 'GESTOR' &&standing !== BuildingRole.MODERADOR) {
+    if (standing !== 'GESTOR' && standing !== BuildingRole.MODERADOR) {
       throw new ForbiddenError('Apenas o moderador do prédio pode ver os chamados');
     }
 

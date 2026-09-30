@@ -341,6 +341,7 @@ model Building {
 
   // "Os prédios desta conta" é a pergunta de toda contagem de limite.
   @@index([owner_manager_id])
+  @@index([created_by])
   @@map("buildings")
 }
 
@@ -414,6 +415,7 @@ model BuildingAccessRequest {
   user     User     @relation("BuildingAccessRequests", fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([building_id, user_id])
+  @@index([user_id])
   @@map("building_access_requests")
 }
 
@@ -829,5 +831,6 @@ model BuildingOwnershipTransfer {
   // A tela do co-gestor é "os pedidos que esperam por mim".
   @@index([to_manager_id, status])
   @@index([building_id])
+  @@index([from_manager_id])
   @@map("building_ownership_transfers")
 }
