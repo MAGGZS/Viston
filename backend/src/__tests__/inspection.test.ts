@@ -1,6 +1,7 @@
 import { inspectionService } from '../services/inspection.service';
 import { inspectionRepository } from '../repositories/inspection.repository';
 import { buildingRepository } from '../repositories/building.repository';
+import { userRepository } from '../repositories/user.repository';
 import { generateDayExcel } from '../services/excel.service';
 import { storageService } from '../services/storage.service';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
@@ -18,6 +19,7 @@ jest.mock('../repositories/plan.repository');
 
 const mockInspectionRepo = inspectionRepository as jest.Mocked<typeof inspectionRepository>;
 const mockBuildingRepo = buildingRepository as jest.Mocked<typeof buildingRepository>;
+const mockUserRepo = userRepository as jest.Mocked<typeof userRepository>;
 const mockGenerateExcel = generateDayExcel as jest.MockedFunction<typeof generateDayExcel>;
 const mockStorage = storageService as jest.Mocked<typeof storageService>;
 
@@ -571,6 +573,8 @@ describe('isolamento por prédio', () => {
     mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
     mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
     mockBuildingRepo.findMember.mockResolvedValue(null);
+    // O passe de ADMIN é conferido no banco (SEC-15): a conta precisa existir.
+    mockUserRepo.findById.mockResolvedValue({ id: 'user-admin', role: 'ADMIN', status: 'ACTIVE' } as any);
 
     await inspectionService.submit(
       { id: 'user-admin', kind: 'USER', role: 'ADMIN' } as any,

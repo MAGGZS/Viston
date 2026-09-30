@@ -6,6 +6,7 @@ import { ptBR } from 'date-fns/locale';
 import { Users, UserMinus, AlertTriangle, Check, X } from 'lucide-react';
 import { Avatar } from '@/app/components/Avatar';
 import { GestorShell } from '@/app/components/GestorShell';
+import { TrocaDeDono } from '@/app/components/TrocaDeDono';
 import { Button, Modal, Select } from '@/app/components/ui';
 import { useUnsavedFlag } from '@/app/hooks/useUnsavedGuard';
 import {
@@ -265,6 +266,7 @@ export default function GestorColaboradoresPage() {
 
   const managers = membersData?.managers ?? [];
   const members = membersData?.members ?? [];
+  const ownerId = membersData?.owner_manager_id ?? null;
 
   return (
     <GestorShell
@@ -308,6 +310,18 @@ export default function GestorColaboradoresPage() {
               </div>
             )}
             <AddManagerForm buildingId={id} />
+          </Section>
+
+          <Section
+            className="anim-fade-up anim-d1"
+            title="Dono do prédio"
+            hint="Quem paga pelo prédio. O dono pode passá-lo a outro gestor, que precisa aceitar."
+          >
+            {membersLoading ? (
+              <div className="h-14 bg-chip rounded-control animate-pulse" />
+            ) : (
+              <TrocaDeDono buildingId={id} managers={managers} ownerId={ownerId} />
+            )}
           </Section>
 
           <Section

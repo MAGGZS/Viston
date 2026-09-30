@@ -64,6 +64,40 @@ export const planService = {
 
     return resolved;
   },
+
+  /**
+   * O plano de várias contas de uma vez — a lista de gestores do admin.
+   *
+   * `resolvePlan` conta por conta custava duas consultas por gestor: uma página
+   * de vinte eram quarenta idas ao banco disputando o mesmo pool. Aqui são duas,
+   * e a regra de precedência é a mesma (`compose`).
+   */
+  async resolvePlans(managerIds: string[]): Promise<Map<string, ResolvedPlan>> {
+    const result = new Map<string, ResolvedPlan>();
+    if (managerIds.length === 0) return result;
+
+    const [grants, subscriptions] = await Promise.all([
+      planRepository.findActiveGrants(managerIds),
+      planRepository.findActiveSubscriptions(managerIds),
+    ]);
+
+    // A primeira concessão de cada conta é a mais recente (ver o repositório).
+    const grantBy = new Map<string, (typeof grants)[number]>();
+    for (const grant of grants) {
+      if (!grantBy.has(grant.manager_id)) grantBy.set(grant.manager_id, grant);
+    }
+    const subscriptionBy = new Map<string, (typeof subscriptions)[number]>();
+    for (const subscription of subscriptions) {
+      if (!subscriptionBy.has(subscription.manager_id)) {
+        subscriptionBy.set(subscription.manager_id, subscription);
+      }
+    }
+
+    for (const id of managerIds) {
+      result.set(id, compose(grantBy.get(id) ?? null, subscriptionBy.get(id) ?? null));
+    }
+    return result;
+  },
 };
 
 async function resolve(managerId: string): Promise<ResolvedPlan> {
@@ -71,7 +105,14 @@ async function resolve(managerId: string): Promise<ResolvedPlan> {
     planRepository.findActiveGrant(managerId),
     planRepository.findActiveSubscription(managerId),
   ]);
+  return compose(grant, subscription);
+}
 
+/** A precedência de `resolvePlan`, sem banco: concessão, assinatura, LIVRE. */
+function compose(
+  grant: { plan: PlanCode } | null,
+  subscription: { plan: PlanCode; extra_buildings: number } | null
+): ResolvedPlan {
   const code = grant?.plan ?? subscription?.plan ?? DEFAULT_PLAN;
   const source: PlanSource = grant ? 'CONCESSAO' : subscription ? 'ASSINATURA' : 'PADRAO';
   const plan = PLANS[code];

@@ -25,13 +25,62 @@ async function isAdmin(user: Actor): Promise<boolean> {
   let cached = adminStateCache.get(user);
   if (!cached) {
     cached = (async () => {
-      const account = await userRepository.findById?.(user.id);
-      if (account === undefined) return true;
+      // Sem conta, sem passe: a dúvida nega, nunca concede.
+      const account = await userRepository.findById(user.id);
       return Boolean(account && account.role === 'ADMIN' && account.status !== 'DELETED');
     })();
     adminStateCache.set(user, cached);
   }
   return cached;
+}
+
+type BuildingRow = Awaited<ReturnType<typeof buildingRepository.findById>>;
+
+/**
+ * O prédio já carregado nesta requisição.
+ *
+ * Mesma ideia da cache de vínculo logo abaixo: a guarda da rota, o
+ * `requireBuildingActive`, o `planGate` e o controller perguntavam cada um pelo
+ * mesmo prédio, e cada pergunta era uma ida ao banco — com a API longe do banco,
+ * a ida é o que mais custa. A chave é o `req.user`, que nasce e morre com a
+ * requisição; sem `scope` não há cache, e a consulta vai direto.
+ *
+ * Só serve a leituras de antes da escrita: quem altera o prédio na mesma
+ * requisição e precisa do valor novo lê direto do repositório.
+ */
+const buildingCache = new WeakMap<object, Map<string, Promise<BuildingRow>>>();
+
+export function loadBuilding(scope: object | undefined, buildingId: string): Promise<BuildingRow> {
+  if (!scope) return buildingRepository.findById(buildingId);
+
+  let byId = buildingCache.get(scope);
+  if (!byId) {
+    byId = new Map();
+    buildingCache.set(scope, byId);
+  }
+
+  let pending = byId.get(buildingId);
+  if (!pending) {
+    pending = buildingRepository.findById(buildingId);
+    byId.set(buildingId, pending);
+  }
+  return pending;
+}
+
+/**
+ * O prédio da rota e o que o ator é nele, no tempo de uma ida só ao banco.
+ *
+ * As duas consultas não dependem uma da outra, então saem juntas: antes eram
+ * duas idas em série em toda rota de prédio. O 404 continua vindo antes do 403 —
+ * quem pergunta por um prédio que não existe não fica sabendo de vínculo nenhum.
+ */
+async function loadBuildingAndStanding(user: Actor, buildingId: string) {
+  const [building, standing] = await Promise.all([
+    loadBuilding(user, buildingId),
+    getBuildingStanding(user, buildingId),
+  ]);
+  if (!building) throw new NotFoundError('Prédio');
+  return standing;
 }
 
 /**
@@ -134,12 +183,7 @@ export async function isBuildingResponsible(user: Actor, buildingId: string): Pr
  */
 export function requireBuildingManager(param = 'id') {
   return async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
-    const buildingId = req.params[param];
-
-    const building = await buildingRepository.findById(buildingId);
-    if (!building) throw new NotFoundError('Prédio');
-
-    const standing = await getBuildingStanding(req.user, buildingId);
+    const standing = await loadBuildingAndStanding(req.user, req.params[param]);
     if (standing !== 'GESTOR') {
       throw new ForbiddenError('Apenas o gestor do prédio pode fazer isso');
     }
@@ -158,12 +202,7 @@ export function requireBuildingManager(param = 'id') {
  */
 export function requireBuildingMember(param = 'id') {
   return async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
-    const buildingId = req.params[param];
-
-    const building = await buildingRepository.findById(buildingId);
-    if (!building) throw new NotFoundError('Prédio');
-
-    const standing = await getBuildingStanding(req.user, buildingId);
+    const standing = await loadBuildingAndStanding(req.user, req.params[param]);
     if (!standing) throw new ForbiddenError('Você não tem acesso a este prédio');
 
     req.buildingRole = standing;
@@ -179,13 +218,8 @@ export function requireBuildingMember(param = 'id') {
  */
 export function requireBuildingModerator(param = 'id') {
   return async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
-    const buildingId = req.params[param];
-
-    const building = await buildingRepository.findById(buildingId);
-    if (!building) throw new NotFoundError('Prédio');
-
-    const standing = await getBuildingStanding(req.user, buildingId);
-    if (standing !== 'GESTOR' && standing !== BuildingRole.MODERADOR) {
+    const standing = await loadBuildingAndStanding(req.user, req.params[param]);
+    if (standing !== 'GESTOR' &&standing !== BuildingRole.MODERADOR) {
       throw new ForbiddenError('Apenas o moderador do prédio pode ver os chamados');
     }
 

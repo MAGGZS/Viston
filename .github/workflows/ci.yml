@@ -62,6 +62,71 @@ jobs:
       - name: Testes
         run: npm test
 
+  migrations:
+    name: Backend — migrations num banco vazio
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    # Merge na `main` roda `migrate deploy` em produção (ver render.yaml). Até
+    # 2026-09 a cadeia de migrations não subia num banco vazio: tabelas criadas à
+    # mão no painel do Supabase faziam a segunda migration quebrar, e ninguém
+    # via, porque produção só roda as novas. Este job recria o banco do zero a
+    # cada PR e confere duas coisas:
+    #   1. todas as migrations aplicam, em ordem, num Postgres limpo;
+    #   2. o resultado é exatamente o `schema.prisma` — mudança de schema sem
+    #      migration (ou migration sem mudança de schema) para aqui.
+    services:
+      postgres:
+        # Mesma versão principal do Supabase de produção.
+        image: postgres:17
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+
+      - name: Aplicar todas as migrations
+        run: npx prisma migrate deploy
+
+      - name: Banco igual ao schema.prisma
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+
+      # O Supabase publica o schema `public` na API PostgREST. Tabela sem RLS é
+      # tabela que a chave anon (pública) alcança se algum GRANT voltar. Toda
+      # migration que cria tabela precisa do `ENABLE ROW LEVEL SECURITY` junto.
+      - name: Toda tabela com RLS
+        env:
+          PGPASSWORD: ci
+        run: |
+          sem_rls=$(psql -h localhost -U ci -d ci -tAc \
+            "select string_agg(tablename, ', ') from pg_tables where schemaname = 'public' and not rowsecurity")
+          if [ -n "$sem_rls" ]; then
+            echo "::error::Tabelas sem RLS: $sem_rls"
+            exit 1
+          fi
+
   frontend:
     name: Frontend — lint, testes e build
     runs-on: ubuntu-latest

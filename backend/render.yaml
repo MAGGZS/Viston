@@ -108,3 +108,8 @@ services:
       # nada roda — que e o estado seguro.
       - key: JOB_SECRET
         sync: false
+      # Alertas de erro (Sentry, plano gratis). Sem ele o backend nao envia
+      # nada, e o 500 continua so no log. O DSN nao e segredo forte, mas mora no
+      # painel pelo mesmo motivo das outras: um valor por ambiente.
+      - key: SENTRY_DSN
+        sync: false

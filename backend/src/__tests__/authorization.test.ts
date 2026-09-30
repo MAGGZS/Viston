@@ -715,7 +715,7 @@ describe('gestão do prédio', () => {
       building_id: BUILDING_ID,
       status: 'PENDING',
     } as any);
-    mockBuildingRepo.updateAccessRequest.mockResolvedValue({
+    mockBuildingRepo.reviewAccessRequest.mockResolvedValue({
       id: 'b1111111-1111-4111-8111-111111111111',
       user_id: 'c1111111-1111-4111-8111-111111111111',
       user: { id: 'c1111111-1111-4111-8111-111111111111', name: 'Novo', email: 'novo@test.com' },
@@ -727,9 +727,12 @@ describe('gestão do prédio', () => {
       .send({ status: 'APPROVED' });
 
     expect(res.status).toBe(200);
-    // Sem terceiro argumento: o vínculo nasce VIEWER, mesmo que a conta já
-    // seja inspetora em outro prédio.
-    expect(mockBuildingRepo.addMember).toHaveBeenCalledWith(BUILDING_ID, 'c1111111-1111-4111-8111-111111111111');
+    // Resposta e vínculo (VIEWER) saem na mesma transação do repositório.
+    expect(mockBuildingRepo.reviewAccessRequest).toHaveBeenCalledWith(
+      'b1111111-1111-4111-8111-111111111111',
+      BUILDING_ID,
+      'APPROVED'
+    );
   });
 
   it('ex-membro solicita acesso de novo ao mesmo prédio', async () => {

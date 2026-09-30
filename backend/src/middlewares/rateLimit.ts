@@ -81,6 +81,20 @@ export const occurrenceLimiter = perAccount(60_000, 10, 'Muitas ocorrências em 
 export const excelLimiter = perAccount(10 * 60_000, 20, 'Muitas gerações de planilha. Tente em alguns minutos.');
 
 /**
+ * Relatório do período em .docx: busca todos os chamados fechados no intervalo
+ * e monta o documento em memória. É o pedido mais caro da API, e ninguém
+ * precisa dele mais que algumas vezes seguidas.
+ */
+export const reportLimiter = perAccount(10 * 60_000, 10, 'Muitos relatórios em sequência. Tente em alguns minutos.');
+
+/**
+ * Nova linha na linha do tempo do chamado: aceita até 9 MB de foto por corpo e
+ * sobe para o bucket. Mesma cota da ocorrência avulsa, com folga dobrada —
+ * quem acompanha uma obra registra em rajada.
+ */
+export const timelineLimiter = perAccount(60_000, 20, 'Muitas atualizações em sequência. Aguarde um instante.');
+
+/**
  * Teto por conta, para rotas que só existem depois do login.
  *
  * Por conta e não por IP: a conta é o que se quer limitar, e o IP muda (4G) ou

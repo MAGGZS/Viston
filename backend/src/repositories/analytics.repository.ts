@@ -1,5 +1,6 @@
 import { MaintenanceCategory, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { limitMethods } from '../lib/concurrency';
 import { sqlHolidayCte } from '../utils/holidays';
 import { sqlBusinessDaysBetween, sqlSlaLimit } from '../utils/sla';
 import { APP_TIMEZONE } from '../utils/timezone';
@@ -370,7 +371,17 @@ export type AtividadeResponsavelRow = {
   photos: string[];
 };
 
-export const analyticsRepository = {
+/**
+ * Quantas consultas do painel rodam ao mesmo tempo, somando todas as telas.
+ *
+ * A visão geral dispara oito de uma vez; sem teto, duas pessoas abrindo o
+ * painel ocupavam o pool de conexões inteiro e a API parava junto. Quatro é
+ * menos da metade do pool: o painel fica um pouco mais lento sob carga, e o
+ * resto do sistema não sente.
+ */
+const PAINEL_MAX_CONSULTAS = 4;
+
+export const analyticsRepository = limitMethods({
   /**
    * Tudo o que a visão geral precisa, numa consulta só.
    *
@@ -1201,4 +1212,4 @@ export const analyticsRepository = {
       LIMIT ${limit}
     `;
   },
-};
+}, PAINEL_MAX_CONSULTAS);

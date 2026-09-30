@@ -467,6 +467,9 @@ model InspectionReport {
   // "Vistorias que passaram por este andar" filtra um array de texto. Sem GIN é
   // varredura da tabela inteira, e o custo cresce em linha reta com a base.
   @@index([floors_inspected], type: Gin)
+  // A planilha do dia lê e reescreve as vistorias de um prédio numa data.
+  @@index([building_id, date])
+  @@index([inspector_id])
   @@map("inspection_reports")
 }
 
@@ -482,6 +485,7 @@ model FloorFormEntry {
   maintenance_records MaintenanceRecord[]
 
   @@unique([report_id, floor_id])
+  @@index([floor_id])
   @@map("floor_form_entries")
 }
 
@@ -535,6 +539,10 @@ model MaintenanceRecord {
   // a do responsável é "o que é meu", e por isso o id dele também é indexado.
   @@index([status, created_at(sort: Desc)])
   @@index([responsible_id])
+  // O Postgres não indexa FK sozinho, e todo filtro "chamados do prédio" desce
+  // por aqui (chamado -> entrada de andar -> relatório).
+  @@index([floor_form_entry_id])
+  @@index([closed_by_id])
   @@map("maintenance_records")
 }
 
@@ -576,6 +584,7 @@ model TicketUpdate {
 
   // A leitura é sempre "a linha do tempo deste chamado, do começo ao fim".
   @@index([ticket_id, created_at])
+  @@index([author_id])
   @@map("ticket_updates")
 }
 
@@ -633,6 +642,8 @@ model AuditLog {
   @@index([building_id, timestamp(sort: Desc)])
   @@index([user_id, timestamp(sort: Desc)])
   @@index([manager_id])
+  // Quem fechou o chamado sai do log (ver ticketRepository.findCloseLogs).
+  @@index([entity, entity_id, timestamp(sort: Desc)])
   @@map("audit_logs")
 }
 
@@ -711,6 +722,7 @@ model PlanGrant {
   // A pergunta é sempre "a concessão que vale para esta conta agora", e a
   // resposta é a mais recente entre as que ainda não venceram.
   @@index([manager_id, created_at(sort: Desc)])
+  @@index([granted_by])
   @@map("plan_grants")
 }
 

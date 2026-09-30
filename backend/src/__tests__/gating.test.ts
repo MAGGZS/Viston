@@ -99,7 +99,7 @@ beforeEach(() => {
     user_id: USER_ID,
     status: 'PENDING',
   } as never);
-  mockBuildings.updateAccessRequest.mockResolvedValue({
+  mockBuildings.reviewAccessRequest.mockResolvedValue({
     id: REQUEST_ID,
     user_id: USER_ID,
     status: 'APPROVED',
@@ -250,13 +250,12 @@ describe('teto de pessoas', () => {
       .send({ status: 'APPROVED' });
 
     expect(res.status).toBe(403);
-    expect(mockBuildings.updateAccessRequest).not.toHaveBeenCalled();
-    expect(mockBuildings.addMember).not.toHaveBeenCalled();
+    expect(mockBuildings.reviewAccessRequest).not.toHaveBeenCalled();
   });
 
   it('recusar solicitação não passa por limite nenhum', async () => {
     mockBuildings.countMembersByRole.mockResolvedValue(99);
-    mockBuildings.updateAccessRequest.mockResolvedValue({
+    mockBuildings.reviewAccessRequest.mockResolvedValue({
       id: REQUEST_ID,
       user_id: USER_ID,
       status: 'REJECTED',

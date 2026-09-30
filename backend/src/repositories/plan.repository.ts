@@ -52,6 +52,34 @@ export const planRepository = {
   },
 
   /**
+   * As concessões válidas agora de várias contas, numa consulta só.
+   *
+   * Mesmo filtro de `findActiveGrant`. Vêm da mais recente para a mais antiga:
+   * quem monta o mapa fica com a primeira de cada conta, que é a que vale.
+   */
+  findActiveGrants(managerIds: string[], now = new Date()) {
+    return prisma.planGrant.findMany({
+      where: {
+        manager_id: { in: managerIds },
+        revoked_at: null,
+        starts_at: { lte: now },
+        OR: [{ expires_at: null }, { expires_at: { gt: now } }],
+      },
+      orderBy: { created_at: 'desc' },
+    });
+  },
+
+  /** As assinaturas que dão acesso, de várias contas, numa consulta só. */
+  findActiveSubscriptions(managerIds: string[]) {
+    return prisma.subscription.findMany({
+      where: {
+        manager_id: { in: managerIds },
+        status: { in: [...ACCESS_GRANTING_STATUSES] },
+      },
+    });
+  },
+
+  /**
    * Abre uma concessão para a conta.
    *
    * `expires_at` nulo é sem prazo, e é escolha do admin — não um esquecimento:

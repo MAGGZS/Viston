@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/authenticate';
 import { userService } from '../services/user.service';
 import { ok, noContent } from '../utils/response';
+import { paginationSchema } from '../validators/pagination.validator';
 
 export const userController = {
   /**
@@ -16,8 +17,7 @@ export const userController = {
   },
 
   async findAll(req: AuthenticatedRequest, res: Response) {
-    const page = parseInt(String(req.query.page ?? '1'), 10);
-    const limit = parseInt(String(req.query.limit ?? '20'), 10);
+    const { page, limit } = paginationSchema.parse(req.query);
     const result = await userService.findAll(page, limit);
     ok(res, result);
   },

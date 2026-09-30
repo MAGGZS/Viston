@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { BuildingRole } from '@prisma/client';
 import { AuthenticatedRequest } from './authenticate';
 import { buildingRepository } from '../repositories/building.repository';
+import { loadBuilding as loadRequestBuilding } from './buildingAccess';
 import { planRepository } from '../repositories/plan.repository';
 import { planService } from '../services/plan.service';
 import { usageService } from '../services/usage.service';
@@ -26,9 +27,12 @@ import { Feature, PlanRole, PLANS } from '../utils/plans';
  * cache em `planService.resolvePlan`).
  */
 
-/** O prédio e quem paga por ele. */
-async function loadBuilding(buildingId: string) {
-  const building = await buildingRepository.findById(buildingId);
+/**
+ * O prédio e quem paga por ele. Com `scope`, reaproveita o que a guarda da rota
+ * já carregou nesta requisição (ver `loadBuilding` em buildingAccess).
+ */
+async function loadBuilding(buildingId: string, scope?: object) {
+  const building = await loadRequestBuilding(scope, buildingId);
   if (!building) throw new NotFoundError('Prédio');
   return building;
 }
@@ -79,7 +83,7 @@ export const planGate = {
    * moderador" — e não "você já tem 0 de 0", que não explica nada.
    */
   async assertCanAddPerson(buildingId: string, role: PlanRole, scope?: object): Promise<void> {
-    const building = await loadBuilding(buildingId);
+    const building = await loadBuilding(buildingId, scope);
     if (!building.owner_manager_id) return;
 
     const plan = await planService.resolvePlan(building.owner_manager_id, scope);
@@ -105,7 +109,7 @@ export const planGate = {
 
   /** O plano deste prédio abre aquele recurso? */
   async assertFeature(buildingId: string, feature: Feature, scope?: object): Promise<void> {
-    const building = await loadBuilding(buildingId);
+    const building = await loadBuilding(buildingId, scope);
     if (!building.owner_manager_id) return;
 
     const plan = await planService.resolvePlan(building.owner_manager_id, scope);
@@ -126,7 +130,7 @@ export const planGate = {
   async assertStorageRoom(buildingId: string, bytes: number, scope?: object): Promise<void> {
     if (bytes <= 0) return;
 
-    const building = await loadBuilding(buildingId);
+    const building = await loadBuilding(buildingId, scope);
     if (!building.owner_manager_id) return;
 
     const [plan, usados] = await Promise.all([
@@ -163,7 +167,7 @@ export const planGate = {
  */
 export function requireBuildingActive(param = 'id') {
   return async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
-    const building = await loadBuilding(req.params[param]);
+    const building = await loadBuilding(req.params[param], req.user);
     planGate.assertActive(building);
     next();
   };

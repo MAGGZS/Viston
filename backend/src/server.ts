@@ -1,9 +1,11 @@
+import './instrument';
 import { setDefaultResultOrder } from 'node:dns';
 import { config } from './config';
 import app from './app';
 import { prisma } from './lib/prisma';
 import { logger } from './lib/logger';
 import { verificarProvedorEmail } from './lib/mailer';
+import { flushSentry } from './lib/sentry';
 
 /**
  * IPv4 primeiro em todas as conexões de saída do processo.
@@ -56,9 +58,11 @@ process.on('unhandledRejection', (reason) => {
   logger.error({ err: reason }, 'Promessa rejeitada sem tratamento');
 });
 
+// O Sentry captura as duas sozinho; aqui só se espera o envio antes de sair,
+// ou o alerta do erro que derrubou o processo morreria junto com ele.
 process.on('uncaughtException', (err) => {
   logger.fatal({ err }, 'Exceção não capturada — encerrando');
-  process.exit(1);
+  void flushSentry().finally(() => process.exit(1));
 });
 
 bootstrap();

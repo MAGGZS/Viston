@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuditAction, BuildingRole } from '@prisma/client';
 import { AuthenticatedRequest } from '../middlewares/authenticate';
 import { planGate, withPlanLock } from '../middlewares/planGate';
+import { loadBuilding } from '../middlewares/buildingAccess';
 import { actorAudit, buildingRepository, auditRepository } from '../repositories/building.repository';
 import { managerRepository } from '../repositories/manager.repository';
 import { inspectionRepository } from '../repositories/inspection.repository';
@@ -23,13 +24,9 @@ async function findBuildingByKeyOrFail(rawKey: unknown) {
   const key = normalizeShareKey(String(rawKey ?? ''));
   if (!isValidShareTokenFormat(key) && !isValidShareKeyFormat(key)) throw new NotFoundError('Prédio');
 
-  let building = null;
-  if (typeof buildingRepository.findByShareToken === 'function') {
-    building = await buildingRepository.findByShareToken(key);
-  }
-  if (!building && typeof buildingRepository.findByShareKey === 'function') {
-    building = await buildingRepository.findByShareKey(key);
-  }
+  const building =
+    (await buildingRepository.findByShareToken(key)) ??
+    (await buildingRepository.findByShareKey(key));
   if (!building) throw new NotFoundError('Prédio');
 
   return building;
@@ -141,7 +138,7 @@ export const buildingController = {
   },
 
   async remove(req: AuthenticatedRequest, res: Response) {
-    const building = await buildingRepository.findById(req.params.id);
+    const building = await loadBuilding(req.user, req.params.id);
     if (!building) throw new NotFoundError('Prédio');
     if (
       building.owner_manager_id &&
@@ -165,7 +162,7 @@ export const buildingController = {
 
   // ── Andares ───────────────────────────────────────────────────────────────
   async getFloors(req: AuthenticatedRequest, res: Response) {
-    const building = await buildingRepository.findById(req.params.id);
+    const building = await loadBuilding(req.user, req.params.id);
     if (!building) throw new NotFoundError('Prédio');
     const floors = await buildingRepository.getFloors(req.params.id);
     ok(res, { building: publicBuilding(building), floors });
@@ -188,16 +185,18 @@ export const buildingController = {
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
   async getDashboard(req: AuthenticatedRequest, res: Response) {
-    const building = await buildingRepository.findById(req.params.id);
+    const building = await loadBuilding(req.user, req.params.id);
     if (!building) throw new NotFoundError('Prédio');
-
-    const [inspectorCount, viewerCount, totalInspections] = await buildingRepository.getDashboard(req.params.id);
 
     // Calendário: últimos 12 meses, fechando pelo calendário local (ver utils/timezone)
     const today = zonedParts();
     const { start, end } = zonedRange(today.year, today.monthIndex - 11, 12);
 
-    const calData = await inspectionRepository.getCalendarData(start, end, req.params.id);
+    // Contadores e calendário não dependem um do outro: saem juntos.
+    const [[inspectorCount, viewerCount, totalInspections], calData] = await Promise.all([
+      buildingRepository.getDashboard(req.params.id),
+      inspectionRepository.getCalendarData(start, end, req.params.id),
+    ]);
     const heatmap = buildHeatmap(calData);
 
     // Só o gestor vê a chave de compartilhamento. `buildingRole` veio do
@@ -251,11 +250,15 @@ export const buildingController = {
    * membros (usuários com papel). Vêm juntos porque a tela é uma só.
    */
   async getMembers(req: AuthenticatedRequest, res: Response) {
-    const [managers, members] = await Promise.all([
+    // O prédio já veio da guarda da rota; aqui sai da cache da requisição. É ele
+    // que diz qual dos gestores paga pelo prédio — a tela da troca de dono
+    // precisa saber para quem mostrar o botão.
+    const [managers, members, building] = await Promise.all([
       buildingRepository.getManagers(req.params.id),
       buildingRepository.getMembers(req.params.id),
+      loadBuilding(req.user, req.params.id),
     ]);
-    ok(res, { managers, members });
+    ok(res, { managers, members, owner_manager_id: building?.owner_manager_id ?? null });
   },
 
   /**
@@ -304,7 +307,7 @@ export const buildingController = {
 
     await assertNotLastManager(req.params.id, 'sair da gestão');
 
-    const building = await buildingRepository.findById(req.params.id);
+    const building = await loadBuilding(req.user, req.params.id);
     if (building?.owner_manager_id && req.params.managerId === building.owner_manager_id) {
       if (req.user.role !== 'ADMIN' && req.user.id !== building.owner_manager_id) {
         throw new ForbiddenError('Um co-gestor não pode remover o dono do prédio da gestão');
@@ -450,13 +453,8 @@ export const buildingController = {
         await planGate.assertCanAddPerson(req.params.id, BuildingRole.VIEWER, req.user);
       }
 
-      const row = await buildingRepository.updateAccessRequest(req.params.requestId, status);
-
-      // Entra sempre como visualizador — o gestor promove depois, se quiser.
-      if (status === 'APPROVED') {
-        await buildingRepository.addMember(req.params.id, row.user_id);
-      }
-      return row;
+      // Resposta e vínculo numa transação só (ver o repositório).
+      return buildingRepository.reviewAccessRequest(req.params.requestId, req.params.id, status);
     });
 
     if (status === 'APPROVED') {

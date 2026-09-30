@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
 import { AppError } from '../utils/errors';
 import { logger } from '../lib/logger';
+import { reportError } from '../lib/sentry';
 
 export function errorHandler(
   err: Error,
@@ -78,7 +79,10 @@ export function errorHandler(
   }
 
   // O id da requisição vai junto: é ele que liga este 500 ao que veio antes.
-  logger.error({ err, req_id: (req as { id?: string }).id }, 'Erro não tratado');
+  const reqId = (req as { id?: string }).id;
+  logger.error({ err, req_id: reqId }, 'Erro não tratado');
+  // Só o 500 vai ao Sentry: os casos acima são entrada ruim, não defeito.
+  reportError(err, reqId);
   res.status(500).json({
     error: { code: 'INTERNAL_ERROR', message: 'Erro interno do servidor' },
   });

@@ -5,7 +5,7 @@ import { generateDayExcel } from './excel.service';
 import { storageService } from './storage.service';
 import { SubmitInspectionPayload } from '../validators/inspection.validator';
 import { canInspectBuilding, getBuildingStanding, isBuildingManager } from '../middlewares/buildingAccess';
-import { planGate } from '../middlewares/planGate';
+import { planGate, withPlanLock } from '../middlewares/planGate';
 import { Actor } from '../middlewares/authenticate';
 import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
 import { floorRank } from '../utils/floorOrder';
@@ -112,6 +112,17 @@ type FullReport = NonNullable<Awaited<ReturnType<typeof inspectionRepository.fin
  * que os dois primeiros já tinham publicado.
  */
 async function buildAndStoreDayExcel(buildingId: string, date: Date, userId?: string) {
+  // Um arquivo por dia, e uma geração por vez para aquele dia: duas vistorias
+  // enviadas juntas geravam em paralelo, e a que terminasse por último gravava
+  // uma planilha lida antes da outra existir — a vistoria sumia do arquivo e o
+  // upload da outra ficava órfão no bucket. Em fila, a segunda geração já lê as
+  // duas.
+  return withPlanLock(`excel:${buildingId}:${date.toISOString()}`, () =>
+    generateAndStoreDayExcel(buildingId, date, userId)
+  );
+}
+
+async function generateAndStoreDayExcel(buildingId: string, date: Date, userId?: string) {
   const reports = await inspectionRepository.findDayReports(buildingId, date);
   if (reports.length === 0) return null;
 

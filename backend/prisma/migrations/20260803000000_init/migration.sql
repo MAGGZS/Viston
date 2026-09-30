@@ -158,3 +158,56 @@ ALTER TABLE "audit_logs"
     ADD CONSTRAINT "audit_logs_user_id_fkey"
     FOREIGN KEY ("user_id") REFERENCES "users"("id")
     ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- ─────────────────────────────────────────────
+-- RECUPERAÇÃO DO QUE FOI FEITO FORA DAS MIGRATIONS (2026-08-04 a 2026-08-08)
+-- ─────────────────────────────────────────────
+-- Entre esta baseline e `20260808000000_cascade_deletes`, o banco de produção
+-- ganhou colunas e tabelas direto pelo painel do Supabase, sem migration. As
+-- migrations seguintes já contam com elas, então um banco criado do zero (o do
+-- CI, o de um dev novo) quebrava logo na segunda migration.
+--
+-- O bloco abaixo reproduz esse estado com a forma que as tabelas têm em
+-- produção (defaults em SQL, `timestamp` sem precisão, FKs sem ON UPDATE).
+-- Produção não roda isto de novo: esta migration já consta como aplicada lá.
+
+ALTER TABLE "buildings" ADD COLUMN IF NOT EXISTS "description" TEXT;
+ALTER TABLE "buildings" ADD COLUMN IF NOT EXISTS "created_by" TEXT;
+
+ALTER TABLE "floors" DROP CONSTRAINT IF EXISTS "floors_building_id_order_key";
+DROP INDEX IF EXISTS "floors_building_id_order_key";
+ALTER TABLE "floors" DROP COLUMN IF EXISTS "order";
+CREATE UNIQUE INDEX IF NOT EXISTS "floors_building_id_label_key" ON "floors"("building_id", "label");
+
+CREATE TABLE IF NOT EXISTS "building_members" (
+    "id"          TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+    "building_id" TEXT NOT NULL,
+    "user_id"     TEXT NOT NULL,
+    "role"        TEXT NOT NULL,
+    "joined_at"   TIMESTAMP DEFAULT now(),
+
+    CONSTRAINT "building_members_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "building_members_building_id_user_id_key" UNIQUE ("building_id", "user_id"),
+    CONSTRAINT "building_members_building_id_fkey" FOREIGN KEY ("building_id")
+        REFERENCES "buildings"("id") ON DELETE CASCADE,
+    CONSTRAINT "building_members_user_id_fkey" FOREIGN KEY ("user_id")
+        REFERENCES "users"("id") ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS "building_access_requests" (
+    "id"           TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+    "building_id"  TEXT NOT NULL,
+    "user_id"      TEXT NOT NULL,
+    "status"       TEXT NOT NULL DEFAULT 'PENDING',
+    "requested_at" TIMESTAMP DEFAULT now(),
+    "reviewed_at"  TIMESTAMP,
+
+    CONSTRAINT "building_access_requests_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "building_access_requests_building_id_user_id_key" UNIQUE ("building_id", "user_id"),
+    CONSTRAINT "building_access_requests_status_check"
+        CHECK ("status" = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])),
+    CONSTRAINT "building_access_requests_building_id_fkey" FOREIGN KEY ("building_id")
+        REFERENCES "buildings"("id") ON DELETE CASCADE,
+    CONSTRAINT "building_access_requests_user_id_fkey" FOREIGN KEY ("user_id")
+        REFERENCES "users"("id") ON DELETE CASCADE
+);

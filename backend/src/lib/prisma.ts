@@ -1,10 +1,22 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
+import { SUPABASE_ROOT_CA } from './supabaseCa';
 
 declare global {
   // eslint-disable-next-line no-var
   var __prisma: PrismaClient | undefined;
+}
+
+/**
+ * TLS com o certificado conferido contra o CA do Supabase (ver supabaseCa.ts).
+ *
+ * Postgres na própria máquina (CI, banco descartável de teste) não tem TLS, e
+ * ali não há rede para alguém se meter no meio: a conexão vai sem criptografia.
+ */
+export function sslFor(hostname: string) {
+  if (['localhost', '127.0.0.1', '::1'].includes(hostname)) return false;
+  return { ca: SUPABASE_ROOT_CA, rejectUnauthorized: true };
 }
 
 function createPrismaClient() {
@@ -17,7 +29,7 @@ function createPrismaClient() {
     database: url.pathname.replace('/', ''),
     user: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
-    ssl: { rejectUnauthorized: false },
+    ssl: sslFor(url.hostname),
     max: 10,
   });
 

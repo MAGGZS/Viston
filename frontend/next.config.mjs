@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { THEME_SCRIPT } from './app/lib/theme.js';
+import { sentryOrigin } from './app/lib/sentry.js';
 
 const THEME_SCRIPT_HASH = createHash('sha256').update(THEME_SCRIPT).digest('base64');
 
@@ -25,6 +26,12 @@ const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL || 'https://viston.onrender.c
 const LOCAL_API_ORIGIN = 'http://localhost:4000';
 
 /**
+ * Para onde o Sentry manda os erros do navegador. Vazio quando não há DSN: aí
+ * nada é enviado e o `connect-src` fica como estava.
+ */
+const SENTRY_ORIGIN = sentryOrigin(process.env.NEXT_PUBLIC_SENTRY_DSN || '');
+
+/**
  * Cabeçalhos de segurança do app.
  *
  * O `helmet` do backend protege a API, que só devolve JSON. O que faltava era
@@ -47,8 +54,8 @@ const csp = [
   "img-src 'self' https://*.supabase.co data: blob:",
   "font-src 'self' data:",
   process.env.NODE_ENV === 'development'
-    ? `connect-src 'self' ${API_ORIGIN} ${LOCAL_API_ORIGIN} https://*.supabase.co`
-    : `connect-src 'self' ${API_ORIGIN} https://*.supabase.co`,
+    ? `connect-src 'self' ${API_ORIGIN} ${LOCAL_API_ORIGIN} https://*.supabase.co ${SENTRY_ORIGIN}`.trim()
+    : `connect-src 'self' ${API_ORIGIN} https://*.supabase.co ${SENTRY_ORIGIN}`.trim(),
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

@@ -716,11 +716,39 @@ export function useBuildingResponsibles(buildingId) {
   });
 }
 
+/** O teto da API por página, e quantas páginas a fila busca no máximo. */
+const FILA_POR_PAGINA = 100;
+const FILA_MAX_PAGINAS = 5;
+
+/**
+ * A fila inteira de um grupo, e não só a primeira página.
+ *
+ * As telas do moderador ordenam e agrupam a fila no navegador (por urgência, por
+ * andar), então precisam dela toda: com uma página só, o prédio que passasse de
+ * cem chamados num grupo perdia os mais antigos da tela sem aviso nenhum — e
+ * justamente os mais antigos são os mais atrasados. A primeira página diz o
+ * total, e as que faltam saem juntas.
+ */
 export function useTickets(buildingId, group = 'NOVOS') {
   return useQuery({
     queryKey: ['tickets', buildingId, group],
-    queryFn: () =>
-      api.get(`/buildings/${buildingId}/tickets`, { params: { group, limit: 100 } }).then((r) => r.data),
+    queryFn: async () => {
+      const url = `/buildings/${buildingId}/tickets`;
+      const pagina = (page) =>
+        api.get(url, { params: { group, page, limit: FILA_POR_PAGINA } }).then((r) => r.data);
+
+      const primeira = await pagina(1);
+      const paginas = Math.min(Math.ceil((primeira.total ?? 0) / FILA_POR_PAGINA), FILA_MAX_PAGINAS);
+      if (paginas <= 1) return primeira;
+
+      const resto = await Promise.all(
+        Array.from({ length: paginas - 1 }, (_, i) => pagina(i + 2))
+      );
+      return {
+        ...primeira,
+        tickets: [primeira, ...resto].flatMap((p) => p.tickets ?? []),
+      };
+    },
     enabled: !!buildingId,
   });
 }
@@ -1205,6 +1233,30 @@ export function useOwnershipTransfers() {
   return useQuery({
     queryKey: ['ownership-transfers'],
     queryFn: () => api.get('/ownership-transfers/me').then((r) => r.data),
+  });
+}
+
+/** Os pedidos de transferência deste prédio, do mais novo ao mais antigo. */
+export function useBuildingTransfers(buildingId) {
+  return useQuery({
+    queryKey: ['building-transfers', buildingId],
+    queryFn: () => api.get(`/buildings/${buildingId}/ownership-transfers`).then((r) => r.data),
+    enabled: !!buildingId,
+  });
+}
+
+/** O dono oferece o prédio a um co-gestor, que tem sete dias para responder. */
+export function useRequestTransfer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ buildingId, toManagerId }) =>
+      api
+        .post(`/buildings/${buildingId}/ownership-transfers`, { to_manager_id: toManagerId })
+        .then((r) => r.data),
+    onSuccess: (_, { buildingId }) => {
+      queryClient.invalidateQueries({ queryKey: ['building-transfers', buildingId] });
+    },
   });
 }
 

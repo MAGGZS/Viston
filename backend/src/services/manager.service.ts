@@ -164,20 +164,19 @@ export const managerService = {
   /** Lista do painel do admin. */
   async findAll(page: number, limit: number, search?: string) {
     const [managers, total] = await managerRepository.findAll(page, limit, search);
-    const withPlans = await Promise.all(
-      managers.map(async ({ _count, ...manager }) => {
-        const resolved = await planService.resolvePlan(manager.id);
-        return {
-          ...manager,
-          buildings: _count.managed_buildings,
-          plan: {
-            code: resolved.code,
-            name: PLANS[resolved.code].name,
-            source: resolved.source,
-          },
-        };
-      })
-    );
+    const plans = await planService.resolvePlans(managers.map((m) => m.id));
+    const withPlans = managers.map(({ _count, ...manager }) => {
+      const resolved = plans.get(manager.id)!;
+      return {
+        ...manager,
+        buildings: _count.managed_buildings,
+        plan: {
+          code: resolved.code,
+          name: PLANS[resolved.code].name,
+          source: resolved.source,
+        },
+      };
+    });
 
     return {
       managers: withPlans,

@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../middlewares/authenticate';
 import { managerService } from '../services/manager.service';
 import { ok, noContent } from '../utils/response';
 import { ForbiddenError } from '../utils/errors';
+import { paginationSchema } from '../validators/pagination.validator';
 
 /** As rotas de `/managers/me` só existem para quem entrou como gestor. */
 function asManager(req: AuthenticatedRequest) {
@@ -19,8 +20,7 @@ export const managerController = {
   },
 
   async findAll(req: AuthenticatedRequest, res: Response) {
-    const page = parseInt(String(req.query.page ?? '1'), 10);
-    const limit = parseInt(String(req.query.limit ?? '20'), 10);
+    const { page, limit } = paginationSchema.parse(req.query);
     // O termo vai cortado: quem procura digita um nome ou um domínio, e um
     // texto de dez mil caracteres na querystring só serviria para fazer o
     // banco varrer a tabela à toa.

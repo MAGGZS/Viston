@@ -3,7 +3,7 @@ import { guardUuidParams } from '../middlewares/uuidParams';
 import { ticketController } from '../controllers/ticket.controller';
 import { authenticate } from '../middlewares/authenticate';
 import { requireBuildingMember, requireBuildingModerator } from '../middlewares/buildingAccess';
-import { occurrenceLimiter } from '../middlewares/rateLimit';
+import { occurrenceLimiter, reportLimiter, timelineLimiter } from '../middlewares/rateLimit';
 
 const router = guardUuidParams(Router());
 
@@ -24,7 +24,7 @@ router.get('/buildings/:id/tickets/stats', auth, moderator, ticketController.sta
 router.get('/buildings/:id/tickets/summary', auth, moderator, ticketController.summary);
 // O relatório do período, em .docx. De moderador: é o consolidado do trabalho
 // dele, com gasto de manutenção dentro, e não leitura de quem só acompanha.
-router.get('/buildings/:id/tickets/report', auth, moderator, ticketController.report);
+router.get('/buildings/:id/tickets/report', auth, moderator, reportLimiter, ticketController.report);
 
 // A lista de responsáveis é de vínculo, não de moderação: quem vistoria precisa
 // dela para preencher o formulário.
@@ -68,7 +68,7 @@ router.post('/tickets/:id/close', auth, ticketController.close);
 // moderador do prédio — e alterar, só da última linha e de quem a escreveu.
 // Tudo conferido no serviço, pelo mesmo motivo das rotas acima.
 router.get('/tickets/:id/updates', auth, ticketController.listUpdates);
-router.post('/tickets/:id/updates', auth, ticketController.addUpdate);
+router.post('/tickets/:id/updates', auth, timelineLimiter, ticketController.addUpdate);
 router.patch('/tickets/:id/updates/:updateId', auth, ticketController.editUpdate);
 router.delete('/tickets/:id/updates/:updateId', auth, ticketController.removeUpdate);
 

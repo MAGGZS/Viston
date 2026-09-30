@@ -335,3 +335,19 @@ describe('a lista de quem recebeu o convite', () => {
     expect(res.body).toEqual([]);
   });
 });
+
+describe('a tela da troca de dono', () => {
+  it('a lista de colaboradores diz qual gestor é o dono', async () => {
+    mockBuildings.getManagers.mockResolvedValue([] as never);
+    mockBuildings.getMembers.mockResolvedValue([] as never);
+
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/members`)
+      .set('Authorization', `Bearer ${tokenCogestor}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ managers: [], members: [], owner_manager_id: DONO_ID });
+    // O prédio veio da guarda da rota: o controller não busca de novo.
+    expect(mockBuildings.findById).toHaveBeenCalledTimes(1);
+  });
+});

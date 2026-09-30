@@ -531,11 +531,29 @@ export const buildingRepository = {
     });
   },
 
-  updateAccessRequest(id: string, status: string) {
-    return prisma.buildingAccessRequest.update({
-      where: { id },
-      data: { status, reviewed_at: new Date() },
-      include: { user: { select: ACCOUNT_FIELDS } },
+  /**
+   * Responde a solicitação e, se aprovada, cria o vínculo — as duas coisas ou
+   * nenhuma.
+   *
+   * Separadas, uma falha entre elas deixava a solicitação APPROVED sem vínculo:
+   * o pedido sumia da fila do gestor sem dar acesso a ninguém. Quem aprova entra
+   * sempre como visualizador; o gestor promove depois, se quiser.
+   */
+  reviewAccessRequest(id: string, buildingId: string, status: 'APPROVED' | 'REJECTED') {
+    return prisma.$transaction(async (tx) => {
+      const row = await tx.buildingAccessRequest.update({
+        where: { id },
+        data: { status, reviewed_at: new Date() },
+        include: { user: { select: ACCOUNT_FIELDS } },
+      });
+
+      if (status === 'APPROVED') {
+        await tx.buildingMember.create({
+          data: { building_id: buildingId, user_id: row.user_id, role: BuildingRole.VIEWER },
+        });
+      }
+
+      return row;
     });
   },
 
