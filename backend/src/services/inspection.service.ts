@@ -486,10 +486,13 @@ export const inspectionService = {
     const today = zonedParts();
     let range: { start: Date; end: Date };
 
+    // O ano e o mês pedidos valem também no semestre e no ano: sem isso, as
+    // setas do calendário trocavam o rótulo e a grade continuava no ano atual.
     if (params.range === 'anual') {
-      range = zonedRange(today.year, 0, 12);
+      range = zonedRange(params.year ?? today.year, 0, 12);
     } else if (params.range === 'semestral') {
-      range = zonedRange(today.year, today.monthIndex < 6 ? 0 : 6, 6);
+      const monthIndex = (params.month ?? today.monthIndex + 1) - 1;
+      range = zonedRange(params.year ?? today.year, monthIndex < 6 ? 0 : 6, 6);
     } else {
       const year = params.year ?? today.year;
       const monthIndex = (params.month ?? today.monthIndex + 1) - 1;

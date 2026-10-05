@@ -234,7 +234,14 @@ export default function HistoricoPage() {
   const [calMode, setCalMode] = useState('Mensal');
   const MODES = ['Mensal', 'Semestral', 'Anual'];
 
-  const calParams = useMemo(() => calMode === 'Mensal' ? { month, year } : { year }, [calMode, month, year]);
+  // Sem `range`, a API devolve um mês só — e o semestre e o ano saíam com
+  // apenas o mês corrente pintado. O mês vai junto no semestral para dizer
+  // qual das duas metades do ano.
+  const calParams = useMemo(() => {
+    if (calMode === 'Mensal') return { month, year };
+    if (calMode === 'Semestral') return { range: 'semestral', month, year };
+    return { range: 'anual', year };
+  }, [calMode, month, year]);
   const { data: calData, isLoading: calLoading } = useCalendar(calParams);
   const heatmap = calData?.heatmap ?? {};
 
