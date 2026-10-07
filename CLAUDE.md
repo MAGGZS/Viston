@@ -1,6 +1,10 @@
 # Viston
 
-todas as vezes que for aberto uma nova sessão no terminal do agente, uma verificação e atualizar  pra a versão mias atual do repositório que o projeto esta conectado remotamnte, lembrando de fazer isso antes de realizar qualquer pedido.
+todas as vezes que for aberto uma nova sessão no terminal do agente, uma verificação e atualizar  pra a versão mias atual do repositório que o projeto esta conectado rem
+
+nunca faça as coisas sozinho, sempre delegue tarefas a subapgentes especializados nas areas do pedido em específico. 
+
+revise a tarefa sempre que ela fo finalizada para que ela não tenha erros ou incoerencias
 
 ## Deploy
 
@@ -11,9 +15,9 @@ o Render sobe o backend. Empurrar direto para a `main` é, na prática, publicar
 o proprietário veria a mudança já no ar. O PR devolve a ele a janela de olhar
 antes.
 
-O ciclo, então: branch a partir da `main` atualizada, commits no branch, branch
+//O ciclo, então: branch a partir da `main` atualizada, commits no branch, branch
 empurrado, PR aberto. O merge é do proprietário, e só ele o faz. Qualquer outro
-branch gera preview na Vercel, que é justamente o que se quer para avaliar.
+branch gera preview na Vercel, que é justamente o que se quer para avaliar// descidere
 
 Migração em banco de produção continua exigindo pergunta antes de rodar, PR
 ou não.

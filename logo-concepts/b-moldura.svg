@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <title>Viston — Moldura</title>
-  <g fill="#0B0B0B">
-    <path d="M24 24H96V46H46V96H24Z"/>
-    <path d="M232 24H160V46H210V96H232Z"/>
-    <path d="M24 232H96V210H46V160H24Z"/>
-  </g>
-  <circle cx="196" cy="196" r="36" fill="#F5C518"/>
-</svg>
