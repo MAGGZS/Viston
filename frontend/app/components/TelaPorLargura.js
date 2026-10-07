@@ -54,6 +54,7 @@ function AvisoDeLargura({ className, icon: Icon, titulo, texto, href, acao }) {
       <p className="anim-fade-up anim-d2" style={{ color: T.mute, fontSize: 14, marginTop: 8, lineHeight: 1.6, maxWidth: 380 }}>
         {texto}
       </p>
+      {href && (
       <Link
         href={href}
         className="anim-fade-up anim-d3"
@@ -65,6 +66,7 @@ function AvisoDeLargura({ className, icon: Icon, titulo, texto, href, acao }) {
       >
         {acao}
       </Link>
+      )}
     </div>
   );
 }
@@ -113,6 +115,10 @@ export function SoNoCelular({ children, destino }) {
  * aqui existe uma versão de telefone do mesmo trabalho, então o celular não é
  * barrado — é levado a ela. `texto` diz qual é essa versão (o padrão é o da
  * mesa do responsável).
+ *
+ * `destinoNoCelular` nulo: não há versão de telefone para esta conta. Fica só
+ * o aviso, sem redirecionamento e sem botão — mandar para a raiz faria a raiz
+ * mandar de volta para cá.
  */
 export function SoNoComputador({
   children,
@@ -122,7 +128,7 @@ export function SoNoComputador({
   const router = useRouter();
 
   useEffect(() => {
-    if (!larguraDeComputador()) router.replace(destinoNoCelular);
+    if (destinoNoCelular && !larguraDeComputador()) router.replace(destinoNoCelular);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

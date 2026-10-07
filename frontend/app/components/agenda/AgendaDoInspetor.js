@@ -1,12 +1,46 @@
 'use client';
 import { useCallback, useMemo, useState } from 'react';
-import { ClipboardCheck } from 'lucide-react';
+import { endOfMonth, format } from 'date-fns';
+import { useQuery } from '@tanstack/react-query';
+import { ClipboardCheck, RotateCcw } from 'lucide-react';
 import { ScheduleDetailsModal } from '@/app/components/agenda/ScheduleDetailsModal';
 import { LegendaAgenda } from '@/app/components/agenda/CalendarioMensal';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
-import { useCalendar, useMySchedules } from '@/app/hooks/useApi';
+import { useBuildingSchedules, useCalendar, useMySchedules } from '@/app/hooks/useApi';
+import { useAuthStore } from '@/app/store/auth';
+import { canInspect } from '@/app/lib/roles';
+import api from '@/app/lib/api';
 import { dateKeyOf, groupSchedulesByDay, parseDateKey } from '@/app/lib/agenda';
 import { HEAT, T, W } from '@/app/lib/theme';
+
+/**
+ * As vistorias do próprio inspetor num mês, numa página de até 100.
+ *
+ * Direto da listagem `/inspections` (com `inspector_id`), e não do `/calendar`:
+ * o calendário traz o nome de quem vistoriou, não o id, e contar por nome
+ * juntaria dois inspetores homônimos. A chave começa com 'inspections' para a
+ * vistoria enviada no celular invalidar estes números também.
+ *
+ * Do prédio escolhido: cada prédio tem a sua agenda e as suas demandas, e os
+ * números ao lado do calendário falam do mesmo prédio que ele. Usada pela mesa
+ * do inspetor no computador e pela tela inicial do celular.
+ */
+export function useMeuMes(userId, buildingId, month, year, { enabled = true } = {}) {
+  const inicio = new Date(year, month - 1, 1);
+  const params = {
+    building_id: buildingId,
+    inspector_id: userId,
+    date_from: format(inicio, 'yyyy-MM-dd'),
+    date_to: format(endOfMonth(inicio), 'yyyy-MM-dd'),
+    page: 1,
+    limit: 100,
+  };
+  return useQuery({
+    queryKey: ['inspections', 'mes-do-inspetor', params],
+    queryFn: () => api.get('/inspections', { params }).then((r) => r.data),
+    enabled: enabled && !!userId && !!buildingId,
+  });
+}
 
 /**
  * O fundo do dia em que houve vistoria feita.
@@ -34,8 +68,15 @@ function plural(n, um, varios) {
  * - só com vistoria feita: direto o relatório do dia, como era antes;
  * - vazio: só marca o dia.
  *
- * `buildingId` vai para a consulta do calendário só para manter a chave de
- * cache que a tela inicial já usava (os números do cartão saem do mesmo dado).
+ * `buildingId` é o prédio escolhido (`useActiveBuilding`): cada prédio tem a
+ * sua agenda e as suas demandas, então os agendamentos e o calendário de
+ * vistorias feitas vêm só dele — e, com ele na chave das consultas, trocar de
+ * prédio troca tudo. Sem `buildingId`, a agenda cruza todos os prédios.
+ *
+ * Com o prédio, as bolinhas são do prédio inteiro (decisão do proprietário): o
+ * inspetor vê também os agendamentos dos colegas, só para leitura. Os dele são
+ * a marca normal; os dos colegas, a menor (`deColega`), e a caixa do dia diz
+ * de quem é cada um. Sem prédio, só os dele, de todos os prédios.
  */
 export function useAgendaDoInspetor({ enabled = true, buildingId } = {}) {
   const now = new Date();
@@ -50,7 +91,18 @@ export function useAgendaDoInspetor({ enabled = true, buildingId } = {}) {
   // Com ele a caixa sabe se o agendamento do aviso ainda está no dia.
   const [doAviso, setDoAviso] = useState(null);
 
-  const schedulesQuery = useMySchedules({ month, year }, { enabled });
+  const { user } = useAuthStore();
+  const userId = user?.id ?? null;
+  // O prédio inteiro só para quem vistoria nele — é o que a API libera ao
+  // inspetor. Outra conta na tela inicial (o responsável, por exemplo) segue
+  // com a própria agenda daquele prédio.
+  const predioTodo = !!buildingId && canInspect(user, buildingId);
+  const doPredio = useBuildingSchedules(buildingId, { month, year }, { enabled: enabled && predioTodo });
+  const meus = useMySchedules(
+    buildingId ? { month, year, building_id: buildingId } : { month, year },
+    { enabled: enabled && !predioTodo }
+  );
+  const schedulesQuery = predioTodo ? doPredio : meus;
   const calendarParams = enabled
     ? buildingId ? { month, year, building_id: buildingId } : { month, year }
     : null;
@@ -58,6 +110,9 @@ export function useAgendaDoInspetor({ enabled = true, buildingId } = {}) {
 
   const schedules = useMemo(() => schedulesQuery.data?.schedules ?? [], [schedulesQuery.data]);
   const marks = useMemo(() => groupSchedulesByDay(schedules), [schedules]);
+  // Agendamento de colega: tem inspetor, e não é a conta. Sem inspetor
+  // nenhum (conta apagada) também não é "meu".
+  const deColega = useCallback((s) => predioTodo && !!userId && s?.inspector?.id !== userId, [predioTodo, userId]);
   const heatmap = useMemo(() => calendarQuery.data?.heatmap ?? {}, [calendarQuery.data]);
 
   const getDayHint = useCallback(
@@ -123,6 +178,9 @@ export function useAgendaDoInspetor({ enabled = true, buildingId } = {}) {
   // Enquanto o mês pedido não chega, `keepPreviousData` segura o anterior — e a
   // caixa abriria dizendo "nenhuma vistoria agendada" para um dia que tem.
   const pronto = !!schedulesQuery.data && !schedulesQuery.isPlaceholderData;
+  // Se a agenda não carregou, o aviso do sino ainda abre: com os dados que o
+  // próprio aviso traz e a chance de tentar de novo (ver os modais abaixo).
+  const falhouComAviso = schedulesQuery.isError && !!doAviso;
 
   return {
     month,
@@ -131,6 +189,8 @@ export function useAgendaDoInspetor({ enabled = true, buildingId } = {}) {
     selectedDate,
     marks,
     schedules,
+    deColega,
+    predioTodo,
     heatmap,
     getDayHint,
     abrirDia,
@@ -141,7 +201,9 @@ export function useAgendaDoInspetor({ enabled = true, buildingId } = {}) {
     calendarLoading: calendarQuery.isLoading,
     modais: {
       agendaDoDia,
-      agendaAberta: !!agendaDoDia && pronto,
+      agendaAberta: !!agendaDoDia && (pronto || falhouComAviso),
+      falhou: falhouComAviso && !pronto,
+      tentarDeNovo: schedulesQuery.refetch,
       doAviso,
       fecharAgenda: () => {
         setAgendaDoDia(null);
@@ -174,7 +236,7 @@ export function agendamentoDoAviso(payload = {}, cancelado = false) {
 
 /** As duas caixas que o calendário do inspetor abre. */
 export function AgendaDoInspetorModais({ agenda }) {
-  const { marks, heatmap, modais } = agenda;
+  const { marks, heatmap, modais, deColega } = agenda;
   const key = modais.agendaDoDia;
   const feitas = key ? heatmap[key]?.count ?? 0 : 0;
   const doDia = key ? marks[key] ?? [] : [];
@@ -203,7 +265,29 @@ export function AgendaDoInspetorModais({ agenda }) {
 
   return (
     <>
-      {sumiu ? (
+      {modais.falhou ? (
+        <ScheduleDetailsModal
+          open={modais.agendaAberta}
+          onClose={modais.fecharAgenda}
+          schedules={[agendamentoDoAviso(aviso.payload, aviso.cancelado)]}
+          title={aviso.cancelado ? 'Agendamento cancelado' : 'Vistoria agendada'}
+          aviso="Não foi possível carregar sua agenda agora. Os dados abaixo são os do aviso."
+          showStatus={aviso.cancelado}
+          showBuilding={false}
+          showInspector={false}
+          footer={
+            <button
+              type="button"
+              className="link-acao"
+              onClick={() => modais.tentarDeNovo()}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '0 4px', color: T.text, fontSize: 14, fontWeight: W.strong }}
+            >
+              <RotateCcw size={16} aria-hidden="true" />
+              Tentar de novo
+            </button>
+          }
+        />
+      ) : sumiu ? (
         <ScheduleDetailsModal
           open={modais.agendaAberta}
           onClose={modais.fecharAgenda}
@@ -215,7 +299,7 @@ export function AgendaDoInspetorModais({ agenda }) {
               : 'Este agendamento não está mais na sua agenda — pode ter sido remarcado, cancelado ou passado a outro inspetor. Os dados abaixo são os do aviso.'
           }
           showStatus={aviso.cancelado}
-          showBuilding
+          showBuilding={false}
           showInspector={false}
         />
       ) : (
@@ -224,8 +308,8 @@ export function AgendaDoInspetorModais({ agenda }) {
           onClose={modais.fecharAgenda}
           schedules={doDia}
           dateKey={key}
-          showBuilding
-          showInspector={false}
+          showBuilding={false}
+          showInspector={deColega ?? false}
           footer={footer}
         />
       )}
@@ -239,11 +323,22 @@ export function AgendaDoInspetorModais({ agenda }) {
   );
 }
 
-/** A legenda das bolinhas, e o fundo do dia com vistoria feita. */
-export function LegendaDoInspetor() {
+/**
+ * A legenda das bolinhas, e o fundo do dia com vistoria feita. `colegas` põe
+ * a marca menor, dos agendamentos dos outros inspetores do prédio.
+ */
+export function LegendaDoInspetor({ colegas = false }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 14px' }}>
       <LegendaAgenda />
+      {colegas && (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.mute }}>
+          <span aria-hidden="true" style={{ width: 8, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ width: 4, height: 4, borderRadius: '50%', background: T.text }} />
+          </span>
+          De um colega
+        </span>
+      )}
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.mute }}>
         <span
           aria-hidden="true"

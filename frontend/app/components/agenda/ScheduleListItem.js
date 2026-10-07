@@ -1,5 +1,5 @@
 'use client';
-import { Pencil } from 'lucide-react';
+import { AlertTriangle, Pencil, UserX } from 'lucide-react';
 import { Badge } from '@/app/components/ui';
 import { T, W, NUM } from '@/app/lib/theme';
 import {
@@ -44,6 +44,9 @@ export function ScheduleListItem({
   const atrasado = state === 'atrasado';
   const vencido = state === 'prazo_vencido';
   const andares = resumoAndares(schedule.floors, maxFloors);
+  // Inspetor que saiu do prédio com a ronda ainda aberta: alguém precisa
+  // trocá-lo. Selo neutro — quem o lê é quem edita, e o lápis está ao lado.
+  const saiu = !!schedule.inspector_left && (schedule.status ?? 'PENDENTE') === 'PENDENTE';
   const titulo = showInspector
     ? schedule.inspector?.name ?? 'Inspetor'
     : showBuilding
@@ -68,6 +71,17 @@ export function ScheduleListItem({
           <span style={{ fontFamily: T.display, fontSize: 14, fontWeight: W.strong, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
             {titulo}
           </span>
+          {saiu && (
+            <span
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0,
+                padding: '1px 6px', borderRadius: 999, fontSize: 11, fontWeight: W.strong,
+                background: T.card, color: T.text, boxShadow: `inset 0 0 0 1px ${T.line}`,
+              }}
+            >
+              <UserX size={11} aria-hidden="true" /> Inspetor saiu
+            </span>
+          )}
         </span>
         {linhaSecundaria && (
           <span style={{ fontSize: 12, color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -79,7 +93,7 @@ export function ScheduleListItem({
             o "até" (passou do limite final), em vermelho. */}
         <span style={{ ...NUM, fontSize: 12, color: T.faint }}>
           <span className="so-leitor">Agendada para </span>
-          <span style={atrasado ? { color: T.accentInk, fontWeight: W.strong } : undefined}>
+          <span style={atrasado ? { color: T.text, fontWeight: W.strong } : undefined}>
             {formatDataCurta(schedule.scheduled_date)}
           </span>
           <span aria-hidden="true"> → </span>
@@ -90,7 +104,10 @@ export function ScheduleListItem({
         </span>
       </span>
       <span style={{ flexShrink: 0 }}>
-        <Badge variant={meta.badge}>{meta.label}</Badge>
+        <Badge variant={meta.badge}>
+          {meta.alerta && <AlertTriangle size={12} aria-hidden="true" />}
+          {meta.label}
+        </Badge>
       </span>
     </>
   );
@@ -124,7 +141,7 @@ export function ScheduleListItem({
         <button
           type="button"
           className="icone-btn icone-btn--compacto"
-          aria-label="Editar agendamento"
+          aria-label={`Editar agendamento de ${schedule.inspector?.name || 'inspetor'}, ${formatDataCurta(schedule.scheduled_date)}`}
           onClick={() => onEdit(schedule)}
         >
           <Pencil size={16} aria-hidden="true" />

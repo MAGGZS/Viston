@@ -86,15 +86,20 @@ export default function VisualizacaoPage() {
           </div>
         ) : (
           <>
-            <NumerosDaAgenda schedules={dados?.schedules} loading={carregando} />
+            <NumerosDaAgenda
+              schedules={dados?.schedules}
+              loading={carregando}
+              semInspetor={dados?.schedules?.without_inspector ?? dados?.without_inspector ?? 0}
+            />
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 20, alignItems: 'start' }}>
+            {/* Uma coluna abaixo de xl: três, entre 1024 e 1280px, apertariam a
+                tabela de desempenho e o calendário até ficarem ilegíveis. */}
+            <div className="grid grid-cols-1 xl:grid-cols-3" style={{ gap: 20, alignItems: 'start' }}>
               <Bloco
                 id="desempenho-inspetores"
                 titulo="Desempenho dos inspetores"
                 descricao="Vistorias enviadas no período, em quantos dias, quantos andares e quantas ocorrências registradas"
-                className="anim-fade-up anim-d1"
-                style={{ gridColumn: 'span 2' }}
+                className="anim-fade-up anim-d1 xl:col-span-2"
               >
                 <DesempenhoInspetores inspectors={dados?.inspectors} loading={carregando} />
               </Bloco>
@@ -104,7 +109,7 @@ export default function VisualizacaoPage() {
               </Bloco>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 20, alignItems: 'start' }}>
+            <div className="grid grid-cols-1 xl:grid-cols-3" style={{ gap: 20, alignItems: 'start' }}>
               <Bloco
                 id="grafico-agendamentos"
                 titulo="Agendamentos"

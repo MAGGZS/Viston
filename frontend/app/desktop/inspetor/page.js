@@ -1,10 +1,10 @@
 'use client';
 import { useMemo } from 'react';
 import Link from 'next/link';
-import { format, endOfMonth } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useQuery } from '@tanstack/react-query';
 import {
+  AlertTriangle,
   CalendarCheck2,
   CalendarClock,
   CalendarDays,
@@ -25,11 +25,13 @@ import {
   AgendaDoInspetorModais,
   LegendaDoInspetor,
   useAgendaDoInspetor,
+  useMeuMes,
 } from '@/app/components/agenda/AgendaDoInspetor';
 import { Badge, Button, Skeleton, StatCard } from '@/app/components/ui';
 import { CONTENT_ID } from '@/app/components/mobile/kit';
 import { useMySchedules } from '@/app/hooks/useApi';
-import api from '@/app/lib/api';
+import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
+import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
 import {
   estiloMarca,
   formatAte,
@@ -50,29 +52,8 @@ const MAX_PROXIMOS = 6;
 
 const CARD = { background: T.card, borderRadius: R.card, boxShadow: T.cardRing };
 
-/**
- * As vistorias do próprio inspetor num mês, numa página de até 100.
- *
- * Direto da listagem `/inspections` (com `inspector_id`), e não do `/calendar`:
- * o calendário traz o nome de quem vistoriou, não o id, e contar por nome
- * juntaria dois inspetores homônimos. A chave começa com 'inspections' para a
- * vistoria enviada no celular invalidar estes números também.
- */
-function useMeuMes(userId, month, year) {
-  const inicio = new Date(year, month - 1, 1);
-  const params = {
-    inspector_id: userId,
-    date_from: format(inicio, 'yyyy-MM-dd'),
-    date_to: format(endOfMonth(inicio), 'yyyy-MM-dd'),
-    page: 1,
-    limit: 100,
-  };
-  return useQuery({
-    queryKey: ['inspections', 'mes-do-inspetor', params],
-    queryFn: () => api.get('/inspections', { params }).then((r) => r.data),
-    enabled: !!userId,
-  });
-}
+/** Só os prédios em que a conta vistoria: a agenda desta mesa é de inspetor. */
+const PREDIO_DE_INSPETOR = (b) => b.role === 'INSPECTOR';
 
 function capitalizar(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
@@ -97,9 +78,9 @@ function SectionTitle({ children, aside, id }) {
 function ProximoPrazo({ schedule, onOpen }) {
   const meta = scheduleStateMeta(schedule);
   const estado = scheduleState(schedule);
-  // Prazo vencido é vermelho; atrasado (só o dia agendado passou) é o dourado
-  // de aviso — a mesma escala da agenda do gestor.
-  const corDoPrazo = estado === 'prazo_vencido' ? T.danger : estado === 'atrasado' ? T.accentInk : T.text;
+  // Prazo vencido é vermelho; o resto fica no neutro forte — o dourado é de
+  // ação, e o atrasado se distingue pelo triângulo na etiqueta (lib/agenda).
+  const corDoPrazo = estado === 'prazo_vencido' ? T.danger : T.text;
   const andares = resumoAndares(schedule.floors, 3);
 
   return (
@@ -125,11 +106,14 @@ function ProximoPrazo({ schedule, onOpen }) {
           {prazoRelativo(schedule)}
         </p>
         <p style={{ fontSize: 14, fontWeight: W.strong, color: T.text, marginTop: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {schedule.building_name ?? 'Prédio'}
+          {/* O prédio é o escolhido no cabeçalho — repeti-lo aqui seria ruído. */}
+          {andares || 'Vistoria agendada'}
         </p>
-        {andares && <p style={{ fontSize: 13, color: T.mute, marginTop: 2 }}>{andares}</p>}
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-          <Badge variant={meta.badge}>{meta.label}</Badge>
+          <Badge variant={meta.badge}>
+            {meta.alerta && <AlertTriangle size={12} aria-hidden="true" />}
+            {meta.label}
+          </Badge>
           <span style={{ ...NUM, fontSize: 12, color: T.faint, textTransform: 'capitalize' }}>
             {formatDiaCurto(schedule.scheduled_date)} · {formatAte(schedule.due_date)}
           </span>
@@ -145,7 +129,11 @@ function ProximoPrazo({ schedule, onOpen }) {
   );
 }
 
-function ListaDeProximos({ query, proximos, onOpen }) {
+/**
+ * `proximos` já vem sem o que está no destaque "Próximo prazo" (`destacado`):
+ * repetir o mesmo agendamento nos dois cartões lado a lado seria ruído.
+ */
+function ListaDeProximos({ query, proximos, onOpen, destacado = false }) {
   const restantes = Math.max(0, proximos.length - MAX_PROXIMOS);
 
   let corpo;
@@ -168,6 +156,12 @@ function ListaDeProximos({ query, proximos, onOpen }) {
           <RotateCcw size={14} aria-hidden="true" /> Tentar de novo
         </button>
       </div>
+    );
+  } else if (proximos.length === 0 && destacado) {
+    corpo = (
+      <p style={{ fontSize: 13, color: T.mute, lineHeight: 1.55 }}>
+        Nenhum outro agendamento além do próximo prazo.
+      </p>
     );
   } else if (proximos.length === 0) {
     corpo = (
@@ -193,7 +187,7 @@ function ListaDeProximos({ query, proximos, onOpen }) {
         <ul aria-label="Próximos agendamentos" style={{ listStyle: 'none', padding: 0, margin: '0 -12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
           {proximos.slice(0, MAX_PROXIMOS).map((s, i) => (
             <li key={s.id} className={`anim-fade-up anim-d${Math.min(i + 1, 6)}`}>
-              <ScheduleListItem schedule={s} showBuilding showInspector={false} onClick={onOpen} />
+              <ScheduleListItem schedule={s} showInspector={false} onClick={onOpen} />
             </li>
           ))}
         </ul>
@@ -222,15 +216,23 @@ function ListaDeProximos({ query, proximos, onOpen }) {
 export default function InspetorDesktopPage() {
   const { user } = useAuthStore();
   const now = new Date();
-  const agenda = useAgendaDoInspetor({ enabled: !!user });
+  // O prédio de que a mesa fala — o mesmo escolhido no resto do app. Cada
+  // prédio tem a sua agenda, o seu sino e os seus números; trocar aqui troca
+  // tudo, porque o id entra na chave de cada consulta.
+  const { buildings, buildingId, setActive } = useActiveBuilding({ filter: PREDIO_DE_INSPETOR });
+  const pronto = !!user && !!buildingId;
+  const agenda = useAgendaDoInspetor({ enabled: pronto, buildingId });
 
-  // Todos os agendamentos dele, sem recorte de mês: a lista de próximos e o
+  // Os pendentes dele no prédio, sem recorte de mês: a lista de próximos e o
   // contador de pendentes não podem esquecer o prazo que vence mês que vem.
-  const todos = useMySchedules({}, { enabled: !!user });
+  // Só PENDENTE — sem mês, pedir tudo traria o histórico inteiro de
+  // concluídos. As bolinhas do calendário continuam na consulta do mês
+  // (`useAgendaDoInspetor`), que traz também concluídos e cancelados.
+  const todos = useMySchedules({ building_id: buildingId, status: 'PENDENTE' }, { enabled: pronto });
   const proximos = useMemo(() => ordenarProximos(todos.data?.schedules ?? []), [todos.data]);
   const atrasados = proximos.filter(isAtrasado).length;
 
-  const mes = useMeuMes(user?.id, agenda.month, agenda.year);
+  const mes = useMeuMes(user?.id, buildingId, agenda.month, agenda.year);
   const numeros = useMemo(
     () => numerosDoMes(mes.data?.inspections ?? [], mes.data?.total ?? 0),
     [mes.data]
@@ -257,7 +259,7 @@ export default function InspetorDesktopPage() {
         texto="No celular, a sua agenda e a vistoria ficam na tela inicial."
       >
         <div className="hidden lg:flex" style={{ minHeight: '100vh', background: T.bg }}>
-          <InspetorSidebar />
+          <InspetorSidebar buildingName={buildings.find((b) => b.building_id === buildingId)?.name} />
 
           <main id={CONTENT_ID} style={{ flex: 1, minWidth: 0, maxHeight: '100vh', overflowY: 'auto' }}>
             <div style={{ maxWidth: 1160, margin: '0 auto', padding: '36px 40px 56px' }}>
@@ -272,7 +274,7 @@ export default function InspetorDesktopPage() {
                     {capitalizar(format(now, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR }))}
                   </p>
                   <h1 style={{ fontFamily: T.display, fontSize: 30, fontWeight: W.title, color: T.text, letterSpacing: '-0.02em', lineHeight: 1.15, marginTop: 4 }}>
-                    Olá, <span style={{ color: T.accentInk }}>{primeiroNome}</span>
+                    Olá, <span style={{ color: T.text }}>{primeiroNome}</span>
                   </h1>
                   <p style={{ fontSize: 14, color: T.mute, marginTop: 6, minHeight: 21 }}>{resumo}</p>
                 </div>
@@ -291,7 +293,9 @@ export default function InspetorDesktopPage() {
                     </Link>
                   )}
                   <NotificacaoChamados destino="/responsavel/chamados" />
-                  <NotificacoesSino onOpenSchedule={(payload, aviso) => agenda.abrirAgendamento(payload, aviso)} />
+                  {/* Some sozinho com um prédio só (ver BuildingSwitcher). */}
+                  <BuildingSwitcher buildings={buildings} buildingId={buildingId} onChange={setActive} />
+                  <NotificacoesSino buildingId={buildingId} enabled={pronto} onOpenSchedule={(payload, aviso) => agenda.abrirAgendamento(payload, aviso)} />
                 </div>
               </header>
 
@@ -331,7 +335,7 @@ export default function InspetorDesktopPage() {
                     icon={CalendarClock}
                     label="Pendentes"
                     value={todos.isError ? '—' : proximos.length}
-                    hint={atrasados > 0 ? plural(atrasados, 'atrasado', 'atrasados') : 'em todos os seus prédios'}
+                    hint={atrasados > 0 ? plural(atrasados, 'atrasado', 'atrasados') : 'neste prédio'}
                     alerta={atrasados > 0}
                     loading={todos.isLoading}
                   />
@@ -366,12 +370,13 @@ export default function InspetorDesktopPage() {
                     onSelectDate={agenda.abrirDia}
                     marks={agenda.marks}
                     getDayHint={agenda.getDayHint}
+                    marcaSecundaria={agenda.predioTodo ? agenda.deColega : undefined}
                     size="compact"
                     label="Sua agenda de vistorias"
                   />
 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 16px', marginTop: 18, paddingTop: 16, borderTop: `1px solid ${T.line}` }}>
-                    <LegendaDoInspetor />
+                    <LegendaDoInspetor colegas={agenda.predioTodo} />
                     <p style={{ fontSize: 12, color: T.faint }}>Clique num dia marcado para ver os detalhes</p>
                   </div>
                   {agenda.isError && (
@@ -386,7 +391,12 @@ export default function InspetorDesktopPage() {
 
                 <div className="grid lg:grid-cols-2 xl:grid-cols-1" style={{ gap: 20, alignItems: 'start' }}>
                   {proximos[0] && <ProximoPrazo schedule={proximos[0]} onOpen={agenda.abrirAgendamento} />}
-                  <ListaDeProximos query={todos} proximos={proximos} onOpen={agenda.abrirAgendamento} />
+                  <ListaDeProximos
+                    query={todos}
+                    proximos={proximos[0] ? proximos.slice(1) : proximos}
+                    destacado={!!proximos[0]}
+                    onOpen={agenda.abrirAgendamento}
+                  />
                 </div>
               </div>
             </div>

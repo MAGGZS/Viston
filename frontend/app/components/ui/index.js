@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import { ArrowLeft, Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { T, R, W, NUM } from '@/app/lib/theme';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 
@@ -519,136 +519,6 @@ export function Modal({ open, onClose, title, children, maxWidth = 400 }) {
         <div style={{ overflowY: 'auto', minHeight: 0, padding: shownTitle ? '16px 22px 22px' : 22 }}>
           {shownChildren}
         </div>
-      </div>
-    </Dialog>
-  );
-}
-
-/** Precisa bater com `.anim-slide-out-right` em globals.css. */
-export const DRAWER_EXIT_MS = 200;
-
-/**
- * Gaveta que entra pela direita — o desenho da de planos (app/desktop/admin/
- * planos), tirado de lá para ser reutilizável.
- *
- * Gaveta e não caixa centralizada quando o que ela mostra é leitura longa ou
- * formulário comprido, e o que estava atrás (a agenda, a lista) continua sendo
- * o lugar de onde a pessoa veio e para onde volta. É um `<dialog>` de verdade
- * (via `Dialog`): Escape fecha, Tab fica preso, foco volta para quem abriu.
- *
- * - `open`, `onClose`: quem chama manda; o Escape e o clique no fundo só avisam.
- * - `title` (obrigatório, vira o nome acessível), `subtitle` opcional.
- * - `actions`: nó à direita do cabeçalho (botões).
- * - `footer`: nó fixo no rodapé (ex.: Cancelar / Salvar); o miolo rola entre os dois.
- * - `width`: padrão `min(560px, 100vw)`; no telefone ocupa a tela toda.
- * - `closeLabel`: o que a seta de voltar anuncia (padrão "Fechar").
- *
- * Com "reduzir movimento" ligado, entra e sai sem percurso (ver globals.css).
- */
-export function Drawer({
-  open,
-  onClose,
-  title,
-  subtitle,
-  actions,
-  footer,
-  width = 'min(560px, 100vw)',
-  closeLabel = 'Fechar',
-  children,
-}) {
-  const { mounted, closing } = useExitTransition(open, DRAWER_EXIT_MS);
-  const titleId = useId();
-  // Um por valor, e não um objeto só: objeto novo a cada render nunca seria
-  // `Object.is` igual ao guardado, e o ajuste no render não pararia.
-  const shown = {
-    title: useKeepWhileClosing(title, open),
-    subtitle: useKeepWhileClosing(subtitle, open),
-    actions: useKeepWhileClosing(actions, open),
-    footer: useKeepWhileClosing(footer, open),
-    children: useKeepWhileClosing(children, open),
-  };
-
-  if (!mounted) return null;
-
-  return (
-    <Dialog
-      onClose={onClose}
-      labelledBy={titleId}
-      className={`dialog-drawer ${closing ? 'is-closing' : ''}`}
-      style={{
-        width,
-        maxWidth: '100vw',
-        height: '100dvh',
-        maxHeight: '100dvh',
-        margin: '0 0 0 auto',
-        background: 'transparent',
-        padding: 0,
-        border: 'none',
-        outline: 'none',
-      }}
-    >
-      <div
-        className={`drawer-painel ${closing ? 'anim-slide-out-right' : 'anim-slide-in-right'}`}
-        style={{
-          background: T.card,
-          height: '100dvh',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '-12px 0 36px rgba(0, 0, 0, 0.18)',
-          borderLeft: `1px solid ${T.line}`,
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            padding: 'max(14px, env(safe-area-inset-top)) 20px 14px',
-            borderBottom: `1px solid ${T.line}`,
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label={closeLabel}
-              className="drawer-back-btn drawer-back-btn--toque"
-            >
-              <ArrowLeft size={17} aria-hidden="true" />
-            </button>
-            <div style={{ minWidth: 0 }}>
-              <h2
-                id={titleId}
-                style={{ fontFamily: T.display, fontSize: 17, fontWeight: W.title, color: T.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-              >
-                {shown.title}
-              </h2>
-              {shown.subtitle && (
-                <p style={{ fontSize: 13, color: T.mute, marginTop: 2 }}>{shown.subtitle}</p>
-              )}
-            </div>
-          </div>
-          {shown.actions && <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>{shown.actions}</div>}
-        </div>
-
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 20 }}>{shown.children}</div>
-
-        {shown.footer && (
-          <div
-            style={{
-              flexShrink: 0,
-              borderTop: `1px solid ${T.line}`,
-              padding: '14px 20px max(14px, env(safe-area-inset-bottom))',
-              display: 'flex',
-              gap: 12,
-            }}
-          >
-            {shown.footer}
-          </div>
-        )}
       </div>
     </Dialog>
   );

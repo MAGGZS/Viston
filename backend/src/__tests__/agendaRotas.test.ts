@@ -53,6 +53,15 @@ function papeis() {
     Promise.resolve(porUsuario[userId] ? ({ id: 'm', role: porUsuario[userId] } as any) : null)) as any);
   mockBuildingRepo.findManagerLink.mockImplementation(((_b: string, managerId: string) =>
     Promise.resolve(managerId === GESTOR_ID ? ({ id: 'bm' } as any) : null)) as any);
+  // INSPECTOR com conta ativa: só o `INSPECTOR_ID`, neste prédio.
+  mockScheduleRepo.activeInspectorPairs.mockImplementation((async (
+    pairs: Array<{ building_id: string; user_id: string }>
+  ) =>
+    new Set(
+      pairs
+        .filter((p) => p.building_id === BUILDING_ID && porUsuario[p.user_id] === 'INSPECTOR')
+        .map((p) => `${p.building_id}:${p.user_id}`)
+    )) as any);
 }
 
 function makeSchedule(overrides: any = {}) {
@@ -92,7 +101,7 @@ beforeEach(() => {
   mockBuildingRepo.findFloorsByIds.mockResolvedValue([{ id: FLOOR_ID, building_id: BUILDING_ID, label: '2º Andar' }] as any);
   mockScheduleRepo.create.mockResolvedValue(makeSchedule());
   mockScheduleRepo.findById.mockResolvedValue(makeSchedule());
-  mockScheduleRepo.update.mockResolvedValue(makeSchedule({ status: 'CANCELADO' }));
+  mockScheduleRepo.updateIfUnchanged.mockResolvedValue(makeSchedule({ status: 'CANCELADO' }));
   mockScheduleRepo.list.mockResolvedValue([makeSchedule()]);
   mockScheduleRepo.listInspectors.mockResolvedValue([{ id: INSPECTOR_ID, name: 'Ana' }]);
   mockScheduleRepo.countPendingByInspector.mockResolvedValue(new Map());
@@ -121,6 +130,8 @@ describe('POST /buildings/:id/schedules', () => {
       due_date: '2030-05-12',
       status: 'PENDENTE',
       overdue: false,
+      past_deadline: false,
+      completed_late: false,
       floors: [{ id: FLOOR_ID, label: '2º Andar' }],
       created_by: { name: 'Gestora', kind: 'MANAGER' },
     });
@@ -191,7 +202,20 @@ describe('PATCH /buildings/:id/schedules/:scheduleId', () => {
       .set('Authorization', `Bearer ${tokenInspector}`)
       .send({ status: 'CONCLUIDO' });
     expect(res.status).toBe(403);
-    expect(mockScheduleRepo.update).not.toHaveBeenCalled();
+    expect(mockScheduleRepo.updateIfUnchanged).not.toHaveBeenCalled();
+  });
+
+  it('outra escrita chegou antes: 409 AGENDAMENTO_ALTERADO', async () => {
+    mockScheduleRepo.updateIfUnchanged.mockResolvedValue(null);
+    const res = await request(app)
+      .patch(`/buildings/${BUILDING_ID}/schedules/${SCHEDULE_ID}`)
+      .set('Authorization', `Bearer ${tokenViewer}`)
+      .send({ status: 'CANCELADO' });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatchObject({
+      code: 'AGENDAMENTO_ALTERADO',
+      message: 'O agendamento mudou. Recarregue e tente de novo.',
+    });
   });
 
   it('id que não é UUID é 404', async () => {
@@ -204,17 +228,23 @@ describe('PATCH /buildings/:id/schedules/:scheduleId', () => {
 });
 
 describe('GET /buildings/:id/schedules', () => {
-  it('INSPECTOR lê, mas só as próprias rondas', async () => {
+  it('INSPECTOR lê a agenda inteira do prédio (só leitura)', async () => {
     const res = await request(app)
       .get(`/buildings/${BUILDING_ID}/schedules?month=5&year=2030`)
       .set('Authorization', `Bearer ${tokenInspector}`);
 
     expect(res.status).toBe(200);
     expect(res.body.schedules).toHaveLength(1);
-    expect(mockScheduleRepo.list.mock.calls[0][0]).toMatchObject({
-      building_id: BUILDING_ID,
-      inspector_id: INSPECTOR_ID,
-    });
+    expect(res.body.schedules[0].inspector_left).toBe(false);
+    expect(mockScheduleRepo.list.mock.calls[0][0]).toMatchObject({ building_id: BUILDING_ID });
+    expect(mockScheduleRepo.list.mock.calls[0][0].inspector_id).toBeUndefined();
+  });
+
+  it('?status fora do enum é 400', async () => {
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/schedules?status=FEITO`)
+      .set('Authorization', `Bearer ${tokenGestor}`);
+    expect(res.status).toBe(400);
   });
 
   it('MODERADOR lê a agenda inteira', async () => {
@@ -224,6 +254,27 @@ describe('GET /buildings/:id/schedules', () => {
     expect(res.status).toBe(200);
     expect(mockScheduleRepo.list.mock.calls[0][0].inspector_id).toBeUndefined();
     expect(mockScheduleRepo.list.mock.calls[0][0].statuses).toEqual(['PENDENTE']);
+  });
+
+  it('?overdue=true: atrasados de qualquer mês, do prédio inteiro também para o INSPECTOR', async () => {
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/schedules?overdue=true&month=1&year=2030`)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+
+    expect(res.status).toBe(200);
+    const filtro = mockScheduleRepo.list.mock.calls[0][0];
+    expect(filtro).toMatchObject({ building_id: BUILDING_ID, statuses: ['PENDENTE'] });
+    expect(filtro.inspector_id).toBeUndefined();
+    expect(mockScheduleRepo.list.mock.calls[0][1]).toBe(500);
+    expect(filtro.scheduled_before).toBeInstanceOf(Date);
+    expect(filtro.from).toBeUndefined();
+  });
+
+  it('overdue fora de true/false é 400', async () => {
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/schedules?overdue=sim`)
+      .set('Authorization', `Bearer ${tokenGestor}`);
+    expect(res.status).toBe(400);
   });
 
   it('sem vínculo não lê (403)', async () => {
@@ -267,6 +318,14 @@ describe('sugestão e painel do supervisor', () => {
       .set('Authorization', `Bearer ${tokenViewer}`);
     expect(res.status).toBe(200);
     expect(Object.keys(res.body)).toEqual(['inspectors', 'schedules', 'tickets', 'coverage']);
+    expect(res.body.schedules.without_inspector).toBe(0);
+  });
+
+  it('painel com período acima de 366 dias é 400', async () => {
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/supervisor/overview?from=2030-01-01&to=2031-01-02`)
+      .set('Authorization', `Bearer ${tokenViewer}`);
+    expect(res.status).toBe(400);
   });
 });
 
@@ -295,6 +354,69 @@ describe('/me', () => {
 
     expect(um.status).toBe(204);
     expect(todos.status).toBe(204);
+    expect(mockNotificationRepo.markAllRead).toHaveBeenCalledWith(INSPECTOR_ID, expect.any(Date), undefined);
+  });
+
+  it('PATCH read-all?building_id marca só as daquele prédio', async () => {
+    mockNotificationRepo.markAllRead.mockResolvedValue({ count: 1 } as any);
+    const res = await request(app)
+      .patch(`/me/notifications/read-all?building_id=${BUILDING_ID}`)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+    expect(res.status).toBe(204);
+    expect(mockNotificationRepo.markAllRead).toHaveBeenCalledWith(INSPECTOR_ID, expect.any(Date), BUILDING_ID);
+  });
+
+  it('PATCH read-all com building_id que não é UUID é 400 e não marca nada', async () => {
+    const res = await request(app)
+      .patch('/me/notifications/read-all?building_id=nao-e-uuid')
+      .set('Authorization', `Bearer ${tokenInspector}`);
+    expect(res.status).toBe(400);
+    expect(mockNotificationRepo.markAllRead).not.toHaveBeenCalled();
+  });
+
+  it('GET /me/notifications?building_id filtra lista e contagem pelo prédio', async () => {
+    mockNotificationRepo.listForUser.mockResolvedValue([]);
+    mockNotificationRepo.countUnread.mockResolvedValue(0);
+    const res = await request(app)
+      .get(`/me/notifications?building_id=${BUILDING_ID}`)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+    expect(res.status).toBe(200);
+    expect(mockNotificationRepo.listForUser).toHaveBeenCalledWith(INSPECTOR_ID, 30, BUILDING_ID);
+    expect(mockNotificationRepo.countUnread).toHaveBeenCalledWith(INSPECTOR_ID, BUILDING_ID);
+  });
+
+  it('GET /me/schedules?building_id recorta pelo prédio', async () => {
+    mockBuildingRepo.getMemberBuildingIds.mockResolvedValue([BUILDING_ID]);
+    const res = await request(app)
+      .get(`/me/schedules?building_id=${BUILDING_ID}`)
+      .set('Authorization', `Bearer ${tokenInspector}`);
+    expect(res.status).toBe(200);
+    expect(mockScheduleRepo.list.mock.calls[0][0]).toMatchObject({
+      inspector_id: INSPECTOR_ID,
+      building_ids: [BUILDING_ID],
+    });
+  });
+
+  it('GET /me/schedules?status=PENDENTE filtra; CANCELADO é 400', async () => {
+    mockBuildingRepo.getMemberBuildingIds.mockResolvedValue([BUILDING_ID]);
+    const ok = await request(app)
+      .get('/me/schedules?status=PENDENTE')
+      .set('Authorization', `Bearer ${tokenInspector}`);
+    expect(ok.status).toBe(200);
+    expect(mockScheduleRepo.list.mock.calls[0][0].statuses).toEqual(['PENDENTE']);
+    expect(mockScheduleRepo.list.mock.calls[0][1]).toBe(500);
+
+    const cancelado = await request(app)
+      .get('/me/schedules?status=CANCELADO')
+      .set('Authorization', `Bearer ${tokenInspector}`);
+    expect(cancelado.status).toBe(400);
+  });
+
+  it('building_id que não é UUID é 400', async () => {
+    const res = await request(app)
+      .get('/me/schedules?building_id=abc')
+      .set('Authorization', `Bearer ${tokenInspector}`);
+    expect(res.status).toBe(400);
   });
 
   it('GET /me/schedules exige sessão', async () => {
@@ -313,13 +435,46 @@ describe('POST /jobs/agenda', () => {
     const original = config.jobSecret;
     (config as any).jobSecret = 'segredo-de-teste-agenda';
     mockScheduleRepo.listDueSoonCandidates.mockResolvedValue([]);
-    mockScheduleRepo.listOverdueCandidates.mockResolvedValue([]);
     try {
       const res = await request(app).post('/jobs/agenda').set('X-Job-Secret', 'segredo-de-teste-agenda');
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ due_soon: 0, overdue: 0 });
+      expect(res.body).toEqual({ due_soon: 0 });
     } finally {
       (config as any).jobSecret = original;
     }
+  });
+});
+
+describe('teto de escrita da agenda (por conta)', () => {
+  it('a 21ª escrita no minuto é 429, contando POST e PATCH juntos', async () => {
+    // Conta própria do teste, para não dividir a janela com os outros casos.
+    const token = signAccessToken('b6666666-6666-4666-8666-666666666666', 'NONE');
+    for (let i = 0; i < 10; i++) {
+      const post = await request(app)
+        .post(`/buildings/${BUILDING_ID}/schedules`)
+        .set('Authorization', `Bearer ${token}`)
+        .send(corpo);
+      expect(post.status).toBe(403);
+      const patch = await request(app)
+        .patch(`/buildings/${BUILDING_ID}/schedules/${SCHEDULE_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: 'CANCELADO' });
+      expect(patch.status).toBe(403);
+    }
+    const res = await request(app)
+      .post(`/buildings/${BUILDING_ID}/schedules`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(corpo);
+    expect(res.status).toBe(429);
+    expect(res.body.error).toEqual({
+      code: 'TOO_MANY_REQUESTS',
+      message: 'Muitas alterações na agenda. Aguarde um instante.',
+    });
+
+    // Leitura não entra no teto de escrita.
+    const leitura = await request(app)
+      .get(`/buildings/${BUILDING_ID}/schedules`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(leitura.status).toBe(403);
   });
 });

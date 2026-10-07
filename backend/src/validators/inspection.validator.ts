@@ -100,6 +100,11 @@ export const inspectionFiltersSchema = z.object({
   inspector_id: z.string().uuid().optional(),
   floor_id: z.string().uuid().optional(),
   /**
+   * Um prédio só. Soma-se ao recorte de visibilidade (AND) no repositório:
+   * pedir um prédio sem vínculo devolve lista vazia, nunca amplia o que se vê.
+   */
+  building_id: z.string().uuid().optional(),
+  /**
    * Procura pelo nome de quem vistoriou.
    *
    * É a pergunta que o histórico não respondia: "o que o Carlos vistoriou?".
@@ -120,4 +125,10 @@ export const calendarQuerySchema = z.object({
   month: z.coerce.number().int().min(1).max(12).optional(),
   year: z.coerce.number().int().min(2000).max(2100).optional(),
   range: z.enum(['semestral', 'anual']).optional(),
+  /**
+   * Cada prédio tem o seu calendário. Sem `building_id`, todos os que a conta
+   * enxerga (o comportamento de antes); com ele, só aquele — e só se ele estiver
+   * entre os visíveis, porque o repositório soma os dois recortes.
+   */
+  building_id: z.string().uuid().optional(),
 });

@@ -1,6 +1,6 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, CalendarDays, SquareKanban, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, ClipboardList, SquareKanban, LogOut, User } from 'lucide-react';
 import { SidebarShell, SidebarBrand, SidebarNav, SidebarFooter, SidebarItem } from '@/app/components/Sidebar';
 import { useSidebar } from '@/app/store/sidebar';
 import { useAuthStore } from '@/app/store/auth';
@@ -15,11 +15,16 @@ export const VISUALIZACAO_BASE = '/desktop/visualizacao';
  * a agenda, onde marca e corrige as rondas. `supervisiona` esconde a agenda de
  * quem chegou aqui sem ser VIEWER em prédio nenhum (o inspetor, enquanto a
  * área própria dele não o redireciona): a API recusaria cada leitura dela.
+ *
+ * O histórico de vistorias é a terceira aba: tela comum às áreas, que abre com
+ * esta mesma barra (ver `SidebarDaArea`). Fica por último para Painel e Agenda
+ * manterem os índices — a pílula corre por índice × 44px.
  */
 export function itensDoVisualizador({ supervisiona = true } = {}) {
   return [
     { href: VISUALIZACAO_BASE, icon: LayoutDashboard, label: 'Painel', exact: true },
     ...(supervisiona ? [{ href: `${VISUALIZACAO_BASE}/agenda`, icon: CalendarDays, label: 'Agenda' }] : []),
+    { href: '/historico', icon: ClipboardList, label: 'Histórico' },
   ];
 }
 

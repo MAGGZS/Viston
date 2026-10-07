@@ -1,10 +1,11 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, ClipboardList, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, ClipboardList, LogOut, User } from 'lucide-react';
 import { SidebarShell, SidebarBrand, SidebarNav, SidebarFooter, SidebarItem } from '@/app/components/Sidebar';
 import { useSidebar } from '@/app/store/sidebar';
 import { useAuthStore } from '@/app/store/auth';
 import { memberships } from '@/app/lib/roles';
+import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
 
 /**
  * O menu do inspetor no computador.
@@ -13,29 +14,44 @@ import { memberships } from '@/app/lib/roles';
  * dele) e consulta (o histórico) — vistoriar é no celular, andando pelo prédio.
  * Perfil e saída no pé, como nas mesas do moderador e do responsável.
  *
- * O subtítulo é o prédio quando ele vistoria um só; com mais de um, o papel —
- * a agenda desta mesa cruza todos eles.
+ * Conta mista — inspetor num prédio, visualizador em outro — ganha a aba
+ * "Agenda", que leva à agenda do prédio que ela supervisiona (a página escolhe
+ * sozinha um prédio em que ela é VIEWER). A pílula corre por índice × 44px, e
+ * a aba entra no meio da lista sem mexer nessa conta: cada aba continua com
+ * 40px e o mesmo vão.
+ *
+ * O subtítulo é o prédio ativo, como na barra do visualizador: a mesa fala de
+ * um prédio por vez (o do seletor do cabeçalho). `buildingName` vem da página,
+ * que sabe da troca na hora; sem ele, a barra lê a escolha guardada.
  */
-const items = [
-  { href: '/desktop/inspetor', icon: LayoutDashboard, label: 'Início' },
-  { href: '/historico', icon: ClipboardList, label: 'Histórico' },
-];
+export const AGENDA_DO_SUPERVISOR = '/desktop/visualizacao/agenda';
 
-export function InspetorSidebar() {
+export function itensDoInspetor({ supervisiona = false } = {}) {
+  return [
+    { href: '/desktop/inspetor', icon: LayoutDashboard, label: 'Início' },
+    ...(supervisiona ? [{ href: AGENDA_DO_SUPERVISOR, icon: CalendarDays, label: 'Agenda' }] : []),
+    { href: '/historico', icon: ClipboardList, label: 'Histórico' },
+  ];
+}
+
+const PREDIO_DE_INSPETOR = (b) => b.role === 'INSPECTOR';
+
+export function InspetorSidebar({ buildingName }) {
   const pathname = usePathname() ?? '';
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const { collapsed, animated, toggle } = useSidebar();
 
-  const predios = memberships(user).filter((m) => m.role === 'INSPECTOR');
-  const subtitle = predios.length === 1 ? predios[0].name : 'Inspetor';
+  const { active } = useActiveBuilding({ filter: PREDIO_DE_INSPETOR });
+  const subtitle = buildingName ?? active?.name ?? 'Inspetor';
+  const supervisiona = memberships(user).some((m) => m.role === 'VIEWER');
 
   return (
     <SidebarShell collapsed={collapsed} animated={animated} onToggle={toggle}>
       <SidebarBrand collapsed={collapsed} animated={animated} subtitle={subtitle} />
 
       <SidebarNav>
-        {items.map(({ href, icon, label }) => (
+        {itensDoInspetor({ supervisiona }).map(({ href, icon, label }) => (
           <SidebarItem
             key={href}
             href={href}

@@ -24,17 +24,19 @@ export const notificationRepository = {
   },
 
   /** O sino: das mais novas para as mais velhas, lidas ou não — o `unread` diz quantas faltam. */
-  listForUser(userId: string, limit: number) {
+  listForUser(userId: string, limit: number, buildingId?: string) {
     return prisma.notification.findMany({
-      where: { user_id: userId },
+      where: { user_id: userId, ...(buildingId && { building_id: buildingId }) },
       select: NOTIFICATION_FIELDS,
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: limit,
     });
   },
 
-  countUnread(userId: string) {
-    return prisma.notification.count({ where: { user_id: userId, read_at: null } });
+  countUnread(userId: string, buildingId?: string) {
+    return prisma.notification.count({
+      where: { user_id: userId, read_at: null, ...(buildingId && { building_id: buildingId }) },
+    });
   },
 
   /** O aviso, se for desta conta. Aviso de outra pessoa é aviso que não existe. */
@@ -49,9 +51,10 @@ export const notificationRepository = {
     });
   },
 
-  markAllRead(userId: string, at: Date) {
+  /** Com `buildingId`, só os avisos daquele prédio — o sino é por prédio. */
+  markAllRead(userId: string, at: Date, buildingId?: string) {
     return prisma.notification.updateMany({
-      where: { user_id: userId, read_at: null },
+      where: { user_id: userId, read_at: null, ...(buildingId && { building_id: buildingId }) },
       data: { read_at: at },
     });
   },

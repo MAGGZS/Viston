@@ -9,8 +9,14 @@ import { analyticsRepository } from '../repositories/analytics.repository';
 import { planService } from '../services/plan.service';
 import { usageService } from '../services/usage.service';
 import { enviarEmail } from '../lib/mailer';
-import { ConflictError, NotFoundError, ValidationError } from '../utils/errors';
-import { createScheduleSchema, suggestionQuerySchema, updateScheduleSchema } from '../validators/schedule.validator';
+import { ConflictError, NotFoundError, ScheduleChangedError, ValidationError } from '../utils/errors';
+import {
+  createScheduleSchema,
+  mySchedulesQuerySchema,
+  overviewQuerySchema,
+  suggestionQuerySchema,
+  updateScheduleSchema,
+} from '../validators/schedule.validator';
 import { zonedDayKey } from '../utils/timezone';
 
 jest.mock('../repositories/schedule.repository');
@@ -62,7 +68,6 @@ function makeSchedule(overrides: any = {}) {
     updated_by_manager_id: 'gestor-1',
     updated_by_user_id: null,
     due_soon_notified_at: null,
-    overdue_notified_at: null,
     created_at: new Date('2030-05-01T12:00:00Z'),
     updated_at: new Date('2030-05-01T12:00:00Z'),
     building: { id: BUILDING_ID, name: 'Edifício Aurora', owner_manager_id: OWNER_ID },
@@ -77,10 +82,21 @@ function makeSchedule(overrides: any = {}) {
   } as any;
 }
 
-/** O papel de cada conta no prédio. */
+/** Contas suspensas: o vínculo existe, mas não vale como inspetor ativo. */
+let suspensos = new Set<string>();
+
+/** O papel de cada conta no prédio (vale para `findMember` e para os pares ativos). */
 function membros(map: Record<string, string>) {
   mockBuildingRepo.findMember.mockImplementation(((_b: string, userId: string) =>
     Promise.resolve(map[userId] ? ({ id: `m-${userId}`, role: map[userId] } as any) : null)) as any);
+  mockScheduleRepo.activeInspectorPairs.mockImplementation((async (
+    pairs: Array<{ building_id: string; user_id: string }>
+  ) =>
+    new Set(
+      pairs
+        .filter((p) => p.building_id === BUILDING_ID && map[p.user_id] === 'INSPECTOR' && !suspensos.has(p.user_id))
+        .map((p) => `${p.building_id}:${p.user_id}`)
+    )) as any);
 }
 
 /** Os e-mails saem sem segurar a resposta: espera a fila de microtarefas esvaziar. */
@@ -88,6 +104,7 @@ const flush = () => new Promise((r) => setImmediate(r));
 
 beforeEach(() => {
   jest.clearAllMocks();
+  suspensos = new Set();
   membros({ [INSPECTOR_A]: 'INSPECTOR', [INSPECTOR_B]: 'INSPECTOR' });
   mockBuildingRepo.findFloorsByIds.mockImplementation(((ids: string[]) =>
     Promise.resolve(
@@ -97,7 +114,7 @@ beforeEach(() => {
     )) as any);
   mockScheduleRepo.create.mockImplementation((async () => makeSchedule()) as any);
   mockScheduleRepo.findById.mockResolvedValue(makeSchedule());
-  mockScheduleRepo.update.mockImplementation((async (_id: string, data: any) =>
+  mockScheduleRepo.updateIfUnchanged.mockImplementation((async (_id: string, _esperado: any, data: any) =>
     makeSchedule({
       ...data,
       ...(data.inspector_id === INSPECTOR_B && {
@@ -108,6 +125,12 @@ beforeEach(() => {
   mockPlan.resolvePlan.mockResolvedValue({ limits: { emailsPerMonth: 100 } } as any);
   mockUsage.emailsSent.mockResolvedValue(0);
   mockUsage.recordEmail.mockResolvedValue(undefined);
+  mockUsage.reserveEmail.mockResolvedValue(true);
+  mockUsage.reserveDailyEmail.mockResolvedValue(true);
+  mockUsage.releaseEmail.mockResolvedValue(undefined);
+  mockUsage.releaseDailyEmail.mockResolvedValue(undefined);
+  mockScheduleRepo.listReportsForCoverage.mockResolvedValue([]);
+  mockScheduleRepo.listInspectors.mockResolvedValue([{ id: INSPECTOR_A, name: 'Ana' }] as any);
   mockEmail.mockResolvedValue(undefined);
   (auditRepository.log as jest.Mock).mockResolvedValue(undefined);
 });
@@ -233,17 +256,60 @@ describe('scheduleService.create', () => {
       })
     );
     expect(mockEmail).toHaveBeenCalledWith('ana@test.com', expect.any(String), expect.any(String), expect.any(String));
-    expect(mockUsage.recordEmail).toHaveBeenCalledWith(OWNER_ID);
+    // A cota é reservada no banco antes do envio, com o limite do plano do dono.
+    expect(mockUsage.reserveEmail).toHaveBeenCalledWith(OWNER_ID, 100, undefined);
+    expect(mockUsage.reserveDailyEmail).toHaveBeenCalledWith('AGENDA', 150, zonedDayKey(new Date()));
+    expect(mockUsage.emailsSent).not.toHaveBeenCalled();
+    expect(mockUsage.recordEmail).not.toHaveBeenCalled();
   });
 
-  it('cota estourada: o sino recebe, o e-mail não sai', async () => {
-    mockUsage.emailsSent.mockResolvedValue(100);
+  it('cota no limite exato: a reserva falha, o sino recebe, o e-mail não sai', async () => {
+    // O banco recusa a 101ª: `emails_sent < 100` é falso com o contador em 100.
+    mockUsage.reserveEmail.mockResolvedValue(false);
     await scheduleService.create(BUILDING_ID, gestor, body);
     await flush();
 
     expect(mockNotificationRepo.create).toHaveBeenCalled();
     expect(mockEmail).not.toHaveBeenCalled();
-    expect(mockUsage.recordEmail).not.toHaveBeenCalled();
+    expect(mockUsage.reserveDailyEmail).not.toHaveBeenCalled();
+  });
+
+  it('teto diário do sistema atingido: devolve a reserva do mês e não manda', async () => {
+    mockUsage.reserveDailyEmail.mockResolvedValue(false);
+    await scheduleService.create(BUILDING_ID, gestor, body);
+    await flush();
+
+    expect(mockNotificationRepo.create).toHaveBeenCalled();
+    expect(mockEmail).not.toHaveBeenCalled();
+    expect(mockUsage.releaseEmail).toHaveBeenCalledWith(OWNER_ID, undefined);
+  });
+
+  it('provedor recusou: as duas reservas voltam', async () => {
+    mockEmail.mockRejectedValue(new Error('provedor fora'));
+    await scheduleService.create(BUILDING_ID, gestor, body);
+    await flush();
+
+    expect(mockUsage.releaseEmail).toHaveBeenCalledWith(OWNER_ID, undefined);
+    expect(mockUsage.releaseDailyEmail).toHaveBeenCalledWith('AGENDA', zonedDayKey(new Date()));
+  });
+
+  it('prédio sem dono: só o sino, nenhum e-mail e nenhuma cota', async () => {
+    mockScheduleRepo.create.mockResolvedValue(
+      makeSchedule({ building: { id: BUILDING_ID, name: 'Edifício Aurora', owner_manager_id: null } })
+    );
+    await scheduleService.create(BUILDING_ID, gestor, body);
+    await flush();
+
+    expect(mockNotificationRepo.create).toHaveBeenCalled();
+    expect(mockEmail).not.toHaveBeenCalled();
+    expect(mockUsage.reserveEmail).not.toHaveBeenCalled();
+    expect(mockPlan.resolvePlan).not.toHaveBeenCalled();
+  });
+
+  it('recusa inspetor com a conta suspensa', async () => {
+    suspensos.add(INSPECTOR_A);
+    await expect(scheduleService.create(BUILDING_ID, gestor, body)).rejects.toBeInstanceOf(ValidationError);
+    expect(mockScheduleRepo.create).not.toHaveBeenCalled();
   });
 
   it('falha do e-mail não derruba a criação', async () => {
@@ -276,11 +342,10 @@ describe('scheduleService.update', () => {
   it('mudar o prazo avisa SCHEDULE_UPDATED e zera os lembretes', async () => {
     await scheduleService.update(BUILDING_ID, SCHEDULE_ID, gestor, { due_date: '2030-05-20' });
 
-    const [, data] = mockScheduleRepo.update.mock.calls[0];
+    const [, , data] = mockScheduleRepo.updateIfUnchanged.mock.calls[0];
     expect(data).toMatchObject({
       due_date: d('2030-05-20'),
       due_soon_notified_at: null,
-      overdue_notified_at: null,
       updated_by_manager_id: 'gestor-1',
     });
     expect(mockNotificationRepo.create).toHaveBeenCalledTimes(1);
@@ -294,7 +359,7 @@ describe('scheduleService.update', () => {
 
   it('mesmos andares em outra ordem não contam como mudança', async () => {
     await scheduleService.update(BUILDING_ID, SCHEDULE_ID, gestor, { floor_ids: [FLOOR_6, FLOOR_T] });
-    expect(mockScheduleRepo.update.mock.calls[0][2]).toBeUndefined();
+    expect(mockScheduleRepo.updateIfUnchanged.mock.calls[0][3]).toBeUndefined();
     expect(mockNotificationRepo.create).not.toHaveBeenCalled();
   });
 
@@ -326,7 +391,7 @@ describe('scheduleService.update', () => {
   it('concluir à mão carimba a data, sem relatório, e não avisa', async () => {
     await scheduleService.update(BUILDING_ID, SCHEDULE_ID, gestor, { status: 'CONCLUIDO' });
 
-    const [, data] = mockScheduleRepo.update.mock.calls[0];
+    const [, , data] = mockScheduleRepo.updateIfUnchanged.mock.calls[0];
     expect(data.status).toBe('CONCLUIDO');
     expect(data.completed_at).toBeInstanceOf(Date);
     expect(data.completed_report_id).toBeNull();
@@ -347,6 +412,43 @@ describe('scheduleService.update', () => {
     ).rejects.toBeInstanceOf(ConflictError);
   });
 
+  it('grava só se status e updated_at ainda são os da leitura', async () => {
+    await scheduleService.update(BUILDING_ID, SCHEDULE_ID, gestor, { notes: 'x' });
+    const [id, esperado] = mockScheduleRepo.updateIfUnchanged.mock.calls[0];
+    expect(id).toBe(SCHEDULE_ID);
+    expect(esperado).toEqual({ status: 'PENDENTE', updated_at: new Date('2030-05-01T12:00:00Z') });
+  });
+
+  it('409 AGENDAMENTO_ALTERADO quando outra escrita chegou antes: sem auditoria e sem aviso', async () => {
+    mockScheduleRepo.updateIfUnchanged.mockResolvedValue(null);
+    const err = await scheduleService
+      .update(BUILDING_ID, SCHEDULE_ID, gestor, { due_date: '2030-05-20' })
+      .catch((e) => e);
+
+    expect(err).toBeInstanceOf(ScheduleChangedError);
+    expect(err).toMatchObject({
+      statusCode: 409,
+      code: 'AGENDAMENTO_ALTERADO',
+      message: 'O agendamento mudou. Recarregue e tente de novo.',
+    });
+    expect(auditRepository.log).not.toHaveBeenCalled();
+    expect(mockNotificationRepo.create).not.toHaveBeenCalled();
+  });
+
+  it('cancelar limpa completed_at e completed_report_id', async () => {
+    await scheduleService.update(BUILDING_ID, SCHEDULE_ID, gestor, { status: 'CANCELADO' });
+    const [, , data] = mockScheduleRepo.updateIfUnchanged.mock.calls[0];
+    expect(data).toMatchObject({ status: 'CANCELADO', completed_at: null, completed_report_id: null });
+  });
+
+  it('trocar para inspetor suspenso é 400', async () => {
+    suspensos.add(INSPECTOR_B);
+    await expect(
+      scheduleService.update(BUILDING_ID, SCHEDULE_ID, gestor, { inspector_id: INSPECTOR_B })
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(mockScheduleRepo.updateIfUnchanged).not.toHaveBeenCalled();
+  });
+
   it('reativar o cancelado volta à agenda do inspetor como CREATED', async () => {
     mockScheduleRepo.findById.mockResolvedValue(makeSchedule({ status: 'CANCELADO' }));
     await scheduleService.update(BUILDING_ID, SCHEDULE_ID, gestor, { status: 'PENDENTE' });
@@ -356,15 +458,41 @@ describe('scheduleService.update', () => {
 
 // ── Leitura ───────────────────────────────────────────────────────────────────
 describe('leitura da agenda', () => {
-  it('INSPECTOR só recebe as próprias rondas', async () => {
+  it('a agenda do prédio não recorta por inspetor (o INSPECTOR vê tudo, só leitura)', async () => {
     mockScheduleRepo.list.mockResolvedValue([]);
-    const inspetor = { id: INSPECTOR_A, kind: 'USER', role: 'NONE' } as any;
+    await scheduleService.list(BUILDING_ID, {});
+    expect(mockScheduleRepo.list.mock.calls[0][0].inspector_id).toBeUndefined();
+  });
 
-    await scheduleService.list(BUILDING_ID, inspetor, 'INSPECTOR', {});
-    expect(mockScheduleRepo.list.mock.calls[0][0]).toMatchObject({ inspector_id: INSPECTOR_A });
+  it('filtro status; sem mês e ano, take 500; com mês, sem take', async () => {
+    mockScheduleRepo.list.mockResolvedValue([]);
+    await scheduleService.list(BUILDING_ID, { status: 'CONCLUIDO' });
+    expect(mockScheduleRepo.list.mock.calls[0]).toEqual([
+      { building_id: BUILDING_ID, statuses: ['CONCLUIDO'] },
+      500,
+    ]);
 
-    await scheduleService.list(BUILDING_ID, visualizador, 'VIEWER', {});
-    expect(mockScheduleRepo.list.mock.calls[1][0].inspector_id).toBeUndefined();
+    await scheduleService.list(BUILDING_ID, { month: 5, year: 2030 });
+    expect(mockScheduleRepo.list.mock.calls[1][1]).toBeUndefined();
+  });
+
+  it('inspector_left: true quando o inspetor não é mais INSPECTOR ativo, em uma consulta só', async () => {
+    membros({ [INSPECTOR_A]: 'INSPECTOR' });
+    mockScheduleRepo.list.mockResolvedValue([
+      makeSchedule(),
+      makeSchedule({ id: 's2' }),
+      makeSchedule({
+        id: 's3',
+        inspector_id: INSPECTOR_B,
+        inspector: { id: INSPECTOR_B, name: 'Bruno', email: 'b@t.com', status: 'ACTIVE' },
+      }),
+      makeSchedule({ id: 's4', inspector_id: null, inspector: null }),
+    ]);
+
+    const { schedules } = await scheduleService.list(BUILDING_ID, {});
+    expect(schedules.map((x) => x.inspector_left)).toEqual([false, false, true, true]);
+    expect(mockScheduleRepo.activeInspectorPairs).toHaveBeenCalledTimes(1);
+    expect(mockScheduleRepo.activeInspectorPairs.mock.calls[0][0]).toHaveLength(2);
   });
 
   it('o mês vira um recorte de dias; sem mês e ano, sem recorte', () => {
@@ -373,11 +501,49 @@ describe('leitura da agenda', () => {
     expect(monthRange({})).toEqual({});
   });
 
-  it('atrasado é PENDENTE com prazo antes de hoje', () => {
-    const s = makeSchedule({ due_date: d('2030-05-12') });
-    expect(serializeSchedule(s, '2030-05-13').overdue).toBe(true);
-    expect(serializeSchedule(s, '2030-05-12').overdue).toBe(false);
-    expect(serializeSchedule({ ...s, status: 'CONCLUIDO' }, '2030-05-13').overdue).toBe(false);
+  it('atraso conta do dia agendado; o prazo é o limite final', () => {
+    // Agendada 10/05, prazo 12/05.
+    const s = makeSchedule();
+    expect(serializeSchedule(s, '2030-05-10')).toMatchObject({ overdue: false, past_deadline: false });
+    expect(serializeSchedule(s, '2030-05-11')).toMatchObject({ overdue: true, past_deadline: false });
+    expect(serializeSchedule(s, '2030-05-13')).toMatchObject({ overdue: true, past_deadline: true });
+    expect(serializeSchedule({ ...s, status: 'CONCLUIDO' }, '2030-05-13')).toMatchObject({
+      overdue: false,
+      past_deadline: false,
+    });
+  });
+
+  it('completed_late: concluída num dia depois do agendado', () => {
+    const noDia = makeSchedule({ status: 'CONCLUIDO', completed_at: new Date('2030-05-10T15:00:00Z') });
+    const depois = makeSchedule({ status: 'CONCLUIDO', completed_at: new Date('2030-05-11T15:00:00Z') });
+    expect(serializeSchedule(noDia).completed_late).toBe(false);
+    expect(serializeSchedule(depois).completed_late).toBe(true);
+    expect(serializeSchedule(makeSchedule()).completed_late).toBe(false);
+  });
+
+  it('?overdue=true: PENDENTE agendadas antes de hoje, sem recorte de mês', async () => {
+    mockScheduleRepo.list.mockResolvedValue([]);
+    await scheduleService.list(BUILDING_ID, { overdue: true, month: 5, year: 2030 });
+
+    expect(mockScheduleRepo.list.mock.calls[0][0]).toEqual({
+      building_id: BUILDING_ID,
+      statuses: ['PENDENTE'],
+      scheduled_before: d(zonedDayKey(new Date())),
+    });
+    expect(mockScheduleRepo.list.mock.calls[0][1]).toBe(500);
+  });
+
+  it('/me/schedules?building_id: só aquele prédio; prédio sem vínculo é lista vazia', async () => {
+    mockBuildingRepo.getMemberBuildingIds.mockResolvedValue([BUILDING_ID, OTHER_BUILDING]);
+    mockScheduleRepo.list.mockResolvedValue([]);
+    const inspetor = { id: INSPECTOR_A, kind: 'USER', role: 'NONE' } as any;
+
+    await scheduleService.mine(inspetor, { building_id: OTHER_BUILDING });
+    expect(mockScheduleRepo.list.mock.calls[0][0].building_ids).toEqual([OTHER_BUILDING]);
+
+    mockBuildingRepo.getMemberBuildingIds.mockResolvedValue([BUILDING_ID]);
+    expect(await scheduleService.mine(inspetor, { building_id: OTHER_BUILDING })).toEqual({ schedules: [] });
+    expect(mockScheduleRepo.list).toHaveBeenCalledTimes(1);
   });
 
   it('inspetor apagado sai como "Usuário removido"', () => {
@@ -398,7 +564,29 @@ describe('leitura da agenda', () => {
       building_ids: [BUILDING_ID],
       statuses: ['PENDENTE', 'CONCLUIDO'],
     });
+    expect(mockScheduleRepo.list.mock.calls[0][1]).toBe(500);
     expect(schedules).toHaveLength(1);
+  });
+
+  it('/me/schedules?status: um status só; CANCELADO é recusado pelo schema', async () => {
+    mockBuildingRepo.getMemberBuildingIds.mockResolvedValue([BUILDING_ID]);
+    mockScheduleRepo.list.mockResolvedValue([]);
+    const inspetor = { id: INSPECTOR_A, kind: 'USER', role: 'NONE' } as any;
+
+    await scheduleService.mine(inspetor, { status: 'CONCLUIDO', month: 5, year: 2030 });
+    expect(mockScheduleRepo.list.mock.calls[0][0].statuses).toEqual(['CONCLUIDO']);
+    expect(mockScheduleRepo.list.mock.calls[0][1]).toBeUndefined();
+
+    expect(mySchedulesQuerySchema.safeParse({ status: 'PENDENTE' }).success).toBe(true);
+    expect(mySchedulesQuerySchema.safeParse({ status: 'CANCELADO' }).success).toBe(false);
+  });
+
+  it('completed_late respeita o fuso: 23:30 em São Paulo ainda é o dia agendado', () => {
+    // 2030-05-10 23:30 em São Paulo (UTC-3) = 2030-05-11 02:30 UTC.
+    const tarde = makeSchedule({ status: 'CONCLUIDO', completed_at: new Date('2030-05-11T02:30:00Z') });
+    const madrugada = makeSchedule({ status: 'CONCLUIDO', completed_at: new Date('2030-05-11T03:30:00Z') });
+    expect(serializeSchedule(tarde).completed_late).toBe(false);
+    expect(serializeSchedule(madrugada).completed_late).toBe(true);
   });
 
   it('/me/schedules de gestor é lista vazia', async () => {
@@ -476,20 +664,93 @@ describe('scheduleService.completeFromReport', () => {
     floors_inspected: [FLOOR_6, FLOOR_T],
   };
 
+  it('conclui também a ronda já passada do prazo', async () => {
+    mockScheduleRepo.findPendingForCompletion.mockResolvedValue([
+      { id: 's-vencida', scheduled_date: d('2030-05-10'), floors: [{ floor_id: FLOOR_6 }] },
+    ] as any);
+    mockScheduleRepo.markCompleted.mockResolvedValue(['s-vencida']);
+
+    // Vistoria muito depois do prazo: o único corte é o dia agendado.
+    await scheduleService.completeFromReport({ ...report, date: d('2031-01-01') });
+
+    expect(mockScheduleRepo.markCompleted).toHaveBeenCalledWith(['s-vencida'], REPORT_ID, expect.any(Date));
+  });
+
   it('conclui só a ronda cujos andares a vistoria cobriu inteiros', async () => {
     mockScheduleRepo.findPendingForCompletion.mockResolvedValue([
-      { id: 's-coberta', floors: [{ floor_id: FLOOR_6 }, { floor_id: FLOOR_T }] },
-      { id: 's-parcial', floors: [{ floor_id: FLOOR_6 }, { floor_id: 'andar-que-faltou' }] },
+      { id: 's-coberta', scheduled_date: d('2030-05-10'), floors: [{ floor_id: FLOOR_6 }, { floor_id: FLOOR_T }] },
+      {
+        id: 's-parcial',
+        scheduled_date: d('2030-05-10'),
+        floors: [{ floor_id: FLOOR_6 }, { floor_id: 'andar-que-faltou' }],
+      },
     ] as any);
-    mockScheduleRepo.markCompleted.mockResolvedValue(1);
+    mockScheduleRepo.markCompleted.mockResolvedValue(['s-coberta']);
 
     await scheduleService.completeFromReport(report);
 
     expect(mockScheduleRepo.findPendingForCompletion).toHaveBeenCalledWith(INSPECTOR_A, BUILDING_ID, report.date);
     expect(mockScheduleRepo.markCompleted).toHaveBeenCalledWith(['s-coberta'], REPORT_ID, expect.any(Date));
-    expect(auditRepository.log).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'SCHEDULE_UPDATED', entity_id: 's-coberta' })
+    expect(auditRepository.logMany).toHaveBeenCalledWith([
+      expect.objectContaining({ action: 'SCHEDULE_UPDATED', entity_id: 's-coberta', user_id: INSPECTOR_A }),
+    ]);
+  });
+
+  it('soma as vistorias desde o dia agendado: a segunda ida fecha a ronda', async () => {
+    const ANDAR_3 = 'andar-3';
+    mockScheduleRepo.findPendingForCompletion.mockResolvedValue([
+      {
+        id: 's-duas-idas',
+        scheduled_date: d('2030-05-10'),
+        floors: [{ floor_id: FLOOR_6 }, { floor_id: FLOOR_T }, { floor_id: ANDAR_3 }],
+      },
+    ] as any);
+    mockScheduleRepo.listReportsForCoverage.mockResolvedValue([
+      // Antes do dia agendado: não conta.
+      { id: 'r-velha', date: d('2030-05-09'), floors_inspected: [ANDAR_3] },
+      { id: 'r-primeira', date: d('2030-05-10'), floors_inspected: [FLOOR_6] },
+    ] as any);
+    mockScheduleRepo.markCompleted.mockResolvedValue(['s-duas-idas']);
+
+    // Esta só viu o Térreo: com a primeira, faltam andares (o 3º só foi visto antes).
+    expect(await scheduleService.completeFromReport({ ...report, floors_inspected: [FLOOR_T] })).toBe(0);
+    expect(mockScheduleRepo.markCompleted).not.toHaveBeenCalled();
+
+    mockScheduleRepo.listReportsForCoverage.mockResolvedValue([
+      { id: 'r-primeira', date: d('2030-05-10'), floors_inspected: [FLOOR_6] },
+      { id: 'r-segunda', date: d('2030-05-11'), floors_inspected: [ANDAR_3] },
+    ] as any);
+    expect(await scheduleService.completeFromReport({ ...report, floors_inspected: [FLOOR_T] })).toBe(1);
+    expect(mockScheduleRepo.listReportsForCoverage).toHaveBeenLastCalledWith(
+      INSPECTOR_A,
+      BUILDING_ID,
+      d('2030-05-10'),
+      report.date
     );
+    // `completed_report_id` é a vistoria que completou a cobertura.
+    expect(mockScheduleRepo.markCompleted).toHaveBeenCalledWith(['s-duas-idas'], REPORT_ID, expect.any(Date));
+  });
+
+  it('audita só os ids que o UPDATE concluiu de fato', async () => {
+    mockScheduleRepo.findPendingForCompletion.mockResolvedValue([
+      { id: 's-a', scheduled_date: d('2030-05-10'), floors: [{ floor_id: FLOOR_6 }] },
+      { id: 's-cancelada-no-meio', scheduled_date: d('2030-05-10'), floors: [{ floor_id: FLOOR_T }] },
+    ] as any);
+    mockScheduleRepo.markCompleted.mockResolvedValue(['s-a']);
+
+    expect(await scheduleService.completeFromReport(report)).toBe(1);
+    const auditados = (auditRepository.logMany as jest.Mock).mock.calls[0][0].map((r: any) => r.entity_id);
+    expect(auditados).toEqual(['s-a']);
+    expect(auditRepository.log).not.toHaveBeenCalled();
+  });
+
+  it('inspetor que não é mais INSPECTOR ativo não fecha ronda (fica para redistribuir)', async () => {
+    suspensos.add(INSPECTOR_A);
+    mockScheduleRepo.findPendingForCompletion.mockResolvedValue([
+      { id: 's-a', scheduled_date: d('2030-05-10'), floors: [{ floor_id: FLOOR_6 }] },
+    ] as any);
+    expect(await scheduleService.completeFromReport(report)).toBe(0);
+    expect(mockScheduleRepo.markCompleted).not.toHaveBeenCalled();
   });
 
   it('nada a concluir não escreve nada', async () => {
@@ -510,18 +771,45 @@ describe('scheduleJobService.runDaily', () => {
 
   beforeEach(() => {
     mockScheduleRepo.listDueSoonCandidates.mockResolvedValue([]);
-    mockScheduleRepo.listOverdueCandidates.mockResolvedValue([]);
     mockScheduleRepo.activeInspectorPairs.mockResolvedValue(new Set([`${BUILDING_ID}:${INSPECTOR_A}`]));
   });
 
-  it('procura o prazo de amanhã e os vencidos até ontem, no fuso do produto', async () => {
+  it('procura prazo de hoje a amanhã, no fuso do produto', async () => {
     await scheduleJobService.runDaily(agora);
-    const hoje = zonedDayKey(agora);
-    const amanha = new Date(`${hoje}T00:00:00.000Z`);
+    const hoje = d(zonedDayKey(agora));
+    const amanha = new Date(hoje);
     amanha.setUTCDate(amanha.getUTCDate() + 1);
 
-    expect(mockScheduleRepo.listDueSoonCandidates).toHaveBeenCalledWith(amanha);
-    expect(mockScheduleRepo.listOverdueCandidates).toHaveBeenCalledWith(d(hoje));
+    expect(mockScheduleRepo.listDueSoonCandidates).toHaveBeenCalledWith(hoje, amanha);
+  });
+
+  it('prazo hoje: o e-mail diz "vence hoje"; prazo amanhã: "vence amanhã"', async () => {
+    const hoje = zonedDayKey(agora);
+    mockScheduleRepo.listDueSoonCandidates.mockResolvedValue([
+      makeSchedule({ id: 's-hoje', scheduled_date: d('2030-05-01'), due_date: d(hoje) }),
+      makeSchedule({ id: 's-amanha', scheduled_date: d('2030-05-01'), due_date: d('2030-05-12') }),
+    ]);
+    mockScheduleRepo.claimDueSoon.mockResolvedValue(true);
+
+    await scheduleJobService.runDaily(agora);
+
+    const assuntos = mockEmail.mock.calls.map((c) => c[1]);
+    expect(assuntos[0]).toMatch(/vence hoje/);
+    expect(assuntos[1]).toMatch(/vence amanhã/);
+  });
+
+  it('resolve o plano de cada dono uma vez por ciclo (cache local)', async () => {
+    mockScheduleRepo.listDueSoonCandidates.mockResolvedValue([makeSchedule(), makeSchedule({ id: 's2' })]);
+    mockScheduleRepo.claimDueSoon.mockResolvedValue(true);
+
+    await scheduleJobService.runDaily(agora);
+
+    // Os dois envios passam o mesmo objeto de escopo para a cache do plano.
+    const escopos = mockPlan.resolvePlan.mock.calls.map((c) => c[1]);
+    expect(escopos).toHaveLength(2);
+    expect(escopos[0]).toBeDefined();
+    expect(escopos[0]).toBe(escopos[1]);
+    expect(mockUsage.emailsSent).not.toHaveBeenCalled();
   });
 
   it('avisa quem conseguiu reservar, com sino e e-mail', async () => {
@@ -530,43 +818,52 @@ describe('scheduleJobService.runDaily', () => {
 
     const res = await scheduleJobService.runDaily(agora);
 
-    expect(res).toEqual({ due_soon: 1, overdue: 0 });
+    expect(res).toEqual({ due_soon: 1 });
     expect(mockNotificationRepo.create.mock.calls[0][0].type).toBe('SCHEDULE_DUE_SOON');
     expect(mockEmail).toHaveBeenCalledTimes(1);
   });
 
   it('é idempotente: o que já foi reservado não é avisado de novo', async () => {
-    mockScheduleRepo.listOverdueCandidates.mockResolvedValue([makeSchedule()]);
-    mockScheduleRepo.claimOverdue.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    mockScheduleRepo.listDueSoonCandidates.mockResolvedValue([makeSchedule()]);
+    mockScheduleRepo.claimDueSoon.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
 
     const primeira = await scheduleJobService.runDaily(agora);
     const segunda = await scheduleJobService.runDaily(agora);
 
-    expect(primeira.overdue).toBe(1);
-    expect(segunda.overdue).toBe(0);
+    expect(primeira.due_soon).toBe(1);
+    expect(segunda.due_soon).toBe(0);
     expect(mockNotificationRepo.create).toHaveBeenCalledTimes(1);
-    expect(mockNotificationRepo.create.mock.calls[0][0].type).toBe('SCHEDULE_OVERDUE');
+  });
+
+  it('não manda aviso de atraso: o atraso é só visual', async () => {
+    mockScheduleRepo.listDueSoonCandidates.mockResolvedValue([makeSchedule()]);
+    mockScheduleRepo.claimDueSoon.mockResolvedValue(true);
+
+    await scheduleJobService.runDaily(agora);
+
+    const tipos = mockNotificationRepo.create.mock.calls.map(([n]) => n.type);
+    expect(tipos).not.toContain('SCHEDULE_OVERDUE');
   });
 
   it('inspetor que saiu do prédio: marca, mas não avisa', async () => {
-    mockScheduleRepo.listOverdueCandidates.mockResolvedValue([
-      makeSchedule({ inspector_id: INSPECTOR_B, inspector: { id: INSPECTOR_B, name: 'Bruno', email: 'b@t.com', status: 'ACTIVE' } }),
+    mockScheduleRepo.listDueSoonCandidates.mockResolvedValue([
+      makeSchedule({
+        inspector_id: INSPECTOR_B,
+        inspector: { id: INSPECTOR_B, name: 'Bruno', email: 'b@t.com', status: 'ACTIVE' },
+      }),
     ]);
-    mockScheduleRepo.claimOverdue.mockResolvedValue(true);
+    mockScheduleRepo.claimDueSoon.mockResolvedValue(true);
 
     const res = await scheduleJobService.runDaily(agora);
 
-    expect(mockScheduleRepo.claimOverdue).toHaveBeenCalled();
-    expect(res.overdue).toBe(0);
+    expect(mockScheduleRepo.claimDueSoon).toHaveBeenCalled();
+    expect(res.due_soon).toBe(0);
     expect(mockNotificationRepo.create).not.toHaveBeenCalled();
   });
 
-  it('uma falha não derruba o outro lembrete', async () => {
+  it('falha do banco não derruba o ciclo', async () => {
     mockScheduleRepo.listDueSoonCandidates.mockRejectedValue(new Error('banco'));
-    mockScheduleRepo.listOverdueCandidates.mockResolvedValue([makeSchedule()]);
-    mockScheduleRepo.claimOverdue.mockResolvedValue(true);
-
-    expect(await scheduleJobService.runDaily(agora)).toEqual({ due_soon: 0, overdue: 1 });
+    expect(await scheduleJobService.runDaily(agora)).toEqual({ due_soon: 0 });
   });
 });
 
@@ -579,7 +876,16 @@ describe('notificationService', () => {
     mockNotificationRepo.countUnread.mockResolvedValue(3);
 
     expect(await notificationService.list(usuario, 30)).toEqual({ notifications: [{ id: 'n1' }], unread: 3 });
-    expect(mockNotificationRepo.listForUser).toHaveBeenCalledWith(INSPECTOR_A, 30);
+    expect(mockNotificationRepo.listForUser).toHaveBeenCalledWith(INSPECTOR_A, 30, undefined);
+  });
+
+  it('com building_id, lista e contagem são daquele prédio', async () => {
+    mockNotificationRepo.listForUser.mockResolvedValue([]);
+    mockNotificationRepo.countUnread.mockResolvedValue(1);
+
+    await notificationService.list(usuario, 10, BUILDING_ID);
+    expect(mockNotificationRepo.listForUser).toHaveBeenCalledWith(INSPECTOR_A, 10, BUILDING_ID);
+    expect(mockNotificationRepo.countUnread).toHaveBeenCalledWith(INSPECTOR_A, BUILDING_ID);
   });
 
   it('marcar como lido aviso de outra conta é 404', async () => {
@@ -601,17 +907,57 @@ describe('notificationService', () => {
 
 // ── Painel do supervisor ─────────────────────────────────────────────────────
 describe('supervisorOverview', () => {
-  it('conta a agenda pelo prazo e ordena a cobertura por andar', async () => {
+  it('conta a agenda pelo dia agendado e ordena a cobertura por andar', async () => {
     const hoje = zonedDayKey(new Date());
     mockAnalyticsRepo.porInspetor.mockResolvedValue([
       { id: INSPECTOR_A, name: 'Ana', vistorias: 4, dias: 3, andares_distintos: 2, ocorrencias: 5 },
+      // Tem histórico no período, mas não é mais INSPECTOR ativo do prédio: some da lista.
+      { id: 'inspetor-que-saiu', name: 'Caio', vistorias: 9, dias: 5, andares_distintos: 3, ocorrencias: 1 },
     ] as any);
     mockScheduleRepo.listForPeriod.mockResolvedValue([
-      { status: 'PENDENTE', due_date: d('2099-01-01'), completed_at: null },
-      { status: 'PENDENTE', due_date: d('2000-01-01'), completed_at: null },
-      { status: 'CONCLUIDO', due_date: d('2030-05-12'), completed_at: new Date('2030-05-12T15:00:00Z') },
-      { status: 'CONCLUIDO', due_date: d('2030-05-12'), completed_at: new Date('2030-05-14T15:00:00Z') },
-      { status: 'CANCELADO', due_date: d('2030-05-12'), completed_at: null },
+      // Futura: pendente em dia.
+      {
+        status: 'PENDENTE',
+        scheduled_date: d('2099-01-01'),
+        due_date: d('2099-01-05'),
+        completed_at: null,
+        building_id: BUILDING_ID,
+        inspector_id: INSPECTOR_A,
+      },
+      // Dia agendado no passado, prazo no futuro: atrasada, dentro do limite.
+      // O inspetor saiu do prédio: conta também em `without_inspector`.
+      {
+        status: 'PENDENTE',
+        scheduled_date: d('2000-01-01'),
+        due_date: d('2099-01-01'),
+        completed_at: null,
+        building_id: BUILDING_ID,
+        inspector_id: 'inspetor-que-saiu',
+      },
+      // Dia agendado e prazo no passado: atrasada e passada do limite.
+      {
+        status: 'PENDENTE',
+        scheduled_date: d('2000-01-01'),
+        due_date: d('2000-01-02'),
+        completed_at: null,
+        building_id: BUILDING_ID,
+        inspector_id: INSPECTOR_A,
+      },
+      // Feita no dia agendado: em dia.
+      {
+        status: 'CONCLUIDO',
+        scheduled_date: d('2030-05-10'),
+        due_date: d('2030-05-12'),
+        completed_at: new Date('2030-05-10T15:00:00Z'),
+      },
+      // Feita depois do dia agendado, ainda dentro do prazo: atrasada.
+      {
+        status: 'CONCLUIDO',
+        scheduled_date: d('2030-05-10'),
+        due_date: d('2030-05-12'),
+        completed_at: new Date('2030-05-11T15:00:00Z'),
+      },
+      { status: 'CANCELADO', scheduled_date: d('2030-05-10'), due_date: d('2030-05-12'), completed_at: null },
     ] as any);
     mockScheduleRepo.ticketsByStatus.mockResolvedValue({ ABERTO: 2, CONCLUIDO: 1 } as any);
     mockScheduleRepo.coverage.mockResolvedValue([
@@ -625,11 +971,52 @@ describe('supervisorOverview', () => {
     expect(res.inspectors).toEqual([
       { id: INSPECTOR_A, name: 'Ana', inspections: 4, days: 3, floors: 2, occurrences: 5 },
     ]);
-    expect(res.schedules).toEqual({ pending: 1, overdue: 1, done_on_time: 1, done_late: 1, canceled: 1 });
+    expect(res.schedules).toEqual({
+      pending: 1,
+      overdue: 2,
+      past_deadline: 1,
+      done_on_time: 1,
+      done_late: 1,
+      canceled: 1,
+      without_inspector: 1,
+    });
     expect(res.tickets).toEqual({ by_status: { ABERTO: 2, CONCLUIDO: 1 } });
-    expect(res.coverage.map((c) => c.label)).toEqual(['6º Andar', 'Térreo', '1º Subsolo']);
+    expect(res.coverage.map((x) => x.label)).toEqual(['6º Andar', 'Térreo', '1º Subsolo']);
     expect(res.coverage[0].days_since).toBe(0);
-    expect(res.coverage[2]).toEqual({ floor_id: 'sub', label: '1º Subsolo', last_inspected_at: null, days_since: null });
+    expect(res.coverage[2]).toEqual({
+      floor_id: 'sub',
+      label: '1º Subsolo',
+      last_inspected_at: null,
+      days_since: null,
+    });
     expect(mockScheduleRepo.listForPeriod).toHaveBeenCalledWith(BUILDING_ID, d('2030-05-01'), d('2030-05-31'));
+  });
+});
+
+describe('faixas de data da agenda', () => {
+  const valido = {
+    inspector_id: INSPECTOR_A,
+    scheduled_date: '2030-05-10',
+    due_date: '2030-05-12',
+    floor_ids: [FLOOR_6],
+  };
+
+  it('aceita só anos entre 2000 e 2100', () => {
+    expect(createScheduleSchema.safeParse({ ...valido, scheduled_date: '2000-01-01' }).success).toBe(true);
+    expect(createScheduleSchema.safeParse({ ...valido, due_date: '2100-12-31' }).success).toBe(true);
+    expect(createScheduleSchema.safeParse({ ...valido, scheduled_date: '1999-12-31' }).success).toBe(false);
+    expect(createScheduleSchema.safeParse({ ...valido, due_date: '2101-01-01' }).success).toBe(false);
+    expect(updateScheduleSchema.safeParse({ due_date: '9999-01-01' }).success).toBe(false);
+  });
+
+  it('overview: fim antes do início e período acima de 366 dias são recusados', () => {
+    expect(overviewQuerySchema.safeParse({ from: '2024-01-01', to: '2024-12-31' }).success).toBe(true); // 366
+    expect(overviewQuerySchema.safeParse({ from: '2026-01-01', to: '2027-01-01' }).success).toBe(true); // 366
+    expect(overviewQuerySchema.safeParse({ from: '2026-01-01', to: '2027-01-02' }).success).toBe(false); // 367
+    expect(overviewQuerySchema.safeParse({ from: '2026-05-10', to: '2026-05-09' }).success).toBe(false);
+  });
+
+  it('overview com uma data só: o período resultante também respeita os 366 dias', async () => {
+    await expect(supervisorOverview(BUILDING_ID, { from: '2000-01-01' })).rejects.toBeInstanceOf(ValidationError);
   });
 });

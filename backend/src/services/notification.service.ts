@@ -4,10 +4,12 @@ import { Actor } from '../middlewares/authenticate';
 import { enviarEmail } from '../lib/mailer';
 import { emailAgenda, TipoAvisoAgenda } from '../templates/email';
 import { planService } from './plan.service';
-import { usageService } from './usage.service';
+import { currentPeriod, usageService } from './usage.service';
 import { logger } from '../lib/logger';
+import { config } from '../config';
 import { NotFoundError } from '../utils/errors';
 import { sortFloorsDesc } from '../utils/floorOrder';
+import { zonedDayKey } from '../utils/timezone';
 
 /** Quem recebe o aviso: a conta do inspetor, como o repositório a devolve. */
 type Destinatario = { id: string; name: string; email: string; status: string };
@@ -32,36 +34,81 @@ export function schedulePayload(schedule: ScheduleRow) {
   };
 }
 
+/** O escopo do teto diário em `email_daily_counters`. */
+const ESCOPO_DIARIO = 'AGENDA';
+
 /**
  * Manda o e-mail se a conta que paga pelo prédio ainda tem cota no mês.
  *
  * A cota é do dono do prédio (`owner_manager_id`), como todo limite do plano:
- * o inspetor não tem plano nenhum. Prédio sem dono não é barrado — o mesmo
- * critério do `planGate` —, e o envio não conta para ninguém.
+ * o inspetor não tem plano nenhum.
+ *
+ * O envio é reservado no contador antes de sair, num comando só no banco (ver
+ * `usageRepository.reserveEmail`): duas rondas marcadas no mesmo instante não
+ * passam as duas do teto. Se o provedor recusar, a reserva é devolvida.
+ *
+ * Há ainda um teto diário do sistema inteiro (`config.email.agendaDailyCap`,
+ * 150 por padrão), só para os e-mails da agenda — os de verificação e de
+ * recuperação de senha não passam por aqui e nunca são barrados por ele.
+ *
+ * Prédio sem dono não manda e-mail da agenda: não há conta para medir a cota,
+ * e um prédio órfão não pode virar canal de e-mail sem teto. O aviso fica só
+ * no sino.
+ *
+ * `planScope` dá vida à cache do plano (ver `planService.resolvePlan`): o
+ * ciclo diário passa um objeto seu e resolve o plano de cada dono uma vez só.
  *
  * Devolve se mandou. Estourar a cota não é erro: o aviso continua no sino.
  */
 async function enviarComCota(
   ownerManagerId: string | null,
   para: string,
-  mensagem: { assunto: string; html: string; texto: string }
+  mensagem: { assunto: string; html: string; texto: string },
+  planScope?: object
 ): Promise<boolean> {
-  if (ownerManagerId) {
-    const [plano, enviados] = await Promise.all([
-      planService.resolvePlan(ownerManagerId),
-      usageService.emailsSent(ownerManagerId),
-    ]);
-    if (enviados >= plano.limits.emailsPerMonth) {
-      logger.warn(
-        { manager_id: ownerManagerId, enviados, limite: plano.limits.emailsPerMonth },
-        '[Agenda] Cota de e-mails do mês esgotada — aviso só no sino'
-      );
-      return false;
-    }
+  if (!ownerManagerId) {
+    logger.info('[Agenda] Prédio sem dono — aviso só no sino');
+    return false;
   }
 
-  await enviarEmail(para, mensagem.assunto, mensagem.html, mensagem.texto);
-  if (ownerManagerId) await usageService.recordEmail(ownerManagerId);
+  const plano = await planService.resolvePlan(ownerManagerId, planScope);
+  const periodo = currentPeriod();
+  const reservou = await usageService.reserveEmail(ownerManagerId, plano.limits.emailsPerMonth, periodo);
+  if (!reservou) {
+    logger.warn(
+      { manager_id: ownerManagerId, limite: plano.limits.emailsPerMonth },
+      '[Agenda] Cota de e-mails do mês esgotada — aviso só no sino'
+    );
+    return false;
+  }
+
+  // Depois da cota do cliente, o teto diário do sistema (todos os clientes
+  // somados): segura o provedor de e-mail num dia de agenda em massa.
+  const hoje = zonedDayKey(new Date());
+  const cabeNoDia = await usageService
+    .reserveDailyEmail(ESCOPO_DIARIO, config.email.agendaDailyCap, hoje)
+    .catch(async (err) => {
+      await usageService.releaseEmail(ownerManagerId, periodo);
+      throw err;
+    });
+  if (!cabeNoDia) {
+    await usageService.releaseEmail(ownerManagerId, periodo);
+    logger.warn(
+      { limite_diario: config.email.agendaDailyCap },
+      '[Agenda] Teto diário de e-mails do sistema atingido — aviso só no sino'
+    );
+    return false;
+  }
+
+  try {
+    await enviarEmail(para, mensagem.assunto, mensagem.html, mensagem.texto);
+  } catch (err) {
+    await Promise.all([
+      usageService.releaseEmail(ownerManagerId, periodo),
+      usageService.releaseDailyEmail(ESCOPO_DIARIO, hoje),
+    ]);
+    throw err;
+  }
   return true;
 }
 
@@ -81,7 +128,8 @@ export const notificationService = {
   async notifySchedule(
     type: TipoAvisoAgenda,
     schedule: ScheduleRow,
-    destinatario: Destinatario | null
+    destinatario: Destinatario | null,
+    opts: { planScope?: object; now?: Date } = {}
   ): Promise<{ email: Promise<boolean> }> {
     // Conta que saiu do sistema não recebe nada: nem sino, nem e-mail.
     if (!destinatario || destinatario.status !== 'ACTIVE') {
@@ -106,9 +154,16 @@ export const notificationService = {
       inicio: payload.scheduled_date,
       prazo: payload.due_date,
       andares: payload.floors,
+      // O lembrete sai para prazo de hoje ou de amanhã (ver o ciclo diário).
+      venceHoje: type === 'SCHEDULE_DUE_SOON' && payload.due_date === zonedDayKey(opts.now ?? new Date()),
     });
 
-    const email = enviarComCota(schedule.building.owner_manager_id, destinatario.email, mensagem).catch(
+    const email = enviarComCota(
+      schedule.building.owner_manager_id,
+      destinatario.email,
+      mensagem,
+      opts.planScope
+    ).catch(
       (err) => {
         logger.error({ err, schedule_id: schedule.id, type }, '[Agenda] Falha ao mandar o aviso por e-mail');
         return false;
@@ -123,12 +178,14 @@ export const notificationService = {
    * quem a agenda avisa. O gestor recebe a lista vazia, e não um erro — a tela
    * é a mesma para os dois.
    */
-  async list(actor: Actor, limit: number) {
+  async list(actor: Actor, limit: number, buildingId?: string) {
     if (actor.kind !== 'USER') return { notifications: [], unread: 0 };
 
+    // O filtro por prédio não precisa de checagem de vínculo: o recorte já é
+    // "as minhas", e um prédio alheio só devolve lista vazia.
     const [notifications, unread] = await Promise.all([
-      notificationRepository.listForUser(actor.id, limit),
-      notificationRepository.countUnread(actor.id),
+      notificationRepository.listForUser(actor.id, limit, buildingId),
+      notificationRepository.countUnread(actor.id, buildingId),
     ]);
     return { notifications, unread };
   },
@@ -141,8 +198,12 @@ export const notificationService = {
     await notificationRepository.markRead(id, actor.id, new Date());
   },
 
-  async markAllRead(actor: Actor) {
+  /**
+   * Marca como lidos os avisos da conta. Com `buildingId`, só os daquele
+   * prédio: o sino é por prédio, e "marcar todas" num não pode apagar o outro.
+   */
+  async markAllRead(actor: Actor, buildingId?: string) {
     if (actor.kind !== 'USER') return;
-    await notificationRepository.markAllRead(actor.id, new Date());
+    await notificationRepository.markAllRead(actor.id, new Date(), buildingId);
   },
 };

@@ -31,7 +31,8 @@ function Aviso({ notification, onOpen }) {
           aria-hidden="true"
           style={{
             width: 8, height: 8, borderRadius: '50%', marginTop: 6, flexShrink: 0,
-            background: naoLido ? T.accentInk : 'transparent',
+            // Neutro forte: o dourado é de ação, e o ponto só diz "não lido".
+            background: naoLido ? T.text : 'transparent',
           }}
         />
         <span style={{ flex: 1, minWidth: 0 }}>
@@ -50,8 +51,9 @@ function Aviso({ notification, onOpen }) {
 }
 
 /**
- * O sino de avisos da conta — agendamentos criados, alterados, cancelados,
- * perto do prazo e atrasados.
+ * O sino de avisos da conta — agendamentos criados, alterados, cancelados e
+ * perto do prazo. O atraso não vira aviso: é o alerta fixo da agenda (avisos
+ * antigos de atraso que já estão no banco ainda aparecem, com o título deles).
  *
  * Não substitui o `NotificacaoChamados` (que é a caixa de aceite do
  * responsável): este é o sino geral, alimentado por `/me/notifications`, que
@@ -63,17 +65,18 @@ function Aviso({ notification, onOpen }) {
  *   `building_name`, `scheduled_date`, `due_date`, `floors`. Sem ele, o clique
  *   só marca como lido.
  * - `limit`: quantos avisos buscar (padrão 20).
+ * - `buildingId`: só os avisos deste prédio — o que a tela tem escolhido.
  * - `enabled`: liga/desliga a busca (padrão `true`) — para telas onde a conta
  *   ainda não carregou.
  *
  * O clique marca como lido na hora (otimista); "Marcar todas como lidas"
  * aparece só quando há o que marcar.
  */
-export function NotificacoesSino({ onOpenSchedule, limit = 20, enabled = true }) {
+export function NotificacoesSino({ onOpenSchedule, limit = 20, enabled = true, buildingId }) {
   const [open, setOpen] = useState(false);
-  const { data, isLoading, isError, refetch } = useNotifications({ limit, enabled });
+  const { data, isLoading, isError, refetch } = useNotifications({ limit, enabled, buildingId });
   const marcar = useMarkNotificationRead();
-  const marcarTodas = useMarkAllNotificationsRead();
+  const marcarTodas = useMarkAllNotificationsRead(buildingId);
 
   const lista = data?.notifications ?? [];
   const unread = data?.unread ?? lista.filter((n) => !n.read_at).length;

@@ -42,7 +42,7 @@ const MAX_DOTS = 3;
  * "2 agendamentos, 1 atrasado, 1 com prazo vencido" — o que o leitor de tela
  * ouve além da data. A cor e a forma da bolinha não chegam até ele.
  */
-function descreverMarcas(marks) {
+function descreverMarcas(marks, marcaSecundaria) {
   if (!marks?.length) return '';
   const n = marks.length;
   const conta = (estado) => marks.filter((m) => scheduleState(m) === estado).length;
@@ -53,29 +53,39 @@ function descreverMarcas(marks) {
   if (atrasados) partes.push(`${atrasados} atrasado${atrasados !== 1 ? 's' : ''}`);
   if (vencidos) partes.push(`${vencidos} com prazo vencido`);
   if (comAtraso) partes.push(`${comAtraso} concluído${comAtraso !== 1 ? 's' : ''} com atraso`);
+  const semInspetor = marks.filter((m) => m.inspector_left && (m.status ?? 'PENDENTE') === 'PENDENTE').length;
+  if (semInspetor) partes.push(`${semInspetor} sem inspetor`);
+  const deColegas = marcaSecundaria ? marks.filter(marcaSecundaria).length : 0;
+  if (deColegas) partes.push(`${deColegas} de colega${deColegas !== 1 ? 's' : ''}`);
   return partes.join(', ');
 }
 
-function Dots({ marks, selected }) {
+function Dots({ marks, selected, marcaSecundaria }) {
   if (!marks?.length) return null;
   const shown = sortByUrgency(marks).slice(0, MAX_DOTS);
   return (
-    <span aria-hidden="true" style={{ display: 'flex', gap: 3, justifyContent: 'center', height: 6 }}>
-      {shown.map((m, i) => (
+    <span aria-hidden="true" style={{ display: 'flex', gap: 3, alignItems: 'center', justifyContent: 'center', height: 6 }}>
+      {shown.map((m, i) => {
+        // A marca secundária (o agendamento de um colega, na agenda do
+        // inspetor) é menor: a forma e a cor já dizem o estado, e o tamanho
+        // é o único canal que sobra sem cor nova.
+        const lado = marcaSecundaria?.(m) ? 4 : 6;
+        return (
         <span
           key={m.id ?? i}
           style={{
-            width: 6,
-            height: 6,
+            width: lado,
+            height: lado,
             borderRadius: '50%',
-            // Sobre o dourado do dia escolhido nenhuma cor de status se lê (o
-            // pendente seria dourado sobre dourado): ali as bolinhas viram
+            // Sobre o dourado do dia escolhido o cinza do pendente some e o
+            // verde e o vermelho perdem contraste: ali as bolinhas viram
             // preto — a forma (vazada ou cheia) continua dizendo pendente ou
             // não, e o status inteiro fica no `aria-label` e na lista ao lado.
             ...estiloMarca(scheduleState(m), selected ? { cor: T.onAccent } : undefined),
           }}
         />
-      ))}
+        );
+      })}
     </span>
   );
 }
@@ -95,8 +105,8 @@ function Dots({ marks, selected }) {
  * - `onSelectDate(dateKey)`: clique/Enter num dia habilitado.
  * - `marks`: `{ 'yyyy-MM-dd': [{ status, overdue, id? }] }` — sai pronto de
  *   `groupSchedulesByDay(schedules)` (lib/agenda).
- * - `size`: `'compact'` (padrão; células quadradas ≥44px, para cartão e
- *   telefone) ou `'large'` (tela do gestor: células altas, conteúdo livre).
+ * - `size`: `'compact'` (padrão; células ≥44px — a 360px, com o vão de 2px,
+ *   só se a grade tiver ao menos 320px; ver a home do inspetor) ou `'large'` (tela do gestor: células altas, conteúdo livre).
  * - `renderDayContent(dateKey, marks)`: só no `large` — o que vai embaixo do
  *   número (ex.: chips com o nome do inspetor). Sem ele, as bolinhas.
  * - `disabledPast`: dias antes de hoje não são escolhíveis.
@@ -109,6 +119,9 @@ function Dots({ marks, selected }) {
  *   inspetor pinta assim os dias em que houve vistoria feita, sem disputar
  *   espaço com as bolinhas dos agendamentos; `label` entra no nome acessível
  *   ("2 vistorias feitas"), já que a cor sozinha não diz nada ao leitor de tela.
+ * - `marcaSecundaria(mark)`: opcional; `true` desenha a bolinha menor e conta
+ *   "de colega" no nome acessível — a agenda do inspetor mostra o prédio todo,
+ *   e os agendamentos dos outros ficam em segundo plano.
  *
  * Teclado: setas andam um dia/uma semana, Home/End vão ao início/fim da
  * semana, PageUp/PageDown trocam de mês. Só um dia por vez entra no Tab
@@ -128,6 +141,7 @@ export function CalendarioMensal({
   fixedWeeks = true,
   label = 'Calendário de agendamentos',
   getDayHint,
+  marcaSecundaria,
 }) {
   const large = size === 'large';
   const todayKey = toDateKey(new Date());
@@ -255,8 +269,8 @@ export function CalendarioMensal({
         </button>
       </div>
 
-      <div ref={gridRef} role="grid" aria-label={`${label}, ${titulo}`} style={{ display: 'flex', flexDirection: 'column', gap: large ? 6 : 4 }}>
-        <div role="row" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: large ? 6 : 4 }}>
+      <div ref={gridRef} role="grid" aria-label={`${label}, ${titulo}`} style={{ display: 'flex', flexDirection: 'column', gap: large ? 6 : 2 }}>
+        <div role="row" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: large ? 6 : 2 }}>
           {WEEKDAYS.map((d) => (
             <div
               key={d.long}
@@ -270,7 +284,7 @@ export function CalendarioMensal({
         </div>
 
         {weeks.map((week) => (
-          <div key={toDateKey(week[0])} role="row" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: large ? 6 : 4 }}>
+          <div key={toDateKey(week[0])} role="row" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: large ? 6 : 2 }}>
             {week.map((day) => {
               const key = toDateKey(day);
               const dayMarks = marks[key] ?? [];
@@ -282,7 +296,7 @@ export function CalendarioMensal({
 
               const partes = [formatDiaExtenso(key)];
               if (today) partes.push('hoje');
-              const resumo = descreverMarcas(dayMarks);
+              const resumo = descreverMarcas(dayMarks, marcaSecundaria);
               if (resumo) partes.push(resumo);
               else partes.push('sem agendamentos');
               if (hint?.label) partes.push(hint.label);
@@ -340,7 +354,7 @@ export function CalendarioMensal({
                         {renderDayContent(key, dayMarks)}
                       </span>
                     ) : (
-                      <Dots marks={dayMarks} selected={selected} />
+                      <Dots marks={dayMarks} selected={selected} marcaSecundaria={marcaSecundaria} />
                     )}
                   </button>
                 </div>

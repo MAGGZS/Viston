@@ -44,6 +44,18 @@ export class ConflictError extends AppError {
 }
 
 /**
+ * O agendamento mudou entre a leitura e a gravação (concorrência otimista).
+ *
+ * 409 com código próprio: o app usa o `code` para recarregar a ronda, em vez
+ * de tratar como as outras recusas de status.
+ */
+export class ScheduleChangedError extends AppError {
+  constructor() {
+    super('AGENDAMENTO_ALTERADO', 'O agendamento mudou. Recarregue e tente de novo.', 409);
+  }
+}
+
+/**
  * Requisição malformada em algo que não passa por um schema do zod — cabeçalho,
  * combinação de parâmetros. O zod já responde 400 sozinho; isto é para o resto.
  */

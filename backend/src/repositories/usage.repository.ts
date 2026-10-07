@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { prisma } from '../lib/prisma';
 
 export const usageRepository = {
@@ -53,6 +54,65 @@ export const usageRepository = {
       create: { manager_id: managerId, period, emails_sent: count },
       update: { emails_sent: { increment: count } },
     });
+  },
+
+  /**
+   * Reserva um envio do mês, só se ainda houver cota. Devolve se reservou.
+   *
+   * Um comando só, no banco: cria a linha do mês ou soma 1, e o `WHERE` do
+   * `DO UPDATE` recusa a soma quando o contador já chegou ao limite. Ler,
+   * mandar e só depois somar deixava duas requisições juntas lerem o mesmo
+   * número e as duas passarem do teto. Sem linha devolvida, não há cota.
+   *
+   * O `id` vai daqui: a coluna não tem default no banco (o Prisma o gera no
+   * cliente), e o SQL cru não passa pelo Prisma.
+   */
+  async reserveEmail(managerId: string, period: string, limit: number): Promise<boolean> {
+    if (limit <= 0) return false;
+    const rows = await prisma.$queryRaw<Array<{ emails_sent: number }>>`
+      INSERT INTO "usage_counters" ("id", "manager_id", "period", "emails_sent", "updated_at")
+      VALUES (${randomUUID()}, ${managerId}, ${period}, 1, CURRENT_TIMESTAMP)
+      ON CONFLICT ("manager_id", "period") DO UPDATE
+        SET "emails_sent" = "usage_counters"."emails_sent" + 1, "updated_at" = CURRENT_TIMESTAMP
+        WHERE "usage_counters"."emails_sent" < ${limit}
+      RETURNING "emails_sent"
+    `;
+    return rows.length > 0;
+  },
+
+  /** Devolve a reserva de um envio que não saiu — o que falhou não conta. */
+  async releaseEmail(managerId: string, period: string): Promise<void> {
+    await prisma.$executeRaw`
+      UPDATE "usage_counters"
+         SET "emails_sent" = "emails_sent" - 1, "updated_at" = CURRENT_TIMESTAMP
+       WHERE "manager_id" = ${managerId} AND "period" = ${period} AND "emails_sent" > 0
+    `;
+  },
+
+  /**
+   * Reserva um envio no teto diário do sistema (`email_daily_counters`), só se
+   * ainda houver vaga. Mesmo comando único de `reserveEmail`.
+   */
+  async reserveDailyEmail(scope: string, day: string, cap: number): Promise<boolean> {
+    if (cap <= 0) return false;
+    const rows = await prisma.$queryRaw<Array<{ sent: number }>>`
+      INSERT INTO "email_daily_counters" ("scope", "day", "sent", "updated_at")
+      VALUES (${scope}, ${day}, 1, CURRENT_TIMESTAMP)
+      ON CONFLICT ("scope", "day") DO UPDATE
+        SET "sent" = "email_daily_counters"."sent" + 1, "updated_at" = CURRENT_TIMESTAMP
+        WHERE "email_daily_counters"."sent" < ${cap}
+      RETURNING "sent"
+    `;
+    return rows.length > 0;
+  },
+
+  /** Devolve a vaga do dia de um envio que não saiu. */
+  async releaseDailyEmail(scope: string, day: string): Promise<void> {
+    await prisma.$executeRaw`
+      UPDATE "email_daily_counters"
+         SET "sent" = "sent" - 1, "updated_at" = CURRENT_TIMESTAMP
+       WHERE "scope" = ${scope} AND "day" = ${day} AND "sent" > 0
+    `;
   },
 
   findCounter(managerId: string, period: string) {

@@ -5,7 +5,9 @@ import { supervisorOverview } from '../services/supervisor.service';
 import { notificationService } from '../services/notification.service';
 import { created, noContent, ok } from '../utils/response';
 import {
+  mySchedulesQuerySchema,
   notificationsQuerySchema,
+  readAllNotificationsQuerySchema,
   overviewQuerySchema,
   scheduleListQuerySchema,
   suggestionQuerySchema,
@@ -20,7 +22,7 @@ import {
 export const scheduleController = {
   async list(req: AuthenticatedRequest, res: Response) {
     const query = scheduleListQuerySchema.parse(req.query);
-    ok(res, await scheduleService.list(req.params.id, req.user, req.buildingRole ?? undefined, query));
+    ok(res, await scheduleService.list(req.params.id, query));
   },
 
   async create(req: AuthenticatedRequest, res: Response) {
@@ -42,13 +44,13 @@ export const scheduleController = {
   },
 
   async mine(req: AuthenticatedRequest, res: Response) {
-    const query = scheduleListQuerySchema.pick({ month: true, year: true }).parse(req.query);
+    const query = mySchedulesQuerySchema.parse(req.query);
     ok(res, await scheduleService.mine(req.user, query));
   },
 
   async notifications(req: AuthenticatedRequest, res: Response) {
-    const { limit } = notificationsQuerySchema.parse(req.query);
-    ok(res, await notificationService.list(req.user, limit));
+    const { limit, building_id } = notificationsQuerySchema.parse(req.query);
+    ok(res, await notificationService.list(req.user, limit, building_id));
   },
 
   async readNotification(req: AuthenticatedRequest, res: Response) {
@@ -57,7 +59,8 @@ export const scheduleController = {
   },
 
   async readAllNotifications(req: AuthenticatedRequest, res: Response) {
-    await notificationService.markAllRead(req.user);
+    const { building_id } = readAllNotificationsQuerySchema.parse(req.query);
+    await notificationService.markAllRead(req.user, building_id);
     noContent(res);
   },
 };

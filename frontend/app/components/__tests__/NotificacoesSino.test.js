@@ -96,6 +96,15 @@ describe('NotificacoesSino', () => {
     );
   });
 
+  it('com prédio escolhido, busca e marca como lidas só as daquele prédio', async () => {
+    const user = userEvent.setup();
+    renderSino({ buildingId: 'p1' });
+    await user.click(await screen.findByRole('button', { name: /Notificações, 2/ }));
+    expect(api.get).toHaveBeenCalledWith('/me/notifications', { params: { limit: 20, building_id: 'p1' } });
+    await user.click(screen.getByRole('button', { name: 'Marcar todas como lidas' }));
+    expect(api.patch).toHaveBeenCalledWith('/me/notifications/read-all', null, { params: { building_id: 'p1' } });
+  });
+
   it('sem avisos, diz que não há nada', async () => {
     api.get.mockResolvedValue({ data: { notifications: [], unread: 0 } });
     const user = userEvent.setup();

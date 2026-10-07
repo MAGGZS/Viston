@@ -13,7 +13,13 @@ export const diaSchema = z
   .refine((valor) => {
     const data = new Date(`${valor}T00:00:00.000Z`);
     return !Number.isNaN(data.getTime()) && data.toISOString().slice(0, 10) === valor;
-  }, 'Data inválida');
+  }, 'Data inválida')
+  // A mesma faixa de anos da query `year`: um ano 9999 passaria pela regex e
+  // viraria um recorte absurdo no banco.
+  .refine((valor) => {
+    const ano = Number(valor.slice(0, 4));
+    return ano >= 2000 && ano <= 2100;
+  }, 'Ano fora da faixa 2000–2100');
 
 const notasSchema = z.string().trim().max(1000, 'Observação de até 1000 caracteres');
 
@@ -115,7 +121,15 @@ export const suggestionQuerySchema = z
 
 export type SuggestionQuery = z.infer<typeof suggestionQuerySchema>;
 
-/** O período do painel do supervisor. Sem datas, o mês corrente. */
+/** O período mais longo que o painel aceita: um ano, com folga para o bissexto. */
+export const OVERVIEW_MAX_DIAS = 366;
+
+/**
+ * O período do painel do supervisor. Sem datas, o mês corrente.
+ *
+ * Até 366 dias: o painel lê as rondas e os chamados do período inteiro, e um
+ * intervalo de décadas viraria uma consulta sem fim.
+ */
 export const overviewQuerySchema = z
   .object({
     from: diaSchema.optional(),
@@ -124,10 +138,34 @@ export const overviewQuerySchema = z
   .refine((q) => !q.from || !q.to || q.to >= q.from, {
     message: 'O fim do período não pode ser antes do início',
     path: ['to'],
-  });
+  })
+  .refine(
+    (q) =>
+      !q.from ||
+      !q.to ||
+      (Date.parse(`${q.to}T00:00:00Z`) - Date.parse(`${q.from}T00:00:00Z`)) / 86_400_000 + 1 <=
+        OVERVIEW_MAX_DIAS,
+    { message: `O período pode ter no máximo ${OVERVIEW_MAX_DIAS} dias`, path: ['to'] }
+  );
 
 export type OverviewQuery = z.infer<typeof overviewQuerySchema>;
 
 export const notificationsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(30),
+  /** O sino de um prédio só — a lista e a contagem de não lidas. */
+  building_id: z.string().uuid().optional(),
+});
+
+/** "Marcar todas como lidas": opcionalmente, só as de um prédio. */
+export const readAllNotificationsQuerySchema = z.object({
+  building_id: z.string().uuid().optional(),
+});
+
+/** A agenda da própria conta: o mês e, opcionalmente, um prédio só e um status. */
+export const mySchedulesQuerySchema = z.object({
+  month: z.coerce.number().int().min(1).max(12).optional(),
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
+  building_id: z.string().uuid().optional(),
+  /** Só um status. CANCELADO não está aqui: a agenda da conta não o mostra. */
+  status: z.enum([ScheduleStatus.PENDENTE, ScheduleStatus.CONCLUIDO]).optional(),
 });

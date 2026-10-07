@@ -5,6 +5,7 @@ import { authenticate } from '../middlewares/authenticate';
 import { validate } from '../middlewares/validate';
 import { requireBuildingMember, requireBuildingSupervisor } from '../middlewares/buildingAccess';
 import { requireBuildingActive } from '../middlewares/planGate';
+import { scheduleWriteLimiter } from '../middlewares/rateLimit';
 import { createScheduleSchema, updateScheduleSchema } from '../validators/schedule.validator';
 
 const router = guardUuidParams(Router());
@@ -21,6 +22,9 @@ const router = guardUuidParams(Router());
  * mesma guarda do resto da API. Entra depois da de vínculo — quem não tem nada
  * com o prédio recebe 403, e não fica sabendo que ele está congelado.
  *
+ * A escrita tem teto por conta (`scheduleWriteLimiter`), logo depois do login:
+ * cada gravação pode virar aviso e e-mail para o inspetor.
+ *
  * A sugestão vem antes de qualquer rota com `:scheduleId`, para "suggestion"
  * nunca ser lido como id.
  */
@@ -36,6 +40,7 @@ router.get('/buildings/:id/schedules', authenticate, requireBuildingMember(), sc
 router.post(
   '/buildings/:id/schedules',
   authenticate,
+  scheduleWriteLimiter,
   requireBuildingSupervisor(),
   requireBuildingActive(),
   validate(createScheduleSchema),
@@ -45,6 +50,7 @@ router.post(
 router.patch(
   '/buildings/:id/schedules/:scheduleId',
   authenticate,
+  scheduleWriteLimiter,
   requireBuildingSupervisor(),
   requireBuildingActive(),
   validate(updateScheduleSchema),

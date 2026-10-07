@@ -54,6 +54,8 @@ const agendamento = (id, data, extra = {}) => ({
 const DESTE_MES = [
   agendamento('s15', dia(15), { notes: 'Conferir a casa de máquinas' }),
   agendamento('s10', dia(10), { building_name: 'Torre Sul' }),
+  // De um colega do mesmo prédio: aparece, só para leitura.
+  agendamento('c22', dia(22), { inspector: { id: 'u9', name: 'Carlos Lima' }, floors: [{ id: 'f9', label: '9º Andar' }] }),
 ];
 const DO_PROXIMO = [agendamento('sN', dia(3, PMM, PY), { building_name: 'Edifício Norte' })];
 
@@ -80,9 +82,17 @@ function montarTela() {
   api.get.mockImplementation((url, config = {}) => {
     const params = config.params ?? {};
     if (url === '/buildings/me') return Promise.resolve({ data: [PREDIO] });
-    if (url === '/me/schedules') {
+    // O calendário do inspetor é o do prédio inteiro, mês a mês.
+    if (url === '/buildings/p1/schedules') {
       const lista = params.month === PM && params.year === PY ? DO_PROXIMO : params.month === M ? DESTE_MES : [];
       return Promise.resolve({ data: { schedules: lista } });
+    }
+    // Os pendentes dele, sem mês — o número "Pendentes" do cartão.
+    if (url === '/me/schedules') {
+      return Promise.resolve({ data: { schedules: params.status === 'PENDENTE' ? [DESTE_MES[0], DESTE_MES[1]] : [] } });
+    }
+    if (url === '/inspections') {
+      return Promise.resolve({ data: { inspections: [{ id: 'r1', date: dia(15), floor_form_entries: [{}, {}] }], total: 1 } });
     }
     if (url === '/calendar') return Promise.resolve({ data: { heatmap: params.month === M ? HEATMAP : {} } });
     if (url === '/me/notifications') return Promise.resolve({ data: { notifications: [NOTIFICACAO], unread: 1 } });
@@ -115,7 +125,9 @@ describe('home do inspetor: calendário da agenda', () => {
     expect(botaoDoDia(15)).toHaveAccessibleName(expect.stringMatching(/1 agendamento, 2 vistorias feitas/));
     expect(botaoDoDia(10)).toHaveAccessibleName(expect.stringMatching(/1 agendamento$/));
     await waitFor(() => expect(botaoDoDia(20)).toHaveAccessibleName(expect.stringMatching(/sem agendamentos, 1 vistoria feita/)));
-    expect(api.get).toHaveBeenCalledWith('/me/schedules', { params: { month: M, year: Y } });
+    // Cada prédio tem a sua agenda: o escolhido vai em toda consulta.
+    expect(api.get).toHaveBeenCalledWith('/buildings/p1/schedules', { params: { month: M, year: Y } });
+    expect(api.get).toHaveBeenCalledWith('/me/notifications', { params: { limit: 20, building_id: 'p1' } });
   });
 
   it('clicar num dia com agendamento abre os detalhes, com acesso às vistorias feitas', async () => {
@@ -125,11 +137,13 @@ describe('home do inspetor: calendário da agenda', () => {
     await user.click(botaoDoDia(15));
 
     const caixa = await screen.findByRole('dialog', { name: /Agenda de 15 de/ });
-    expect(within(caixa).getByText('Edifício Aurora')).toBeInTheDocument();
     expect(within(caixa).getByText('3º Andar')).toBeInTheDocument();
+    // O prédio é o escolhido na tela e o agendamento é dele: nem um nem outro nome.
+    expect(within(caixa).queryByText('Edifício Aurora')).not.toBeInTheDocument();
+    expect(within(caixa).queryByText('Marina Alves')).not.toBeInTheDocument();
     expect(within(caixa).getByText('Conferir a casa de máquinas')).toBeInTheDocument();
     // O inspetor não edita.
-    expect(within(caixa).queryByRole('button', { name: 'Editar agendamento' })).not.toBeInTheDocument();
+    expect(within(caixa).queryByRole('button', { name: /Editar agendamento/ })).not.toBeInTheDocument();
 
     await user.click(within(caixa).getByRole('button', { name: 'Ver 2 vistorias feitas neste dia' }));
     expect(await screen.findByText(/vistorias? neste dia/)).toBeInTheDocument();
@@ -151,7 +165,74 @@ describe('home do inspetor: calendário da agenda', () => {
     await user.click(await screen.findByRole('button', { name: /Nova vistoria agendada/ }));
 
     const caixa = await screen.findByRole('dialog', { name: /Agenda de 3 de/ });
-    expect(within(caixa).getByText('Edifício Norte')).toBeInTheDocument();
-    expect(api.get).toHaveBeenCalledWith('/me/schedules', { params: { month: PM, year: PY } });
+    expect(within(caixa).getByText('3º Andar')).toBeInTheDocument();
+    expect(api.get).toHaveBeenCalledWith('/buildings/p1/schedules', { params: { month: PM, year: PY } });
+  });
+
+  it('aviso de cancelamento mostra os dados do próprio aviso, e não um dia vazio', async () => {
+    const user = userEvent.setup();
+    const cancelado = {
+      ...NOTIFICACAO,
+      id: 'n2',
+      type: 'SCHEDULE_CANCELED',
+      payload: { ...NOTIFICACAO.payload, schedule_id: 'sumiu', building_name: 'Edifício Norte', floors: [{ label: '7º Andar' }] },
+    };
+    montarTela();
+    api.get.mockImplementation((url, config = {}) => {
+      const params = config.params ?? {};
+      if (url === '/buildings/me') return Promise.resolve({ data: [PREDIO] });
+      if (url === '/me/notifications') return Promise.resolve({ data: { notifications: [cancelado], unread: 1 } });
+      if (url === '/buildings/p1/schedules') return Promise.resolve({ data: { schedules: params.month === PM ? [] : DESTE_MES } });
+      if (url === '/me/schedules') return Promise.resolve({ data: { schedules: [] } });
+      return Promise.resolve({ data: { heatmap: {} } });
+    });
+    await user.click(await screen.findByRole('button', { name: 'Notificações, 1 não lida' }));
+    await user.click(await screen.findByRole('button', { name: /Vistoria cancelada/ }));
+
+    const caixa = await screen.findByRole('dialog', { name: 'Agendamento cancelado' });
+    expect(within(caixa).getByText('7º Andar')).toBeInTheDocument();
+    expect(within(caixa).getByText('Cancelado')).toBeInTheDocument();
+    // Na própria agenda, o nome do inspetor é ruído.
+    expect(within(caixa).queryByText('Marina Alves')).not.toBeInTheDocument();
+    expect(within(caixa).queryByText(/Nenhuma vistoria agendada/)).not.toBeInTheDocument();
+  });
+
+  it('mostra os agendamentos dos colegas, menores e com o nome de quem vai', async () => {
+    const user = userEvent.setup();
+    montarTela();
+    await waitFor(() => expect(botaoDoDia(22)).toHaveAccessibleName(expect.stringMatching(/1 agendamento, 1 de colega$/)));
+    await user.click(botaoDoDia(22));
+    const caixa = await screen.findByRole('dialog', { name: /Agenda de 22 de/ });
+    expect(within(caixa).getByText('Carlos Lima')).toBeInTheDocument();
+    expect(screen.getByText('De um colega')).toBeInTheDocument();
+  });
+
+  it('para quem vistoria no prédio, os números do cartão são os dele', async () => {
+    montarTela();
+    const minhas = await screen.findByText('Minhas vistorias');
+    await waitFor(() => expect(minhas.parentElement).toHaveTextContent('1'));
+    expect(screen.getByText('Andares').parentElement).toHaveTextContent('2');
+    await waitFor(() => expect(screen.getByText('Pendentes').parentElement).toHaveTextContent('2'));
+    expect(api.get).toHaveBeenCalledWith('/me/schedules', { params: { building_id: 'p1', status: 'PENDENTE' } });
+    expect(api.get).toHaveBeenCalledWith('/inspections', {
+      params: expect.objectContaining({ building_id: 'p1', inspector_id: 'u1' }),
+    });
+  });
+
+  it('sem conseguir a agenda, o aviso do sino ainda abre, com os dados dele e "Tentar de novo"', async () => {
+    const user = userEvent.setup();
+    montarTela();
+    api.get.mockImplementation((url) => {
+      if (url === '/buildings/me') return Promise.resolve({ data: [PREDIO] });
+      if (url === '/me/notifications') return Promise.resolve({ data: { notifications: [NOTIFICACAO], unread: 1 } });
+      if (url === '/buildings/p1/schedules') return Promise.reject(new Error('fora do ar'));
+      return Promise.resolve({ data: { heatmap: {}, schedules: [] } });
+    });
+    await user.click(await screen.findByRole('button', { name: 'Notificações, 1 não lida' }));
+    await user.click(await screen.findByRole('button', { name: /Nova vistoria agendada/ }));
+
+    const caixa = await screen.findByRole('dialog', { name: 'Vistoria agendada' });
+    expect(within(caixa).getByText(/Não foi possível carregar sua agenda/)).toBeInTheDocument();
+    expect(within(caixa).getByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument();
   });
 });

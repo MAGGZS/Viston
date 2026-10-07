@@ -6,7 +6,7 @@ import { generateDayExcel } from '../services/excel.service';
 import { storageService } from '../services/storage.service';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { FloorStatus, InspectionStatus } from '@prisma/client';
-import { inspectionFiltersSchema } from '../validators/inspection.validator';
+import { calendarQuerySchema, inspectionFiltersSchema } from '../validators/inspection.validator';
 import { scheduleRepository } from '../repositories/schedule.repository';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -370,9 +370,13 @@ describe('inspectionService.submit', () => {
     mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
     mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6, mockFloorSub1] as any);
     mockScheduleRepo.findPendingForCompletion.mockResolvedValue([
-      { id: 'ronda-1', floors: [{ floor_id: FLOOR_6 }] },
+      { id: 'ronda-1', scheduled_date: new Date('2000-01-01T00:00:00Z'), floors: [{ floor_id: FLOOR_6 }] },
     ] as any);
-    mockScheduleRepo.markCompleted.mockResolvedValue(1);
+    mockScheduleRepo.activeInspectorPairs.mockImplementation((async (
+      pairs: Array<{ building_id: string; user_id: string }>
+    ) => new Set(pairs.map((p) => `${p.building_id}:${p.user_id}`))) as any);
+    mockScheduleRepo.listReportsForCoverage.mockResolvedValue([]);
+    mockScheduleRepo.markCompleted.mockResolvedValue(['ronda-1']);
 
     await inspectionService.submit(
       inspetor(),
@@ -529,6 +533,55 @@ describe('inspectionService.findAll', () => {
     expect(mockInspectionRepo.findAll).toHaveBeenCalledWith(
       expect.objectContaining({ q: 'carlos' })
     );
+  });
+
+  it('stats pessoais por prédio: building_id, inspector_id e datas vão juntos, somados à visibilidade', async () => {
+    mockInspectionRepo.findAll.mockResolvedValue([[], 0]);
+    const filtros = inspectionFiltersSchema.parse({
+      building_id: BUILDING_ID,
+      inspector_id: RESPONSIBLE_ID,
+      date_from: '2026-10-01',
+      date_to: '2026-10-31',
+    });
+    await inspectionService.findAll({ ...filtros, page: 1, limit: 20 }, [BUILDING_ID]);
+    expect(mockInspectionRepo.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({
+        building_id: BUILDING_ID,
+        inspector_id: RESPONSIBLE_ID,
+        building_ids: [BUILDING_ID],
+      })
+    );
+  });
+});
+
+describe('inspectionService.getCalendar', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('cada prédio tem o seu calendário: building_id vai ao repositório junto da visibilidade', async () => {
+    mockInspectionRepo.getCalendarData.mockResolvedValue([]);
+    const params = calendarQuerySchema.parse({ month: '10', year: '2026', building_id: BUILDING_ID });
+    await inspectionService.getCalendar(params, [BUILDING_ID]);
+    expect(mockInspectionRepo.getCalendarData).toHaveBeenCalledWith(
+      expect.any(Date),
+      expect.any(Date),
+      BUILDING_ID,
+      [BUILDING_ID]
+    );
+  });
+
+  it('sem building_id, todos os visíveis — o comportamento de antes', async () => {
+    mockInspectionRepo.getCalendarData.mockResolvedValue([]);
+    await inspectionService.getCalendar(calendarQuerySchema.parse({}), [BUILDING_ID]);
+    expect(mockInspectionRepo.getCalendarData).toHaveBeenCalledWith(
+      expect.any(Date),
+      expect.any(Date),
+      undefined,
+      [BUILDING_ID]
+    );
+  });
+
+  it('building_id que não é UUID é recusado', () => {
+    expect(calendarQuerySchema.safeParse({ building_id: 'abc' }).success).toBe(false);
   });
 });
 

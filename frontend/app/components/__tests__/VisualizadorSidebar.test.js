@@ -39,6 +39,7 @@ describe('VisualizadorSidebar', () => {
 
     expect(screen.getByRole('link', { name: 'Painel' })).toHaveAttribute('href', '/desktop/visualizacao');
     expect(screen.getByRole('link', { name: 'Agenda' })).toHaveAttribute('href', '/desktop/visualizacao/agenda');
+    expect(screen.getByRole('link', { name: 'Histórico' })).toHaveAttribute('href', '/historico');
     expect(screen.getByRole('link', { name: 'Perfil' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sair' })).toBeInTheDocument();
     expect(screen.getByText('Edifício Aurora')).toBeInTheDocument();
@@ -64,10 +65,25 @@ describe('VisualizadorSidebar', () => {
   });
 
   it('esconde a agenda de quem não supervisiona prédio nenhum', () => {
-    expect(itensDoVisualizador({ supervisiona: false }).map((i) => i.label)).toEqual(['Painel']);
+    expect(itensDoVisualizador({ supervisiona: false }).map((i) => i.label)).toEqual(['Painel', 'Histórico']);
     mockPathname = '/desktop/visualizacao';
     render(<VisualizadorSidebar supervisiona={false} />);
     expect(screen.queryByRole('link', { name: 'Agenda' })).not.toBeInTheDocument();
+  });
+});
+
+describe('VisualizadorSidebar — Histórico', () => {
+  it('acende o Histórico na terceira posição, com a pílula em 2 × 44px', () => {
+    mockPathname = '/historico';
+    const { container } = render(<VisualizadorSidebar />);
+    expect(screen.getByRole('link', { name: 'Histórico' })).toHaveAttribute('aria-current', 'page');
+    expect(pilula(container)).toHaveStyle({ transform: `translateY(${2 * SIDEBAR_STEP}px)` });
+  });
+
+  it('sem a agenda, o Histórico sobe para a segunda posição', () => {
+    mockPathname = '/historico';
+    const { container } = render(<VisualizadorSidebar supervisiona={false} />);
+    expect(pilula(container)).toHaveStyle({ transform: `translateY(${SIDEBAR_STEP}px)` });
   });
 });
 

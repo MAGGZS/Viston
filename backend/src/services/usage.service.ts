@@ -84,6 +84,38 @@ export const usageService = {
     }
   },
 
+  /**
+   * Reserva um e-mail na cota do mês antes de mandá-lo (ver
+   * `usageRepository.reserveEmail`). Diferente de `recordEmail`, o erro sobe:
+   * sem saber se há cota, quem chama não manda.
+   */
+  reserveEmail(managerId: string, limit: number, period = currentPeriod()): Promise<boolean> {
+    return usageRepository.reserveEmail(managerId, period, limit);
+  },
+
+  /** Devolve a reserva de um envio que falhou. Falha aqui só vai para o log. */
+  async releaseEmail(managerId: string, period: string): Promise<void> {
+    try {
+      await usageRepository.releaseEmail(managerId, period);
+    } catch (err) {
+      logger.error({ err, manager_id: managerId }, '[Uso] Falha ao devolver reserva de e-mail');
+    }
+  },
+
+  /** Reserva uma vaga no teto diário do sistema para o escopo (ver o repositório). */
+  reserveDailyEmail(scope: string, cap: number, day = zonedDayKey(new Date())): Promise<boolean> {
+    return usageRepository.reserveDailyEmail(scope, day, cap);
+  },
+
+  /** Devolve a vaga do dia. Falha aqui só vai para o log. */
+  async releaseDailyEmail(scope: string, day: string): Promise<void> {
+    try {
+      await usageRepository.releaseDailyEmail(scope, day);
+    } catch (err) {
+      logger.error({ err, scope }, '[Uso] Falha ao devolver vaga diária de e-mail');
+    }
+  },
+
   /** Quanto as fotos dos prédios desta conta ocupam, em bytes. */
   async storageUsedBytes(managerId: string): Promise<number> {
     return Number(await usageRepository.sumPhotoBytes(managerId));

@@ -1,5 +1,5 @@
 'use client';
-import { Building2, CalendarDays, Clock, Pencil, User } from 'lucide-react';
+import { AlertTriangle, Building2, CalendarDays, Clock, Pencil, User, UserX } from 'lucide-react';
 import { Badge, Modal } from '@/app/components/ui';
 import { T, R, W } from '@/app/lib/theme';
 import {
@@ -32,20 +32,32 @@ function Detalhe({ schedule, showBuilding, showInspector, showStatus, onEdit, ca
   const atrasado = estado === 'atrasado';
   const vencido = estado === 'prazo_vencido';
   const editavel = onEdit && canEdit(schedule);
+  // O inspetor saiu do prédio e a ronda ainda está aberta: precisa de outro.
+  const saiu = !!schedule.inspector_left && (schedule.status ?? 'PENDENTE') === 'PENDENTE';
 
   return (
     <article
       style={{ background: T.chip, borderRadius: R.card, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}
     >
-      {(showStatus || editavel) && (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {showStatus && <Badge variant={meta.badge}>{meta.label}</Badge>}
+      {(showStatus || editavel || saiu) && (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {showStatus && (
+          <Badge variant={meta.badge}>
+            {meta.alerta && <AlertTriangle size={12} aria-hidden="true" />}
+            {meta.label}
+          </Badge>
+        )}
+        {saiu && (
+          <Badge>
+            <UserX size={12} aria-hidden="true" /> Inspetor saiu
+          </Badge>
+        )}
         <span style={{ flex: 1 }} />
         {editavel && (
           <button
             type="button"
             className="icone-btn icone-btn--compacto"
-            aria-label="Editar agendamento"
+            aria-label={`Editar agendamento de ${schedule.inspector?.name || 'inspetor'}, ${formatDataCurta(schedule.scheduled_date)}`}
             onClick={() => onEdit(schedule)}
           >
             <Pencil size={16} aria-hidden="true" />
@@ -64,10 +76,10 @@ function Detalhe({ schedule, showBuilding, showInspector, showStatus, onEdit, ca
           </Linha>
         )}
         <Linha icon={CalendarDays} label="Data">
-          <span style={{ textTransform: 'capitalize', color: atrasado ? T.accentInk : T.text, fontWeight: atrasado ? W.strong : W.body }}>
+          <span style={{ textTransform: 'capitalize', color: T.text, fontWeight: atrasado ? W.strong : W.body }}>
             {formatDiaCurto(schedule.scheduled_date)}
           </span>
-          {atrasado && <span style={{ color: T.accentInk }}> · dia agendado já passou</span>}
+          {atrasado && <span style={{ color: T.text }}> · dia agendado já passou</span>}
         </Linha>
         <Linha icon={Clock} label="Prazo">
           <span style={{ color: vencido ? T.danger : T.text, fontWeight: vencido ? W.strong : W.body }}>
@@ -124,7 +136,9 @@ function Detalhe({ schedule, showBuilding, showInspector, showStatus, onEdit, ca
  *   7 de outubro". Sem ele, e com um agendamento só, "Vistoria agendada".
  * - `showBuilding`: mostra o prédio em cada um (padrão `true`).
  * - `showInspector`: mostra o inspetor (padrão `true`; o inspetor vendo a
- *   própria agenda passa `false` — o nome dele ali é só ruído).
+ *   própria agenda passa `false` — o nome dele ali é só ruído). Aceita também
+ *   `(schedule) => boolean`: na agenda do prédio que o inspetor vê, o nome
+ *   aparece só nos agendamentos dos colegas.
  * - `onEdit(schedule)`: opcional; mostra o lápis nos editáveis.
  * - `canEdit(schedule)`: quais são editáveis (padrão: só `PENDENTE`).
  * - `footer`: nó opcional embaixo da lista (ex.: botão "Agendar neste dia").
@@ -165,7 +179,7 @@ export function ScheduleDetailsModal({
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {lista.map((s) => (
-            <Detalhe key={s.id} schedule={s} showBuilding={showBuilding} showInspector={showInspector} showStatus={showStatus} onEdit={onEdit} canEdit={canEdit} />
+            <Detalhe key={s.id} schedule={s} showBuilding={showBuilding} showInspector={typeof showInspector === 'function' ? showInspector(s) : showInspector} showStatus={showStatus} onEdit={onEdit} canEdit={canEdit} />
           ))}
         </div>
       )}

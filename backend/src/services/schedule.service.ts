@@ -3,14 +3,14 @@ import { scheduleRepository, ScheduleRow, ScheduleWrite } from '../repositories/
 import { buildingRepository, auditRepository, actorAudit } from '../repositories/building.repository';
 import { notificationService } from './notification.service';
 import { Actor } from '../middlewares/authenticate';
-import { BuildingStanding, visibleBuildingIds } from '../middlewares/buildingAccess';
+import { visibleBuildingIds } from '../middlewares/buildingAccess';
 import {
   CreateSchedulePayload,
   ScheduleListQuery,
   SuggestionQuery,
   UpdateSchedulePayload,
 } from '../validators/schedule.validator';
-import { ConflictError, NotFoundError, ValidationError } from '../utils/errors';
+import { ConflictError, NotFoundError, ScheduleChangedError, ValidationError } from '../utils/errors';
 import { sortFloorsDesc } from '../utils/floorOrder';
 import { zonedDayKey, zonedParts } from '../utils/timezone';
 import { logger } from '../lib/logger';
@@ -35,11 +35,16 @@ export const todayKey = (now = new Date()) => zonedDayKey(now);
  *   `completed_at` no fuso do produto — na conclusão pela vistoria, é o dia
  *   do envio.
  *
- *
  * O inspetor cuja conta foi apagada (o vínculo é SetNull) sai como "Usuário
  * removido", a mesma convenção do histórico de vistorias.
+ *
+ * `inspector_left`: o inspetor não é mais INSPECTOR com conta ativa deste
+ * prédio (saiu, mudou de papel, foi suspenso ou apagado). A ronda continua
+ * existindo, "sem inspetor", para o gestor ou o VIEWER redistribuir. `ativos`
+ * são os pares `prédio:inspetor` ainda válidos, carregados em lote por quem
+ * chama (ver `inspetoresAtivos`); sem ele, vale o status da conta na linha.
  */
-export function serializeSchedule(s: ScheduleRow, today = todayKey()) {
+export function serializeSchedule(s: ScheduleRow, today = todayKey(), ativos?: Set<string>) {
   const due = dayKey(s.due_date);
   const scheduled = dayKey(s.scheduled_date);
   const pendente = s.status === ScheduleStatus.PENDENTE;
@@ -54,6 +59,9 @@ export function serializeSchedule(s: ScheduleRow, today = todayKey()) {
     due_date: due,
     notes: s.notes,
     status: s.status,
+    inspector_left: ativos
+      ? !s.inspector_id || !ativos.has(`${s.building_id}:${s.inspector_id}`)
+      : !s.inspector || s.inspector.status !== 'ACTIVE',
     overdue: pendente && scheduled < today,
     past_deadline: pendente && due < today,
     completed_late: isCompletedLate(s),
@@ -100,13 +108,38 @@ function autoria(actor: Actor, papel: 'created' | 'updated'): ScheduleWrite {
     : { updated_by_manager_id: gestor, updated_by_user_id: usuario };
 }
 
-/** O inspetor escolhido tem de ser INSPECTOR deste prédio, com a conta ativa. */
+/**
+ * O inspetor escolhido tem de ser INSPECTOR deste prédio, com a conta ativa.
+ *
+ * A consulta é a mesma da sugestão e do ciclo diário (vínculo INSPECTOR e conta
+ * ACTIVE): a conta suspensa não recebe ronda nova, nem por troca de inspetor.
+ */
 async function assertInspectorOf(buildingId: string, inspectorId: string) {
-  const member = await buildingRepository.findMember(buildingId, inspectorId);
-  if (!member || member.role !== BuildingRole.INSPECTOR) {
-    throw new ValidationError('O inspetor escolhido não é inspetor deste prédio');
+  const ativos = await scheduleRepository.activeInspectorPairs([{ building_id: buildingId, user_id: inspectorId }]);
+  if (!ativos.has(`${buildingId}:${inspectorId}`)) {
+    throw new ValidationError('O inspetor escolhido não é inspetor ativo deste prédio');
   }
 }
+
+/**
+ * Os pares `prédio:inspetor` ainda válidos (INSPECTOR com conta ACTIVE) dentre
+ * as rondas pedidas. Uma consulta só para a lista inteira, sem repetir par.
+ */
+export async function inspetoresAtivos(
+  rows: Array<{ building_id: string; inspector_id: string | null }>
+): Promise<Set<string>> {
+  const pares = new Map<string, { building_id: string; user_id: string }>();
+  for (const r of rows) {
+    if (r.inspector_id) {
+      pares.set(`${r.building_id}:${r.inspector_id}`, { building_id: r.building_id, user_id: r.inspector_id });
+    }
+  }
+  if (pares.size === 0) return new Set();
+  return scheduleRepository.activeInspectorPairs([...pares.values()]);
+}
+
+/** Teto de segurança das listas sem recorte de mês. */
+export const LISTA_SEM_RECORTE_MAX = 500;
 
 /** Os andares existem, são deste prédio, e saem sem repetição. */
 async function resolveFloors(buildingId: string, floorIds: string[]): Promise<string[]> {
@@ -158,30 +191,40 @@ export const scheduleService = {
   /**
    * A agenda do prédio.
    *
-   * Quem é só INSPECTOR vê as próprias rondas e nada mais: a agenda dos colegas
-   * é assunto de quem distribui o trabalho. Gestor e os demais papéis veem tudo.
+   * Todo vínculo vê a agenda inteira do prédio — o INSPECTOR também, só para
+   * leitura (a escrita é de gestor e VIEWER, na rota). As rondas só dele estão
+   * em `/me/schedules`.
+   *
+   * `status` filtra por um status. Sem mês e sem ano (e em `overdue`), a lista
+   * não tem recorte de datas, e sai com no máximo `LISTA_SEM_RECORTE_MAX`.
    *
    * `overdue` troca o recorte: os atrasados de qualquer mês, do mais antigo
    * para o mais novo — o atraso não respeita a virada do mês.
    */
-  async list(buildingId: string, actor: Actor, standing: BuildingStanding | undefined, query: ScheduleListQuery) {
+  async list(buildingId: string, query: Omit<ScheduleListQuery, 'overdue'> & { overdue?: boolean }) {
     const today = todayKey();
-    const proprio = standing === BuildingRole.INSPECTOR ? { inspector_id: actor.id } : {};
+    const recorte = monthRange(query);
+    const semRecorte = query.overdue || (!recorte.from && !recorte.to);
 
     const rows = query.overdue
-      ? await scheduleRepository.list({
-          building_id: buildingId,
-          ...proprio,
-          statuses: [ScheduleStatus.PENDENTE],
-          scheduled_before: toDateOnly(today),
-        })
-      : await scheduleRepository.list({
-          building_id: buildingId,
-          ...proprio,
-          ...(query.status && { statuses: [query.status] }),
-          ...monthRange(query),
-        });
-    return { schedules: rows.map((r) => serializeSchedule(r, today)) };
+      ? await scheduleRepository.list(
+          {
+            building_id: buildingId,
+            statuses: [ScheduleStatus.PENDENTE],
+            scheduled_before: toDateOnly(today),
+          },
+          LISTA_SEM_RECORTE_MAX
+        )
+      : await scheduleRepository.list(
+          {
+            building_id: buildingId,
+            ...(query.status && { statuses: [query.status] }),
+            ...recorte,
+          },
+          semRecorte ? LISTA_SEM_RECORTE_MAX : undefined
+        );
+    const ativos = await inspetoresAtivos(rows);
+    return { schedules: rows.map((r) => serializeSchedule(r, today, ativos)) };
   },
 
   /**
@@ -189,23 +232,41 @@ export const scheduleService = {
    *
    * Só PENDENTE e CONCLUIDO: a ronda cancelada não é trabalho de ninguém, e o
    * aviso de cancelamento já foi para o sino.
+   *
+   * Com `building_id`, só aquele prédio — cada prédio tem a sua agenda. Prédio
+   * fora dos visíveis devolve lista vazia, como as outras listagens.
+   *
+   * `status` (PENDENTE ou CONCLUIDO) filtra por um só. Sem mês e sem ano, sai
+   * com no máximo `LISTA_SEM_RECORTE_MAX`.
    */
-  async mine(actor: Actor, query: { month?: number; year?: number }) {
+  async mine(
+    actor: Actor,
+    query: { month?: number; year?: number; building_id?: string; status?: 'PENDENTE' | 'CONCLUIDO' }
+  ) {
     if (actor.kind !== 'USER') return { schedules: [] };
 
-    const buildingIds = await visibleBuildingIds(actor);
+    const visiveis = await visibleBuildingIds(actor);
+    const buildingIds = query.building_id
+      ? visiveis && !visiveis.includes(query.building_id)
+        ? []
+        : [query.building_id]
+      : visiveis;
     if (buildingIds && buildingIds.length === 0) return { schedules: [] };
 
     const { from, to } = monthRange(query);
-    const rows = await scheduleRepository.list({
-      inspector_id: actor.id,
-      ...(buildingIds && { building_ids: buildingIds }),
-      statuses: [ScheduleStatus.PENDENTE, ScheduleStatus.CONCLUIDO],
-      from,
-      to,
-    });
+    const rows = await scheduleRepository.list(
+      {
+        inspector_id: actor.id,
+        ...(buildingIds && { building_ids: buildingIds }),
+        statuses: query.status ? [query.status] : [ScheduleStatus.PENDENTE, ScheduleStatus.CONCLUIDO],
+        from,
+        to,
+      },
+      !from && !to ? LISTA_SEM_RECORTE_MAX : undefined
+    );
     const today = todayKey();
-    return { schedules: rows.map((r) => serializeSchedule(r, today)) };
+    const ativos = await inspetoresAtivos(rows);
+    return { schedules: rows.map((r) => serializeSchedule(r, today, ativos)) };
   },
 
   async create(buildingId: string, actor: Actor, body: CreateSchedulePayload) {
@@ -243,7 +304,8 @@ export const scheduleService = {
 
     await avisar('SCHEDULE_CREATED', schedule, schedule.inspector);
 
-    return { schedule: serializeSchedule(schedule) };
+    // O inspetor acabou de ser conferido como ativo (`assertInspectorOf`).
+    return { schedule: serializeSchedule(schedule, todayKey(), new Set([`${buildingId}:${body.inspector_id}`])) };
   },
 
   /**
@@ -303,7 +365,9 @@ export const scheduleService = {
       data.completed_at = new Date();
       data.completed_report_id = null;
     }
-    if (reaberto) {
+    // Reaberta ou cancelada, a ronda não está concluída: nada de carimbo de
+    // conclusão sobrando de antes.
+    if (reaberto || (mudouStatus && novoStatus === ScheduleStatus.CANCELADO)) {
       data.completed_at = null;
       data.completed_report_id = null;
     }
@@ -311,7 +375,15 @@ export const scheduleService = {
     // antigo não seria avisado do novo.
     if (mudouPrazo || reaberto) data.due_soon_notified_at = null;
 
-    const schedule = await scheduleRepository.update(scheduleId, data, mudouAndares ? floorIds : undefined);
+    // Concorrência otimista: grava só se ninguém mexeu na ronda desde a leitura.
+    // Sem gravação, sem auditoria e sem aviso.
+    const schedule = await scheduleRepository.updateIfUnchanged(
+      scheduleId,
+      { status: atual.status, updated_at: atual.updated_at },
+      data,
+      mudouAndares ? floorIds : undefined
+    );
+    if (!schedule) throw new ScheduleChangedError();
 
     const cancelou = mudouStatus && novoStatus === ScheduleStatus.CANCELADO;
     await auditRepository.log({
@@ -350,7 +422,8 @@ export const scheduleService = {
       }
     }
 
-    return { schedule: serializeSchedule(schedule) };
+    const ativos = await inspetoresAtivos([schedule]);
+    return { schedule: serializeSchedule(schedule, todayKey(), ativos) };
   },
 
   /**
@@ -403,13 +476,21 @@ export const scheduleService = {
   },
 
   /**
-   * A vistoria enviada cumpre as rondas que cobriu.
+   * As vistorias enviadas cumprem as rondas que cobriram, somadas.
    *
    * Cumpre a ronda PENDENTE do mesmo inspetor, no mesmo prédio, que já tinha
-   * começado no dia da vistoria e cujos andares estão todos entre os
-   * vistoriados. Atrasada ou passada do prazo, fecha do mesmo jeito: o atraso
-   * fica registrado em `completed_late`, e não impede a conclusão. Ronda que a vistoria cobriu só em parte continua pendente: o
-   * andar que faltou é exatamente o que ela existe para lembrar.
+   * começado no dia da vistoria, quando a união dos andares de todas as
+   * vistorias concluídas dele ali, do dia agendado até hoje, cobre todos os
+   * andares da ronda. A ronda de 3 andares feita em duas idas fecha na segunda,
+   * e `completed_report_id` fica com a vistoria que completou a cobertura.
+   * Atrasada ou passada do prazo, fecha do mesmo jeito: o atraso fica em
+   * `completed_late`, pelo dia do envio desta última vistoria.
+   *
+   * O custo fica preso às candidatas: só as rondas pendentes deste inspetor
+   * neste prédio, e só as vistorias dele ali desde a mais antiga delas.
+   *
+   * Inspetor que não é mais INSPECTOR ativo do prédio (`inspector_left`) não
+   * fecha ronda nenhuma: ela espera ser redistribuída.
    *
    * Quem chama não pode quebrar por causa disto (ver `inspectionService.submit`).
    */
@@ -421,32 +502,57 @@ export const scheduleService = {
     floors_inspected: string[];
   }) {
     if (!report.inspector_id) return 0;
+    const inspectorId = report.inspector_id;
 
     const candidatas = await scheduleRepository.findPendingForCompletion(
-      report.inspector_id,
+      inspectorId,
       report.building_id,
       report.date
     );
-    const vistos = new Set(report.floors_inspected);
-    const cumpridas = candidatas
-      .filter((c) => c.floors.length > 0 && c.floors.every((f) => vistos.has(f.floor_id)))
+    const comAndares = candidatas.filter((c) => c.floors.length > 0);
+    if (comAndares.length === 0) return 0;
+
+    const ativos = await inspetoresAtivos([{ building_id: report.building_id, inspector_id: inspectorId }]);
+    if (!ativos.has(`${report.building_id}:${inspectorId}`)) return 0;
+
+    const desde = new Date(Math.min(...comAndares.map((c) => c.scheduled_date.getTime())));
+    const vistorias = await scheduleRepository.listReportsForCoverage(
+      inspectorId,
+      report.building_id,
+      desde,
+      report.date
+    );
+
+    const cumpridas = comAndares
+      .filter((c) => {
+        // A vistoria desta chamada entra sempre, mesmo que a leitura não a veja.
+        const vistos = new Set(report.floors_inspected);
+        for (const v of vistorias) {
+          if (v.date.getTime() >= c.scheduled_date.getTime()) {
+            for (const f of v.floors_inspected) vistos.add(f);
+          }
+        }
+        return c.floors.every((f) => vistos.has(f.floor_id));
+      })
       .map((c) => c.id);
 
     if (cumpridas.length === 0) return 0;
 
-    const total = await scheduleRepository.markCompleted(cumpridas, report.id, new Date());
+    // Só os ids que o UPDATE mudou de fato vão para a auditoria: a ronda
+    // cancelada entre a leitura e a escrita não foi concluída.
+    const concluidas = await scheduleRepository.markCompleted(cumpridas, report.id, new Date());
 
-    for (const id of cumpridas) {
-      await auditRepository.log({
-        user_id: report.inspector_id,
+    await auditRepository.logMany(
+      concluidas.map((id) => ({
+        user_id: inspectorId,
         building_id: report.building_id,
         action: AuditAction.SCHEDULE_UPDATED,
         entity: 'InspectionSchedule',
         entity_id: id,
         metadata: { status: { de: 'PENDENTE', para: 'CONCLUIDO' }, report_id: report.id, automatico: true },
-      });
-    }
+      }))
+    );
 
-    return total;
+    return concluidas.length;
   },
 };

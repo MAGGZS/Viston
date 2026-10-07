@@ -71,6 +71,10 @@ export const config = {
     from: required('EMAIL_FROM'),
     // O nome que aparece na caixa de entrada, ao lado do endereço.
     fromName: process.env.EMAIL_FROM_NAME || 'Viston',
+    // Teto diário dos e-mails da agenda no sistema inteiro, somando todos os
+    // clientes (dia no fuso do produto). Acima dele o aviso fica só no sino.
+    // Os e-mails de verificação e de recuperação de senha não contam aqui.
+    agendaDailyCap: Math.max(0, parseInt(process.env.AGENDA_EMAIL_DAILY_CAP || '150', 10) || 0),
   },
 
   /**

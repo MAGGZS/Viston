@@ -6,6 +6,9 @@ import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
 import { CONTENT_ID } from '@/app/components/mobile/kit';
+import { SoNoComputador } from '@/app/components/TelaPorLargura';
+import { useAuthStore } from '@/app/store/auth';
+import { isViewerOnly } from '@/app/lib/roles';
 import { T, R, W } from '@/app/lib/theme';
 
 /**
@@ -19,8 +22,11 @@ import { T, R, W } from '@/app/lib/theme';
  * panorama e para escrever na agenda. A guarda da rota ainda aceita o inspetor
  * (ver a página), e para ele o painel mostra só as vistorias recentes.
  */
-export function useVisualizadorBuilding() {
-  const { buildings, active, buildingId, setActive, isLoading } = useActiveBuilding();
+export function useVisualizadorBuilding({ soOndeSupervisiona = false } = {}) {
+  const { buildings: todos } = useActiveBuilding();
+  const { buildings, active, buildingId, setActive, isLoading } = useActiveBuilding(
+    soOndeSupervisiona && todos.some((b) => b.role === 'VIEWER') ? { filter: PREDIO_SUPERVISIONADO } : undefined
+  );
   return {
     buildings,
     building: active,
@@ -28,9 +34,11 @@ export function useVisualizadorBuilding() {
     setActive,
     isLoading,
     supervisiona: active?.role === 'VIEWER',
-    supervisionaAlgum: buildings.some((b) => b.role === 'VIEWER'),
+    supervisionaAlgum: todos.some((b) => b.role === 'VIEWER'),
   };
 }
+
+const PREDIO_SUPERVISIONADO = (b) => b.role === 'VIEWER';
 
 function SemPredio() {
   return (
@@ -48,22 +56,6 @@ function SemPredio() {
 }
 
 /**
- * Aviso de que a área do visualizador é de tela larga — o mesmo texto da tela
- * antiga: quem só supervisiona não usa o telefone para isso.
- */
-function ApenasDesktop() {
-  return (
-    <div className="lg:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
-      <div>
-        <p className="text-4xl mb-4" aria-hidden="true">📱</p>
-        <p className="text-ink font-semibold text-lg">Use o app mobile</p>
-        <p className="text-mute text-sm mt-2">Esta visualização é otimizada para desktop</p>
-      </div>
-    </div>
-  );
-}
-
-/**
  * A casca das telas do visualizador: barra lateral e o conteúdo ao lado, no
  * mesmo desenho da casca do gestor — quem supervisiona e quem gere leem a
  * mesma agenda, e não deveriam ter de reaprender onde as coisas ficam.
@@ -75,9 +67,23 @@ function ApenasDesktop() {
  */
 export function VisualizadorShell({ ctx, title, subtitle, actions, children }) {
   const { buildings, building, buildingId, setActive, isLoading, supervisionaAlgum } = ctx;
+  const { user } = useAuthStore();
+  // No celular: quem também vistoria (ou ainda não tem prédio) tem a tela
+  // inicial do telefone. Quem só visualiza não tem versão de celular — o
+  // RouteGuard já o barra antes de chegar aqui; se chegar, fica só o aviso,
+  // sem redirecionar (a raiz o mandaria de volta para cá).
+  const destinoNoCelular = isViewerOnly(user) ? null : '/home';
 
   return (
     <RouteGuard roles={['INSPECTOR', 'VIEWER', 'NONE']}>
+      <SoNoComputador
+        destinoNoCelular={destinoNoCelular}
+        texto={
+          destinoNoCelular
+            ? 'O painel e a agenda de quem supervisiona são do computador. No celular, a sua agenda e a vistoria ficam na tela inicial.'
+            : 'O painel e a agenda de quem supervisiona são do computador. Abra o Viston num computador para continuar.'
+        }
+      >
       <div className="hidden lg:flex" style={{ minHeight: '100vh', background: T.bg }}>
         <VisualizadorSidebar buildingName={building?.name} supervisiona={supervisionaAlgum} />
 
@@ -110,8 +116,7 @@ export function VisualizadorShell({ ctx, title, subtitle, actions, children }) {
           )}
         </main>
       </div>
-
-      <ApenasDesktop />
+      </SoNoComputador>
     </RouteGuard>
   );
 }

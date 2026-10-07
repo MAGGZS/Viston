@@ -1,5 +1,5 @@
 'use client';
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import { addDays, differenceInCalendarDays } from 'date-fns';
 import { Check, CircleCheck, Sparkles, XCircle } from 'lucide-react';
 import { Button, Input, Textarea, Skeleton } from '@/app/components/ui';
@@ -74,6 +74,7 @@ export function motivoDaSugestao(sugerido, todos = [], hoje = new Date()) {
 }
 
 function detalheDoInspetor(i) {
+  if (i.fora) return 'Não está mais neste prédio';
   const pend = `${i.pending_count} pendente${i.pending_count !== 1 ? 's' : ''}`;
   const ultima = i.last_inspected_at
     ? `nesses andares em ${formatDataCurta(i.last_inspected_at)}`
@@ -83,7 +84,7 @@ function detalheDoInspetor(i) {
 
 const rotulo = { fontSize: 12, fontWeight: W.strong, color: T.mute, margin: 0 };
 
-function Secao({ titulo, id, acao, erro, children }) {
+function Secao({ titulo, id, acao, erro, erroId, children }) {
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }} aria-labelledby={id}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 20 }}>
@@ -91,7 +92,7 @@ function Secao({ titulo, id, acao, erro, children }) {
         {acao}
       </div>
       {children}
-      {erro && <span role="alert" style={{ fontSize: 12, color: T.danger }}>{erro}</span>}
+      {erro && <span id={erroId} role="alert" style={{ fontSize: 12, color: T.danger }}>{erro}</span>}
     </section>
   );
 }
@@ -104,9 +105,16 @@ function Secao({ titulo, id, acao, erro, children }) {
  * suave: com dez andares marcados, dez blocos de dourado cheio gritariam mais
  * que o botão de agendar, que é a ação da tela.
  */
-function ChipsDeAndares({ andares, marcados, onToggle, disabled }) {
+function ChipsDeAndares({ andares, marcados, onToggle, disabled, labelledBy, erroId }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+    <div
+      role="group"
+      aria-labelledby={labelledBy}
+      // `aria-invalid` não vale em `group` (ARIA): a mensagem chega pelo
+      // `aria-describedby`, e cada chip anuncia o próprio estado.
+      aria-describedby={erroId}
+      style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}
+    >
       {andares.map((f) => {
         const ligado = marcados.includes(f.id);
         return (
@@ -138,13 +146,16 @@ function ChipsDeAndares({ andares, marcados, onToggle, disabled }) {
   );
 }
 
-function OpcaoInspetor({ inspetor, marcado, onEscolher, disabled, sugerido, motivo }) {
+function OpcaoInspetor({ inspetor, marcado, onEscolher, disabled, sugerido, motivo, focavel, onKeyDown }) {
   return (
     <button
       type="button"
       role="radio"
       aria-checked={marcado}
       disabled={disabled}
+      tabIndex={focavel ? 0 : -1}
+      data-inspetor={inspetor.id}
+      onKeyDown={onKeyDown}
       onClick={() => onEscolher(inspetor.id)}
       className="agenda-linha"
       style={{
@@ -204,7 +215,10 @@ function OpcaoInspetor({ inspetor, marcado, onEscolher, disabled, sugerido, moti
  * uma escolha sem o dado que a orienta. O pedido vem no lugar da lista, para a
  * pessoa saber por que ela ainda não está ali.
  */
-function SeletorDeInspetor({ semAndares, carregando, erro, inspetores, escolhido, onEscolher, disabled, extra, labelledBy }) {
+/** As setas de um radiogroup: ↓/→ vai ao próximo, ↑/← ao anterior, dando a volta. */
+const PASSO_DA_SETA = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 };
+
+function SeletorDeInspetor({ semAndares, carregando, erro, inspetores, escolhido, onEscolher, disabled, extra, labelledBy, erroId }) {
   if (semAndares) {
     return (
       <p style={{ fontSize: 13, color: T.mute, lineHeight: 1.55, background: T.chip, borderRadius: R.card, padding: '12px 14px', margin: 0 }}>
@@ -234,26 +248,50 @@ function SeletorDeInspetor({ semAndares, carregando, erro, inspetores, escolhido
   const sugerido = inspetores.find((i) => i.suggested) ?? null;
   const motivo = motivoDaSugestao(sugerido, inspetores);
   const demais = inspetores.filter((i) => i !== sugerido);
+  const extraOpcao = extra ? { ...extra, pending_count: 0, fora: true } : null;
+
+  // Tabindex móvel, como o radio nativo: só a opção marcada (ou a primeira)
+  // entra no Tab, e as setas andam entre elas marcando a que recebe o foco.
+  const ordem = [sugerido, ...demais, extraOpcao].filter(Boolean);
+  const focavelId = ordem.some((i) => i.id === escolhido) ? escolhido : ordem[0]?.id;
+
+  function aoTeclar(e, id) {
+    const passo = PASSO_DA_SETA[e.key];
+    if (!passo || ordem.length === 0) return;
+    e.preventDefault();
+    const atual = ordem.findIndex((i) => i.id === id);
+    const proximo = ordem[(atual + passo + ordem.length) % ordem.length];
+    onEscolher(proximo.id);
+    e.currentTarget.closest('[role="radiogroup"]')?.querySelector(`[data-inspetor="${proximo.id}"]`)?.focus();
+  }
+
+  const opcao = (i, extras = {}) => (
+    <OpcaoInspetor
+      key={i.id}
+      inspetor={i}
+      marcado={escolhido === i.id}
+      onEscolher={onEscolher}
+      disabled={disabled}
+      focavel={i.id === focavelId}
+      onKeyDown={(e) => aoTeclar(e, i.id)}
+      {...extras}
+    />
+  );
 
   return (
-    <div role="radiogroup" aria-labelledby={labelledBy} style={{ display: 'flex', flexDirection: 'column', gap: 4, opacity: carregando ? 0.6 : 1, transition: 'opacity 150ms ease' }}>
-      {sugerido && (
-        <OpcaoInspetor inspetor={sugerido} marcado={escolhido === sugerido.id} onEscolher={onEscolher} disabled={disabled} sugerido motivo={motivo} />
-      )}
+    <div
+      role="radiogroup"
+      aria-labelledby={labelledBy}
+      aria-invalid={erroId ? true : undefined}
+      aria-describedby={erroId}
+      style={{ display: 'flex', flexDirection: 'column', gap: 4, opacity: carregando ? 0.6 : 1, transition: 'opacity 150ms ease' }}
+    >
+      {sugerido && opcao(sugerido, { sugerido: true, motivo })}
       {demais.length > 0 && sugerido && (
         <p style={{ fontSize: 11, color: T.faint, margin: '6px 0 2px 2px' }}>Outros inspetores</p>
       )}
-      {demais.map((i) => (
-        <OpcaoInspetor key={i.id} inspetor={i} marcado={escolhido === i.id} onEscolher={onEscolher} disabled={disabled} />
-      ))}
-      {extra && (
-        <OpcaoInspetor
-          inspetor={{ ...extra, pending_count: 0 }}
-          marcado={escolhido === extra.id}
-          onEscolher={onEscolher}
-          disabled={disabled}
-        />
-      )}
+      {demais.map((i) => opcao(i))}
+      {extraOpcao && opcao(extraOpcao)}
     </div>
   );
 }
@@ -269,15 +307,24 @@ function SeletorDeInspetor({ semAndares, carregando, erro, inspetores, escolhido
  *   existentes naquele dia).
  * - `onDone()`: depois de salvar, concluir ou cancelar.
  * - `disabled`: prédio inativo — tudo só leitura.
+ * - `erroData`: erro de data vindo de fora — o clique num dia passado do
+ *   calendário ao lado, que não troca a data mas precisa dizer por quê.
+ *
+ * Agendamento cujo inspetor saiu do prédio (`inspector_left`) abre sem a
+ * escolha antiga: o sugerido já vem marcado, que é a troca que se veio fazer.
  */
-export function FormularioAgendamento({ buildingId, schedule = null, date, onDateChange, antes, onDone, disabled = false }) {
+export function FormularioAgendamento({ buildingId, schedule = null, date, onDateChange, antes, onDone, disabled = false, erroData }) {
   const editando = !!schedule;
   const hoje = toDateKey(new Date());
   const ids = { andares: useId(), inspetor: useId() };
+  const erroIds = { andares: `${ids.andares}-erro`, inspetor: `${ids.inspetor}-erro` };
+  const formRef = useRef(null);
   const { show: toast } = useToastStore();
 
   const [floorIds, setFloorIds] = useState(() => (schedule?.floors ?? []).map((f) => f.id));
-  const [inspectorChoice, setInspectorChoice] = useState(schedule?.inspector?.id ?? null);
+  const [inspectorChoice, setInspectorChoice] = useState(
+    schedule?.inspector_left ? null : schedule?.inspector?.id ?? null
+  );
   // `null` = ninguém tocou no prazo; ele acompanha a data.
   const [dueChoice, setDueChoice] = useState(schedule ? dateKeyOf(schedule.due_date) : null);
   const [notes, setNotes] = useState(schedule?.notes ?? '');
@@ -305,8 +352,10 @@ export function FormularioAgendamento({ buildingId, schedule = null, date, onDat
   // é da pessoa e não muda mais sozinha.
   const inspectorId = inspectorChoice ?? sugerido?.id ?? null;
   // Em edição, o inspetor atual pode ter saído do prédio e não vir na lista.
+  // Conta apagada vem com `id: null` ("Usuário removido"): essa não vira
+  // opção — não há a quem manter a vistoria, e o sugerido toma o lugar.
   const inspetorForaDaLista =
-    editando && schedule.inspector && !semAndares && inspetores.length > 0 &&
+    editando && schedule.inspector?.id && !semAndares && inspetores.length > 0 &&
     !inspetores.some((i) => i.id === schedule.inspector.id)
       ? schedule.inspector
       : null;
@@ -326,14 +375,38 @@ export function FormularioAgendamento({ buildingId, schedule = null, date, onDat
   }
 
   function falhou(err) {
+    // 409: alguém mexeu no agendamento depois que ele abriu aqui. A lista é
+    // buscada de novo (o `useUpdateSchedule` invalida `['schedules', id]`) e o
+    // formulário volta para ela — salvar por cima apagaria a outra mudança.
+    // Sem o `err` no toast: o aviso é de concorrência, nunca de plano.
+    if (err?.response?.status === 409) {
+      toast(mensagemDoErro(err, 'O agendamento mudou. Recarregue e tente de novo.'), 'error');
+      onDone?.();
+      return;
+    }
     toast(mensagemDoErro(err), 'error', err);
+  }
+
+  /** O primeiro campo com erro, na ordem da tela, recebe o foco. */
+  function focarPrimeiroErro(lista) {
+    const form = formRef.current;
+    if (!form) return;
+    let alvo = null;
+    if (lista.date) alvo = form.querySelector('[name="scheduled_date"]');
+    else if (lista.due) alvo = form.querySelector('[name="due_date"]');
+    else if (lista.floors) alvo = form.querySelector(`[role="group"][aria-labelledby="${ids.andares}"] button`);
+    else if (lista.inspector) alvo = form.querySelector('[role="radio"][tabindex="0"]');
+    alvo?.focus();
   }
 
   function enviar(e) {
     e.preventDefault();
     if (disabled || salvando) return;
     setTentou(true);
-    if (Object.keys(erros).length > 0) return;
+    if (Object.keys(erros).length > 0) {
+      focarPrimeiroErro(erros);
+      return;
+    }
 
     const notas = notes.trim() || null;
 
@@ -386,6 +459,7 @@ export function FormularioAgendamento({ buildingId, schedule = null, date, onDat
 
   return (
     <form
+      ref={formRef}
       onSubmit={enviar}
       noValidate
       aria-label={editando ? 'Editar agendamento' : 'Agendar vistoria'}
@@ -403,7 +477,7 @@ export function FormularioAgendamento({ buildingId, schedule = null, date, onDat
             min={editando ? undefined : hoje}
             disabled={bloqueado}
             onChange={(e) => e.target.value && onDateChange?.(e.target.value)}
-            error={mostrar('date')}
+            error={mostrar('date') ?? erroData}
             style={{ padding: '10px 12px', fontSize: 14 }}
           />
           <Input
@@ -423,13 +497,15 @@ export function FormularioAgendamento({ buildingId, schedule = null, date, onDat
           titulo={`Andares${floorIds.length ? ` · ${floorIds.length}` : ''}`}
           id={ids.andares}
           erro={mostrar('floors')}
+          erroId={erroIds.andares}
           acao={
             andares.length > 1 && (
               <button
                 type="button"
+                className="link-acao"
                 disabled={bloqueado}
                 onClick={() => setFloorIds(todosMarcados ? [] : andares.map((f) => f.id))}
-                style={{ background: 'none', border: 'none', padding: '2px 4px', font: 'inherit', fontSize: 12, fontWeight: W.strong, color: T.accentInk, cursor: 'pointer' }}
+                style={{ minHeight: 32, padding: '0 4px', fontSize: 12, fontWeight: W.strong, color: T.mute }}
               >
                 {todosMarcados ? 'Limpar' : 'Selecionar todos'}
               </button>
@@ -443,11 +519,18 @@ export function FormularioAgendamento({ buildingId, schedule = null, date, onDat
           ) : andares.length === 0 ? (
             <p style={{ fontSize: 13, color: T.mute, margin: 0 }}>O prédio ainda não tem andares cadastrados.</p>
           ) : (
-            <ChipsDeAndares andares={andares} marcados={floorIds} onToggle={alternarAndar} disabled={bloqueado} />
+            <ChipsDeAndares
+              andares={andares}
+              marcados={floorIds}
+              onToggle={alternarAndar}
+              disabled={bloqueado}
+              labelledBy={ids.andares}
+              erroId={mostrar('floors') ? erroIds.andares : undefined}
+            />
           )}
         </Secao>
 
-        <Secao titulo="Inspetor" id={ids.inspetor} erro={mostrar('inspector')}>
+        <Secao titulo="Inspetor" id={ids.inspetor} erro={mostrar('inspector')} erroId={erroIds.inspetor}>
           <SeletorDeInspetor
             semAndares={semAndares}
             carregando={sugestao.isFetching}
@@ -458,6 +541,7 @@ export function FormularioAgendamento({ buildingId, schedule = null, date, onDat
             disabled={bloqueado}
             extra={inspetorForaDaLista}
             labelledBy={ids.inspetor}
+            erroId={mostrar('inspector') ? erroIds.inspetor : undefined}
           />
         </Secao>
 

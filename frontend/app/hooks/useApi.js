@@ -670,6 +670,10 @@ export function useSubmitInspection() {
       // do inspetor, e a agenda do prédio, mudam com ela.
       qc.invalidateQueries({ queryKey: ['my-schedules'] });
       qc.invalidateQueries({ queryKey: ['schedules'] });
+      // O panorama do supervisor (cobertura, agendamentos) e a sugestão de
+      // inspetor (quem passou por aqueles andares por último) também.
+      qc.invalidateQueries({ queryKey: ['supervisor-overview'] });
+      qc.invalidateQueries({ queryKey: ['schedule-suggestion'] });
     },
   });
 }
@@ -1215,6 +1219,19 @@ export const NOTIFICATIONS_POLL_MS = 60_000;
  * o panorama do supervisor conta pendentes e atrasados; e a sugestão de
  * inspetor ordena por `pending_count`, que acabou de mudar.
  */
+/**
+ * `keepPreviousData`, mas só dentro do mesmo prédio.
+ *
+ * Segurar o mês anterior enquanto o próximo chega evita o piscar das bolinhas;
+ * segurar os dados de OUTRO prédio mostraria a agenda errada como se fosse a
+ * certa. Trocou o prédio, a tela volta ao esqueleto. `predioDaChave` tira o id
+ * do prédio da chave da consulta anterior.
+ */
+function manterSoNoMesmoPredio(buildingId, predioDaChave) {
+  return (anterior, consultaAnterior) =>
+    consultaAnterior && predioDaChave(consultaAnterior.queryKey) === buildingId ? anterior : undefined;
+}
+
 function invalidateSchedules(qc, buildingId) {
   qc.invalidateQueries({ queryKey: ['schedules', buildingId] });
   qc.invalidateQueries({ queryKey: ['my-schedules'] });
@@ -1235,7 +1252,7 @@ export function useBuildingSchedules(buildingId, filters = {}, options = {}) {
     queryFn: () =>
       api.get(`/buildings/${buildingId}/schedules`, { params: filters }).then((r) => r.data),
     enabled: !!buildingId,
-    placeholderData: keepPreviousData,
+    placeholderData: manterSoNoMesmoPredio(buildingId, (k) => k[1]),
     ...options,
   });
 }
@@ -1278,6 +1295,11 @@ export function useUpdateSchedule() {
     mutationFn: ({ buildingId, scheduleId, ...data }) =>
       api.patch(`/buildings/${buildingId}/schedules/${scheduleId}`, data).then((r) => r.data),
     onSuccess: (_, { buildingId }) => invalidateSchedules(qc, buildingId),
+    // 409: o agendamento mudou desde que foi aberto. A agenda é buscada de
+    // novo para quem chamou mostrar a versão atual.
+    onError: (err, { buildingId }) => {
+      if (err?.response?.status === 409) qc.invalidateQueries({ queryKey: ['schedules', buildingId] });
+    },
   });
 }
 
@@ -1296,33 +1318,41 @@ export function useScheduleSuggestion(buildingId, { floorIds = [], scheduledDate
     queryFn: () =>
       api.get(`/buildings/${buildingId}/schedules/suggestion`, { params }).then((r) => r.data),
     enabled: !!buildingId && floorIds.length > 0,
-    placeholderData: keepPreviousData,
+    placeholderData: manterSoNoMesmoPredio(buildingId, (k) => k[1]),
     staleTime: 30_000,
   });
 }
 
-/** A agenda de quem está logado (inspetor), num mês: `{ schedules }`. `filters` = `{ month, year }`. */
+/**
+ * A agenda de quem está logado (inspetor): `{ schedules }`.
+ * `filters` = `{ month, year, building_id, status }` — com o prédio, só a
+ * agenda dele; sem mês, use `status` para não trazer o histórico inteiro.
+ */
 export function useMySchedules(filters = {}, options = {}) {
   return useQuery({
     queryKey: ['my-schedules', filters],
     queryFn: () => api.get('/me/schedules', { params: filters }).then((r) => r.data),
-    placeholderData: keepPreviousData,
+    placeholderData: manterSoNoMesmoPredio(filters.building_id, (k) => k[1]?.building_id),
     ...options,
   });
 }
 
 /**
- * Os avisos da conta: `{ notifications, unread }`.
+ * Os avisos da conta: `{ notifications, unread }` — de um prédio só, se
+ * `buildingId` vier.
  *
  * Pede de novo a cada minuto e ao voltar para a aba. Com a aba escondida o
  * intervalo para sozinho — é o padrão do React Query
  * (`refetchIntervalInBackground: false`), e não há por que gastar requisição
  * com uma tela que ninguém está vendo.
  */
-export function useNotifications({ limit = 20, enabled = true } = {}) {
+export function useNotifications({ limit = 20, enabled = true, buildingId } = {}) {
+  // Com `buildingId`, só os avisos daquele prédio — cada prédio tem a sua
+  // agenda e as suas demandas, e o sino fala do prédio escolhido.
+  const params = buildingId ? { limit, building_id: buildingId } : { limit };
   return useQuery({
-    queryKey: ['notifications', limit],
-    queryFn: () => api.get('/me/notifications', { params: { limit } }).then((r) => r.data),
+    queryKey: ['notifications', limit, buildingId ?? null],
+    queryFn: () => api.get('/me/notifications', { params }).then((r) => r.data),
     enabled,
     refetchInterval: NOTIFICATIONS_POLL_MS,
     refetchOnWindowFocus: true,
@@ -1336,15 +1366,20 @@ export function useNotifications({ limit = 20, enabled = true } = {}) {
  * servidor deixaria o ponto aceso enquanto a caixa já mudou de assunto. Se a
  * chamada falhar, o retrato anterior volta.
  */
-function useOptimisticNotifications(mutationFn, apply) {
+function useOptimisticNotifications(mutationFn, apply, buildingId) {
+  // Com `buildingId`, o otimista mexe só no sino daquele prédio (a chave é
+  // `['notifications', limit, buildingId]`).
+  const alvo = buildingId
+    ? { queryKey: ['notifications'], predicate: (q) => q.queryKey[2] === buildingId }
+    : { queryKey: ['notifications'] };
   const qc = useQueryClient();
   return useMutation({
     mutationFn,
     onMutate: async (vars) => {
       await qc.cancelQueries({ queryKey: ['notifications'] });
-      const before = qc.getQueriesData({ queryKey: ['notifications'] });
+      const before = qc.getQueriesData(alvo);
       const now = new Date().toISOString();
-      qc.setQueriesData({ queryKey: ['notifications'] }, (old) => (old ? apply(old, vars, now) : old));
+      qc.setQueriesData(alvo, (old) => (old ? apply(old, vars, now) : old));
       return { before };
     },
     onError: (_e, _v, ctx) => {
@@ -1373,14 +1408,22 @@ export function useMarkNotificationRead() {
 }
 
 /** Marca todos os avisos como lidos. `mutate()`. */
-export function useMarkAllNotificationsRead() {
+export function useMarkAllNotificationsRead(buildingId) {
+  // Com o prédio, "todas" são as dele — as mesmas que o sino está mostrando.
+  // O otimista mexe só no cache desse prédio; os outros são buscados de novo
+  // no fim, como sempre.
   return useOptimisticNotifications(
-    () => api.patch('/me/notifications/read-all').then((r) => r.data),
+    () =>
+      (buildingId
+        ? api.patch('/me/notifications/read-all', null, { params: { building_id: buildingId } })
+        : api.patch('/me/notifications/read-all')
+      ).then((r) => r.data),
     (old, _vars, now) => ({
       ...old,
       notifications: (old.notifications ?? []).map((n) => (n.read_at ? n : { ...n, read_at: now })),
       unread: 0,
-    })
+    }),
+    buildingId
   );
 }
 
@@ -1394,7 +1437,7 @@ export function useSupervisorOverview(buildingId, range = {}, options = {}) {
     queryFn: () =>
       api.get(`/buildings/${buildingId}/supervisor/overview`, { params: range }).then((r) => r.data),
     enabled: !!buildingId,
-    placeholderData: keepPreviousData,
+    placeholderData: manterSoNoMesmoPredio(buildingId, (k) => k[1]),
     ...options,
   });
 }

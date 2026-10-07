@@ -676,6 +676,35 @@ export const auditRepository = {
   },
 
   /**
+   * Vários registros num comando só (`createMany`). Mesma regra de `log`:
+   * falha de auditoria nunca derruba a operação principal.
+   */
+  logMany(
+    rows: Array<{
+      user_id?: string;
+      manager_id?: string;
+      building_id?: string;
+      action: AuditAction;
+      entity?: string;
+      entity_id?: string;
+      metadata?: Record<string, unknown>;
+    }>
+  ) {
+    if (rows.length === 0) return Promise.resolve();
+    return prisma.auditLog
+      .createMany({
+        data: rows.map(({ metadata, ...rest }) => ({
+          ...rest,
+          metadata: metadata as Prisma.InputJsonValue | undefined,
+        })),
+      })
+      .then(() => undefined)
+      .catch((err) => {
+        logger.error({ err }, '[AuditLog] Falha ao registrar em lote');
+      });
+  },
+
+  /**
    * O último congelamento (ou descongelamento) deste prédio.
    *
    * A trilha é quem sabe *por que* o prédio parou, e a resposta muda o que o

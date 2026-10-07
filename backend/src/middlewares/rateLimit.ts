@@ -95,6 +95,13 @@ export const reportLimiter = perAccount(10 * 60_000, 10, 'Muitos relatórios em 
 export const timelineLimiter = perAccount(60_000, 20, 'Muitas atualizações em sequência. Aguarde um instante.');
 
 /**
+ * Escrita da agenda (marcar e mudar ronda): cada chamada pode virar aviso no
+ * sino e e-mail para o inspetor, contado na cota do dono do prédio. Vinte por
+ * minuto cobre com folga quem monta a agenda do mês de uma vez.
+ */
+export const scheduleWriteLimiter = perAccount(60_000, 20, 'Muitas alterações na agenda. Aguarde um instante.');
+
+/**
  * Teto por conta, para rotas que só existem depois do login.
  *
  * Por conta e não por IP: a conta é o que se quer limitar, e o IP muda (4G) ou

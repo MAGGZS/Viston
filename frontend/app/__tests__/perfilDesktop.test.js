@@ -121,9 +121,20 @@ describe('perfil no desktop', () => {
     expect(await screen.findByRole('link', { name: /Processamento/ })).toBeInTheDocument();
   });
 
-  it('conta sem barra lateral ganha o cabeçalho com a saída', async () => {
-    // Inspetor: a área dele não tem menu lateral em tela nenhuma.
+  it('o inspetor fica com a barra da área dele, e sem o cabeçalho de saída', async () => {
+    // Ele chega aqui pelo rodapé do menu da mesa dele; sair da área para mexer
+    // na conta tirava o menu e o caminho de volta.
     const { container } = Tela(conta({ memberships: [{ building_id: 'p1', name: 'Aurora', role: 'INSPECTOR' }] }));
+
+    await screen.findByText('Configurações da conta');
+    expect(container.querySelector('a.sidebar-item[href="/historico"]')).not.toBeNull();
+    expect(container.querySelector('header')).toBeNull();
+    expect(screen.queryByRole('link', { name: /Processamento/ })).not.toBeInTheDocument();
+  });
+
+  it('conta sem barra lateral ganha o cabeçalho com a saída', async () => {
+    // Gestor fora de um prédio: a mesa dele é a lista de prédios, sem menu.
+    const { container } = Tela(conta({ kind: 'MANAGER', memberships: [{ building_id: 'p1', name: 'Aurora', role: 'GESTOR' }] }));
 
     await screen.findByText('Configurações da conta');
 
@@ -133,8 +144,6 @@ describe('perfil no desktop', () => {
     const cabecalho = container.querySelector('header');
     expect(within(cabecalho).getByRole('button', { name: /Sair/ })).toBeInTheDocument();
     expect(within(cabecalho).getByRole('button', { name: /Voltar/ })).toBeInTheDocument();
-
-    expect(screen.queryByRole('link', { name: /Processamento/ })).not.toBeInTheDocument();
   });
 
   it('o gestor não vê a seção de prédio — ele administra vários e não se desvincula aqui', async () => {

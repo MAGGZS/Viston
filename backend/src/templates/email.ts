@@ -186,6 +186,8 @@ export type DadosAgenda = {
   inicio: string;
   prazo: string;
   andares: string[];
+  /** Só no lembrete de prazo: o prazo é hoje, e não amanhã. */
+  venceHoje?: boolean;
 };
 
 /** `2026-10-07` para `07/10/2026` — a data como se lê no Brasil. */
@@ -253,6 +255,14 @@ const TEXTOS_AGENDA: Record<
   },
 };
 
+/** O lembrete quando o ciclo diário pega a ronda já no dia do prazo. */
+const LEMBRETE_HOJE: (typeof TEXTOS_AGENDA)[TipoAvisoAgenda] = {
+  sobretitulo: 'Lembrete',
+  titulo: 'O prazo vence hoje',
+  assunto: (d) => `Lembrete: a vistoria em ${d.predio} vence hoje`,
+  frase: 'O prazo desta vistoria termina hoje.',
+};
+
 /**
  * O aviso da agenda por e-mail — o mesmo que entra no sino.
  *
@@ -261,7 +271,7 @@ const TEXTOS_AGENDA: Record<
  * cada ambiente.
  */
 export function emailAgenda(tipo: TipoAvisoAgenda, nome: string, dados: DadosAgenda) {
-  const t = TEXTOS_AGENDA[tipo];
+  const t = tipo === 'SCHEDULE_DUE_SOON' && dados.venceHoje ? LEMBRETE_HOJE : TEXTOS_AGENDA[tipo];
   return {
     assunto: t.assunto(dados),
     texto:

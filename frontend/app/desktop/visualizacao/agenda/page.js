@@ -40,7 +40,10 @@ function Conteudo({ ctx }) {
 }
 
 export default function VisualizacaoAgendaPage() {
-  const ctx = useVisualizadorBuilding();
+  // Só os prédios em que a conta supervisiona: quem vistoria num prédio e
+  // supervisiona outro chega aqui pelo menu do inspetor, e a agenda abre no
+  // prédio em que ele é visualizador — não no último escolhido na mesa dele.
+  const ctx = useVisualizadorBuilding({ soOndeSupervisiona: true });
 
   return (
     <VisualizadorShell ctx={ctx} title="Agenda" subtitle="Quem vistoria o quê, e até quando">

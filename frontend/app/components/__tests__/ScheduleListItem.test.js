@@ -38,6 +38,18 @@ describe('ScheduleListItem', () => {
     expect(screen.getByText('Atrasado')).toBeInTheDocument();
   });
 
+  it('passou do "até quando": "Prazo vencido"; concluído depois do dia: "Concluído com atraso"', () => {
+    const { rerender } = render(<ScheduleListItem schedule={{ ...BASE, overdue: true, past_deadline: true }} />);
+    expect(screen.getByText('Prazo vencido')).toBeInTheDocument();
+    rerender(<ScheduleListItem schedule={{ ...BASE, status: 'CONCLUIDO', completed_late: true }} />);
+    expect(screen.getByText('Concluído com atraso')).toBeInTheDocument();
+  });
+
+  it('inspetor com conta apagada aparece pelo nome que a API manda', () => {
+    render(<ScheduleListItem schedule={{ ...BASE, inspector: { id: null, name: 'Usuário removido' } }} />);
+    expect(screen.getByText('Usuário removido')).toBeInTheDocument();
+  });
+
   it('mostra o prédio quando pedido', () => {
     render(<ScheduleListItem schedule={BASE} showBuilding />);
     expect(screen.getByText(/Edifício Aurora/)).toBeInTheDocument();
@@ -46,15 +58,29 @@ describe('ScheduleListItem', () => {
   it('sem onEdit não há lápis; com onEdit, o lápis entrega o agendamento', async () => {
     const user = userEvent.setup();
     const { rerender } = render(<ScheduleListItem schedule={BASE} />);
-    expect(screen.queryByRole('button', { name: 'Editar agendamento' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Editar agendamento/ })).not.toBeInTheDocument();
 
     const onEdit = jest.fn();
     const onClick = jest.fn();
     rerender(<ScheduleListItem schedule={BASE} onEdit={onEdit} onClick={onClick} />);
-    await user.click(screen.getByRole('button', { name: 'Editar agendamento' }));
+    await user.click(screen.getByRole('button', { name: /^Editar agendamento/ }));
     expect(onEdit).toHaveBeenCalledWith(BASE);
     // O lápis não dispara o clique da linha.
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('o lápis diz de quem e de quando é o agendamento', () => {
+    render(<ScheduleListItem schedule={BASE} onEdit={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Editar agendamento de Carlos Andrade, 07/10' })).toBeInTheDocument();
+  });
+
+  it('atrasado leva o triângulo de alerta na etiqueta; inspetor que saiu ganha o selo', () => {
+    const { container, rerender } = render(<ScheduleListItem schedule={{ ...BASE, overdue: true }} />);
+    expect(container.querySelector('.lucide-triangle-alert, .lucide-alert-triangle')).toBeInTheDocument();
+    rerender(<ScheduleListItem schedule={{ ...BASE, inspector_left: true }} />);
+    expect(screen.getByText('Inspetor saiu')).toBeInTheDocument();
+    rerender(<ScheduleListItem schedule={{ ...BASE, inspector_left: true, status: 'CANCELADO' }} />);
+    expect(screen.queryByText('Inspetor saiu')).not.toBeInTheDocument();
   });
 
   it('passa no axe', async () => {

@@ -1,5 +1,7 @@
 import { render, screen, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { axe } from 'jest-axe';
+import { useToastStore } from '@/app/store/toast';
 import { AgendaPredio } from '@/app/components/agenda/AgendaPredio';
 import { motivoDaSugestao, validarAgendamento } from '@/app/components/agenda/FormularioAgendamento';
 
@@ -33,15 +35,40 @@ const mockSchedules = [
   },
 ];
 
+// Os atrasados de todos os meses — o alerta do topo. Um de setembro (fora do
+// mês aberto) com prazo vencido, e o de outubro só atrasado.
+let mockAtrasados = [];
+const ATRASADOS = [
+  {
+    id: 's9', building_id: 'p1', inspector: { id: 'i3', name: 'Diego Souza' },
+    scheduled_date: '2026-09-20', due_date: '2026-09-25', status: 'PENDENTE', overdue: true, past_deadline: true,
+    floors: [{ id: 'f1', label: '3º Andar' }], notes: null,
+  },
+  {
+    id: 's2', building_id: 'p1', inspector: { id: 'i2', name: 'Beatriz Lima' },
+    scheduled_date: '2026-10-02', due_date: '2026-10-05', status: 'PENDENTE', overdue: true,
+    floors: [{ id: 'f2', label: '2º Andar' }], notes: null,
+  },
+];
+
 const mockSuggestion = [
   { id: 'i2', name: 'Beatriz Lima', pending_count: 0, last_inspected_at: null, suggested: true },
   { id: 'i1', name: 'Carlos Andrade', pending_count: 2, last_inspected_at: '2026-09-01', suggested: false },
 ];
 
+// Os abertos de todos os meses (`status: 'PENDENTE'`), de onde saem os que
+// ficaram sem inspetor. `mockFalhaDoMes` faz a consulta do mês falhar.
+let mockPendentes = [];
+let mockFalhaDoMes = false;
+
 jest.mock('../../hooks/useApi', () => ({
-  useBuildingSchedules: () => ({
-    data: { schedules: mockSchedules }, isLoading: false, isError: false, isFetching: false, refetch: jest.fn(),
-  }),
+  useBuildingSchedules: (_id, filtros = {}) =>
+    filtros.status === 'PENDENTE'
+      ? { data: { schedules: mockPendentes }, isLoading: false, isError: false }
+      : mockFalhaDoMes
+        ? { data: undefined, isLoading: false, isError: true, isFetching: false, refetch: jest.fn() }
+        : { data: { schedules: mockSchedules }, isLoading: false, isError: false, isFetching: false, refetch: jest.fn() },
+  useOverdueSchedules: () => ({ data: { schedules: mockAtrasados } }),
   useFloors: () => ({
     data: { floors: [{ id: 'f2', label: '2º Andar' }, { id: 'f1', label: '3º Andar' }] },
     isLoading: false,
@@ -62,6 +89,10 @@ let user;
 beforeEach(() => {
   jest.useFakeTimers({ now: new Date(2026, 9, 7, 12, 0, 0) });
   user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+  mockAtrasados = [];
+  mockPendentes = [];
+  mockFalhaDoMes = false;
+  useToastStore.setState({ toasts: [] });
   mockCreate.mockReset();
   mockUpdate.mockReset();
 });
@@ -156,7 +187,7 @@ describe('AgendaPredio', () => {
     render(<AgendaPredio buildingId="p1" canEdit />);
 
     const linha = within(painel()).getByText('2º Andar').closest('li');
-    await user.click(within(linha).getByRole('button', { name: 'Editar agendamento' }));
+    await user.click(within(linha).getByRole('button', { name: /^Editar agendamento de/ }));
 
     expect(within(painel()).getByRole('heading', { name: 'Editar agendamento' })).toBeInTheDocument();
     expect(within(painel()).getByLabelText('Data da vistoria')).toHaveValue('2026-10-02');
@@ -175,7 +206,41 @@ describe('AgendaPredio', () => {
   it('sem permissão de escrita não oferece "Agendar" nem lápis', () => {
     render(<AgendaPredio buildingId="p1" canEdit={false} />);
     expect(screen.queryByRole('button', { name: /Agendar/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Editar agendamento' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Editar agendamento de/ })).not.toBeInTheDocument();
+  });
+
+  it('sem atrasados, o alerta do topo não aparece', () => {
+    render(<AgendaPredio buildingId="p1" canEdit />);
+    expect(screen.queryByRole('region', { name: 'Vistorias atrasadas' })).not.toBeInTheDocument();
+  });
+
+  it('alerta fixo conta os atrasados de qualquer mês e abre a lista; o item leva o calendário ao dia', async () => {
+    mockAtrasados = ATRASADOS;
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+
+    const alerta = screen.getByRole('region', { name: 'Vistorias atrasadas' });
+    // Persistente: não é role="alert", que gritaria a cada nova busca.
+    expect(screen.queryAllByRole('alert')).toHaveLength(0);
+    expect(within(alerta).getByText('2 vistorias atrasadas')).toBeInTheDocument();
+    expect(within(alerta).getByText(/1 com prazo vencido/)).toBeInTheDocument();
+
+    const abrir = within(alerta).getByRole('button', { name: /Ver atrasadas/ });
+    expect(abrir).toHaveAttribute('aria-expanded', 'false');
+    await user.click(abrir);
+    expect(within(alerta).getByRole('button', { name: /Ocultar/ })).toHaveAttribute('aria-expanded', 'true');
+
+    // Prazo vencido antes do só atrasado; quem pode editar tem o lápis.
+    const linhas = within(alerta).getAllByRole('listitem');
+    expect(linhas[0]).toHaveTextContent('Diego Souza');
+    expect(linhas[0]).toHaveTextContent('Prazo vencido');
+    expect(linhas[1]).toHaveTextContent('Atrasado');
+    expect(within(alerta).getAllByRole('button', { name: /^Editar agendamento de/ })).toHaveLength(2);
+
+    // O de setembro leva o calendário para setembro, no dia dele.
+    await user.click(within(linhas[0]).getByRole('button', { name: /^Diego Souza/ }));
+    expect(screen.getByRole('grid', { name: /Setembro 2026/ })).toBeInTheDocument();
+    expect(dia(container, '2026-09-20')).toHaveClass('is-selecionado');
+    expect(within(painel()).getByRole('heading', { name: 'Agenda do dia' })).toBeInTheDocument();
   });
 
   it('prédio inativo deixa "Agendar" desligado e avisa', () => {
@@ -183,6 +248,113 @@ describe('AgendaPredio', () => {
     expect(screen.getByRole('button', { name: /Agendar/ })).toBeDisabled();
     expect(screen.getByRole('status')).toHaveTextContent('Prédio inativo');
   });
+});
+
+describe('AgendaPredio: painel, foco e avisos', () => {
+  it('com a edição aberta, clicar noutro dia só troca a data e a edição não se perde', async () => {
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    const linha = within(painel()).getByText('2º Andar').closest('li');
+    await user.click(within(linha).getByRole('button', { name: /^Editar agendamento de/ }));
+    await user.type(within(painel()).getByLabelText('Observação (opcional)'), 'trazer a chave');
+
+    await user.click(dia(container, '2026-10-20'));
+
+    expect(within(painel()).getByRole('heading', { name: 'Editar agendamento' })).toBeInTheDocument();
+    expect(within(painel()).getByLabelText('Data da vistoria')).toHaveValue('2026-10-20');
+    expect(within(painel()).getByLabelText('Observação (opcional)')).toHaveValue('trazer a chave');
+  });
+
+  it('com o formulário novo aberto, dia passado não o fecha: o campo diz por quê', async () => {
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    await user.click(dia(container, '2026-10-10'));
+    await user.click(dia(container, '2026-10-02'));
+
+    expect(within(painel()).getByRole('heading', { name: 'Nova vistoria' })).toBeInTheDocument();
+    const data = within(painel()).getByLabelText('Data da vistoria');
+    expect(data).toHaveValue('2026-10-10');
+    expect(data).toHaveAttribute('aria-invalid', 'true');
+    expect(within(painel()).getByRole('alert')).toHaveTextContent('A data não pode estar no passado');
+
+    // Um dia válido apaga o aviso.
+    await user.click(dia(container, '2026-10-12'));
+    expect(within(painel()).queryByText('A data não pode estar no passado')).not.toBeInTheDocument();
+  });
+
+  it('com a consulta do mês falhando, o cabeçalho não diz "0 agendamentos"', () => {
+    mockFalhaDoMes = true;
+    render(<AgendaPredio buildingId="p1" canEdit />);
+    expect(screen.getByText('Não foi possível carregar a agenda')).toBeInTheDocument();
+    expect(screen.queryByText(/0 agendamentos/)).not.toBeInTheDocument();
+  });
+
+  it('a troca do painel leva o foco ao título, e a volta devolve à linha de origem', async () => {
+    render(<AgendaPredio buildingId="p1" canEdit />);
+    const linha = within(painel()).getByText('2º Andar').closest('li');
+    await user.click(within(linha).getByRole('button', { name: /^Editar agendamento de/ }));
+
+    expect(within(painel()).getByRole('heading', { name: 'Editar agendamento' })).toHaveFocus();
+
+    await user.click(within(painel()).getByRole('button', { name: 'Voltar para a lista' }));
+    const deVolta = within(painel()).getByText('2º Andar').closest('li');
+    expect(within(deVolta).getAllByRole('button')[0]).toHaveFocus();
+  });
+
+  it('"Agendar" leva o foco ao título, e voltar devolve ao botão', async () => {
+    render(<AgendaPredio buildingId="p1" canEdit />);
+    const agendar = screen.getByRole('button', { name: /Agendar/ });
+    await user.click(agendar);
+    expect(within(painel()).getByRole('heading', { name: 'Nova vistoria' })).toHaveFocus();
+    await user.click(within(painel()).getByRole('button', { name: 'Voltar para a lista' }));
+    expect(agendar).toHaveFocus();
+  });
+
+  it('a faixa do topo conta e lista os que ficaram sem inspetor; o lápis abre a edição com o sugerido', async () => {
+    mockPendentes = [{ ...mockSchedules[0], inspector_left: true }];
+    render(<AgendaPredio buildingId="p1" canEdit />);
+
+    const faixa = screen.getByRole('region', { name: 'Agendamentos que pedem atenção' });
+    expect(within(faixa).getByText(/1 sem inspetor/)).toBeInTheDocument();
+    await user.click(within(faixa).getByRole('button', { name: /Ver lista/ }));
+    expect(within(faixa).getByText('Inspetor saiu')).toBeInTheDocument();
+
+    await user.click(within(faixa).getByRole('button', { name: /^Editar agendamento de Carlos Andrade/ }));
+    expect(within(painel()).getByRole('heading', { name: 'Editar agendamento' })).toBeInTheDocument();
+    const opcoes = within(painel()).getAllByRole('radio');
+    // O sugerido vem marcado, e não quem saiu.
+    expect(opcoes[0]).toHaveTextContent('Beatriz Lima');
+    expect(opcoes[0]).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('409 ao salvar: avisa e volta para a lista, sem modal de plano', async () => {
+    mockUpdate.mockImplementation((_vars, { onError }) =>
+      onError({ response: { status: 409, data: { error: { message: 'O agendamento mudou. Recarregue e tente de novo.' } } } })
+    );
+    render(<AgendaPredio buildingId="p1" canEdit />);
+    const linha = within(painel()).getByText('2º Andar').closest('li');
+    await user.click(within(linha).getByRole('button', { name: /^Editar agendamento de/ }));
+    await user.type(within(painel()).getByLabelText('Observação (opcional)'), 'x');
+    await user.click(within(painel()).getByRole('button', { name: 'Salvar alterações' }));
+
+    expect(within(painel()).getByRole('heading', { name: 'Agendamentos do mês' })).toBeInTheDocument();
+    expect(useToastStore.getState().toasts.at(-1)).toMatchObject({
+      message: 'O agendamento mudou. Recarregue e tente de novo.', type: 'error', detail: null,
+    });
+  });
+
+  it('passa no axe com a lista e com o formulário aberto', async () => {
+    // O axe espera timers de verdade.
+    jest.useRealTimers();
+    const u = userEvent.setup();
+    try {
+      const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+      expect(await axe(container)).toHaveNoViolations();
+      await u.click(dia(container, '2099-01-10') ?? screen.getByRole('button', { name: /Agendar/ }));
+      await u.click(within(painel()).getByRole('button', { name: '3º Andar' }));
+      expect(await axe(container)).toHaveNoViolations();
+    } finally {
+      jest.useFakeTimers({ now: new Date(2026, 9, 7, 12, 0, 0) });
+    }
+  }, 20000);
 });
 
 describe('regras do formulário', () => {

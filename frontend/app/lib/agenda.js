@@ -106,15 +106,14 @@ export function scheduleState(schedule) {
 /**
  * Rótulo, cor e variante de `Badge` de cada estado.
  *
- * `color` é para letra e bolinha, por isso o dourado vai como `accentInk` (o
- * que passa em contraste no claro) e não `accent`. Verde e vermelho são os do
- * tema — no claro eles escurecem sozinhos (ver app/globals.css).
- *
- * O tema não tem cor de aviso própria: a `Badge` "warning" é o dourado tingido.
- * Então pendente e atrasado dividem a matiz e se separam pela forma — o
- * pendente é marca VAZADA (contorno, "ainda vai acontecer") e etiqueta neutra;
- * o atrasado é marca CHEIA e etiqueta dourada tingida. Prazo vencido sobe para
- * o vermelho, que no produto é reservado para "passou do limite".
+ * O dourado do produto é de ação e de estado ativo — nenhum estado de
+ * agendamento o usa. Pendente é neutro e apagado (`mute`) com marca VAZADA
+ * ("ainda vai acontecer"); atrasado é neutro forte (`text`) com marca CHEIA e
+ * o triângulo de alerta na etiqueta (`alerta: true` — quem desenha a etiqueta
+ * põe o `AlertTriangle`). A forma e o ícone separam os dois sem cor nova.
+ * Prazo vencido sobe para o vermelho, que no produto é reservado para "passou
+ * do limite". Verde e vermelho são os do tema — no claro eles escurecem
+ * sozinhos (ver app/globals.css).
  *
  * "Concluído com atraso" fica no verde do concluído — foi feito, e é isso que
  * a cor diz; o atraso vai no rótulo, sem uma cor nova disputando atenção.
@@ -124,8 +123,8 @@ export function scheduleState(schedule) {
  */
 export const SCHEDULE_STATES = {
   prazo_vencido: { label: 'Prazo vencido', color: T.danger, badge: 'danger', order: 0, filtro: 'atrasado' },
-  atrasado: { label: 'Atrasado', color: T.accentInk, badge: 'warning', order: 1, filtro: 'atrasado' },
-  pendente: { label: 'Pendente', color: T.accentInk, badge: 'default', order: 2, filtro: 'pendente', vazado: true },
+  atrasado: { label: 'Atrasado', color: T.text, badge: 'default', order: 1, filtro: 'atrasado', alerta: true },
+  pendente: { label: 'Pendente', color: T.mute, badge: 'default', order: 2, filtro: 'pendente', vazado: true },
   concluido_atraso: { label: 'Concluído com atraso', color: T.success, badge: 'success', order: 3, filtro: 'concluido' },
   concluido: { label: 'Concluído', color: T.success, badge: 'success', order: 3, filtro: 'concluido' },
   cancelado: { label: 'Cancelado', color: T.faint, badge: 'default', order: 4, filtro: 'cancelado' },

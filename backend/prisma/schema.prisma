@@ -902,6 +902,20 @@ model UsageCounter {
   @@map("usage_counters")
 }
 
+/// Teto diário de e-mails do sistema inteiro, por escopo (hoje só "AGENDA").
+/// Não é de conta nenhuma: soma todos os clientes. Reservado com um comando só
+/// (ver `usageRepository.reserveDailyEmail`).
+model EmailDailyCounter {
+  scope      String
+  day        String
+  sent       Int      @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  @@id([scope, day])
+  @@map("email_daily_counters")
+}
+
 /// Uma foto guardada no bucket, e o espaço que ela ocupa.
 ///
 /// O limite de armazenamento é por conta de gestor, mas a foto pertence ao

@@ -23,25 +23,30 @@ import { esquecerAbaAnterior } from '@/app/components/Sidebar';
 const hoje = new Date();
 const k = (n) => format(addDays(hoje, n), 'yyyy-MM-dd');
 
-const ag = (id, predio, { due, scheduled = due, status = 'PENDENTE', overdue = false } = {}) => ({
+// O prédio é o escolhido no cabeçalho e não aparece na linha; o nome de cada
+// agendamento vai no andar, que é o que a linha mostra como título.
+const ag = (id, predio, { due, scheduled = due, status = 'PENDENTE', overdue = false, past_deadline = false } = {}) => ({
   id,
-  building_id: `b-${id}`,
-  building_name: predio,
+  building_id: 'p1',
+  building_name: 'Aurora',
   inspector: { id: 'u1', name: 'Marina Alves' },
   scheduled_date: scheduled,
   due_date: due,
   status,
   overdue,
-  floors: [{ id: `f-${id}`, label: '2º Andar' }],
+  past_deadline,
+  floors: [{ id: `f-${id}`, label: predio }],
 });
 
 // Fora de ordem de propósito.
 const TODOS = [
   ag('longe', 'Torre Longe', { due: k(20) }),
   ag('feito', 'Torre Feita', { due: k(1), status: 'CONCLUIDO' }),
-  ag('atrasoRecente', 'Torre Atraso Recente', { due: k(-1), overdue: true }),
+  // Passou do dia agendado, ainda dentro do "até quando": atrasado.
+  ag('atrasoRecente', 'Torre Atraso Recente', { scheduled: k(-1), due: k(3), overdue: true }),
   ag('perto', 'Torre Perto', { due: k(2) }),
-  ag('atrasoAntigo', 'Torre Atraso Antigo', { due: k(-5), overdue: true }),
+  // Passou também do limite final: prazo vencido.
+  ag('atrasoAntigo', 'Torre Atraso Antigo', { scheduled: k(-8), due: k(-5), overdue: true, past_deadline: true }),
 ];
 
 const INSPECOES = {
@@ -74,9 +79,15 @@ function montarTela() {
 
   api.get.mockImplementation((url, config = {}) => {
     const params = config.params ?? {};
-    if (url === '/me/schedules') {
-      return Promise.resolve({ data: { schedules: params.month ? [] : TODOS } });
+    if (url === '/buildings/me') {
+      return Promise.resolve({ data: [{ building_id: 'p1', name: 'Aurora', role: 'INSPECTOR' }] });
     }
+    if (url === '/me/schedules') {
+      // Sem mês, só os pendentes (`status=PENDENTE`) — o servidor recorta.
+      return Promise.resolve({ data: { schedules: params.month ? [] : TODOS.filter((s) => s.status === params.status) } });
+    }
+    // O calendário do inspetor mostra o prédio inteiro, mês a mês.
+    if (url === '/buildings/p1/schedules') return Promise.resolve({ data: { schedules: [] } });
     if (url === '/inspections') return Promise.resolve({ data: INSPECOES });
     if (url === '/calendar') return Promise.resolve({ data: { heatmap: {} } });
     if (url === '/me/notifications') return Promise.resolve({ data: { notifications: [], unread: 0 } });
@@ -108,16 +119,34 @@ describe('mesa do inspetor no computador', () => {
     expect(within(numeros).getByText('2 atrasados')).toBeInTheDocument();
 
     expect(api.get).toHaveBeenCalledWith('/inspections', {
-      params: expect.objectContaining({ inspector_id: 'u1', limit: 100 }),
+      params: expect.objectContaining({ building_id: 'p1', inspector_id: 'u1', limit: 100 }),
     });
   });
 
-  it('ordena os próximos: atrasados primeiro, depois o prazo mais próximo', async () => {
+  it('fala só do prédio escolhido: agenda, sino e números levam o building_id', async () => {
+    montarTela();
+    await screen.findByRole('list', { name: 'Próximos agendamentos' });
+    // Duas consultas, as duas recortadas: os pendentes dele (sem mês) e o mês
+    // do prédio para o calendário.
+    expect(api.get).toHaveBeenCalledWith('/me/schedules', { params: { building_id: 'p1', status: 'PENDENTE' } });
+    expect(api.get).toHaveBeenCalledWith('/buildings/p1/schedules', {
+      params: expect.objectContaining({ month: expect.any(Number) }),
+    });
+    expect(api.get).not.toHaveBeenCalledWith('/me/schedules', { params: { building_id: 'p1' } });
+    expect(api.get).toHaveBeenCalledWith('/me/notifications', {
+      params: expect.objectContaining({ building_id: 'p1' }),
+    });
+    expect(api.get).toHaveBeenCalledWith('/calendar', {
+      params: expect.objectContaining({ building_id: 'p1' }),
+    });
+  });
+
+  it('ordena os próximos (prazo vencido, atrasado, depois o dia mais próximo) sem repetir o destaque', async () => {
     montarTela();
     const lista = await screen.findByRole('list', { name: 'Próximos agendamentos' });
     const nomes = within(lista).getAllByRole('button').map((b) => b.textContent);
-    expect(nomes.map((t) => t.match(/Torre [A-Za-z ]+?(?=2º)/)?.[0].trim())).toEqual([
-      'Torre Atraso Antigo',
+    // O primeiro ("Torre Atraso Antigo") já está no cartão "Próximo prazo".
+    expect(nomes.map((t) => t.match(/Torre [A-Za-z ]+?(?=Agendada)/)?.[0].trim())).toEqual([
       'Torre Atraso Recente',
       'Torre Perto',
       'Torre Longe',
@@ -130,7 +159,7 @@ describe('mesa do inspetor no computador', () => {
     montarTela();
     const destaque = await screen.findByRole('region', { name: 'Próximo prazo' });
     expect(within(destaque).getByText('Torre Atraso Antigo')).toBeInTheDocument();
-    expect(within(destaque).getByText('Venceu há 5 dias')).toBeInTheDocument();
+    expect(within(destaque).getByText('Prazo vencido há 5 dias')).toBeInTheDocument();
   });
 
   it('não mostra a tabela de vistorias recentes', async () => {
@@ -150,13 +179,37 @@ describe('contas da mesa do inspetor', () => {
     expect(lista.map((s) => s.id)).toEqual(['c', 'a']);
   });
 
-  it('prazoRelativo fala em dias de calendário', () => {
+  it('prazoRelativo segue a regra: atrasada desde o dia agendado, prazo vencido depois do limite', () => {
     const base = new Date(2026, 9, 7, 15, 0);
-    expect(prazoRelativo('2026-10-07', base)).toBe('Vence hoje');
-    expect(prazoRelativo('2026-10-08', base)).toBe('Vence amanhã');
-    expect(prazoRelativo('2026-10-11', base)).toBe('Vence em 4 dias');
-    expect(prazoRelativo('2026-10-06', base)).toBe('Venceu ontem');
-    expect(prazoRelativo('2026-10-04', base)).toBe('Venceu há 3 dias');
+    const s = (scheduled_date, due_date) => ({ scheduled_date, due_date });
+    // Antes do dia agendado: quanto falta para ele.
+    expect(prazoRelativo(s('2026-10-07', '2026-10-07'), base)).toBe('Agendada para hoje');
+    expect(prazoRelativo(s('2026-10-08', '2026-10-08'), base)).toBe('Agendada para amanhã');
+    expect(prazoRelativo(s('2026-10-09', '2026-10-11'), base)).toBe('Agendada para daqui a 2 dias');
+    expect(prazoRelativo(s('2026-10-06', '2026-10-10'), base)).toBe('Atrasada há 1 dia');
+    expect(prazoRelativo(s('2026-10-02', '2026-10-10'), base)).toBe('Atrasada há 5 dias');
+    expect(prazoRelativo(s('2026-10-01', '2026-10-06'), base)).toBe('Prazo vencido há 1 dia');
+    expect(prazoRelativo(s('2026-10-01', '2026-10-04'), base)).toBe('Prazo vencido há 3 dias');
+    // Data solta continua lida como o limite.
+    expect(prazoRelativo('2026-10-04', base)).toBe('Prazo vencido há 3 dias');
+  });
+
+  it('ordenarProximos, no mesmo estado, vai pelo dia agendado e desempata pelo prazo', () => {
+    const lista = ordenarProximos([
+      ag('tarde', 'T', { scheduled: k(5), due: k(6) }),
+      ag('cedoLongo', 'L', { scheduled: k(2), due: k(9) }),
+      ag('cedoCurto', 'C', { scheduled: k(2), due: k(3) }),
+    ]);
+    expect(lista.map((x) => x.id)).toEqual(['cedoCurto', 'cedoLongo', 'tarde']);
+  });
+
+  it('ordenarProximos põe prazo vencido antes de atrasado, e atrasado antes de pendente', () => {
+    const lista = ordenarProximos([
+      ag('pend', 'P', { due: k(1) }),
+      ag('atr', 'A', { scheduled: k(-2), due: k(5), overdue: true }),
+      ag('venc', 'V', { scheduled: k(-9), due: k(-3), overdue: true, past_deadline: true }),
+    ]);
+    expect(lista.map((x) => x.id)).toEqual(['venc', 'atr', 'pend']);
   });
 
   it('numerosDoMes não inventa andares nem dias quando a página não trouxe o mês inteiro', () => {

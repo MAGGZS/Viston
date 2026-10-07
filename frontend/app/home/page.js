@@ -16,7 +16,10 @@ import {
   AgendaDoInspetorModais,
   LegendaDoInspetor,
   useAgendaDoInspetor,
+  useMeuMes,
 } from '@/app/components/agenda/AgendaDoInspetor';
+import { useMySchedules } from '@/app/hooks/useApi';
+import { numerosDoMes } from '@/app/desktop/inspetor/proximos';
 import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
 import { Skeleton } from '@/app/components/ui';
 import { M, MPage, MTopBar, MRound, MCard, MStats, MSectionHead } from '@/app/components/mobile/kit';
@@ -59,6 +62,33 @@ export default function HomePage() {
   // não vê o botão, mesmo que vistorie outro.
   const podeVistoriar = canInspect(user, buildingId);
 
+  // Quem vistoria neste prédio vê os números dele no mês exibido — as mesmas
+  // fontes e a mesma regra do traço da mesa do inspetor no computador. Os
+  // outros (o responsável, por exemplo) seguem com os números do prédio.
+  const meuMes = useMeuMes(user?.id, buildingId, agenda.month, agenda.year, { enabled: podeVistoriar });
+  const meusPendentes = useMySchedules(
+    { building_id: buildingId, status: 'PENDENTE' },
+    { enabled: podeVistoriar && !!buildingId }
+  );
+  const meusNumeros = useMemo(
+    () => numerosDoMes(meuMes.data?.inspections ?? [], meuMes.data?.total ?? 0),
+    [meuMes.data]
+  );
+  // Erro (ou página incompleta) vira traço, e não zero: zero seria uma afirmação.
+  const traco = (erro, v) => (erro || v === null || v === undefined ? '—' : v);
+  const pendentes = (meusPendentes.data?.schedules ?? []).filter((s) => (s.status ?? 'PENDENTE') === 'PENDENTE').length;
+  const numerosDoCard = podeVistoriar
+    ? [
+        { value: meuMes.isLoading ? '…' : traco(meuMes.isError, meusNumeros.vistorias), label: 'Minhas vistorias' },
+        { value: meuMes.isLoading ? '…' : traco(meuMes.isError, meusNumeros.andares), label: 'Andares' },
+        { value: meusPendentes.isLoading ? '…' : traco(meusPendentes.isError, pendentes), label: 'Pendentes' },
+      ]
+    : [
+        { value: stats.vistorias, label: 'Vistorias' },
+        { value: stats.dias, label: 'Dias' },
+        { value: stats.inspetores, label: 'Inspetores' },
+      ];
+
   return (
     <RouteGuard>
       {/* A tela inicial é do telefone. No computador cada conta tem a sua
@@ -85,9 +115,10 @@ export default function HomePage() {
               {/* Só para quem atende chamado — para o resto seria um sino que
                   nunca toca (ver NotificacaoChamados). */}
               <NotificacaoChamados />
-              {/* O sino geral: agendamentos criados, alterados, perto do prazo.
-                  O aviso leva ao dia dele no calendário logo abaixo. */}
-              <NotificacoesSino onOpenSchedule={(payload, aviso) => agenda.abrirAgendamento(payload, aviso)} />
+              {/* O sino geral: agendamentos criados, alterados, perto do prazo —
+                  só do prédio escolhido. O aviso leva ao dia dele no calendário
+                  logo abaixo. */}
+              <NotificacoesSino buildingId={buildingId} enabled={!!buildingId} onOpenSchedule={(payload, aviso) => agenda.abrirAgendamento(payload, aviso)} />
               <MRound label="Histórico" onClick={() => router.push('/historico')}>
                 <ClipboardList size={18} />
               </MRound>
@@ -136,13 +167,13 @@ export default function HomePage() {
             />
 
             <MCard className="anim-fade-up anim-d3" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <MStats items={[
-                { value: stats.vistorias, label: 'Vistorias' },
-                { value: stats.dias, label: 'Dias' },
-                { value: stats.inspetores, label: 'Inspetores' },
-              ]} />
+              <MStats items={numerosDoCard} />
 
               <div>
+                {/* A grade avança sobre o respiro do cartão: a 360px, com os
+                    18px de cada lado, a célula ficava com ~38px de largura.
+                    Com 4px de borda e o vão de 2px do compacto, cabe 44. */}
+                <div style={{ margin: '0 -14px' }}>
                 {agenda.calendarLoading && agenda.isLoading ? (
                   <Skeleton style={{ height: 340, width: '100%' }} />
                 ) : (
@@ -154,13 +185,15 @@ export default function HomePage() {
                     onSelectDate={agenda.abrirDia}
                     marks={agenda.marks}
                     getDayHint={agenda.getDayHint}
+                    marcaSecundaria={agenda.predioTodo ? agenda.deColega : undefined}
                     size="compact"
                     label="Sua agenda de vistorias"
                   />
                 )}
+                </div>
 
                 <div style={{ marginTop: 14 }}>
-                  <LegendaDoInspetor />
+                  <LegendaDoInspetor colegas={agenda.predioTodo} />
                 </div>
                 {agenda.isError && (
                   <p role="alert" style={{ color: M.mute, fontSize: 12, marginTop: 10 }}>

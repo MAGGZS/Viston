@@ -1,12 +1,13 @@
 'use client';
-import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, ChevronDown, Plus, Snowflake } from 'lucide-react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, ArrowLeft, ChevronDown, PanelRightClose, PanelRightOpen, Pin, Plus, Snowflake, UserX, X } from 'lucide-react';
 import { Button, Skeleton } from '@/app/components/ui';
 import { CalendarioMensal, LegendaAgenda } from '@/app/components/agenda/CalendarioMensal';
 import { ScheduleListItem } from '@/app/components/agenda/ScheduleListItem';
 import { ScheduleDetailsModal } from '@/app/components/agenda/ScheduleDetailsModal';
 import { FormularioAgendamento } from '@/app/components/agenda/FormularioAgendamento';
 import { useBuildingSchedules, useOverdueSchedules } from '@/app/hooks/useApi';
+import { useMediaQuery } from '@/app/hooks/useMediaQuery';
 import {
   SCHEDULE_STATES,
   dateKeyOf,
@@ -35,6 +36,25 @@ export const FILTROS = [
 const MAX_CHIPS = 3;
 
 const EASE_SAIDA = 'cubic-bezier(0.23, 1, 0.32, 1)';
+
+/**
+ * Esconder e fixar o painel da direita.
+ *
+ * A coluna anima `grid-template-columns` (e o vão), não um FLIP com escala:
+ * a célula do calendário é texto com reticências e chips, e escalar a seção
+ * achataria letra, raio e sombra — a contraescala teria de ser recalculada
+ * a cada quadro em dezenas de chips. Reflow de uma grade de 42 botões por
+ * quadro é barato, e o texto só reflui, nunca distorce. O painel recolhe
+ * como cortina: o conteúdo fica preso à borda direita com a largura final, e
+ * a borda esquerda dele anda junto com a do calendário.
+ *
+ * Curva de gaveta do produto (`--ease-drawer`): arranca na hora, que é o que
+ * um clique pede, e assenta sem repique.
+ */
+const LARGURA_PAINEL = 'clamp(300px, 28vw, 380px)';
+const EASE_GAVETA = 'cubic-bezier(0.32, 0.72, 0, 1)';
+const DURACAO_COLUNA = 280;
+const REDUZIR = '(prefers-reduced-motion: reduce)';
 
 const editavel = (s) => s.status === 'PENDENTE';
 
@@ -116,6 +136,9 @@ function ChipsDoDia({ marks }) {
             >
               {nomeCurto(s.inspector?.name)}
             </span>
+            {s.inspector_left && !cancelado && (
+              <UserX size={11} style={{ flexShrink: 0, color: T.mute }} />
+            )}
           </span>
         );
       })}
@@ -143,14 +166,19 @@ function ChipsDoDia({ marks }) {
  * Movimento: entra com um esmaecer e 4px de descida (200ms, saída forte) e a
  * lista abre do mesmo jeito. Com "reduzir movimento", só o esmaecer.
  */
-export function AlertaDeAtrasos({ schedules = [], onAbrir, onEditar }) {
+export function AlertaDeAtrasos({ schedules = [], semInspetor = [], onAbrir, onEditar }) {
   const [aberto, setAberto] = useState(false);
   const listaId = useId();
   const caixaRef = useRef(null);
   const listaRef = useRef(null);
-  const lista = useMemo(() => sortByUrgency(schedules), [schedules]);
-  const { total, prazoVencido, titulo, detalhe } = resumoAtrasos(lista);
-  const visivel = total > 0;
+  // Os atrasados e os que ficaram sem inspetor, sem repetir quem é os dois.
+  const lista = useMemo(() => {
+    const ids = new Set(schedules.map((s) => s.id));
+    return sortByUrgency([...schedules, ...semInspetor.filter((s) => !ids.has(s.id))]);
+  }, [schedules, semInspetor]);
+  const { total, prazoVencido, titulo, detalhe } = resumoAtrasos(schedules);
+  const nSemInspetor = semInspetor.length;
+  const visivel = total > 0 || nSemInspetor > 0;
 
   useLayoutEffect(() => {
     if (visivel) animarEntrada(caixaRef.current);
@@ -166,7 +194,7 @@ export function AlertaDeAtrasos({ schedules = [], onAbrir, onEditar }) {
   return (
     <section
       ref={caixaRef}
-      aria-label="Vistorias atrasadas"
+      aria-label={nSemInspetor > 0 ? 'Agendamentos que pedem atenção' : 'Vistorias atrasadas'}
       style={{ background: T.card, borderRadius: R.card, boxShadow: T.cardRing, marginBottom: 20, overflow: 'hidden' }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px 10px 16px' }}>
@@ -175,15 +203,28 @@ export function AlertaDeAtrasos({ schedules = [], onAbrir, onEditar }) {
           style={{
             width: 32, height: 32, borderRadius: 10, flexShrink: 0,
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            background: grave ? T.dangerSoft : T.accentSoft, color: grave ? T.danger : T.accentInk,
+            // Atrasado é neutro forte, como a etiqueta dele; o vermelho fica
+            // para o prazo vencido.
+            background: grave ? T.dangerSoft : T.chip, color: grave ? T.danger : T.text,
           }}
         >
           <AlertTriangle size={16} />
         </span>
         <p aria-live="polite" style={{ flex: 1, minWidth: 0, margin: 0, fontSize: 14, color: T.text, ...NUM }}>
-          <span style={{ fontWeight: W.strong }}>{titulo}</span>
+          {total > 0 && <span style={{ fontWeight: W.strong }}>{titulo}</span>}
           {detalhe && <span style={{ color: T.danger, fontWeight: W.strong }}> · {detalhe}</span>}
-          <span style={{ color: T.mute, fontSize: 13 }}> · o dia agendado passou sem vistoria</span>
+          {nSemInspetor > 0 && (
+            <span style={{ fontWeight: W.strong }}>
+              {total > 0 ? ' · ' : ''}{nSemInspetor} sem inspetor
+            </span>
+          )}
+          <span style={{ color: T.mute, fontSize: 13 }}>
+            {total > 0 && nSemInspetor > 0
+              ? ' · dia passado sem vistoria ou inspetor que saiu do prédio'
+              : total > 0
+                ? ' · o dia agendado passou sem vistoria'
+                : ' · o inspetor saiu do prédio; troque por outro'}
+          </span>
         </p>
         <button
           type="button"
@@ -198,7 +239,7 @@ export function AlertaDeAtrasos({ schedules = [], onAbrir, onEditar }) {
             font: 'inherit', fontSize: 13, fontWeight: W.strong, cursor: 'pointer',
           }}
         >
-          {aberto ? 'Ocultar' : 'Ver atrasadas'}
+          {aberto ? 'Ocultar' : nSemInspetor > 0 ? 'Ver lista' : 'Ver atrasadas'}
           <ChevronDown
             size={15}
             aria-hidden="true"
@@ -232,7 +273,12 @@ function animarEntrada(el) {
   );
 }
 
-function CabecalhoDoPainel({ titulo, subtitulo, onVoltar, acoes }) {
+/**
+ * `tituloRef` vai no `<h2>`, que é `tabIndex -1`: quando o painel troca de
+ * assunto, o foco vem para cá em vez de cair no `<body>` junto com o botão
+ * que sumiu (ver `AgendaPredio`).
+ */
+function CabecalhoDoPainel({ titulo, subtitulo, onVoltar, acoes, tituloRef, tituloId }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: onVoltar ? '12px 12px 8px 8px' : '16px 16px 8px', flexShrink: 0 }}>
       {onVoltar && (
@@ -241,7 +287,7 @@ function CabecalhoDoPainel({ titulo, subtitulo, onVoltar, acoes }) {
         </button>
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <h2 style={{ fontFamily: T.display, fontSize: 16, fontWeight: W.title, color: T.text, margin: 0 }}>{titulo}</h2>
+        <h2 ref={tituloRef} id={tituloId} tabIndex={-1} style={{ fontFamily: T.display, fontSize: 16, fontWeight: W.title, color: T.text, margin: 0 }}>{titulo}</h2>
         {subtitulo && (
           <p style={{ fontSize: 12, color: T.mute, marginTop: 2, textTransform: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {subtitulo}
@@ -257,7 +303,7 @@ function ListaDeAgendamentos({ lista, onAbrir, onEditar }) {
   return (
     <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
       {lista.map((s) => (
-        <li key={s.id}>
+        <li key={s.id} data-schedule-id={s.id}>
           <ScheduleListItem
             schedule={s}
             onClick={onAbrir}
@@ -336,12 +382,35 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
   // formulário aberto não é — os andares escolhidos ficam.
   const [rodada, setRodada] = useState(0);
   const [pedidoInicial, setPedidoInicial] = useState(initialScheduleId ?? null);
+  // Clique num dia passado com o formulário de novo agendamento aberto: a data
+  // não muda, e o campo diz por quê.
+  const [erroData, setErroData] = useState(null);
+  /**
+   * O painel da direita escondido (o calendário toma a largura toda) e, com
+   * ele escondido, o painel flutuante por cima do calendário. Só da sessão,
+   * em memória: voltar à página traz o layout de duas colunas.
+   * `transicao` é a animação de coluna em curso: 'recolher', 'abrir' (do
+   * escondido, pelo botão do calendário) ou 'fixar' (do flutuante).
+   */
+  const [escondido, setEscondido] = useState(false);
+  const [flutuante, setFlutuante] = useState(false);
+  const [transicao, setTransicao] = useState(null);
+  const reduzirMovimento = useMediaQuery(REDUZIR);
+  const painelId = useId();
+  const tituloId = useId();
 
   const podeEscrever = canEdit && !frozen;
 
   const { data, isLoading, isError, refetch, isFetching } = useBuildingSchedules(buildingId, { month, year });
   const { data: dadosAtrasados } = useOverdueSchedules(buildingId);
   const atrasadosDeTodosOsMeses = useMemo(() => dadosAtrasados?.schedules ?? [], [dadosAtrasados]);
+  // Os abertos de todos os meses, para achar os que ficaram sem inspetor (ele
+  // saiu do prédio). Só PENDENTE: o recorte que o servidor limita sem mês.
+  const { data: dadosPendentes } = useBuildingSchedules(buildingId, { status: 'PENDENTE' });
+  const semInspetor = useMemo(
+    () => (dadosPendentes?.schedules ?? []).filter((s) => s.inspector_left && (s.status ?? 'PENDENTE') === 'PENDENTE'),
+    [dadosPendentes]
+  );
   const schedules = useMemo(() => data?.schedules ?? [], [data]);
   const porDia = useMemo(() => groupSchedulesByDay(schedules), [schedules]);
 
@@ -378,6 +447,69 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
           : `editar:${painel.schedule.id}`;
   const painelRef = useEntradaDoPainel(chavePainel, direcao);
 
+  /**
+   * O foco quando o painel troca de assunto.
+   *
+   * O botão que disparou a troca (o lápis da linha, a seta de voltar, o
+   * "Salvar") some junto com o conteúdo antigo, e o foco cairia no `<body>`:
+   * quem usa teclado voltaria ao topo da página. Então, depois da troca, o
+   * foco vai ao título do painel novo; e, ao voltar para a lista, à linha (ou
+   * ao dia do calendário) de onde a pessoa saiu, se ela ainda existir.
+   *
+   * O clique num dia não pede foco: o calendário continua na tela, e o foco
+   * fica no dia — tirá-lo de lá quebraria a navegação pelas setas.
+   */
+  const raizRef = useRef(null);
+  const tituloRef = useRef(null);
+  const origemRef = useRef(null);
+  const focoRef = useRef(null);
+  const asideRef = useRef(null);
+  const botaoMostrarRef = useRef(null);
+  const botaoEsconderRef = useRef(null);
+  // De onde o painel flutuante foi aberto — para onde o foco volta ao fechar.
+  const origemFlutuanteRef = useRef(null);
+
+  useEffect(() => {
+    const pedido = focoRef.current;
+    if (!pedido) return;
+    focoRef.current = null;
+    if (pedido === 'origem' && focarOrigem()) return;
+    if (pedido === 'mostrar' || pedido === 'esconder') {
+      (pedido === 'mostrar' ? botaoMostrarRef : botaoEsconderRef).current?.focus();
+      return;
+    }
+    if (pedido === 'flutuante-origem') {
+      const o = origemFlutuanteRef.current;
+      origemFlutuanteRef.current = null;
+      if (!focarAlvo(o)) botaoMostrarRef.current?.focus();
+      return;
+    }
+    tituloRef.current?.focus();
+  });
+
+  function focarOrigem() {
+    const o = origemRef.current;
+    origemRef.current = null;
+    return focarAlvo(o);
+  }
+
+  function focarAlvo(o) {
+    const raiz = raizRef.current;
+    if (!o || !raiz) return false;
+    let el = null;
+    if (o.tipo === 'linha') el = raiz.querySelector(`[data-schedule-id="${o.id}"] button`);
+    else if (o.tipo === 'dia') el = raiz.querySelector(`[data-date="${o.date}"]`);
+    else if (o.tipo === 'el' && o.el?.isConnected) el = o.el;
+    if (!el) return false;
+    el.focus();
+    return true;
+  }
+
+  /** De onde a pessoa saiu da lista — para onde o foco volta. */
+  function marcarOrigem(origem) {
+    if (painel.modo === 'lista' || !origemRef.current) origemRef.current = origem;
+  }
+
   function irPara(dateKey) {
     const d = parseDateKey(dateKey);
     if (!d) return;
@@ -392,16 +524,27 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
     const date = dateKeyOf(schedule.scheduled_date);
     if (!date) return;
     irPara(date);
+    marcarOrigem({ tipo: 'linha', id: schedule.id });
+    focoRef.current = 'titulo';
+    setErroData(null);
     setDirecao('ir');
     setPainel({ modo: 'dia', date });
   }
 
   function voltarParaLista() {
+    if (painel.modo !== 'lista') focoRef.current = 'origem';
+    setErroData(null);
     setDirecao('voltar');
     setPainel({ modo: 'lista' });
   }
 
-  function abrirNovo(dateKey) {
+  function abrirNovo(dateKey, { focar = true } = {}) {
+    if (focar) {
+      const ativo = typeof document !== 'undefined' ? document.activeElement : null;
+      marcarOrigem(ativo && ativo !== document.body ? { tipo: 'el', el: ativo } : null);
+      focoRef.current = 'titulo';
+    }
+    setErroData(null);
     setDirecao('ir');
     setRodada((r) => r + 1);
     setPainel({ modo: 'novo', date: dateKey });
@@ -413,6 +556,9 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
       setDetalhe(schedule);
       return;
     }
+    marcarOrigem({ tipo: 'linha', id: schedule.id });
+    focoRef.current = 'titulo';
+    setErroData(null);
     setDetalhe(null);
     setDirecao('ir');
     const date = dateKeyOf(schedule.scheduled_date);
@@ -424,28 +570,43 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
    * Clique num dia.
    *
    * De hoje em diante, com permissão: o formulário para aquele dia, com os
-   * agendamentos que ele já tem listados por cima. Com o formulário de novo
-   * agendamento aberto, só a data troca. Dia passado (ou sem permissão) não
-   * recebe agendamento novo: o painel mostra o que houve nele.
+   * agendamentos que ele já tem listados por cima. Com o formulário aberto
+   * (novo ou edição), só a data troca — a edição em curso não se perde. Dia
+   * passado com o formulário de novo agendamento aberto também não o fecha: a
+   * data fica, e o campo diz que ela não pode estar no passado. Na edição, a
+   * data passada vale (o formulário aceita, como o servidor). Fora do
+   * formulário, dia passado (ou sem permissão) não recebe agendamento novo: o
+   * painel mostra o que houve nele.
    */
   function escolherDia(key) {
+    if (podeEscrever && painel.modo === 'editar') {
+      mudarData(key);
+      return;
+    }
+    if (podeEscrever && painel.modo === 'novo' && key < hoje) {
+      setErroData('A data não pode estar no passado');
+      return;
+    }
     if (!podeEscrever || key < hoje) {
       if (painel.modo === 'dia' && painel.date === key) {
         voltarParaLista();
         return;
       }
+      origemRef.current = { tipo: 'dia', date: key };
       setDirecao('ir');
       setPainel({ modo: 'dia', date: key });
       return;
     }
     if (painel.modo === 'novo') {
-      setPainel({ ...painel, date: key });
+      mudarData(key);
       return;
     }
-    abrirNovo(key);
+    origemRef.current = { tipo: 'dia', date: key };
+    abrirNovo(key, { focar: false });
   }
 
   function mudarData(key) {
+    setErroData(null);
     setPainel((p) => ({ ...p, date: key }));
     irPara(key);
   }
@@ -462,6 +623,7 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
         <CabecalhoDoPainel
           titulo="Agendamentos do mês"
           subtitulo={nomeDoMes}
+          tituloRef={tituloRef}
         />
         <div style={{ padding: '0 16px 12px', flexShrink: 0 }}>
           <FiltroDeStatus valor={filtro} onChange={setFiltro} contagens={contagens} />
@@ -506,6 +668,7 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
           titulo="Agenda do dia"
           subtitulo={formatDiaExtenso(painel.date)}
           onVoltar={voltarParaLista}
+          tituloRef={tituloRef}
         />
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 8px 12px' }}>
           {doDia.length > 0 ? (
@@ -532,6 +695,7 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
           titulo={editando ? 'Editar agendamento' : 'Nova vistoria'}
           subtitulo={formatDiaExtenso(painel.date)}
           onVoltar={voltarParaLista}
+          tituloRef={tituloRef}
         />
         <FormularioAgendamento
           key={editando ? `e:${painel.schedule.id}` : `n:${rodada}`}
@@ -541,6 +705,7 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
           onDateChange={mudarData}
           onDone={voltarParaLista}
           disabled={!podeEscrever}
+          erroData={editando ? undefined : erroData}
           antes={
             existentes.length > 0 && (
               <section aria-label="Já agendado neste dia" style={{ background: T.chip, borderRadius: R.card, padding: '10px 4px 4px' }}>
@@ -557,9 +722,10 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
   }
 
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '2px 32px 32px' }}>
+    <div ref={raizRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '2px 32px 32px' }}>
       <AlertaDeAtrasos
         schedules={atrasadosDeTodosOsMeses}
+        semInspetor={semInspetor}
         onAbrir={abrirDoAlerta}
         onEditar={podeEscrever ? abrirEdicao : undefined}
       />
@@ -579,7 +745,7 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
             <p style={{ fontSize: 13, color: T.mute, margin: 0, ...NUM }} aria-live="polite">
-              {isLoading ? 'Carregando agenda…' : (
+              {isLoading ? 'Carregando agenda…' : isError ? 'Não foi possível carregar a agenda' : (
                 <>
                   {contagens.todos} agendamento{contagens.todos !== 1 ? 's' : ''} em {nomeDoMes.toLowerCase()}
                   {atrasados > 0 && (

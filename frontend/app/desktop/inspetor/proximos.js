@@ -9,8 +9,8 @@ import { SCHEDULE_STATES, dateKeyOf, parseDateKey, scheduleState } from '@/app/l
  * Os agendamentos ainda por fazer, do mais urgente ao menos.
  *
  * Prazo vencido primeiro (passou do limite final), depois atrasado (passou do
- * dia agendado), depois o resto; dentro de cada grupo o prazo mais próximo na
- * frente, e empate de prazo desempata pelo dia marcado. Concluídos e
+ * dia agendado), depois o resto; dentro de cada grupo o dia marcado mais
+ * cedo na frente, e empate de dia desempata pelo prazo. Concluídos e
  * cancelados saem: a lista é do que falta.
  */
 export function ordenarProximos(schedules = []) {
@@ -19,9 +19,9 @@ export function ordenarProximos(schedules = []) {
     .sort((a, b) => {
       const urgencia = SCHEDULE_STATES[scheduleState(a)].order - SCHEDULE_STATES[scheduleState(b)].order;
       if (urgencia !== 0) return urgencia;
-      const prazo = String(dateKeyOf(a.due_date) ?? '').localeCompare(String(dateKeyOf(b.due_date) ?? ''));
-      if (prazo !== 0) return prazo;
-      return String(dateKeyOf(a.scheduled_date) ?? '').localeCompare(String(dateKeyOf(b.scheduled_date) ?? ''));
+      const dia = String(dateKeyOf(a.scheduled_date) ?? '').localeCompare(String(dateKeyOf(b.scheduled_date) ?? ''));
+      if (dia !== 0) return dia;
+      return String(dateKeyOf(a.due_date) ?? '').localeCompare(String(dateKeyOf(b.due_date) ?? ''));
     });
 }
 
@@ -31,8 +31,8 @@ const dias = (n) => (n === 1 ? '1 dia' : `${n} dias`);
  * Em que pé está o prazo, em palavras, pela regra do proprietário:
  * - passou do "até quando" → "Prazo vencido há 3 dias";
  * - passou do dia agendado (mas não do limite) → "Atrasada há 2 dias";
- * - senão, quanto falta para o limite → "Vence hoje", "Vence amanhã",
- *   "Vence em 4 dias".
+ * - senão, quanto falta para o dia agendado → "Agendada para hoje",
+ *   "Agendada para amanhã", "Agendada para daqui a 4 dias".
  *
  * Recebe o agendamento (precisa das duas datas). Uma data solta ainda é
  * aceita e lida como o limite — é o que a função fazia antes.
@@ -47,11 +47,17 @@ export function prazoRelativo(schedule, hoje = new Date()) {
   const paraLimite = differenceInCalendarDays(limite, hoje);
   if (paraLimite < 0) return `Prazo vencido há ${dias(-paraLimite)}`;
   const agendado = parseDateKey(s.scheduled_date);
-  const paraAgendado = agendado ? differenceInCalendarDays(agendado, hoje) : 0;
+  if (!agendado) {
+    // Só o limite (o uso antigo): quanto falta para ele.
+    if (paraLimite === 0) return 'Vence hoje';
+    if (paraLimite === 1) return 'Vence amanhã';
+    return `Vence em ${paraLimite} dias`;
+  }
+  const paraAgendado = differenceInCalendarDays(agendado, hoje);
   if (paraAgendado < 0) return `Atrasada há ${dias(-paraAgendado)}`;
-  if (paraLimite === 0) return 'Vence hoje';
-  if (paraLimite === 1) return 'Vence amanhã';
-  return `Vence em ${paraLimite} dias`;
+  if (paraAgendado === 0) return 'Agendada para hoje';
+  if (paraAgendado === 1) return 'Agendada para amanhã';
+  return `Agendada para daqui a ${paraAgendado} dias`;
 }
 
 /**

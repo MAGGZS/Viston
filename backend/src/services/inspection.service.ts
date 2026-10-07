@@ -453,6 +453,7 @@ export const inspectionService = {
       status?: InspectionStatus;
       inspector_id?: string;
       floor_id?: string;
+      building_id?: string;
       date_from?: Date;
       date_to?: Date;
       /** Procura pelo nome de quem vistoriou. */
@@ -488,7 +489,7 @@ export const inspectionService = {
   },
 
   async getCalendar(
-    params: { month?: number; year?: number; range?: 'semestral' | 'anual' },
+    params: { month?: number; year?: number; range?: 'semestral' | 'anual'; building_id?: string },
     buildingIds: string[] | null
   ) {
     // Os limites são do calendário local: o mês fecha às 23:59 do fuso do
@@ -512,7 +513,7 @@ export const inspectionService = {
     const data = await inspectionRepository.getCalendarData(
       range.start,
       range.end,
-      undefined,
+      params.building_id,
       buildingIds
     );
     return { date_from: range.start, date_to: range.end, heatmap: buildHeatmap(data) };

@@ -62,12 +62,25 @@ export function contagensDaAgenda(schedules) {
   };
 }
 
-export function NumerosDaAgenda({ schedules, loading }) {
+/**
+ * `semInspetor`: quantos agendamentos abertos ficaram sem inspetor (ele saiu
+ * do prédio) — o `without_inspector` do panorama. Com algum, a dica dos
+ * pendentes vira "N sem inspetor", que é o que pede ação.
+ */
+export function NumerosDaAgenda({ schedules, loading, semInspetor = 0 }) {
   const s = schedules ?? {};
   const c = contagensDaAgenda(schedules);
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16 }}>
-      <StatCard className="anim-fade-up" icon={CalendarClock} label="Agendamentos pendentes" value={s.pending} loading={loading} hint="O dia agendado ainda não chegou" />
+      <StatCard
+        className="anim-fade-up"
+        icon={CalendarClock}
+        label="Agendamentos pendentes"
+        value={s.pending}
+        loading={loading}
+        alerta={semInspetor > 0}
+        hint={semInspetor > 0 ? `Sem inspetor: ${semInspetor}` : 'O dia agendado ainda não chegou'}
+      />
       <StatCard
         className="anim-fade-up anim-d1"
         icon={AlertTriangle}
@@ -124,8 +137,9 @@ export function DesempenhoInspetores({ inspectors, loading }) {
         </tr>
       </thead>
       <tbody>
-        {lista.map((i) => (
-          <tr key={i.id} style={{ borderBottom: `1px solid ${T.line}` }}>
+        {lista.map((i, idx) => (
+          // Conta apagada vem com `id: null` — e pode haver mais de uma.
+          <tr key={i.id ?? `removido-${idx}`} style={{ borderBottom: `1px solid ${T.line}` }}>
             <th scope="row" style={{ textAlign: 'left', fontWeight: W.body, padding: '10px 8px 10px 0' }}>
               <span style={{ display: 'block', fontSize: 14, color: T.text }}>{i.name}</span>
               <span aria-hidden="true" style={{ display: 'block', marginTop: 6, height: 4, borderRadius: 2, background: T.chip, maxWidth: 220 }}>
@@ -249,9 +263,10 @@ export function CoberturaDeAndares({ coverage, loading }) {
       {lista.length > COBERTURA_VISIVEIS && (
         <button
           type="button"
+          className="link-acao"
           onClick={() => setTodos((v) => !v)}
           aria-expanded={todos}
-          style={{ alignSelf: 'flex-start', background: 'none', border: 'none', padding: '6px 0', font: 'inherit', fontSize: 12, fontWeight: W.strong, color: T.accentInk, cursor: 'pointer' }}
+          style={{ alignSelf: 'flex-start', minHeight: 32, padding: '0 2px', fontSize: 12, fontWeight: W.strong, color: T.text }}
         >
           {todos ? 'Mostrar menos' : `Ver todos os ${lista.length} andares`}
         </button>
@@ -317,8 +332,8 @@ export function LinkParaAgenda() {
   return (
     <Link
       href={AGENDA_HREF}
-      className="linha-clicavel"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: W.strong, color: T.accentInk, textDecoration: 'none', padding: '4px 8px', borderRadius: R.badge, flexShrink: 0 }}
+      className="link-acao"
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 32, fontSize: 12, fontWeight: W.strong, color: T.text, textDecoration: 'none', padding: '0 8px', borderRadius: R.badge, flexShrink: 0 }}
     >
       Abrir agenda <ArrowRight size={13} aria-hidden="true" />
     </Link>

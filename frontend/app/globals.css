@@ -1703,17 +1703,3 @@ input:-webkit-autofill:focus {
 }
 .icone-btn--chip { background: var(--color-chip); color: var(--color-ink); }
 
-/*
- * Gaveta lateral genérica (`Drawer`, em components/ui). Mesmo desenho da gaveta
- * de planos — canto arredondado do lado de dentro — e, no telefone, a tela
- * inteira sem canto nenhum.
- */
-.drawer-painel {
-  border-radius: 16px 0 0 16px;
-}
-@media (max-width: 640px) {
-  .drawer-painel { border-radius: 0; }
-}
-@media (pointer: coarse) {
-  .drawer-back-btn--toque { width: 44px; height: 44px; }
-}

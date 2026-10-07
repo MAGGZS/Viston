@@ -70,11 +70,13 @@ export const scheduleRepository = {
     return prisma.inspectionSchedule.findUnique({ where: { id }, include: SCHEDULE_INCLUDE });
   },
 
-  list(filter: ScheduleFilter) {
+  /** `take` é o teto de segurança das listas sem recorte de mês. */
+  list(filter: ScheduleFilter, take?: number) {
     return prisma.inspectionSchedule.findMany({
       where: toWhere(filter),
       include: SCHEDULE_INCLUDE,
       orderBy: [{ scheduled_date: 'asc' }, { due_date: 'asc' }, { created_at: 'asc' }],
+      ...(take !== undefined && { take }),
     });
   },
 
@@ -89,19 +91,32 @@ export const scheduleRepository = {
   },
 
   /**
-   * Grava a mudança. Com `floorIds`, os andares são trocados pelo conjunto novo
-   * no mesmo comando — o Prisma faz o apagar e o criar na mesma transação.
+   * Grava a mudança só se a ronda ainda está como foi lida (concorrência
+   * otimista): o `WHERE` leva o status e o `updated_at` da leitura. Devolve
+   * `null` quando outra escrita chegou antes — quem chama responde 409.
+   *
+   * Com `floorIds`, os andares são trocados pelo conjunto novo na mesma
+   * transação da gravação.
    */
-  update(id: string, data: ScheduleWrite, floorIds?: string[]) {
-    return prisma.inspectionSchedule.update({
-      where: { id },
-      data: {
-        ...(data as Prisma.InspectionScheduleUncheckedUpdateInput),
-        ...(floorIds && {
-          floors: { deleteMany: {}, create: floorIds.map((floor_id) => ({ floor_id })) },
-        }),
-      },
-      include: SCHEDULE_INCLUDE,
+  updateIfUnchanged(
+    id: string,
+    expected: { status: ScheduleStatus; updated_at: Date },
+    data: ScheduleWrite,
+    floorIds?: string[]
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const { count } = await tx.inspectionSchedule.updateMany({
+        where: { id, status: expected.status, updated_at: expected.updated_at },
+        data: data as Prisma.InspectionScheduleUncheckedUpdateManyInput,
+      });
+      if (count === 0) return null;
+      if (floorIds) {
+        await tx.inspectionScheduleFloor.deleteMany({ where: { schedule_id: id } });
+        await tx.inspectionScheduleFloor.createMany({
+          data: floorIds.map((floor_id) => ({ schedule_id: id, floor_id })),
+        });
+      }
+      return tx.inspectionSchedule.findUnique({ where: { id }, include: SCHEDULE_INCLUDE });
     });
   },
 
@@ -123,7 +138,8 @@ export const scheduleRepository = {
    * Uma consulta só para a lista inteira: o ciclo diário pergunta isso para
    * cada lembrete, e uma ida ao banco por linha cresceria com a base.
    */
-  async activeInspectorPairs(pairs: Array<{ building_id: string; user_id: string }>) {
+  async activeInspectorPairs(pedidos: Array<{ building_id: string; user_id: string }>) {
+    const pairs = [...new Map(pedidos.map((p) => [`${p.building_id}:${p.user_id}`, p])).values()];
     if (pairs.length === 0) return new Set<string>();
     const rows = await prisma.buildingMember.findMany({
       where: {
@@ -192,27 +208,56 @@ export const scheduleRepository = {
         status: ScheduleStatus.PENDENTE,
         scheduled_date: { lte: date },
       },
-      select: { id: true, floors: { select: { floor_id: true } } },
+      select: { id: true, scheduled_date: true, floors: { select: { floor_id: true } } },
     });
   },
 
   /**
-   * Dá as rondas por cumpridas. O filtro por PENDENTE fica no próprio UPDATE:
-   * a ronda cancelada entre a leitura e a escrita não volta à vida.
+   * As vistorias concluídas do inspetor no prédio, de `from` até `to` (dias
+   * inclusive) — o que soma para cobrir os andares de uma ronda. Só data e
+   * andares: a conta é feita em memória, só para as rondas candidatas.
    */
-  async markCompleted(ids: string[], reportId: string, at: Date) {
-    if (ids.length === 0) return 0;
-    const res = await prisma.inspectionSchedule.updateMany({
-      where: { id: { in: ids }, status: ScheduleStatus.PENDENTE },
-      data: { status: ScheduleStatus.CONCLUIDO, completed_at: at, completed_report_id: reportId },
+  listReportsForCoverage(inspectorId: string, buildingId: string, from: Date, to: Date) {
+    return prisma.inspectionReport.findMany({
+      where: {
+        inspector_id: inspectorId,
+        building_id: buildingId,
+        status: InspectionStatus.COMPLETED,
+        origin: 'VISTORIA',
+        date: { gte: from, lte: to },
+      },
+      select: { id: true, date: true, floors_inspected: true },
     });
-    return res.count;
   },
 
-  /** Pendentes com prazo naquele dia que ainda não receberam o "vence amanhã". */
-  listDueSoonCandidates(day: Date) {
+  /**
+   * Dá as rondas por cumpridas e devolve os ids que de fato mudaram. O filtro
+   * por PENDENTE fica no próprio UPDATE: a ronda cancelada entre a leitura e a
+   * escrita não volta à vida, e não entra na auditoria.
+   */
+  async markCompleted(ids: string[], reportId: string, at: Date): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const rows = await prisma.inspectionSchedule.updateManyAndReturn({
+      where: { id: { in: ids }, status: ScheduleStatus.PENDENTE },
+      data: { status: ScheduleStatus.CONCLUIDO, completed_at: at, completed_report_id: reportId },
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
+  },
+
+  /**
+   * Pendentes com prazo de hoje a amanhã que ainda não receberam o lembrete.
+   *
+   * Hoje entra junto: o dia em que o ciclo não rodou, e a ronda criada depois
+   * do ciclo com prazo para amanhã, ainda são avisados no dia do prazo.
+   */
+  listDueSoonCandidates(today: Date, tomorrow: Date) {
     return prisma.inspectionSchedule.findMany({
-      where: { status: ScheduleStatus.PENDENTE, due_date: day, due_soon_notified_at: null },
+      where: {
+        status: ScheduleStatus.PENDENTE,
+        due_date: { gte: today, lte: tomorrow },
+        due_soon_notified_at: null,
+      },
       include: SCHEDULE_INCLUDE,
     });
   },
@@ -236,7 +281,14 @@ export const scheduleRepository = {
   listForPeriod(buildingId: string, from: Date, to: Date) {
     return prisma.inspectionSchedule.findMany({
       where: { building_id: buildingId, scheduled_date: { gte: from, lte: to } },
-      select: { status: true, scheduled_date: true, due_date: true, completed_at: true },
+      select: {
+        status: true,
+        scheduled_date: true,
+        due_date: true,
+        completed_at: true,
+        building_id: true,
+        inspector_id: true,
+      },
     });
   },
 
