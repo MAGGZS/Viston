@@ -1,6 +1,6 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, ChartNoAxesColumn, Inbox, Workflow, CheckCheck, UserCheck, Building2, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, ChartNoAxesColumn, CalendarDays, Inbox, Workflow, CheckCheck, UserCheck, Building2, LogOut, User } from 'lucide-react';
 import { SidebarShell, SidebarBrand, SidebarNav, SidebarFooter, SidebarItem } from '@/app/components/Sidebar';
 import { useSidebar } from '@/app/store/sidebar';
 import { useAuthStore } from '@/app/store/auth';
@@ -18,7 +18,7 @@ import { useTicketStats, useAccessRequests } from '@/app/hooks/useApi';
  * trabalho diário: é onde se define quem é o quê ali dentro — inclusive quem
  * modera.
  */
-function itemsFor(buildingId) {
+export function itemsFor(buildingId) {
   const base = `/gestor/predios/${buildingId}`;
 
   return [
@@ -26,6 +26,9 @@ function itemsFor(buildingId) {
     // Logo abaixo do painel, e não no fim: as duas telas respondem à mesma
     // pergunta em escalas diferentes — o dia e o mês.
     { href: `${base}/dashboard`, icon: ChartNoAxesColumn, label: 'Análise' },
+    // A agenda fecha o bloco de acompanhamento antes das filas de chamado: é
+    // onde o gestor planeja a ronda que depois vira ocorrência lá embaixo.
+    { href: `${base}/agenda`, icon: CalendarDays, label: 'Agenda' },
     { href: `${base}/chamados/novos`, icon: Inbox, label: 'Novos chamados', badge: 'abertos' },
     { href: `${base}/chamados/processamento`, icon: Workflow, label: 'Processamento', badge: 'aguardando_fechamento' },
     { href: `${base}/chamados/finalizados`, icon: CheckCheck, label: 'Finalizados' },

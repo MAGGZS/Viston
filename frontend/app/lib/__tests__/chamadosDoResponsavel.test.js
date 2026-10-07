@@ -24,8 +24,8 @@ describe('destinoNoComputador', () => {
     ['gestor', { kind: 'MANAGER', memberships: [] }, '/gestor'],
     ['moderador', m('MODERADOR'), '/moderador'],
     ['responsável que não vistoria', m('RESPONSAVEL'), '/responsavel/painel'],
-    ['responsável que também vistoria', m('RESPONSAVEL', 'INSPECTOR'), '/desktop/visualizacao'],
-    ['inspetor', m('INSPECTOR'), '/desktop/visualizacao'],
+    ['responsável que também vistoria', m('RESPONSAVEL', 'INSPECTOR'), '/desktop/inspetor'],
+    ['inspetor', m('INSPECTOR'), '/desktop/inspetor'],
     ['visualizador', m('VIEWER'), '/desktop/visualizacao'],
   ])('%s', (_nome, user, destino) => {
     expect(destinoNoComputador(user)).toBe(destino);

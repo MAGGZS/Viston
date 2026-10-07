@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/app/store/auth';
 import { Logo } from '@/app/components/Logo';
+import { destinoNoComputador } from '@/app/components/TelaPorLargura';
 import { canInspect, isAdmin, isManagerAccount, isResponsible, memberships } from '@/app/lib/roles';
 
 export default function RootPage() {
@@ -47,7 +48,10 @@ export default function RootPage() {
       return;
     }
 
-    router.replace(isDesktop ? '/desktop/visualizacao' : '/home');
+    // No computador, a mesma escolha de `destinoNoComputador`: quem vistoria vai
+    // para a mesa do inspetor (inclusive quem só acompanha outro prédio), e
+    // quem só acompanha — ou ainda não tem prédio — para a visualização.
+    router.replace(isDesktop ? destinoNoComputador(user) : '/home');
   }, [isLoading, user, router]);
 
   return (

@@ -31,7 +31,8 @@ enum AccountRole {
 enum BuildingRole {
   // Vistoria o prédio.
   INSPECTOR
-  // Só acompanha o que já foi vistoriado.
+  // Acompanha o que já foi vistoriado — e, como supervisor, distribui as rondas
+  // da agenda de vistorias (ver `InspectionSchedule`).
   VIEWER
   // Recebe os chamados abertos pelas vistorias, encaminha ao responsável e é o
   // único que fecha um chamado.
@@ -137,6 +138,22 @@ enum AuditAction {
   PLAN_REVOKED
   SUBSCRIPTION_UPDATED
   BUILDING_FROZEN
+  // A agenda de vistorias: quem marcou, mudou ou desmarcou a ronda de alguém.
+  SCHEDULE_CREATED
+  SCHEDULE_UPDATED
+  SCHEDULE_CANCELED
+}
+
+/// Onde o agendamento de vistoria está.
+///
+/// PENDENTE é a ronda marcada e ainda não feita — atrasada ou não, isso sai da
+/// data (`due_date` contra hoje), não do status. CONCLUIDO é a ronda feita: pela
+/// vistoria enviada que cobriu os andares marcados, ou à mão por quem agendou.
+/// CANCELADO é a ronda desmarcada; a linha fica, porque o histórico conta.
+enum ScheduleStatus {
+  PENDENTE
+  CONCLUIDO
+  CANCELADO
 }
 
 /// Qual plano a conta tem — e só isso.
@@ -208,6 +225,10 @@ model User {
   assigned_records MaintenanceRecord[]     @relation("RecordResponsible")
   closed_records   MaintenanceRecord[]     @relation("RecordClosedBy")
   ticket_updates   TicketUpdate[]          @relation("TicketUpdateAuthor")
+  schedules         InspectionSchedule[] @relation("ScheduleInspector")
+  schedules_created InspectionSchedule[] @relation("ScheduleCreatedByUser")
+  schedules_updated InspectionSchedule[] @relation("ScheduleUpdatedByUser")
+  notifications     Notification[]
 
   @@map("users")
 }
@@ -256,6 +277,8 @@ model Manager {
   usage_counters    UsageCounter[]
   transfers_sent    BuildingOwnershipTransfer[] @relation("TransferFrom")
   transfers_received BuildingOwnershipTransfer[] @relation("TransferTo")
+  schedules_created InspectionSchedule[] @relation("ScheduleCreatedByManager")
+  schedules_updated InspectionSchedule[] @relation("ScheduleUpdatedByManager")
 
   @@map("managers")
 }
@@ -338,6 +361,8 @@ model Building {
   share_tokens    BuildingShareToken[]
   photo_assets    PhotoAsset[]
   ownership_transfers BuildingOwnershipTransfer[]
+  schedules       InspectionSchedule[]
+  notifications   Notification[]
 
   // "Os prédios desta conta" é a pergunta de toda contagem de limite.
   @@index([owner_manager_id])
@@ -426,6 +451,7 @@ model Floor {
 
   building           Building         @relation(fields: [building_id], references: [id], onDelete: Cascade)
   floor_form_entries FloorFormEntry[]
+  schedules          InspectionScheduleFloor[]
 
   @@unique([building_id, label])
   @@map("floors")
@@ -462,6 +488,7 @@ model InspectionReport {
   inspector          User?            @relation(fields: [inspector_id], references: [id], onDelete: SetNull)
   building           Building         @relation(fields: [building_id], references: [id], onDelete: Cascade)
   floor_form_entries FloorFormEntry[]
+  completed_schedules InspectionSchedule[]
 
   // Histórico do prédio e calendário: os dois filtram por prédio e ordenam (ou
   // recortam a faixa) por `finished_at`.
@@ -647,6 +674,107 @@ model AuditLog {
   // Quem fechou o chamado sai do log (ver ticketRepository.findCloseLogs).
   @@index([entity, entity_id, timestamp(sort: Desc)])
   @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────
+// AGENDA DE VISTORIAS
+// ─────────────────────────────────────────────
+
+/// Uma ronda marcada: quem vistoria, quais andares, de quando até quando.
+///
+/// `scheduled_date` é o dia em que a ronda pode começar; `due_date` é o prazo.
+/// Os dois são `@db.Date` pelo mesmo motivo de `InspectionReport.date`: são dias
+/// do calendário de quem trabalha, não instantes.
+///
+/// `inspector_id` é SetNull, como em `InspectionReport`: a conta pode sumir, e o
+/// histórico do prédio não some junto.
+///
+/// Quem marcou e quem mexeu por último segue o desenho do `AuditLog`: duas
+/// colunas por papel, uma de usuário e uma de gestor, no máximo uma preenchida.
+///
+/// Atraso conta do dia agendado: a ronda PENDENTE cujo `scheduled_date` já
+/// passou está atrasada; a que passou do `due_date` estourou o limite final.
+/// Nenhum dos dois é gravado — saem da comparação com o dia de hoje.
+///
+/// `due_soon_notified_at` é o que torna o lembrete "vence amanhã" idempotente:
+/// sai uma vez, e só volta a sair se o prazo mudar (editar o prazo o zera).
+model InspectionSchedule {
+  id                    String         @id @default(uuid())
+  building_id           String
+  inspector_id          String?
+  scheduled_date        DateTime       @db.Date
+  due_date              DateTime       @db.Date
+  notes                 String?
+  status                ScheduleStatus @default(PENDENTE)
+  completed_at          DateTime?
+  completed_report_id   String?
+  created_by_manager_id String?
+  created_by_user_id    String?
+  updated_by_manager_id String?
+  updated_by_user_id    String?
+  due_soon_notified_at  DateTime?
+  created_at            DateTime       @default(now())
+  updated_at            DateTime       @updatedAt
+
+  building           Building                  @relation(fields: [building_id], references: [id], onDelete: Cascade)
+  inspector          User?                     @relation("ScheduleInspector", fields: [inspector_id], references: [id], onDelete: SetNull)
+  completed_report   InspectionReport?         @relation(fields: [completed_report_id], references: [id], onDelete: SetNull)
+  created_by_manager Manager?                  @relation("ScheduleCreatedByManager", fields: [created_by_manager_id], references: [id], onDelete: SetNull)
+  created_by_user    User?                     @relation("ScheduleCreatedByUser", fields: [created_by_user_id], references: [id], onDelete: SetNull)
+  updated_by_manager Manager?                  @relation("ScheduleUpdatedByManager", fields: [updated_by_manager_id], references: [id], onDelete: SetNull)
+  updated_by_user    User?                     @relation("ScheduleUpdatedByUser", fields: [updated_by_user_id], references: [id], onDelete: SetNull)
+  floors             InspectionScheduleFloor[]
+
+  // A agenda do prédio é sempre "um recorte de datas, em ordem".
+  @@index([building_id, scheduled_date])
+  // "O que está pendente para mim" — a agenda do inspetor e a sugestão.
+  @@index([inspector_id, status])
+  // O ciclo diário procura os pendentes pelo prazo.
+  @@index([status, due_date])
+  @@index([completed_report_id])
+  @@index([created_by_manager_id])
+  @@index([created_by_user_id])
+  @@index([updated_by_manager_id])
+  @@index([updated_by_user_id])
+  @@map("inspection_schedules")
+}
+
+/// Os andares de um agendamento. Tabela de ligação, e não array de ids, para que
+/// apagar o andar o tire da agenda pela chave estrangeira.
+model InspectionScheduleFloor {
+  schedule_id String
+  floor_id    String
+
+  schedule InspectionSchedule @relation(fields: [schedule_id], references: [id], onDelete: Cascade)
+  floor    Floor              @relation(fields: [floor_id], references: [id], onDelete: Cascade)
+
+  @@id([schedule_id, floor_id])
+  @@index([floor_id])
+  @@map("inspection_schedule_floors")
+}
+
+/// O sino: o aviso que fica na conta até a pessoa ler.
+///
+/// Só conta de usuário — é quem vistoria, e é quem a agenda avisa. `type` é
+/// texto, e não enum, pelo mesmo motivo de `BuildingAccessRequest.status`: tipo
+/// novo de aviso não deveria custar migration. `payload` leva o que a tela
+/// precisa para escrever a frase sem outra consulta.
+model Notification {
+  id          String    @id @default(uuid())
+  user_id     String
+  building_id String?
+  type        String
+  payload     Json
+  read_at     DateTime?
+  created_at  DateTime  @default(now())
+
+  user     User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  building Building? @relation(fields: [building_id], references: [id], onDelete: Cascade)
+
+  // O sino é "as minhas, as não lidas primeiro, das mais novas para as velhas".
+  @@index([user_id, read_at, created_at(sort: Desc)])
+  @@index([building_id])
+  @@map("notifications")
 }
 
 // ─────────────────────────────────────────────

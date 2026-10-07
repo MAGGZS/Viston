@@ -665,6 +665,11 @@ export function useSubmitInspection() {
       // Cada ocorrência enviada é um chamado novo na fila do moderador.
       qc.invalidateQueries({ queryKey: ['tickets'] });
       qc.invalidateQueries({ queryKey: ['ticket-stats'] });
+      // A vistoria que cobre os andares de um agendamento fecha esse
+      // agendamento no backend: a bolinha do calendário e a lista de próximos
+      // do inspetor, e a agenda do prédio, mudam com ela.
+      qc.invalidateQueries({ queryKey: ['my-schedules'] });
+      qc.invalidateQueries({ queryKey: ['schedules'] });
     },
   });
 }
@@ -1192,6 +1197,205 @@ export function useCalendar(params) {
     queryKey: ['calendar', params],
     queryFn: () => api.get('/calendar', { params }).then((r) => r.data),
     enabled: !!params,
+  });
+}
+
+// ── Agenda de vistorias ───────────────────────────────────────────────────────
+/**
+ * De quanto em quanto tempo o sino pergunta se chegou aviso novo — o mesmo
+ * minuto da mesa do responsável (ver `ResponsavelShell`).
+ */
+export const NOTIFICATIONS_POLL_MS = 60_000;
+
+/**
+ * Tudo que um agendamento criado ou alterado deixa velho.
+ *
+ * A agenda do prédio é a lista óbvia; `my-schedules` porque quem agenda pode
+ * ser também o inspetor (e o inspetor de outro aparelho vê na próxima busca);
+ * o panorama do supervisor conta pendentes e atrasados; e a sugestão de
+ * inspetor ordena por `pending_count`, que acabou de mudar.
+ */
+function invalidateSchedules(qc, buildingId) {
+  qc.invalidateQueries({ queryKey: ['schedules', buildingId] });
+  qc.invalidateQueries({ queryKey: ['my-schedules'] });
+  qc.invalidateQueries({ queryKey: ['supervisor-overview', buildingId] });
+  qc.invalidateQueries({ queryKey: ['schedule-suggestion', buildingId] });
+}
+
+/**
+ * A agenda de um prédio num mês: `{ schedules }`.
+ *
+ * `filters` = `{ month, year, status }` (mês de 1 a 12). `placeholderData`
+ * segura o mês anterior enquanto o próximo chega — sem ele, cada clique na seta
+ * do calendário apagaria todas as bolinhas por um instante.
+ */
+export function useBuildingSchedules(buildingId, filters = {}, options = {}) {
+  return useQuery({
+    queryKey: ['schedules', buildingId, filters],
+    queryFn: () =>
+      api.get(`/buildings/${buildingId}/schedules`, { params: filters }).then((r) => r.data),
+    enabled: !!buildingId,
+    placeholderData: keepPreviousData,
+    ...options,
+  });
+}
+
+/**
+ * Todos os agendamentos atrasados de um prédio, de qualquer mês: `{ schedules }`
+ * (PENDENTE com o dia agendado já passado), do mais antigo ao mais novo.
+ *
+ * É o alerta fixo do topo da agenda. A chave começa por `['schedules', id]`
+ * de propósito: toda mutação de agendamento (e a vistoria que fecha um) já
+ * invalida esse prefixo, e o alerta acompanha sem lista própria de invalidação.
+ */
+export function useOverdueSchedules(buildingId, options = {}) {
+  return useQuery({
+    queryKey: ['schedules', buildingId, { overdue: true }],
+    queryFn: () =>
+      api.get(`/buildings/${buildingId}/schedules`, { params: { overdue: true } }).then((r) => r.data),
+    enabled: !!buildingId,
+    ...options,
+  });
+}
+
+/** Agenda uma vistoria. `mutate({ buildingId, inspector_id, scheduled_date, due_date, floor_ids, notes })` → `{ schedule }`. */
+export function useCreateSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ buildingId, ...data }) =>
+      api.post(`/buildings/${buildingId}/schedules`, data).then((r) => r.data),
+    onSuccess: (_, { buildingId }) => invalidateSchedules(qc, buildingId),
+  });
+}
+
+/**
+ * Altera um agendamento — parcial, inclusive `status` ('PENDENTE' | 'CONCLUIDO'
+ * | 'CANCELADO'). `mutate({ buildingId, scheduleId, ...campos })` → `{ schedule }`.
+ */
+export function useUpdateSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ buildingId, scheduleId, ...data }) =>
+      api.patch(`/buildings/${buildingId}/schedules/${scheduleId}`, data).then((r) => r.data),
+    onSuccess: (_, { buildingId }) => invalidateSchedules(qc, buildingId),
+  });
+}
+
+/**
+ * Quem o sistema sugere para os andares escolhidos: `{ inspectors }`.
+ *
+ * Só pergunta com ao menos um andar marcado — sem andar não há o que ordenar, e
+ * o formulário abre vazio. `floorIds` é ordenado na chave para que marcar A
+ * depois B e B depois A caiam no mesmo cache.
+ */
+export function useScheduleSuggestion(buildingId, { floorIds = [], scheduledDate, dueDate } = {}) {
+  const floor_ids = [...floorIds].sort().join(',');
+  const params = { floor_ids, scheduled_date: scheduledDate || undefined, due_date: dueDate || undefined };
+  return useQuery({
+    queryKey: ['schedule-suggestion', buildingId, params],
+    queryFn: () =>
+      api.get(`/buildings/${buildingId}/schedules/suggestion`, { params }).then((r) => r.data),
+    enabled: !!buildingId && floorIds.length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
+}
+
+/** A agenda de quem está logado (inspetor), num mês: `{ schedules }`. `filters` = `{ month, year }`. */
+export function useMySchedules(filters = {}, options = {}) {
+  return useQuery({
+    queryKey: ['my-schedules', filters],
+    queryFn: () => api.get('/me/schedules', { params: filters }).then((r) => r.data),
+    placeholderData: keepPreviousData,
+    ...options,
+  });
+}
+
+/**
+ * Os avisos da conta: `{ notifications, unread }`.
+ *
+ * Pede de novo a cada minuto e ao voltar para a aba. Com a aba escondida o
+ * intervalo para sozinho — é o padrão do React Query
+ * (`refetchIntervalInBackground: false`), e não há por que gastar requisição
+ * com uma tela que ninguém está vendo.
+ */
+export function useNotifications({ limit = 20, enabled = true } = {}) {
+  return useQuery({
+    queryKey: ['notifications', limit],
+    queryFn: () => api.get('/me/notifications', { params: { limit } }).then((r) => r.data),
+    enabled,
+    refetchInterval: NOTIFICATIONS_POLL_MS,
+    refetchOnWindowFocus: true,
+  });
+}
+
+/**
+ * Marca no cache antes da resposta.
+ *
+ * O ponto do aviso apagar no clique é dizer "visto"; esperar a volta do
+ * servidor deixaria o ponto aceso enquanto a caixa já mudou de assunto. Se a
+ * chamada falhar, o retrato anterior volta.
+ */
+function useOptimisticNotifications(mutationFn, apply) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onMutate: async (vars) => {
+      await qc.cancelQueries({ queryKey: ['notifications'] });
+      const before = qc.getQueriesData({ queryKey: ['notifications'] });
+      const now = new Date().toISOString();
+      qc.setQueriesData({ queryKey: ['notifications'] }, (old) => (old ? apply(old, vars, now) : old));
+      return { before };
+    },
+    onError: (_e, _v, ctx) => {
+      ctx?.before?.forEach(([key, data]) => qc.setQueryData(key, data));
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+  });
+}
+
+/** Marca um aviso como lido. `mutate(notificationId)`. */
+export function useMarkNotificationRead() {
+  return useOptimisticNotifications(
+    (id) => api.patch(`/me/notifications/${id}/read`).then((r) => r.data),
+    (old, id, now) => {
+      const alvo = old.notifications?.find((n) => n.id === id);
+      const eraNaoLido = alvo && !alvo.read_at;
+      return {
+        ...old,
+        notifications: (old.notifications ?? []).map((n) =>
+          n.id === id && !n.read_at ? { ...n, read_at: now } : n
+        ),
+        unread: eraNaoLido ? Math.max(0, (old.unread ?? 0) - 1) : old.unread,
+      };
+    }
+  );
+}
+
+/** Marca todos os avisos como lidos. `mutate()`. */
+export function useMarkAllNotificationsRead() {
+  return useOptimisticNotifications(
+    () => api.patch('/me/notifications/read-all').then((r) => r.data),
+    (old, _vars, now) => ({
+      ...old,
+      notifications: (old.notifications ?? []).map((n) => (n.read_at ? n : { ...n, read_at: now })),
+      unread: 0,
+    })
+  );
+}
+
+/**
+ * O panorama do supervisor num período: inspetores, agendamentos, chamados e
+ * cobertura por andar. `range` = `{ from, to }` em `yyyy-MM-dd`.
+ */
+export function useSupervisorOverview(buildingId, range = {}, options = {}) {
+  return useQuery({
+    queryKey: ['supervisor-overview', buildingId, range],
+    queryFn: () =>
+      api.get(`/buildings/${buildingId}/supervisor/overview`, { params: range }).then((r) => r.data),
+    enabled: !!buildingId,
+    placeholderData: keepPreviousData,
+    ...options,
   });
 }
 

@@ -14,6 +14,9 @@
 # painel do Render. Sem ele, a rota responde 404 e este workflow falha alto, que
 # é o que se quer: ciclo que não roda em silêncio é ciclo que ninguém percebe
 # parado.
+#
+# O mesmo disparo leva o lembrete da agenda de vistorias (POST /jobs/agenda),
+# no segundo passo: também depende só do relógio.
 name: Planos — ciclo diário
 
 on:
@@ -38,6 +41,21 @@ jobs:
             --header "X-Job-Secret: ${JOB_SECRET}" \
             "${API_URL}/jobs/planos")
           echo "POST ${API_URL}/jobs/planos -> ${resposta}"
+        env:
+          API_URL: https://viston.onrender.com
+          JOB_SECRET: ${{ secrets.JOB_SECRET }}
+
+      # O lembrete da agenda de vistorias ("o prazo vence amanhã"). Mesmo
+      # segredo e mesma API; passo próprio para que a falha de um não esconda o
+      # outro. `if: always()` porque o lembrete não depende do ciclo de planos.
+      - name: Rodar os lembretes da agenda
+        if: always()
+        run: |
+          resposta=$(curl --silent --show-error --fail --max-time 300 \
+            --request POST \
+            --header "X-Job-Secret: ${JOB_SECRET}" \
+            "${API_URL}/jobs/agenda")
+          echo "POST ${API_URL}/jobs/agenda -> ${resposta}"
         env:
           API_URL: https://viston.onrender.com
           JOB_SECRET: ${{ secrets.JOB_SECRET }}

@@ -97,7 +97,32 @@ describe('para onde a raiz manda cada conta', () => {
     replace.mockClear();
     comoUsuario(conta, { desktop: true });
     render(<RootPage />);
-    expect(replace).toHaveBeenLastCalledWith('/desktop/visualizacao');
+    expect(replace).toHaveBeenLastCalledWith('/desktop/inspetor');
+  });
+
+  it('quem só acompanha continua na visualização no desktop', () => {
+    comoUsuario(
+      { kind: 'USER', role: 'NONE', memberships: [{ building_id: 'p1', role: 'VIEWER' }] },
+      { desktop: true }
+    );
+    render(<RootPage />);
+    expect(replace).toHaveBeenCalledWith('/desktop/visualizacao');
+  });
+
+  it('quem vistoria num prédio e só acompanha outro vai para a mesa do inspetor', () => {
+    comoUsuario(
+      {
+        kind: 'USER',
+        role: 'NONE',
+        memberships: [
+          { building_id: 'p1', role: 'VIEWER' },
+          { building_id: 'p2', role: 'INSPECTOR' },
+        ],
+      },
+      { desktop: true }
+    );
+    render(<RootPage />);
+    expect(replace).toHaveBeenCalledWith('/desktop/inspetor');
   });
 
   it('o responsável que não vistoria tem mesa própria no desktop', () => {

@@ -229,6 +229,25 @@ export function requireBuildingModerator(param = 'id') {
 }
 
 /**
+ * Garante que o ator supervisiona o prédio da rota: o gestor, ou o VIEWER.
+ *
+ * É a guarda da agenda de vistorias e do painel do supervisor. O VIEWER entra
+ * por decisão do proprietário: é quem acompanha o prédio, e distribuir as
+ * rondas é acompanhar. O INSPECTOR fica de fora — quem vistoria não se agenda.
+ */
+export function requireBuildingSupervisor(param = 'id') {
+  return async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
+    const standing = await loadBuildingAndStanding(req.user, req.params[param]);
+    if (standing !== 'GESTOR' && standing !== BuildingRole.VIEWER) {
+      throw new ForbiddenError('Apenas o gestor ou o supervisor do prédio pode fazer isso');
+    }
+
+    req.buildingRole = standing;
+    next();
+  };
+}
+
+/**
  * Ids dos prédios que o ator pode enxergar em listagens.
  * `null` significa "sem filtro" (ADMIN vê tudo).
  */

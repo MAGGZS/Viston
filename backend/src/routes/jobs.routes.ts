@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { Request, Response, NextFunction, Router } from 'express';
 import { config } from '../config';
 import { planJobService } from '../services/planJob.service';
+import { scheduleJobService } from '../services/scheduleJob.service';
 import { ok } from '../utils/response';
 import { NotFoundError } from '../utils/errors';
 import { logger } from '../lib/logger';
@@ -40,6 +41,18 @@ router.post('/jobs/planos', requireJobSecret, async (_req: Request, res: Respons
   const inicio = Date.now();
   const resultado = await planJobService.runDaily();
   logger.info({ ...resultado, ms: Date.now() - inicio }, '[Planos] Ciclo disparado pelo agendador');
+  ok(res, resultado);
+});
+
+/**
+ * O lembrete da agenda: "o prazo vence amanhã". Mesma guarda e mesmo
+ * agendador do ciclo de planos, em rota própria para que uma falha de um não
+ * esconda o outro no log do workflow.
+ */
+router.post('/jobs/agenda', requireJobSecret, async (_req: Request, res: Response) => {
+  const inicio = Date.now();
+  const resultado = await scheduleJobService.runDaily();
+  logger.info({ ...resultado, ms: Date.now() - inicio }, '[Agenda] Ciclo disparado pelo agendador');
   ok(res, resultado);
 });
 

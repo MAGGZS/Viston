@@ -7,6 +7,7 @@ import { storageService } from '../services/storage.service';
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { FloorStatus, InspectionStatus } from '@prisma/client';
 import { inspectionFiltersSchema } from '../validators/inspection.validator';
+import { scheduleRepository } from '../repositories/schedule.repository';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 jest.mock('../repositories/inspection.repository');
@@ -16,6 +17,9 @@ jest.mock('../services/excel.service');
 jest.mock('../services/storage.service');
 jest.mock('../repositories/usage.repository');
 jest.mock('../repositories/plan.repository');
+// A vistoria enviada conclui rondas da agenda: sem o mock, o envio consultaria
+// o banco de verdade.
+jest.mock('../repositories/schedule.repository');
 
 const mockInspectionRepo = inspectionRepository as jest.Mocked<typeof inspectionRepository>;
 const mockBuildingRepo = buildingRepository as jest.Mocked<typeof buildingRepository>;
@@ -89,6 +93,12 @@ async function flushDeferred() {
   await new Promise((resolve) => setImmediate(resolve));
   await new Promise((resolve) => setImmediate(resolve));
 }
+
+// Sem ronda na agenda por padrão: os testes da agenda montam as suas. Sem isto
+// o mock automático devolve `undefined`, e todo envio registraria um erro.
+beforeEach(() => {
+  (scheduleRepository.findPendingForCompletion as jest.Mock).mockResolvedValue([]);
+});
 
 describe('inspectionService.submit', () => {
   beforeEach(() => {
@@ -353,6 +363,37 @@ describe('inspectionService.submit', () => {
         'chave-de-envio-3'
       )
     ).rejects.toThrow(ConflictError);
+  });
+
+  it('conclui as rondas da agenda que a vistoria cobriu', async () => {
+    const mockScheduleRepo = scheduleRepository as jest.Mocked<typeof scheduleRepository>;
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6, mockFloorSub1] as any);
+    mockScheduleRepo.findPendingForCompletion.mockResolvedValue([
+      { id: 'ronda-1', floors: [{ floor_id: FLOOR_6 }] },
+    ] as any);
+    mockScheduleRepo.markCompleted.mockResolvedValue(1);
+
+    await inspectionService.submit(
+      inspetor(),
+      payload([
+        { floor_id: FLOOR_6, records: [] },
+        { floor_id: FLOOR_SUB1, records: [] },
+      ])
+    );
+
+    expect(mockScheduleRepo.markCompleted).toHaveBeenCalledWith(['ronda-1'], 'report-1', expect.any(Date));
+  });
+
+  it('a falha da agenda não derruba o envio da vistoria', async () => {
+    const mockScheduleRepo = scheduleRepository as jest.Mocked<typeof scheduleRepository>;
+    mockBuildingRepo.findById.mockResolvedValue(mockBuilding as any);
+    mockBuildingRepo.findFloorsByIds.mockResolvedValue([mockFloor6] as any);
+    mockScheduleRepo.findPendingForCompletion.mockRejectedValue(new Error('banco fora'));
+
+    const result = await inspectionService.submit(inspetor(), payload([{ floor_id: FLOOR_6, records: [] }]));
+
+    expect(result.id).toBe('report-1');
   });
 
   it('conclui a vistoria mesmo se a geração do Excel falhar', async () => {

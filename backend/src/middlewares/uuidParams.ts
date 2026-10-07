@@ -12,7 +12,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  *
  * 404, e não 400: um id que não é UUID é um id que não existe.
  */
-const ID_PARAMS = ['id', 'floorId', 'managerId', 'userId', 'requestId', 'updateId'];
+const ID_PARAMS = ['id', 'floorId', 'managerId', 'userId', 'requestId', 'updateId', 'scheduleId'];
 
 export function guardUuidParams(router: Router): Router {
   for (const name of ID_PARAMS) {

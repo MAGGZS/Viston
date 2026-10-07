@@ -3,6 +3,7 @@ import { inspectionRepository, FloorSubmission } from '../repositories/inspectio
 import { buildingRepository, auditRepository } from '../repositories/building.repository';
 import { generateDayExcel } from './excel.service';
 import { storageService } from './storage.service';
+import { scheduleService } from './schedule.service';
 import { SubmitInspectionPayload } from '../validators/inspection.validator';
 import { canInspectBuilding, getBuildingStanding, isBuildingManager } from '../middlewares/buildingAccess';
 import { planGate, withPlanLock } from '../middlewares/planGate';
@@ -332,6 +333,15 @@ export const inspectionService = {
       entity_id: report.id,
       metadata: { floors: submissions.length },
     });
+
+    // A vistoria cumpre as rondas da agenda que ela cobriu. Falhar aqui não
+    // desfaz o envio: o relatório já existe, e a ronda que ficou pendente por
+    // engano se conclui à mão na agenda.
+    try {
+      await scheduleService.completeFromReport(report);
+    } catch (err) {
+      logger.error({ err, report_id: report.id }, '[Agenda] Falha ao concluir rondas pela vistoria');
+    }
 
     /**
      * A planilha vai atrás. A resposta sai agora.

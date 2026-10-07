@@ -18,6 +18,7 @@ import adminRoutes from './routes/admin.routes';
 import billingRoutes from './routes/billing.routes';
 import ownershipRoutes from './routes/ownership.routes';
 import jobRoutes from './routes/jobs.routes';
+import scheduleRoutes from './routes/schedule.routes';
 import { errorHandler } from './middlewares/errorHandler';
 import { generalLimiter } from './middlewares/rateLimit';
 
@@ -141,6 +142,9 @@ app.use('/', ticketRoutes);
 // O painel analítico entra na raiz pelo mesmo motivo: o caminho é do prédio,
 // e `/buildings` já está tomado por rotas que passam por outras guardas.
 app.use('/', analyticsRoutes);
+// A agenda de vistorias e o sino. Na raiz, como as de cima: os caminhos são do
+// prédio (`/buildings/:id/schedules`) e da própria conta (`/me/...`).
+app.use('/', scheduleRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((_req, res) => {

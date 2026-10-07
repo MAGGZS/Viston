@@ -1627,3 +1627,93 @@ input:-webkit-autofill:focus {
   .linha-clicavel { transition: background-color 120ms ease; }
   .linha-clicavel:hover { background-color: var(--color-hover); }
 }
+
+/*
+ * Agenda de vistorias — calendário mensal, item de lista, sino de avisos e a
+ * gaveta lateral (ver components/agenda e components/ui).
+ *
+ * Hover e foco em CSS pelo mesmo motivo do `.btn`: em JS o teclado não ganha
+ * realce e o toque deixa o estado grudado. O dia escolhido é dourado porque é
+ * estado ativo — o outro uso reservado da cor.
+ *
+ * Mudar de mês não anima: é gesto repetido dezenas de vezes, e pelo teclado
+ * vira atraso. O que se mexe é só a resposta ao toque (`scale(0.97)`), e a cor
+ * do dia escolhido, que transiciona em 150ms.
+ */
+.cal-dia {
+  transition: background-color 150ms ease, color 150ms ease, transform 160ms var(--ease-saida);
+  -webkit-tap-highlight-color: transparent;
+}
+.cal-dia:active:not([aria-disabled='true']) { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) {
+  .cal-dia:not(.is-selecionado):not([aria-disabled='true']):hover { background-color: var(--color-hover); }
+}
+.cal-dia:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 2px;
+}
+
+.cal-nav {
+  transition: background-color 150ms ease, transform 160ms var(--ease-saida);
+}
+.cal-nav:active { transform: scale(0.95); }
+@media (hover: hover) and (pointer: fine) {
+  .cal-nav:hover { background-color: var(--color-hover); }
+}
+.cal-nav:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 2px;
+}
+
+/* Linha da agenda e do sino: o mesmo realce de lista do resto do produto. */
+.agenda-linha { transition: background-color 120ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .agenda-linha:hover { background-color: var(--color-hover); }
+}
+.agenda-linha:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: -2px;
+}
+
+/* Botão de ícone redondo (lápis, sino): 44px no toque, 36px com mouse. */
+.icone-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--color-mute);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, transform 160ms var(--ease-saida);
+}
+@media (pointer: fine) {
+  .icone-btn--compacto { width: 36px; height: 36px; }
+}
+.icone-btn:active { transform: scale(0.95); }
+@media (hover: hover) and (pointer: fine) {
+  .icone-btn:hover { background-color: var(--color-hover); color: var(--color-ink); }
+}
+.icone-btn:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 2px;
+}
+.icone-btn--chip { background: var(--color-chip); color: var(--color-ink); }
+
+/*
+ * Gaveta lateral genérica (`Drawer`, em components/ui). Mesmo desenho da gaveta
+ * de planos — canto arredondado do lado de dentro — e, no telefone, a tela
+ * inteira sem canto nenhum.
+ */
+.drawer-painel {
+  border-radius: 16px 0 0 16px;
+}
+@media (max-width: 640px) {
+  .drawer-painel { border-radius: 0; }
+}
+@media (pointer: coarse) {
+  .drawer-back-btn--toque { width: 44px; height: 44px; }
+}

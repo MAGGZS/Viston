@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Download, Eye, FileSpreadsheet, SlidersHoriz
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { BottomNav } from '@/app/components/BottomNav';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
+import { SidebarDaArea, areaDeComputador } from '@/app/components/SidebarDaArea';
 import { CalendarDayCell } from '@/app/components/CalendarDayCell';
 import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
@@ -512,10 +513,12 @@ export default function HistoricoPage() {
     <RouteGuard>
       <div style={S.page}>
         {isDesktop ? (
-          isAdmin ? (
+          isAdmin || areaDeComputador(user) ? (
+            // O inspetor e o visualizador chegam aqui pelo menu da área deles;
+            // a barra vem junto, para não perderem o caminho de volta.
             <div style={{ display: 'flex', minHeight: '100vh' }}>
-              <AdminSidebar />
-              <main id={CONTENT_ID} style={{ flex: 1, overflowY: 'auto' }}>{desktopContent}</main>
+              {isAdmin ? <AdminSidebar /> : <SidebarDaArea user={user} />}
+              <main id={CONTENT_ID} style={{ flex: 1, minWidth: 0, overflowY: 'auto' }}>{desktopContent}</main>
             </div>
           ) : (
             desktopContent

@@ -21,6 +21,11 @@ export function destinoNoComputador(user) {
   if (isAdmin(user)) return '/desktop/admin/dashboard';
   if (memberships(user).some((m) => m.role === 'MODERADOR')) return '/moderador';
   if (isResponsible(user) && !canInspect(user)) return '/responsavel/painel';
+  // Quem vistoria em algum prédio tem mesa própria: a agenda dele cruza todos
+  // os prédios, e a tela de visualização fala de um prédio por vez. A conta
+  // que vistoria num prédio e só acompanha outro cai aqui também — o trabalho
+  // dela é a vistoria, e o histórico do outro prédio continua a um clique.
+  if (canInspect(user)) return '/desktop/inspetor';
   return '/desktop/visualizacao';
 }
 
@@ -106,9 +111,14 @@ export function SoNoCelular({ children, destino }) {
  *
  * Diferente do aviso "acesse pelo computador" das mesas do gestor e do moderador:
  * aqui existe uma versão de telefone do mesmo trabalho, então o celular não é
- * barrado — é levado a ela.
+ * barrado — é levado a ela. `texto` diz qual é essa versão (o padrão é o da
+ * mesa do responsável).
  */
-export function SoNoComputador({ children, destinoNoCelular }) {
+export function SoNoComputador({
+  children,
+  destinoNoCelular,
+  texto = 'No celular, os seus chamados ficam numa tela feita para ele.',
+}) {
   const router = useRouter();
 
   useEffect(() => {
@@ -123,7 +133,7 @@ export function SoNoComputador({ children, destinoNoCelular }) {
         className="flex lg:hidden"
         icon={Monitor}
         titulo="Esta tela é do computador"
-        texto="No celular, os seus chamados ficam numa tela feita para ele."
+        texto={texto}
         href={destinoNoCelular}
         acao="Abrir no celular"
       />

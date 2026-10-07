@@ -1,23 +1,27 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList } from 'lucide-react';
+import { ClipboardCheck, ClipboardList } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { Avatar } from '@/app/components/Avatar';
 import { BottomNav } from '@/app/components/BottomNav';
 import { SoNoCelular } from '@/app/components/TelaPorLargura';
 import { JoinBuildingForm } from '@/app/components/JoinBuildingForm';
 import { NotificacaoChamados } from '@/app/components/NotificacaoChamados';
-import { CalendarHeatmap } from '@/app/components/CalendarHeatmap';
-import { DayInspectionsModal } from '@/app/components/DayInspectionsModal';
+import { NotificacoesSino } from '@/app/components/NotificacoesSino';
+import { CalendarioMensal } from '@/app/components/agenda/CalendarioMensal';
+import {
+  AgendaDoInspetorModais,
+  LegendaDoInspetor,
+  useAgendaDoInspetor,
+} from '@/app/components/agenda/AgendaDoInspetor';
 import { BuildingSwitcher } from '@/app/components/BuildingSwitcher';
 import { Skeleton } from '@/app/components/ui';
 import { M, MPage, MTopBar, MRound, MCard, MStats, MSectionHead } from '@/app/components/mobile/kit';
 import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
 import { useAuthStore } from '@/app/store/auth';
-import { useCalendar } from '@/app/hooks/useApi';
 import { canInspect } from '@/app/lib/roles';
 import { R } from '@/app/lib/theme';
 
@@ -25,9 +29,6 @@ export default function HomePage() {
   const { user } = useAuthStore();
   const router = useRouter();
   const now = new Date();
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year, setYear] = useState(now.getFullYear());
-  const [dayModal, setDayModal] = useState(null);
 
   // O prédio de que esta tela fala. Com dois vínculos, quem escolhe é a pessoa
   // — antes ela via só o primeiro da lista, sem saber que havia outro.
@@ -40,11 +41,11 @@ export default function HomePage() {
   } = useActiveBuilding();
   const hasBuilding = myBuildings.length > 0;
 
-  const { data, isLoading } = useCalendar(
-    hasBuilding ? { month, year, building_id: buildingId } : null,
-  );
-
-  const heatmap = data?.heatmap ?? {};
+  // O calendário fala de duas coisas: o que está agendado para você (as
+  // bolinhas) e o que já foi feito (o fundo do dia, que antes era o heatmap).
+  // Ver `useAgendaDoInspetor`.
+  const agenda = useAgendaDoInspetor({ enabled: hasBuilding, buildingId });
+  const heatmap = agenda.heatmap;
 
   // Números do mês, direto do calendário
   const stats = useMemo(() => {
@@ -52,15 +53,11 @@ export default function HomePage() {
     const vistorias = days.reduce((sum, d) => sum + (d.count ?? 0), 0);
     const inspetores = new Set(days.flatMap((d) => d.inspectors ?? [])).size;
     return { vistorias, dias: days.length, inspetores };
-  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function prevMonth() { if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); }
-  function nextMonth() { if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1); }
+  }, [heatmap]);
 
   // Vistoriar é permissão do prédio, não da conta: quem só acompanha este aqui
   // não vê o botão, mesmo que vistorie outro.
   const podeVistoriar = canInspect(user, buildingId);
-  const monthLabel = format(new Date(year, month - 1, 1), 'MMMM yyyy', { locale: ptBR });
 
   return (
     <RouteGuard>
@@ -88,6 +85,9 @@ export default function HomePage() {
               {/* Só para quem atende chamado — para o resto seria um sino que
                   nunca toca (ver NotificacaoChamados). */}
               <NotificacaoChamados />
+              {/* O sino geral: agendamentos criados, alterados, perto do prazo.
+                  O aviso leva ao dia dele no calendário logo abaixo. */}
+              <NotificacoesSino onOpenSchedule={(payload, aviso) => agenda.abrirAgendamento(payload, aviso)} />
               <MRound label="Histórico" onClick={() => router.push('/historico')}>
                 <ClipboardList size={18} />
               </MRound>
@@ -143,34 +143,47 @@ export default function HomePage() {
               ]} />
 
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                  <button onClick={prevMonth} aria-label="Mês anterior" style={{ background: 'none', border: 'none', cursor: 'pointer', color: M.faint, padding: 4 }}>
-                    <ChevronLeft size={18} />
-                  </button>
-                  <span key={monthLabel} className="anim-fade-in" style={{ fontFamily: M.display, fontWeight: 600, fontSize: 14, color: M.text, textTransform: 'capitalize' }}>{monthLabel}</span>
-                  <button onClick={nextMonth} aria-label="Próximo mês" style={{ background: 'none', border: 'none', cursor: 'pointer', color: M.faint, padding: 4 }}>
-                    <ChevronRight size={18} />
-                  </button>
-                </div>
-
-                {isLoading ? <Skeleton style={{ height: 192, width: '100%' }} /> : (
-                  <CalendarHeatmap heatmap={heatmap} month={month} year={year} onDayClick={(day, info) => setDayModal({ day, info })} />
+                {agenda.calendarLoading && agenda.isLoading ? (
+                  <Skeleton style={{ height: 340, width: '100%' }} />
+                ) : (
+                  <CalendarioMensal
+                    month={agenda.month}
+                    year={agenda.year}
+                    onMonthChange={agenda.setMonth}
+                    selectedDate={agenda.selectedDate}
+                    onSelectDate={agenda.abrirDia}
+                    marks={agenda.marks}
+                    getDayHint={agenda.getDayHint}
+                    size="compact"
+                    label="Sua agenda de vistorias"
+                  />
                 )}
 
-                <p style={{ color: M.faint, fontSize: 12, marginTop: 12, textAlign: 'center' }}>
-                  Toque num dia com marca para ver o relatório
+                <div style={{ marginTop: 14 }}>
+                  <LegendaDoInspetor />
+                </div>
+                {agenda.isError && (
+                  <p role="alert" style={{ color: M.mute, fontSize: 12, marginTop: 10 }}>
+                    Não foi possível carregar seus agendamentos.{' '}
+                    <button
+                      type="button"
+                      className="link-acao link-acao--acento"
+                      onClick={() => agenda.refetch()}
+                      style={{ color: M.accentInk, fontSize: 12, minHeight: 44, padding: '0 2px' }}
+                    >
+                      Tentar de novo
+                    </button>
+                  </p>
+                )}
+                <p style={{ color: M.faint, fontSize: 12, marginTop: 10 }}>
+                  Toque num dia marcado para ver a agenda ou as vistorias feitas
                 </p>
               </div>
             </MCard>
           </>
         )}
 
-        <DayInspectionsModal
-          open={!!dayModal}
-          onClose={() => setDayModal(null)}
-          day={dayModal?.day}
-          info={dayModal?.info}
-        />
+        <AgendaDoInspetorModais agenda={agenda} />
 
         <BottomNav />
       </MPage>

@@ -18,6 +18,7 @@ import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { GestorSidebar } from '@/app/components/GestorSidebar';
 import { ModeradorSidebar } from '@/app/components/ModeradorSidebar';
 import { ResponsavelSidebar } from '@/app/components/ResponsavelSidebar';
+import { SidebarDaArea, areaDeComputador } from '@/app/components/SidebarDaArea';
 import { M, MPage, MRound, MField, MButton, RESPIRO_TOPO, CONTENT_ID } from '@/app/components/mobile/kit';
 import { BottomNav } from '@/app/components/BottomNav';
 import { Button, Modal, Textarea } from '@/app/components/ui';
@@ -157,9 +158,9 @@ function Row({ icon: Icon, label, hint, tone, onClick, className = '' }) {
  * menu e o menu sumia. Sair da área para mexer na conta é o tipo de troca que
  * faz a pessoa perder o fio de onde estava.
  *
- * Quem não tem barra — inspetor, quem só acompanha, conta sem vínculo — não
- * ganha uma: a área dessas contas não tem menu lateral em lugar nenhum, e
- * inventar um só aqui seria mostrar um caminho que não existe nas outras telas.
+ * O inspetor e o visualizador também têm área com menu no computador (ver
+ * `SidebarDaArea`), e é do rodapé desse menu que chegam aqui — então a barra
+ * deles vem junto. Só o gestor fora de um prédio fica sem barra.
  */
 function BarraLateralDaConta({ user, buildingId }) {
   const predioModerado = moderatedBuilding(user);
@@ -181,7 +182,7 @@ function BarraLateralDaConta({ user, buildingId }) {
   // O responsável que não vistoria tem mesa própria no computador — e é de lá
   // que ele chega aqui, pelo rodapé do menu.
   if (temMesaDeResponsavel(user)) return <ResponsavelSidebar />;
-  return null;
+  return <SidebarDaArea user={user} />;
 }
 
 /** A mesma regra da raiz: quem atende chamado e não vistoria usa a mesa do responsável. */
@@ -195,7 +196,7 @@ function contaTemBarra(user, buildingId) {
   if (isManagerAccount(user)) {
     return Boolean(buildingId && managedBuildings(user).some((b) => b.building_id === buildingId));
   }
-  return Boolean(moderatedBuilding(user)) || temMesaDeResponsavel(user);
+  return Boolean(moderatedBuilding(user)) || temMesaDeResponsavel(user) || areaDeComputador(user) !== null;
 }
 
 /**

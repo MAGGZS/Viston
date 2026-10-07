@@ -1,5 +1,5 @@
 /**
- * Os dois e-mails que o sistema manda.
+ * Os e-mails que o sistema manda: os códigos da conta e os avisos da agenda.
  *
  * A identidade vem dos tokens do produto, e não de um desenho paralelo: os
  * mesmos valores que `globals.css` declara no tema escuro — `page #0B0B0B`,
@@ -169,6 +169,116 @@ export function emailRecuperacao(nome: string, codigo: string, minutos: number) 
         blocoCodigo(codigo, minutos) +
         paragrafo('Sua senha atual continua valendo até você definir outra.'),
       'Se não foi você que pediu, ignore esta mensagem. Ninguém troca sua senha sem este código.'
+    ),
+  };
+}
+
+/** Os avisos da agenda que também saem por e-mail. */
+export type TipoAvisoAgenda =
+  | 'SCHEDULE_CREATED'
+  | 'SCHEDULE_UPDATED'
+  | 'SCHEDULE_CANCELED'
+  | 'SCHEDULE_DUE_SOON';
+
+export type DadosAgenda = {
+  predio: string;
+  /** `yyyy-MM-dd`, como a coluna guarda. */
+  inicio: string;
+  prazo: string;
+  andares: string[];
+};
+
+/** `2026-10-07` para `07/10/2026` — a data como se lê no Brasil. */
+function dataBr(dia: string): string {
+  const [ano, mes, d] = dia.split('-');
+  return `${d}/${mes}/${ano}`;
+}
+
+/**
+ * O resumo da ronda: prédio, período e andares, em linhas de rótulo e valor.
+ *
+ * O mesmo `chip` do bloco de código — é o elemento que a pessoa veio ler, e a
+ * moldura já ensinou que é ali que mora o que importa.
+ */
+function blocoRonda(dados: DadosAgenda): string {
+  const linha = (rotulo: string, valor: string) => `
+      <tr>
+        <td style="padding:6px 0;font-family:${CORPO};font-size:12px;font-weight:600;
+            letter-spacing:0.08em;text-transform:uppercase;color:${FAINT};
+            vertical-align:top;width:96px;">${rotulo}</td>
+        <td style="padding:6px 0;font-family:${CORPO};font-size:15px;line-height:1.5;
+            color:${INK};">${valor}</td>
+      </tr>`;
+
+  return `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr><td style="background:${CHIP};border:1px solid ${LINE};border-radius:14px;
+        padding:18px 22px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+        ${linha('Prédio', escapar(dados.predio))}
+        ${linha('Período', `${dataBr(dados.inicio)} a ${dataBr(dados.prazo)}`)}
+        ${linha('Andares', escapar(dados.andares.join(', ')))}
+      </table>
+    </td></tr>
+  </table>`;
+}
+
+const TEXTOS_AGENDA: Record<
+  TipoAvisoAgenda,
+  { sobretitulo: string; titulo: string; assunto: (d: DadosAgenda) => string; frase: string }
+> = {
+  SCHEDULE_CREATED: {
+    sobretitulo: 'Agenda de vistorias',
+    titulo: 'Nova vistoria agendada',
+    assunto: (d) => `Vistoria agendada em ${d.predio} para ${dataBr(d.inicio)}`,
+    frase: 'Uma vistoria foi agendada para você.',
+  },
+  SCHEDULE_UPDATED: {
+    sobretitulo: 'Agenda de vistorias',
+    titulo: 'Sua vistoria mudou',
+    assunto: (d) => `Vistoria em ${d.predio} foi alterada`,
+    frase: 'Uma vistoria da sua agenda foi alterada. Confira como ela ficou.',
+  },
+  SCHEDULE_CANCELED: {
+    sobretitulo: 'Agenda de vistorias',
+    titulo: 'Vistoria cancelada',
+    assunto: (d) => `Vistoria em ${d.predio} foi cancelada`,
+    frase: 'Esta vistoria saiu da sua agenda — não é mais preciso fazê-la.',
+  },
+  SCHEDULE_DUE_SOON: {
+    sobretitulo: 'Lembrete',
+    titulo: 'O prazo vence amanhã',
+    assunto: (d) => `Lembrete: a vistoria em ${d.predio} vence amanhã`,
+    frase: 'O prazo desta vistoria termina amanhã.',
+  },
+};
+
+/**
+ * O aviso da agenda por e-mail — o mesmo que entra no sino.
+ *
+ * Sem link para o app: a mensagem diz o que mudou e onde, e a agenda é aberta
+ * pelo próprio aplicativo. Um link aqui seria mais uma URL a manter certa em
+ * cada ambiente.
+ */
+export function emailAgenda(tipo: TipoAvisoAgenda, nome: string, dados: DadosAgenda) {
+  const t = TEXTOS_AGENDA[tipo];
+  return {
+    assunto: t.assunto(dados),
+    texto:
+      `Olá, ${nome}.\n\n` +
+      `${t.frase}\n\n` +
+      `Prédio: ${dados.predio}\n` +
+      `Período: ${dataBr(dados.inicio)} a ${dataBr(dados.prazo)}\n` +
+      `Andares: ${dados.andares.join(', ')}\n\n` +
+      `A agenda completa está no aplicativo.\n\n` +
+      `Viston · Vistoria predial`,
+    html: moldura(
+      t.sobretitulo,
+      t.titulo,
+      paragrafo(`Olá, ${escapar(nome)}. ${t.frase}`) +
+        `<div style="height:26px;line-height:26px;font-size:0;">&nbsp;</div>` +
+        blocoRonda(dados),
+      'A agenda completa está no aplicativo. Você recebe este aviso porque é inspetor deste prédio no Viston.'
     ),
   };
 }
