@@ -8,6 +8,7 @@ import { ScheduleDetailsModal } from '@/app/components/agenda/ScheduleDetailsMod
 import { FormularioAgendamento } from '@/app/components/agenda/FormularioAgendamento';
 import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
 import { useBuildingSchedules } from '@/app/hooks/useApi';
+import { useUnsavedFlag } from '@/app/hooks/useUnsavedGuard';
 import { MODAL_EXIT_MS } from '@/app/hooks/useExitTransition';
 import { useMediaQuery } from '@/app/hooks/useMediaQuery';
 import {
@@ -289,6 +290,11 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
   // "Descartar" da confirmação.
   const [formSujo, setFormSujo] = useState(false);
   const [saidaPendente, setSaidaPendente] = useState(null);
+  // O mesmo "sujo" vai para o registro global: o menu lateral, os links e o
+  // F5 também perguntam antes de levar a pessoa embora (ver `UnsavedGuard`).
+  // As saídas de dentro do painel são botões, não links, e seguem com a
+  // confirmação daqui — a guarda global só escuta `<a>` e o `beforeunload`.
+  useUnsavedFlag(formSujo && (painel.modo === 'novo' || painel.modo === 'editar'));
   const [, setRefoco] = useState(0);
   const painelId = useId();
   const tituloId = useId();
@@ -424,6 +430,9 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
     const acao = saidaPendente;
     setSaidaPendente(null);
     focoAntesDaPerguntaRef.current = null;
+    // Descartado, não há mais o que perder: a flag global cai junto com a
+    // ação, e nada pergunta uma segunda vez.
+    setFormSujo(false);
     acao?.();
   }
 
@@ -599,7 +608,9 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
     focoRef.current = 'esconder';
   }
 
+  /** Salvou, concluiu, cancelou ou deu 409: sai sem perguntar, e sem flag. */
   function concluirFormulario() {
+    setFormSujo(false);
     if (flutuante) fecharFlutuante();
     else voltarParaLista();
   }

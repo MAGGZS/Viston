@@ -2,6 +2,7 @@ import { render, screen, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
 import { useToastStore } from '@/app/store/toast';
+import { useUnsavedStore } from '@/app/store/unsaved';
 import { AgendaPredio } from '@/app/components/agenda/AgendaPredio';
 import { motivoDaSugestao, validarAgendamento } from '@/app/components/agenda/FormularioAgendamento';
 import { resumoAndares, rotuloAndar } from '@/app/lib/agenda';
@@ -517,6 +518,82 @@ describe('AgendaPredio: descartar alterações', () => {
     await user.click(within(caixa).getByRole('button', { name: 'Descartar' }));
     terminarAnimacao();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * O formulário mexido também segura o menu lateral, os links e o F5 — pelo
+ * registro global de `useUnsavedFlag`. Sair por dentro (descartar, salvar,
+ * 409) tem de tirá-lo do registro, ou a próxima navegação perguntaria de novo.
+ */
+describe('AgendaPredio: aviso global de alterações não salvas', () => {
+  const sujoGlobal = () => useUnsavedStore.getState().dirty.length > 0;
+  const terminarAnimacao = () => act(() => jest.advanceTimersByTime(400));
+
+  beforeEach(() => useUnsavedStore.setState({ dirty: [], pending: null }));
+
+  it('formulário mexido liga a flag; desfeito, ela cai', async () => {
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    await user.click(dia(container, '2026-10-10'));
+    expect(sujoGlobal()).toBe(false);
+
+    const andar = within(painel()).getByRole('button', { name: '3º Andar' });
+    await user.click(andar);
+    expect(sujoGlobal()).toBe(true);
+
+    await user.click(andar);
+    expect(sujoGlobal()).toBe(false);
+  });
+
+  it('"Descartar" da confirmação interna desliga a flag', async () => {
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    await user.click(dia(container, '2026-10-10'));
+    await user.click(within(painel()).getByRole('button', { name: '3º Andar' }));
+
+    await user.click(within(painel()).getByRole('button', { name: 'Voltar para a lista' }));
+    // A pergunta é a de dentro, e só ela; a flag segue ligada até a resposta.
+    expect(screen.getAllByRole('dialog', { name: 'Descartar alterações?' })).toHaveLength(1);
+    expect(sujoGlobal()).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: 'Descartar' }));
+    terminarAnimacao();
+    expect(sujoGlobal()).toBe(false);
+    expect(useUnsavedStore.getState().pending).toBeNull();
+  });
+
+  it('salvar desliga a flag', async () => {
+    mockCreate.mockImplementation((_vars, { onSuccess }) => onSuccess());
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    await user.click(dia(container, '2026-10-10'));
+    await user.click(within(painel()).getByRole('button', { name: '3º Andar' }));
+    expect(sujoGlobal()).toBe(true);
+
+    await user.click(within(painel()).getByRole('button', { name: 'Agendar vistoria' }));
+    expect(sujoGlobal()).toBe(false);
+  });
+
+  it('409 ao salvar volta para a lista com a flag desligada', async () => {
+    mockUpdate.mockImplementation((_vars, { onError }) =>
+      onError({ response: { status: 409, data: { error: { message: 'O agendamento mudou.' } } } })
+    );
+    render(<AgendaPredio buildingId="p1" canEdit />);
+    const linha = within(painel()).getByText('2º Andar').closest('li');
+    await user.click(within(linha).getByRole('button', { name: /^Editar agendamento de/ }));
+    await user.type(within(painel()).getByLabelText('Observação (opcional)'), 'x');
+    expect(sujoGlobal()).toBe(true);
+
+    await user.click(within(painel()).getByRole('button', { name: 'Salvar alterações' }));
+    expect(sujoGlobal()).toBe(false);
+  });
+
+  it('a agenda saindo da tela não deixa a flag para trás', async () => {
+    const { container, unmount } = render(<AgendaPredio buildingId="p1" canEdit />);
+    await user.click(dia(container, '2026-10-10'));
+    await user.click(within(painel()).getByRole('button', { name: '3º Andar' }));
+    expect(sujoGlobal()).toBe(true);
+
+    unmount();
+    expect(sujoGlobal()).toBe(false);
   });
 });
 
