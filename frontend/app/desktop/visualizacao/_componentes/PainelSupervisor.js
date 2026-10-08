@@ -84,14 +84,14 @@ export function NumerosDaAgenda({ schedules, loading, semInspetor = 0 }) {
       <StatCard
         className="anim-fade-up anim-d1"
         icon={AlertTriangle}
-        label="Atrasados"
+        label="Atrasadas"
         value={s.overdue}
         loading={loading}
         alerta
         hint={c.vencidos > 0 ? `${c.vencidos} com prazo vencido` : 'O dia agendado passou sem vistoria'}
       />
-      <StatCard className="anim-fade-up anim-d2" icon={CalendarCheck} label="Concluídos no dia" value={s.done_on_time} loading={loading} hint="Feitos até o dia agendado" />
-      <StatCard className="anim-fade-up anim-d3" icon={CalendarX} label="Concluídos com atraso" value={s.done_late} loading={loading} hint="Feitos depois do dia agendado" />
+      <StatCard className="anim-fade-up anim-d2" icon={CalendarCheck} label="Concluídas no dia" value={s.done_on_time} loading={loading} hint="Feitas até o dia agendado" />
+      <StatCard className="anim-fade-up anim-d3" icon={CalendarX} label="Concluídas com atraso" value={s.done_late} loading={loading} hint="Feitas depois do dia agendado" />
     </div>
   );
 }
@@ -171,12 +171,12 @@ export function GraficoAgendamentos({ schedules, loading }) {
     <Barras
       medida="Agendamentos"
       itens={[
-        { id: 'no-prazo', rotulo: 'Concluídos no dia', valor: c.noPrazo, texto: fmt(c.noPrazo) },
-        { id: 'fora', rotulo: 'Concluídos com atraso', valor: c.comAtraso, texto: fmt(c.comAtraso) },
-        { id: 'atrasados', rotulo: 'Atrasados', valor: c.atrasadosNoPrazo, texto: fmt(c.atrasadosNoPrazo), alerta: c.atrasadosNoPrazo > 0 },
+        { id: 'no-prazo', rotulo: 'Concluídas no dia', valor: c.noPrazo, texto: fmt(c.noPrazo) },
+        { id: 'fora', rotulo: 'Concluídas com atraso', valor: c.comAtraso, texto: fmt(c.comAtraso) },
+        { id: 'atrasados', rotulo: 'Atrasadas', valor: c.atrasadosNoPrazo, texto: fmt(c.atrasadosNoPrazo), alerta: c.atrasadosNoPrazo > 0 },
         { id: 'prazo-vencido', rotulo: 'Prazo vencido', valor: c.vencidos, texto: fmt(c.vencidos), alerta: c.vencidos > 0 },
         { id: 'pendentes', rotulo: 'Pendentes', valor: c.pendentes, texto: fmt(c.pendentes) },
-        { id: 'cancelados', rotulo: 'Cancelados', valor: c.cancelados, texto: fmt(c.cancelados) },
+        { id: 'cancelados', rotulo: 'Canceladas', valor: c.cancelados, texto: fmt(c.cancelados) },
       ]}
     />
   );

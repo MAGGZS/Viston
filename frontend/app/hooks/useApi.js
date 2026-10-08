@@ -1257,24 +1257,6 @@ export function useBuildingSchedules(buildingId, filters = {}, options = {}) {
   });
 }
 
-/**
- * Todos os agendamentos atrasados de um prédio, de qualquer mês: `{ schedules }`
- * (PENDENTE com o dia agendado já passado), do mais antigo ao mais novo.
- *
- * É o alerta fixo do topo da agenda. A chave começa por `['schedules', id]`
- * de propósito: toda mutação de agendamento (e a vistoria que fecha um) já
- * invalida esse prefixo, e o alerta acompanha sem lista própria de invalidação.
- */
-export function useOverdueSchedules(buildingId, options = {}) {
-  return useQuery({
-    queryKey: ['schedules', buildingId, { overdue: true }],
-    queryFn: () =>
-      api.get(`/buildings/${buildingId}/schedules`, { params: { overdue: true } }).then((r) => r.data),
-    enabled: !!buildingId,
-    ...options,
-  });
-}
-
 /** Agenda uma vistoria. `mutate({ buildingId, inspector_id, scheduled_date, due_date, floor_ids, notes })` → `{ schedule }`. */
 export function useCreateSchedule() {
   const qc = useQueryClient();

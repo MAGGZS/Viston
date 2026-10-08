@@ -335,7 +335,7 @@ export default function InspetorDesktopPage() {
                     icon={CalendarClock}
                     label="Pendentes"
                     value={todos.isError ? '—' : proximos.length}
-                    hint={atrasados > 0 ? plural(atrasados, 'atrasado', 'atrasados') : 'neste prédio'}
+                    hint={atrasados > 0 ? plural(atrasados, 'atrasada', 'atrasadas') : 'neste prédio'}
                     alerta={atrasados > 0}
                     loading={todos.isLoading}
                   />
@@ -371,6 +371,7 @@ export default function InspetorDesktopPage() {
                     marks={agenda.marks}
                     getDayHint={agenda.getDayHint}
                     marcaSecundaria={agenda.predioTodo ? agenda.deColega : undefined}
+                    showInspector={agenda.deColega}
                     size="compact"
                     label="Sua agenda de vistorias"
                   />

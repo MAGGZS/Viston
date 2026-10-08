@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   addDays,
   addMonths,
@@ -9,13 +10,24 @@ import {
   startOfMonth,
   startOfWeek,
 } from 'date-fns';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, UserX } from 'lucide-react';
 import { T, R, W, NUM } from '@/app/lib/theme';
+import { useMediaQuery } from '@/app/hooks/useMediaQuery';
+
+/**
+ * Altura mínima de uma semana no `large`: o número do dia e três chips de
+ * 15px. Abaixo disso a tela rola, em vez de cortar o nome do inspetor.
+ */
+const MIN_SEMANA_LARGE = 96;
 import {
   SCHEDULE_STATES,
   estiloMarca,
+  formatAte,
+  formatDiaCurto,
   formatDiaExtenso,
   formatMesAno,
+  isAtrasado,
+  resumoAndares,
   scheduleState,
   sortByUrgency,
   toDateKey,
@@ -39,7 +51,7 @@ const WEEKDAYS = [
 const MAX_DOTS = 3;
 
 /**
- * "2 agendamentos, 1 atrasado, 1 com prazo vencido" — o que o leitor de tela
+ * "2 agendamentos, 1 atrasada, 1 com prazo vencido" — o que o leitor de tela
  * ouve além da data. A cor e a forma da bolinha não chegam até ele.
  */
 function descreverMarcas(marks, marcaSecundaria) {
@@ -50,9 +62,9 @@ function descreverMarcas(marks, marcaSecundaria) {
   const vencidos = conta('prazo_vencido');
   const comAtraso = conta('concluido_atraso');
   const partes = [`${n} agendamento${n !== 1 ? 's' : ''}`];
-  if (atrasados) partes.push(`${atrasados} atrasado${atrasados !== 1 ? 's' : ''}`);
+  if (atrasados) partes.push(`${atrasados} atrasada${atrasados !== 1 ? 's' : ''}`);
   if (vencidos) partes.push(`${vencidos} com prazo vencido`);
-  if (comAtraso) partes.push(`${comAtraso} concluído${comAtraso !== 1 ? 's' : ''} com atraso`);
+  if (comAtraso) partes.push(`${comAtraso} concluída${comAtraso !== 1 ? 's' : ''} com atraso`);
   const semInspetor = marks.filter((m) => m.inspector_left && (m.status ?? 'PENDENTE') === 'PENDENTE').length;
   if (semInspetor) partes.push(`${semInspetor} sem inspetor`);
   const deColegas = marcaSecundaria ? marks.filter(marcaSecundaria).length : 0;
@@ -90,6 +102,259 @@ function Dots({ marks, selected, marcaSecundaria }) {
   );
 }
 
+/** Ponteiro fino com hover de verdade: só aí existe o resumo que segue o cursor. */
+const PONTEIRO_FINO = '(hover: hover) and (pointer: fine)';
+const MAX_RESUMO = 4;
+const ATRASO_ABRIR = 80;
+const ATRASO_FECHAR = 60;
+const DURACAO_SAIDA = 90;
+const AFASTAMENTO = 14;
+const MARGEM_JANELA = 8;
+const EASE_SAIDA = 'cubic-bezier(0.23, 1, 0.32, 1)';
+
+/** Há uma caixa (modal, overlay) por cima da tela? Aí o resumo não aparece. */
+function haSobreposicao() {
+  return !!document.querySelector('dialog[open], [aria-modal="true"]');
+}
+
+/**
+ * O resumo do dia que segue o cursor.
+ *
+ * Fica fora da grade, num portal no `<body>`, para nenhum `overflow` o cortar.
+ * Quem chama fala com ele pela `ref` (`mostrar`, `mover`, `esconder`): o
+ * movimento do mouse nunca vira estado — vai para um ref, e um laço de
+ * `requestAnimationFrame` escreve o `transform` direto no elemento. Só a
+ * troca de dia re-renderiza, e só o cartão.
+ *
+ * Posição: à direita e um pouco abaixo do ponteiro; perto da borda direita
+ * vira para a esquerda, perto da de baixo sobe, e nunca sai da janela. A
+ * escala de entrada parte do canto que está junto do cursor.
+ */
+function ResumoDoDia({ ref, marks, showInspector, reduzirMovimento }) {
+  const [chave, setChave] = useState(null);
+  const [fase, setFase] = useState('fechado'); // 'fechado' | 'aberto' | 'saindo'
+  const caixaRef = useRef(null);
+  const corpoRef = useRef(null);
+  const alvo = useRef({ x: 0, y: 0 });
+  const pos = useRef(null);
+  const raf = useRef(0);
+  const timer = useRef(0);
+  const faseRef = useRef('fechado');
+  function mudarFase(f) {
+    faseRef.current = f;
+    setFase(f);
+  }
+
+  function posicionar(imediato) {
+    const el = caixaRef.current;
+    if (!el) return;
+    const { x, y } = alvo.current;
+    if (!pos.current || imediato || reduzirMovimento) pos.current = { x, y };
+    else {
+      pos.current = {
+        x: pos.current.x + (x - pos.current.x) * 0.35,
+        y: pos.current.y + (y - pos.current.y) * 0.35,
+      };
+    }
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const esquerda = pos.current.x + AFASTAMENTO + w > vw - MARGEM_JANELA;
+    const acima = pos.current.y + AFASTAMENTO + h > vh - MARGEM_JANELA;
+    let left = esquerda ? pos.current.x - AFASTAMENTO - w : pos.current.x + AFASTAMENTO;
+    let top = acima ? pos.current.y - AFASTAMENTO - h : pos.current.y + AFASTAMENTO;
+    left = Math.max(MARGEM_JANELA, Math.min(left, vw - w - MARGEM_JANELA));
+    top = Math.max(MARGEM_JANELA, Math.min(top, vh - h - MARGEM_JANELA));
+    el.style.transform = `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`;
+    if (corpoRef.current) corpoRef.current.style.transformOrigin = `${esquerda ? 'right' : 'left'} ${acima ? 'bottom' : 'top'}`;
+  }
+
+  function laco() {
+    if (faseRef.current === 'fechado') {
+      raf.current = 0;
+      return;
+    }
+    if (haSobreposicao()) {
+      fechar();
+      raf.current = 0;
+      return;
+    }
+    posicionar(false);
+    raf.current = requestAnimationFrame(laco);
+  }
+
+  function fechar() {
+    clearTimeout(timer.current);
+    if (faseRef.current !== 'aberto') {
+      mudarFase('fechado');
+      setChave(null);
+      return;
+    }
+    mudarFase('saindo');
+    const corpo = corpoRef.current;
+    if (corpo && typeof corpo.animate === 'function') {
+      corpo.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DURACAO_SAIDA, easing: 'ease-out', fill: 'forwards' });
+    }
+    timer.current = setTimeout(() => {
+      mudarFase('fechado');
+      setChave(null);
+    }, DURACAO_SAIDA);
+  }
+
+  useImperativeHandle(ref, () => ({
+    mostrar(key, x, y) {
+      alvo.current = { x, y };
+      clearTimeout(timer.current);
+      if (haSobreposicao()) return;
+      // Já aberto (ou saindo): troca o conteúdo na hora, sem sumir e voltar.
+      if (faseRef.current !== 'fechado') {
+        setChave(key);
+        if (faseRef.current === 'saindo') {
+          corpoRef.current?.getAnimations?.().forEach((a) => a.cancel());
+          mudarFase('aberto');
+        }
+        return;
+      }
+      timer.current = setTimeout(() => {
+        if (haSobreposicao()) return;
+        pos.current = null;
+        setChave(key);
+        mudarFase('aberto');
+      }, ATRASO_ABRIR);
+    },
+    mover(x, y) {
+      alvo.current = { x, y };
+    },
+    esconder() {
+      clearTimeout(timer.current);
+      timer.current = setTimeout(fechar, ATRASO_FECHAR);
+    },
+    desligar() {
+      clearTimeout(timer.current);
+      mudarFase('fechado');
+      setChave(null);
+    },
+  }));
+
+  // Entrada: nasce já no lugar, com esmaecer e escala leve a partir do canto
+  // do cursor; com "reduzir movimento", só o esmaecer.
+  const aberto = fase === 'aberto';
+  const visivel = fase !== 'fechado';
+  const entrou = useRef(false);
+  useLayoutEffect(() => {
+    if (!visivel) {
+      entrou.current = false;
+      return;
+    }
+    posicionar(true);
+    if (!entrou.current && aberto) {
+      entrou.current = true;
+      const corpo = corpoRef.current;
+      if (corpo && typeof corpo.animate === 'function') {
+        corpo.animate(
+          reduzirMovimento
+            ? [{ opacity: 0 }, { opacity: 1 }]
+            : [{ opacity: 0, transform: 'scale(0.96)' }, { opacity: 1, transform: 'scale(1)' }],
+          { duration: 140, easing: EASE_SAIDA }
+        );
+      }
+    }
+    if (!raf.current) raf.current = requestAnimationFrame(laco);
+    // `posicionar` e `laco` leem refs; só a abertura e a troca de dia contam.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visivel, aberto, chave]);
+
+  useEffect(() => () => {
+    clearTimeout(timer.current);
+    cancelAnimationFrame(raf.current);
+  }, []);
+
+  if (!visivel || !chave) return null;
+  const lista = sortByUrgency(marks[chave] ?? []);
+  if (lista.length === 0) return null;
+  const visiveis = lista.length > MAX_RESUMO ? lista.slice(0, MAX_RESUMO) : lista;
+  const resto = lista.length - visiveis.length;
+
+  return createPortal(
+    <div
+      ref={caixaRef}
+      aria-hidden="true"
+      data-resumo-do-dia={chave}
+      style={{ position: 'fixed', top: 0, left: 0, zIndex: 90, pointerEvents: 'none', willChange: 'transform' }}
+    >
+      <div
+        ref={corpoRef}
+        style={{
+          width: 296, maxWidth: 'calc(100vw - 16px)', padding: '10px 12px',
+          background: T.card, borderRadius: R.card, boxShadow: T.elev1,
+          display: 'flex', flexDirection: 'column', gap: 8,
+        }}
+      >
+        <p style={{ margin: 0, fontSize: 12, fontWeight: W.strong, color: T.mute, textTransform: 'capitalize' }}>
+          {formatDiaCurto(chave)}
+        </p>
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {visiveis.map((s, i) => {
+            const estado = scheduleState(s);
+            const comNome = typeof showInspector === 'function' ? showInspector(s) : showInspector;
+            const saiu = !!s.inspector_left && (s.status ?? 'PENDENTE') === 'PENDENTE';
+            const andares = resumoAndares(s.floors);
+            const titulo = comNome ? s.inspector?.name ?? 'Inspetor' : andares || 'Vistoria';
+            // Cancelado: inspetor, andares e datas riscados; o rótulo, sem risco.
+            const risco = estado === 'cancelado' ? { textDecoration: 'line-through', textDecorationColor: T.faint } : null;
+            const corStatus = estado === 'prazo_vencido' ? T.danger : estado === 'cancelado' ? T.mute : T.text;
+            return (
+              <li key={s.id ?? i} style={{ display: 'flex', gap: 8, minWidth: 0 }}>
+                <span style={{ width: 7, height: 7, marginTop: 5, borderRadius: '50%', flexShrink: 0, ...estiloMarca(estado) }} />
+                <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <span style={{ fontSize: 13, fontWeight: W.strong, color: risco ? T.mute : T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, ...risco }}>
+                      {titulo}
+                    </span>
+                    {saiu && (
+                      <span
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0,
+                          padding: '1px 6px', borderRadius: 999, fontSize: 11, fontWeight: W.strong,
+                          background: T.card, color: T.text, boxShadow: `inset 0 0 0 1px ${T.line}`,
+                        }}
+                      >
+                        <UserX size={11} /> Inspetor saiu
+                      </span>
+                    )}
+                  </span>
+                  {comNome && andares && (
+                    <span style={{ fontSize: 12, color: T.mute, lineHeight: 1.4, overflowWrap: 'anywhere', ...risco }}>{andares}</span>
+                  )}
+                  <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 6px', marginTop: 1 }}>
+                    <span
+                      data-status
+                      style={{
+                        padding: '1px 6px', borderRadius: 999, fontSize: 11, fontWeight: W.strong, lineHeight: '16px',
+                        background: T.chip, color: corStatus,
+                      }}
+                    >
+                      {SCHEDULE_STATES[estado].label}
+                    </span>
+                    {s.due_date && (
+                      <span style={{ ...NUM, fontSize: 12, color: T.mute, whiteSpace: 'nowrap', ...risco }}>{formatAte(s.due_date)}</span>
+                    )}
+                  </span>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        {resto > 0 && (
+          <p style={{ ...NUM, margin: 0, fontSize: 12, fontWeight: W.strong, color: T.mute }}>+{resto}</p>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 /**
  * Calendário mensal da agenda de vistorias.
  *
@@ -111,8 +376,12 @@ function Dots({ marks, selected, marcaSecundaria }) {
  *   número (ex.: chips com o nome do inspetor). Sem ele, as bolinhas.
  * - `disabledPast`: dias antes de hoje não são escolhíveis.
  * - `minDate`: `'yyyy-MM-dd'` — dias antes dele não são escolhíveis.
- * - `fixedWeeks`: sempre 6 linhas (padrão `true`), para a altura não pular
- *   entre meses.
+ * - `fixedWeeks`: sempre 6 linhas, para a altura não pular entre meses.
+ *   Padrão `true` no `compact`; no `large`, `false`: uma linha inteira só com
+ *   dias do mês seguinte é altura tirada das semanas que importam. Lá a grade
+ *   ocupa a altura de quem a contém (as linhas dividem o espaço, com um
+ *   mínimo legível), e a troca entre meses de 5 e 6 semanas anima a altura
+ *   das linhas em vez de pular.
  * - `label`: nome acessível da grade (padrão "Calendário de agendamentos").
  * - `getDayHint(dateKey)`: opcional; devolve `{ tint, label }` ou nulo. `tint`
  *   é o fundo do dia (fora do escolhido e de outros meses) — a tela inicial do
@@ -122,6 +391,13 @@ function Dots({ marks, selected, marcaSecundaria }) {
  * - `marcaSecundaria(mark)`: opcional; `true` desenha a bolinha menor e conta
  *   "de colega" no nome acessível — a agenda do inspetor mostra o prédio todo,
  *   e os agendamentos dos outros ficam em segundo plano.
+ * - `showInspector`: `true` (padrão), `false` ou `(schedule) => bool` — se o
+ *   resumo do hover diz o nome do inspetor (o inspetor na própria agenda não
+ *   se lê a si mesmo; os colegas, sim).
+ * - `semResumo`: desliga o resumo do hover (ex.: durante a animação da coluna).
+ *
+ * Hover: com ponteiro fino, o dia com agendamento mostra um resumo que segue o
+ * cursor (ver `ResumoDoDia`). No toque não existe; o clique segue igual.
  *
  * Teclado: setas andam um dia/uma semana, Home/End vão ao início/fim da
  * semana, PageUp/PageDown trocam de mês. Só um dia por vez entra no Tab
@@ -138,12 +414,25 @@ export function CalendarioMensal({
   renderDayContent,
   disabledPast = false,
   minDate,
-  fixedWeeks = true,
+  fixedWeeks,
   label = 'Calendário de agendamentos',
   getDayHint,
   marcaSecundaria,
+  showInspector = true,
+  semResumo = false,
 }) {
   const large = size === 'large';
+  const semanasFixas = fixedWeeks ?? !large;
+  const reduzirMovimento = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const ponteiroFino = useMediaQuery(PONTEIRO_FINO);
+  const comResumo = ponteiroFino && !semResumo;
+  const resumoRef = useRef(null);
+
+  // Animação de proporção (coluna ou troca de mês) por baixo: o cartão sai,
+  // em vez de ficar apontando para um dia que está andando.
+  useEffect(() => {
+    resumoRef.current?.desligar();
+  }, [comResumo, month, year]);
   const todayKey = toDateKey(new Date());
   const gridRef = useRef(null);
   // Só depois de uma tecla o foco segue o dia — o clique não deve roubar foco
@@ -155,12 +444,12 @@ export function CalendarioMensal({
   const weeks = useMemo(() => {
     const start = startOfWeek(startOfMonth(monthStart), { weekStartsOn: WEEK_STARTS_ON });
     let end = endOfWeek(endOfMonth(monthStart), { weekStartsOn: WEEK_STARTS_ON });
-    if (fixedWeeks) end = addDays(start, 41);
+    if (semanasFixas) end = addDays(start, 41);
     const days = eachDayOfInterval({ start, end });
     const out = [];
     for (let i = 0; i < days.length; i += 7) out.push(days.slice(i, i + 7));
     return out;
-  }, [monthStart, fixedWeeks]);
+  }, [monthStart, semanasFixas]);
 
   const minKey = useMemo(() => {
     const keys = [];
@@ -239,8 +528,21 @@ export function CalendarioMensal({
   const titulo = formatMesAno(month, year);
   const navSize = large ? 40 : 44;
 
+  // No `large`, sempre seis faixas: as semanas do mês dividem a altura (1fr)
+  // e as que sobram ficam com 0fr. Mesma quantidade de faixas nos dois lados,
+  // então a troca entre meses de 5 e 6 semanas interpola em vez de pular.
+  const estiloGrade = large
+    ? {
+        flex: 1,
+        display: 'grid',
+        gridTemplateRows: `auto ${Array.from({ length: 6 }, (_, i) => (i < weeks.length ? '1fr' : '0fr')).join(' ')}`,
+        rowGap: 6,
+        transition: reduzirMovimento ? 'none' : 'grid-template-rows 220ms cubic-bezier(0.32, 0.72, 0, 1)',
+      }
+    : { display: 'flex', flexDirection: 'column', gap: 2 };
+
   return (
-    <div style={{ width: '100%' }}>
+    <div style={large ? { width: '100%', flex: 1, display: 'flex', flexDirection: 'column' } : { width: '100%' }}>
       {/* Cabeçalho: ‹ Mês Ano › */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: large ? 16 : 10 }}>
         <button
@@ -269,7 +571,7 @@ export function CalendarioMensal({
         </button>
       </div>
 
-      <div ref={gridRef} role="grid" aria-label={`${label}, ${titulo}`} style={{ display: 'flex', flexDirection: 'column', gap: large ? 6 : 2 }}>
+      <div ref={gridRef} role="grid" aria-label={`${label}, ${titulo}`} style={estiloGrade}>
         <div role="row" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: large ? 6 : 2 }}>
           {WEEKDAYS.map((d) => (
             <div
@@ -284,7 +586,14 @@ export function CalendarioMensal({
         </div>
 
         {weeks.map((week) => (
-          <div key={toDateKey(week[0])} role="row" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: large ? 6 : 2 }}>
+          <div
+            key={toDateKey(week[0])}
+            role="row"
+            style={{
+              display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: large ? 6 : 2,
+              ...(large && { minHeight: MIN_SEMANA_LARGE }),
+            }}
+          >
             {week.map((day) => {
               const key = toDateKey(day);
               const dayMarks = marks[key] ?? [];
@@ -304,17 +613,25 @@ export function CalendarioMensal({
 
               const color = selected ? T.onAccent : outside || disabled ? T.faint : T.text;
               const background = selected ? T.accent : outside ? 'transparent' : hint?.tint ?? T.chip;
-              const ring = selected
-                ? `inset 0 0 0 1px ${T.accentEdge}`
-                : today
-                  ? `inset 0 0 0 1.5px ${T.mute}`
-                  : 'none';
+              const atrasado = dayMarks.some(isAtrasado);
+              // Dia com vistoria atrasada: contorno vermelho por dentro (sombra
+              // interna, não `border`, para a célula não mudar de tamanho). Vence
+              // o fio do escolhido e o contorno de hoje; o esmaecer dos dias de
+              // outro mês vale para ele também.
+              const ring = atrasado
+                ? `inset 0 0 0 2px ${T.danger}`
+                : selected
+                  ? `inset 0 0 0 1px ${T.accentEdge}`
+                  : today
+                    ? `inset 0 0 0 1.5px ${T.mute}`
+                    : 'none';
 
               return (
-                <div key={key} role="gridcell" aria-selected={selected} style={{ minWidth: 0 }}>
+                <div key={key} role="gridcell" aria-selected={selected} style={large ? { minWidth: 0, display: 'flex' } : { minWidth: 0 }}>
                   <button
                     type="button"
                     data-date={key}
+                    data-atrasado={atrasado || undefined}
                     className={`cal-dia${selected ? ' is-selecionado' : ''}`}
                     tabIndex={key === focusKey ? 0 : -1}
                     aria-label={partes.join(', ')}
@@ -322,9 +639,18 @@ export function CalendarioMensal({
                     aria-disabled={disabled || undefined}
                     onClick={() => choose(day)}
                     onKeyDown={(e) => onKeyDown(e, day)}
+                    onMouseEnter={
+                      comResumo
+                        ? (e) => (dayMarks.length
+                          ? resumoRef.current?.mostrar(key, e.clientX, e.clientY)
+                          : resumoRef.current?.esconder())
+                        : undefined
+                    }
+                    onMouseMove={comResumo ? (e) => resumoRef.current?.mover(e.clientX, e.clientY) : undefined}
+                    onMouseLeave={comResumo ? () => resumoRef.current?.esconder() : undefined}
                     style={{
                       width: '100%',
-                      ...(large ? { minHeight: 104 } : { aspectRatio: '1', minHeight: 44 }),
+                      ...(large ? { flex: 1, minWidth: 0 } : { aspectRatio: '1', minHeight: 44 }),
                       border: 'none',
                       borderRadius: R.card,
                       background,
@@ -363,6 +689,9 @@ export function CalendarioMensal({
           </div>
         ))}
       </div>
+      {comResumo && (
+        <ResumoDoDia ref={resumoRef} marks={marks} showInspector={showInspector} reduzirMovimento={reduzirMovimento} />
+      )}
     </div>
   );
 }
@@ -382,6 +711,10 @@ export function LegendaAgenda({ states = ['pendente', 'atrasado', 'prazo_vencido
           {SCHEDULE_STATES[s].label}
         </li>
       ))}
+      <li style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.mute }}>
+        <span aria-hidden="true" style={{ width: 12, height: 12, borderRadius: 4, flexShrink: 0, background: T.chip, boxShadow: `inset 0 0 0 2px ${T.danger}` }} />
+        Dia com vistoria atrasada
+      </li>
     </ul>
   );
 }

@@ -123,11 +123,11 @@ export function scheduleState(schedule) {
  */
 export const SCHEDULE_STATES = {
   prazo_vencido: { label: 'Prazo vencido', color: T.danger, badge: 'danger', order: 0, filtro: 'atrasado' },
-  atrasado: { label: 'Atrasado', color: T.text, badge: 'default', order: 1, filtro: 'atrasado', alerta: true },
+  atrasado: { label: 'Atrasada', color: T.text, badge: 'default', order: 1, filtro: 'atrasado', alerta: true },
   pendente: { label: 'Pendente', color: T.mute, badge: 'default', order: 2, filtro: 'pendente', vazado: true },
-  concluido_atraso: { label: 'Concluído com atraso', color: T.success, badge: 'success', order: 3, filtro: 'concluido' },
-  concluido: { label: 'Concluído', color: T.success, badge: 'success', order: 3, filtro: 'concluido' },
-  cancelado: { label: 'Cancelado', color: T.faint, badge: 'default', order: 4, filtro: 'cancelado' },
+  concluido_atraso: { label: 'Concluída com atraso', color: T.success, badge: 'success', order: 3, filtro: 'concluido' },
+  concluido: { label: 'Concluída', color: T.success, badge: 'success', order: 3, filtro: 'concluido' },
+  cancelado: { label: 'Cancelada', color: T.faint, badge: 'default', order: 4, filtro: 'cancelado' },
 };
 
 export function scheduleStateMeta(schedule) {
@@ -165,22 +165,6 @@ export function sortByUrgency(list) {
   );
 }
 
-/**
- * "3 vistorias atrasadas", "1 com prazo vencido" — a contagem do alerta.
- * Devolve `{ total, prazoVencido }` e as duas frases prontas.
- */
-export function resumoAtrasos(schedules = []) {
-  const atrasados = schedules.filter(isAtrasado);
-  const total = atrasados.length;
-  const prazoVencido = atrasados.filter((s) => scheduleState(s) === 'prazo_vencido').length;
-  return {
-    total,
-    prazoVencido,
-    titulo: total === 1 ? '1 vistoria atrasada' : `${total} vistorias atrasadas`,
-    detalhe: prazoVencido > 0 ? `${prazoVencido} com prazo vencido` : '',
-  };
-}
-
 // ── Agrupamento ───────────────────────────────────────────────────────────────
 
 /**
@@ -212,9 +196,19 @@ export function formatLista(items = []) {
   return `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`;
 }
 
+/**
+ * O rótulo do andar com contexto: o prédio pode ter cadastrado só "4", e um
+ * "4" solto numa linha de agenda não diz o que é. Só número vira "4º andar",
+ * como já faz a tela de responsáveis; "Térreo" e "3º Andar" ficam como estão.
+ */
+export function rotuloAndar(label) {
+  const texto = String(label ?? '').trim();
+  return /^\d+$/.test(texto) ? `${texto}º andar` : texto;
+}
+
 /** Aceita `[{label}]` ou `['3º andar']` — o payload da notificação traz um ou outro. */
 function floorLabels(floors = []) {
-  return (floors ?? []).map((f) => (typeof f === 'string' ? f : f?.label)).filter(Boolean);
+  return (floors ?? []).map((f) => rotuloAndar(typeof f === 'string' ? f : f?.label)).filter(Boolean);
 }
 
 /**

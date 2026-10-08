@@ -33,16 +33,26 @@ describe('ScheduleListItem', () => {
     expect(screen.getByText('Pendente')).toBeInTheDocument();
   });
 
+  it('cancelado: inspetor, andares e datas riscados; a etiqueta fica legível, sem risco e sem lápis', () => {
+    render(<ScheduleListItem schedule={{ ...BASE, status: 'CANCELADO' }} onEdit={undefined} />);
+    expect(screen.getByText('Carlos Andrade').style.textDecoration).toBe('line-through');
+    expect(screen.getByText('3º Andar, 4º Andar +1').style.textDecoration).toBe('line-through');
+    expect(screen.getByText('até 12/10').closest('span[style*="line-through"]')).not.toBeNull();
+    const etiqueta = screen.getByText('Cancelada');
+    expect(etiqueta.closest('[style*="line-through"]')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Editar/ })).not.toBeInTheDocument();
+  });
+
   it('diz "Atrasado" quando o prazo venceu', () => {
     render(<ScheduleListItem schedule={{ ...BASE, overdue: true }} />);
-    expect(screen.getByText('Atrasado')).toBeInTheDocument();
+    expect(screen.getByText('Atrasada')).toBeInTheDocument();
   });
 
   it('passou do "até quando": "Prazo vencido"; concluído depois do dia: "Concluído com atraso"', () => {
     const { rerender } = render(<ScheduleListItem schedule={{ ...BASE, overdue: true, past_deadline: true }} />);
     expect(screen.getByText('Prazo vencido')).toBeInTheDocument();
     rerender(<ScheduleListItem schedule={{ ...BASE, status: 'CONCLUIDO', completed_late: true }} />);
-    expect(screen.getByText('Concluído com atraso')).toBeInTheDocument();
+    expect(screen.getByText('Concluída com atraso')).toBeInTheDocument();
   });
 
   it('inspetor com conta apagada aparece pelo nome que a API manda', () => {

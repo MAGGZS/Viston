@@ -43,6 +43,8 @@ export function ScheduleListItem({
   const state = scheduleState(schedule);
   const atrasado = state === 'atrasado';
   const vencido = state === 'prazo_vencido';
+  // Cancelado: o que ele dizia fica riscado, e a etiqueta (sem risco) diz por quê.
+  const risco = state === 'cancelado' ? { textDecoration: 'line-through', textDecorationColor: T.faint } : null;
   const andares = resumoAndares(schedule.floors, maxFloors);
   // Inspetor que saiu do prédio com a ronda ainda aberta: alguém precisa
   // trocá-lo. Selo neutro — quem o lê é quem edita, e o lápis está ao lado.
@@ -68,7 +70,7 @@ export function ScheduleListItem({
       />
       <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <span style={{ fontFamily: T.display, fontSize: 14, fontWeight: W.strong, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+          <span style={{ fontFamily: T.display, fontSize: 14, fontWeight: W.strong, color: risco ? T.mute : T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, ...risco }}>
             {titulo}
           </span>
           {saiu && (
@@ -84,14 +86,14 @@ export function ScheduleListItem({
           )}
         </span>
         {linhaSecundaria && (
-          <span style={{ fontSize: 12, color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 12, color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', ...risco }}>
             {linhaSecundaria}
           </span>
         )}
         {/* "dia agendado → até dd/MM". O destaque cai na data que estourou:
             atrasado acende o dia agendado (passou dele); prazo vencido acende
             o "até" (passou do limite final), em vermelho. */}
-        <span style={{ ...NUM, fontSize: 12, color: T.faint }}>
+        <span style={{ ...NUM, fontSize: 12, color: T.faint, ...risco }}>
           <span className="so-leitor">Agendada para </span>
           <span style={atrasado ? { color: T.text, fontWeight: W.strong } : undefined}>
             {formatDataCurta(schedule.scheduled_date)}

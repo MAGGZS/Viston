@@ -4,6 +4,7 @@ import { axe } from 'jest-axe';
 import { useToastStore } from '@/app/store/toast';
 import { AgendaPredio } from '@/app/components/agenda/AgendaPredio';
 import { motivoDaSugestao, validarAgendamento } from '@/app/components/agenda/FormularioAgendamento';
+import { resumoAndares, rotuloAndar } from '@/app/lib/agenda';
 
 /**
  * A agenda do prédio (gestor e visualizador).
@@ -35,40 +36,20 @@ const mockSchedules = [
   },
 ];
 
-// Os atrasados de todos os meses — o alerta do topo. Um de setembro (fora do
-// mês aberto) com prazo vencido, e o de outubro só atrasado.
-let mockAtrasados = [];
-const ATRASADOS = [
-  {
-    id: 's9', building_id: 'p1', inspector: { id: 'i3', name: 'Diego Souza' },
-    scheduled_date: '2026-09-20', due_date: '2026-09-25', status: 'PENDENTE', overdue: true, past_deadline: true,
-    floors: [{ id: 'f1', label: '3º Andar' }], notes: null,
-  },
-  {
-    id: 's2', building_id: 'p1', inspector: { id: 'i2', name: 'Beatriz Lima' },
-    scheduled_date: '2026-10-02', due_date: '2026-10-05', status: 'PENDENTE', overdue: true,
-    floors: [{ id: 'f2', label: '2º Andar' }], notes: null,
-  },
-];
-
 const mockSuggestion = [
   { id: 'i2', name: 'Beatriz Lima', pending_count: 0, last_inspected_at: null, suggested: true },
   { id: 'i1', name: 'Carlos Andrade', pending_count: 2, last_inspected_at: '2026-09-01', suggested: false },
 ];
 
-// Os abertos de todos os meses (`status: 'PENDENTE'`), de onde saem os que
-// ficaram sem inspetor. `mockFalhaDoMes` faz a consulta do mês falhar.
-let mockPendentes = [];
+// O que a consulta do mês devolve. `mockFalhaDoMes` faz a consulta falhar.
+let mockDoMes = mockSchedules;
 let mockFalhaDoMes = false;
 
 jest.mock('../../hooks/useApi', () => ({
-  useBuildingSchedules: (_id, filtros = {}) =>
-    filtros.status === 'PENDENTE'
-      ? { data: { schedules: mockPendentes }, isLoading: false, isError: false }
-      : mockFalhaDoMes
-        ? { data: undefined, isLoading: false, isError: true, isFetching: false, refetch: jest.fn() }
-        : { data: { schedules: mockSchedules }, isLoading: false, isError: false, isFetching: false, refetch: jest.fn() },
-  useOverdueSchedules: () => ({ data: { schedules: mockAtrasados } }),
+  useBuildingSchedules: () =>
+    mockFalhaDoMes
+      ? { data: undefined, isLoading: false, isError: true, isFetching: false, refetch: jest.fn() }
+      : { data: { schedules: mockDoMes }, isLoading: false, isError: false, isFetching: false, refetch: jest.fn() },
   useFloors: () => ({
     data: { floors: [{ id: 'f2', label: '2º Andar' }, { id: 'f1', label: '3º Andar' }] },
     isLoading: false,
@@ -89,8 +70,7 @@ let user;
 beforeEach(() => {
   jest.useFakeTimers({ now: new Date(2026, 9, 7, 12, 0, 0) });
   user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-  mockAtrasados = [];
-  mockPendentes = [];
+  mockDoMes = mockSchedules;
   mockFalhaDoMes = false;
   useToastStore.setState({ toasts: [] });
   mockCreate.mockReset();
@@ -110,7 +90,7 @@ describe('AgendaPredio', () => {
     expect(within(painel()).getAllByText('Carlos Andrade')).toHaveLength(2);
     expect(within(painel()).getByText('Beatriz Lima')).toBeInTheDocument();
 
-    await user.click(within(painel()).getByRole('button', { name: /Atrasados/ }));
+    await user.click(within(painel()).getByRole('button', { name: /Atrasadas/ }));
     expect(within(painel()).getByText('Beatriz Lima')).toBeInTheDocument();
     expect(within(painel()).queryByText('Carlos Andrade')).not.toBeInTheDocument();
   });
@@ -209,44 +189,22 @@ describe('AgendaPredio', () => {
     expect(screen.queryByRole('button', { name: /^Editar agendamento de/ })).not.toBeInTheDocument();
   });
 
-  it('sem atrasados, o alerta do topo não aparece', () => {
-    render(<AgendaPredio buildingId="p1" canEdit />);
-    expect(screen.queryByRole('region', { name: 'Vistorias atrasadas' })).not.toBeInTheDocument();
-  });
-
-  it('alerta fixo conta os atrasados de qualquer mês e abre a lista; o item leva o calendário ao dia', async () => {
-    mockAtrasados = ATRASADOS;
-    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
-
-    const alerta = screen.getByRole('region', { name: 'Vistorias atrasadas' });
-    // Persistente: não é role="alert", que gritaria a cada nova busca.
-    expect(screen.queryAllByRole('alert')).toHaveLength(0);
-    expect(within(alerta).getByText('2 vistorias atrasadas')).toBeInTheDocument();
-    expect(within(alerta).getByText(/1 com prazo vencido/)).toBeInTheDocument();
-
-    const abrir = within(alerta).getByRole('button', { name: /Ver atrasadas/ });
-    expect(abrir).toHaveAttribute('aria-expanded', 'false');
-    await user.click(abrir);
-    expect(within(alerta).getByRole('button', { name: /Ocultar/ })).toHaveAttribute('aria-expanded', 'true');
-
-    // Prazo vencido antes do só atrasado; quem pode editar tem o lápis.
-    const linhas = within(alerta).getAllByRole('listitem');
-    expect(linhas[0]).toHaveTextContent('Diego Souza');
-    expect(linhas[0]).toHaveTextContent('Prazo vencido');
-    expect(linhas[1]).toHaveTextContent('Atrasado');
-    expect(within(alerta).getAllByRole('button', { name: /^Editar agendamento de/ })).toHaveLength(2);
-
-    // O de setembro leva o calendário para setembro, no dia dele.
-    await user.click(within(linhas[0]).getByRole('button', { name: /^Diego Souza/ }));
-    expect(screen.getByRole('grid', { name: /Setembro 2026/ })).toBeInTheDocument();
-    expect(dia(container, '2026-09-20')).toHaveClass('is-selecionado');
-    expect(within(painel()).getByRole('heading', { name: 'Agenda do dia' })).toBeInTheDocument();
-  });
-
   it('prédio inativo deixa "Agendar" desligado e avisa', () => {
     render(<AgendaPredio buildingId="p1" canEdit frozen />);
     expect(screen.getByRole('button', { name: /Agendar/ })).toBeDisabled();
     expect(screen.getByRole('status')).toHaveTextContent('Prédio inativo');
+  });
+
+  it('o dia com agendamento atrasado ganha a borda vermelha; o só com pendente futuro, não', () => {
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    const atrasado = dia(container, '2026-10-02');
+    expect(atrasado).toHaveAttribute('data-atrasado', 'true');
+    expect(atrasado.style.boxShadow).toContain('var(--color-danger)');
+    expect(atrasado).toHaveAccessibleName(/1 atrasada/);
+
+    const futuro = dia(container, '2026-10-10');
+    expect(futuro).not.toHaveAttribute('data-atrasado');
+    expect(futuro.style.boxShadow).not.toContain('var(--color-danger)');
   });
 });
 
@@ -308,16 +266,14 @@ describe('AgendaPredio: painel, foco e avisos', () => {
     expect(agendar).toHaveFocus();
   });
 
-  it('a faixa do topo conta e lista os que ficaram sem inspetor; o lápis abre a edição com o sugerido', async () => {
-    mockPendentes = [{ ...mockSchedules[0], inspector_left: true }];
-    render(<AgendaPredio buildingId="p1" canEdit />);
+  it('a linha de quem ficou sem inspetor leva o selo; o lápis abre a edição com o sugerido', async () => {
+    mockDoMes = [{ ...mockSchedules[0], inspector_left: true }, ...mockSchedules.slice(1)];
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
 
-    const faixa = screen.getByRole('region', { name: 'Agendamentos que pedem atenção' });
-    expect(within(faixa).getByText(/1 sem inspetor/)).toBeInTheDocument();
-    await user.click(within(faixa).getByRole('button', { name: /Ver lista/ }));
-    expect(within(faixa).getByText('Inspetor saiu')).toBeInTheDocument();
+    const linha = container.querySelector('[data-schedule-id="s1"]');
+    expect(within(linha).getByText('Inspetor saiu')).toBeInTheDocument();
 
-    await user.click(within(faixa).getByRole('button', { name: /^Editar agendamento de Carlos Andrade/ }));
+    await user.click(within(linha).getByRole('button', { name: /^Editar agendamento de Carlos Andrade/ }));
     expect(within(painel()).getByRole('heading', { name: 'Editar agendamento' })).toBeInTheDocument();
     const opcoes = within(painel()).getAllByRole('radio');
     // O sugerido vem marcado, e não quem saiu.
@@ -357,6 +313,213 @@ describe('AgendaPredio: painel, foco e avisos', () => {
   }, 20000);
 });
 
+describe('AgendaPredio: painel recolhível e flutuante', () => {
+  // O recolher anima a coluna; o painel só sai da árvore de acessibilidade
+  // (visibility: hidden) quando a animação termina.
+  const terminarAnimacao = () => act(() => jest.advanceTimersByTime(400));
+  const esconder = async () => {
+    const botao = within(painel()).getByRole('button', { name: 'Esconder painel' });
+    expect(botao).toHaveAttribute('aria-expanded', 'true');
+    await user.click(botao);
+    terminarAnimacao();
+  };
+
+  it('esconde e mostra o painel, com aria-expanded e o foco no botão que fica', async () => {
+    render(<AgendaPredio buildingId="p1" canEdit />);
+    await esconder();
+
+    expect(screen.queryByRole('complementary', { name: 'Agendamentos' })).not.toBeInTheDocument();
+    const mostrar = screen.getByRole('button', { name: 'Mostrar painel' });
+    expect(mostrar).toHaveAttribute('aria-expanded', 'false');
+    expect(mostrar).toHaveFocus();
+
+    await user.click(mostrar);
+    terminarAnimacao();
+    expect(painel()).toBeInTheDocument();
+    expect(within(painel()).getByRole('button', { name: 'Esconder painel' })).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Mostrar painel' })).not.toBeInTheDocument();
+  });
+
+  it('com o painel escondido, o dia abre o painel flutuante e não a coluna', async () => {
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    await esconder();
+    await user.click(dia(container, '2026-10-10'));
+
+    const flutuante = screen.getByRole('dialog', { name: 'Nova vistoria' });
+    expect(flutuante).not.toHaveAttribute('aria-modal', 'true');
+    expect(within(flutuante).getByRole('heading', { name: 'Nova vistoria' })).toHaveFocus();
+    expect(within(flutuante).getByLabelText('Data da vistoria')).toHaveValue('2026-10-10');
+    expect(screen.queryByRole('complementary', { name: 'Agendamentos' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mostrar painel' })).toHaveAttribute('aria-expanded', 'false');
+    expect(dia(container, '2026-10-10')).toHaveClass('is-selecionado');
+
+    // Com ele aberto, outro dia só troca a data.
+    await user.click(dia(container, '2026-10-12'));
+    expect(within(screen.getByRole('dialog')).getByLabelText('Data da vistoria')).toHaveValue('2026-10-12');
+  });
+
+  it('Esc fecha o flutuante e devolve o foco ao dia de origem', async () => {
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    await esconder();
+    await user.click(dia(container, '2026-10-10'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    terminarAnimacao();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(dia(container, '2026-10-10')).toHaveFocus();
+    expect(dia(container, '2026-10-10')).not.toHaveClass('is-selecionado');
+  });
+
+  it('o X fecha e devolve o foco a "Agendar"', async () => {
+    render(<AgendaPredio buildingId="p1" canEdit />);
+    await esconder();
+    const agendar = screen.getByRole('button', { name: /Agendar/ });
+    await user.click(agendar);
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Fechar painel' }));
+    terminarAnimacao();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(agendar).toHaveFocus();
+  });
+
+  it('fixar volta ao layout de duas colunas, sem perder o formulário', async () => {
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    await esconder();
+    await user.click(dia(container, '2026-10-10'));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '3º Andar' }));
+
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Fixar painel ao lado do calendário' }));
+    terminarAnimacao();
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(painel()).getByRole('heading', { name: 'Nova vistoria' })).toBeInTheDocument();
+    expect(within(painel()).getByRole('button', { name: '3º Andar' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(painel()).getByRole('button', { name: 'Esconder painel' })).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Mostrar painel' })).not.toBeInTheDocument();
+  });
+
+  it('com o flutuante aberto, "Mostrar painel" segue à mão e fixa o painel', async () => {
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    await esconder();
+    await user.click(dia(container, '2026-10-10'));
+    await user.click(screen.getByRole('button', { name: 'Mostrar painel' }));
+    terminarAnimacao();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(painel()).getByRole('heading', { name: 'Nova vistoria' })).toBeInTheDocument();
+  });
+
+  it('o calendário grande não mostra a semana inteira do mês seguinte', () => {
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    // Outubro/2026 cabe em 5 semanas: 27/09 a 31/10.
+    expect(screen.getByRole('grid', { name: /Outubro 2026/ }).querySelectorAll('[role="row"]')).toHaveLength(6);
+    expect(dia(container, '2026-09-27')).toBeInTheDocument();
+    expect(dia(container, '2026-11-01')).not.toBeInTheDocument();
+  });
+
+  it('passa no axe com o flutuante aberto', async () => {
+    jest.useRealTimers();
+    const u = userEvent.setup();
+    try {
+      render(<AgendaPredio buildingId="p1" canEdit />);
+      await u.click(within(painel()).getByRole('button', { name: 'Esconder painel' }));
+      await u.click(screen.getByRole('button', { name: /Agendar/ }));
+      await act(() => new Promise((r) => setTimeout(r, 400)));
+      expect(await axe(document.body)).toHaveNoViolations();
+    } finally {
+      jest.useFakeTimers({ now: new Date(2026, 9, 7, 12, 0, 0) });
+    }
+  }, 20000);
+});
+
+describe('AgendaPredio: descartar alterações', () => {
+  // A confirmação sai com animação; o foco só volta depois que ela some.
+  const terminarAnimacao = () => act(() => jest.advanceTimersByTime(400));
+  const abrirNovoSujo = async (container) => {
+    await user.click(dia(container, '2026-10-10'));
+    await user.click(within(painel()).getByRole('button', { name: '3º Andar' }));
+  };
+
+  it('formulário mexido: Voltar pergunta; "Continuar editando" fica, "Descartar" sai', async () => {
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    await abrirNovoSujo(container);
+
+    const voltar = within(painel()).getByRole('button', { name: 'Voltar para a lista' });
+    await user.click(voltar);
+    let caixa = screen.getByRole('dialog', { name: 'Descartar alterações?' });
+    // A saída segura vem primeiro, e é ela que o `<dialog>` foca ao abrir.
+    expect(within(caixa).getAllByRole('button')[0]).toHaveAccessibleName('Continuar editando');
+    expect(within(caixa).getByRole('button', { name: 'Descartar' })).toBeInTheDocument();
+
+    await user.click(within(caixa).getByRole('button', { name: 'Continuar editando' }));
+    terminarAnimacao();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(painel()).getByRole('heading', { name: 'Nova vistoria' })).toBeInTheDocument();
+    expect(within(painel()).getByRole('button', { name: '3º Andar' })).toHaveAttribute('aria-pressed', 'true');
+    expect(voltar).toHaveFocus();
+
+    await user.click(voltar);
+    caixa = screen.getByRole('dialog', { name: 'Descartar alterações?' });
+    await user.click(within(caixa).getByRole('button', { name: 'Descartar' }));
+    terminarAnimacao();
+    expect(within(painel()).getByRole('heading', { name: 'Agendamentos do mês' })).toBeInTheDocument();
+  });
+
+  it('sem alteração, Voltar sai direto, sem perguntar', async () => {
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    await user.click(dia(container, '2026-10-10'));
+    await user.click(within(painel()).getByRole('button', { name: 'Voltar para a lista' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(painel()).getByRole('heading', { name: 'Agendamentos do mês' })).toBeInTheDocument();
+  });
+
+  it('a edição desfeita volta a não perguntar', async () => {
+    render(<AgendaPredio buildingId="p1" canEdit />);
+    const linha = within(painel()).getByText('2º Andar').closest('li');
+    await user.click(within(linha).getByRole('button', { name: /^Editar agendamento de/ }));
+    const andar = within(painel()).getByRole('button', { name: '3º Andar' });
+    await user.click(andar);
+    await user.click(andar);
+    await user.click(within(painel()).getByRole('button', { name: 'Voltar para a lista' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('depois de salvar, sai sem perguntar', async () => {
+    mockCreate.mockImplementation((_vars, { onSuccess }) => onSuccess());
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    await abrirNovoSujo(container);
+    await user.click(within(painel()).getByRole('button', { name: 'Agendar vistoria' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(painel()).getByRole('heading', { name: 'Agendamentos do mês' })).toBeInTheDocument();
+  });
+
+  it('com o formulário mexido, o lápis de outro agendamento pergunta antes de trocar', async () => {
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    await abrirNovoSujo(container);
+    // O formulário novo do dia 10 lista o s1, que já está nele.
+    const existente = container.querySelector('[data-schedule-id="s1"]');
+    await user.click(within(existente).getByRole('button', { name: /^Editar agendamento de/ }));
+    expect(screen.getByRole('dialog', { name: 'Descartar alterações?' })).toBeInTheDocument();
+    expect(within(painel()).getByRole('heading', { name: 'Nova vistoria' })).toBeInTheDocument();
+  });
+
+  it('Esc no painel flutuante com o formulário mexido pede confirmação', async () => {
+    const { container } = render(<AgendaPredio buildingId="p1" canEdit />);
+    await user.click(within(painel()).getByRole('button', { name: 'Esconder painel' }));
+    terminarAnimacao();
+    await user.click(dia(container, '2026-10-10'));
+    const flutuante = screen.getByRole('dialog', { name: 'Nova vistoria' });
+    await user.click(within(flutuante).getByRole('button', { name: '3º Andar' }));
+
+    await user.keyboard('{Escape}');
+    const caixa = screen.getByRole('dialog', { name: 'Descartar alterações?' });
+    expect(screen.getByRole('dialog', { name: 'Nova vistoria' })).toBeInTheDocument();
+
+    await user.click(within(caixa).getByRole('button', { name: 'Descartar' }));
+    terminarAnimacao();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+});
+
 describe('regras do formulário', () => {
   it('explica a sugestão pelo critério que decidiu', () => {
     const hoje = new Date(2026, 9, 7);
@@ -366,6 +529,13 @@ describe('regras do formulário', () => {
     expect(motivoDaSugestao({ ...a, last_inspected_at: null }, [a, b], hoje)).toBe('Nunca vistoriou esses andares');
     expect(motivoDaSugestao(a, [a, { ...b, pending_count: 3 }], hoje)).toBe('Menos vistorias pendentes no período');
     expect(motivoDaSugestao(a, [a], hoje)).toBe('Único inspetor do prédio');
+  });
+
+  it('andar cadastrado só com número ganha contexto; os outros ficam como estão', () => {
+    expect(rotuloAndar('4')).toBe('4º andar');
+    expect(rotuloAndar('3º Andar')).toBe('3º Andar');
+    expect(rotuloAndar('Térreo')).toBe('Térreo');
+    expect(resumoAndares([{ label: '4' }, { label: '2' }, { label: '3' }], 2)).toBe('4º andar, 2º andar +1');
   });
 
   it('valida campos obrigatórios e o prazo', () => {

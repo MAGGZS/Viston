@@ -3,7 +3,6 @@ import {
   SCHEDULE_STATES,
   estiloMarca,
   isAtrasado,
-  resumoAtrasos,
   scheduleState,
   sortByUrgency,
   textoNotificacao,
@@ -29,13 +28,13 @@ describe('scheduleState', () => {
     expect(SCHEDULE_STATES.prazo_vencido).toMatchObject({ label: 'Prazo vencido', badge: 'danger' });
     // Dourado só em ação e estado ativo: atrasado é neutro forte com o
     // triângulo de alerta; pendente, neutro apagado.
-    expect(SCHEDULE_STATES.atrasado).toMatchObject({ label: 'Atrasado', badge: 'default', alerta: true, color: T.text });
+    expect(SCHEDULE_STATES.atrasado).toMatchObject({ label: 'Atrasada', badge: 'default', alerta: true, color: T.text });
     expect(SCHEDULE_STATES.pendente).toMatchObject({ badge: 'default', color: T.mute, vazado: true });
     for (const meta of Object.values(SCHEDULE_STATES)) {
       expect([T.accent, T.accentInk]).not.toContain(meta.color);
       expect(meta.badge).not.toBe('warning');
     }
-    expect(SCHEDULE_STATES.concluido_atraso.label).toBe('Concluído com atraso');
+    expect(SCHEDULE_STATES.concluido_atraso.label).toBe('Concluída com atraso');
     expect(SCHEDULE_STATES.concluido_atraso.color).toBe(SCHEDULE_STATES.concluido.color);
   });
 
@@ -62,13 +61,6 @@ describe('ordem e contagem', () => {
     expect(isAtrasado(pend({ overdue: true }))).toBe(true);
     expect(isAtrasado(pend({ overdue: true, past_deadline: true }))).toBe(true);
     expect(isAtrasado({ status: 'CONCLUIDO', completed_late: true })).toBe(false);
-  });
-
-  it('resumoAtrasos monta as frases do alerta', () => {
-    expect(resumoAtrasos([pend({ overdue: true })])).toMatchObject({ total: 1, titulo: '1 vistoria atrasada', detalhe: '' });
-    expect(
-      resumoAtrasos([pend({ overdue: true }), pend({ overdue: true, past_deadline: true }), pend()])
-    ).toMatchObject({ total: 2, prazoVencido: 1, titulo: '2 vistorias atrasadas', detalhe: '1 com prazo vencido' });
   });
 });
 

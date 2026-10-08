@@ -116,7 +116,7 @@ describe('mesa do inspetor no computador', () => {
     expect(within(numeros).getByText('Andares vistoriados').closest('div').parentElement).toHaveTextContent('6');
     expect(within(numeros).getByText('Dias em campo').closest('div').parentElement).toHaveTextContent('2');
     expect(within(numeros).getByText('Pendentes').closest('div').parentElement).toHaveTextContent('4');
-    expect(within(numeros).getByText('2 atrasados')).toBeInTheDocument();
+    expect(within(numeros).getByText('2 atrasadas')).toBeInTheDocument();
 
     expect(api.get).toHaveBeenCalledWith('/inspections', {
       params: expect.objectContaining({ building_id: 'p1', inspector_id: 'u1', limit: 100 }),

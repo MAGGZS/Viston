@@ -5,7 +5,8 @@ import path from 'path';
 // que se está, não do outro.
 const envFile = process.env.NODE_ENV === 'production' ? '.env' : '.env.local';
 dotenv.config({ path: path.resolve(process.cwd(), envFile) });
-import { defineConfig, env } from 'prisma/config';
+import { defineConfig } from 'prisma/config';
+import { migrateUrl } from './src/lib/migrateTls';
 
 export default defineConfig({
   schema: './prisma/schema.prisma',
@@ -17,5 +18,9 @@ export default defineConfig({
   // variável aqui faria o `npm install` falhar na máquina de quem acabou de
   // clonar e ainda não tem `.env.local`. Quem for rodar migrate sem a variável
   // recebe o erro do próprio migrate, que é onde ele significa alguma coisa.
-  ...(process.env.DIRECT_URL ? { datasource: { url: env('DIRECT_URL') } } : {}),
+  //
+  // `migrateUrl` devolve o próprio DIRECT_URL, ou, com
+  // PRISMA_MIGRATE_STRICT_TLS=1, a versão que confere o certificado contra o CA
+  // do Supabase (ver src/lib/migrateTls.ts).
+  ...(process.env.DIRECT_URL ? { datasource: { url: migrateUrl()! } } : {}),
 });

@@ -9,6 +9,7 @@ import {
   formatDiaMes,
   scheduleState,
   scheduleStateMeta,
+  rotuloAndar,
   sortByUrgency,
 } from '@/app/lib/agenda';
 
@@ -31,6 +32,8 @@ function Detalhe({ schedule, showBuilding, showInspector, showStatus, onEdit, ca
   const estado = scheduleState(schedule);
   const atrasado = estado === 'atrasado';
   const vencido = estado === 'prazo_vencido';
+  // Cancelado: inspetor, datas e andares riscados; a etiqueta, sem risco, diz por quê.
+  const risco = estado === 'cancelado' ? { textDecoration: 'line-through', textDecorationColor: T.faint, color: T.mute } : null;
   const editavel = onEdit && canEdit(schedule);
   // O inspetor saiu do prédio e a ronda ainda está aberta: precisa de outro.
   const saiu = !!schedule.inspector_left && (schedule.status ?? 'PENDENTE') === 'PENDENTE';
@@ -72,17 +75,17 @@ function Detalhe({ schedule, showBuilding, showInspector, showStatus, onEdit, ca
         )}
         {showInspector && (
           <Linha icon={User} label="Inspetor">
-            <span style={{ fontWeight: W.strong }}>{schedule.inspector?.name ?? '—'}</span>
+            <span style={{ fontWeight: W.strong, ...risco }}>{schedule.inspector?.name ?? '—'}</span>
           </Linha>
         )}
         <Linha icon={CalendarDays} label="Data">
-          <span style={{ textTransform: 'capitalize', color: T.text, fontWeight: atrasado ? W.strong : W.body }}>
+          <span style={{ textTransform: 'capitalize', color: T.text, fontWeight: atrasado ? W.strong : W.body, ...risco }}>
             {formatDiaCurto(schedule.scheduled_date)}
           </span>
           {atrasado && <span style={{ color: T.text }}> · dia agendado já passou</span>}
         </Linha>
         <Linha icon={Clock} label="Prazo">
-          <span style={{ color: vencido ? T.danger : T.text, fontWeight: vencido ? W.strong : W.body }}>
+          <span style={{ color: vencido ? T.danger : T.text, fontWeight: vencido ? W.strong : W.body, ...risco }}>
             {formatAte(schedule.due_date)}
             {vencido && ' · prazo vencido'}
           </span>
@@ -96,9 +99,9 @@ function Detalhe({ schedule, showBuilding, showInspector, showStatus, onEdit, ca
             {schedule.floors.map((f) => (
               <li
                 key={f.id}
-                style={{ fontSize: 12, padding: '4px 10px', borderRadius: R.badge, background: T.card, color: T.text, boxShadow: T.cardRing }}
+                style={{ fontSize: 12, padding: '4px 10px', borderRadius: R.badge, background: T.card, color: T.text, boxShadow: T.cardRing, ...risco }}
               >
-                {f.label}
+                {rotuloAndar(f.label)}
               </li>
             ))}
           </ul>

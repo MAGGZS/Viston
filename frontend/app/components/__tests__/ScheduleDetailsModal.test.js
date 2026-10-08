@@ -24,6 +24,14 @@ describe('ScheduleDetailsModal', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('cancelado: inspetor e andares riscados, a etiqueta de status sem risco', () => {
+    render(<ScheduleDetailsModal open onClose={() => {}} schedules={[S('c', { status: 'CANCELADO' })]} />);
+    const caixa = screen.getByRole('dialog');
+    expect(within(caixa).getByText('Carlos Andrade').style.textDecoration).toBe('line-through');
+    expect(within(caixa).getByText('3º Andar').style.textDecoration).toBe('line-through');
+    expect(within(caixa).getByText('Cancelada').closest('[style*="line-through"]')).toBeNull();
+  });
+
   it('dia sem agendamento diz que não há nada', () => {
     render(<ScheduleDetailsModal open onClose={() => {}} schedules={[]} dateKey="2026-10-10" />);
     const caixa = screen.getByRole('dialog', { name: 'Agenda de 10 de outubro' });
@@ -59,7 +67,7 @@ describe('ScheduleDetailsModal', () => {
       />
     );
     const caixa = screen.getByRole('dialog');
-    expect(within(caixa).getByText('Atrasado')).toBeInTheDocument();
+    expect(within(caixa).getByText('Atrasada')).toBeInTheDocument();
     expect(within(caixa).getByText(/dia agendado já passou/)).toBeInTheDocument();
     expect(within(caixa).getByText('Prazo vencido')).toBeInTheDocument();
     expect(within(caixa).getByText(/prazo vencido$/)).toBeInTheDocument();

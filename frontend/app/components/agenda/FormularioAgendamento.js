@@ -1,5 +1,5 @@
 'use client';
-import { useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { addDays, differenceInCalendarDays } from 'date-fns';
 import { Check, CircleCheck, Sparkles, XCircle } from 'lucide-react';
 import { Button, Input, Textarea, Skeleton } from '@/app/components/ui';
@@ -13,7 +13,7 @@ import {
 import { useToastStore } from '@/app/store/toast';
 import { mensagemDoErro } from '@/app/lib/erros';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
-import { dateKeyOf, formatDataCurta, parseDateKey, toDateKey } from '@/app/lib/agenda';
+import { dateKeyOf, formatDataCurta, parseDateKey, rotuloAndar, toDateKey } from '@/app/lib/agenda';
 import { T, R, W, NUM } from '@/app/lib/theme';
 
 /**
@@ -138,7 +138,7 @@ function ChipsDeAndares({ andares, marcados, onToggle, disabled, labelledBy, err
             }}
           >
             {ligado && <Check size={13} aria-hidden="true" />}
-            {f.label}
+            {rotuloAndar(f.label)}
           </button>
         );
       })}
@@ -309,11 +309,13 @@ function SeletorDeInspetor({ semAndares, carregando, erro, inspetores, escolhido
  * - `disabled`: prédio inativo — tudo só leitura.
  * - `erroData`: erro de data vindo de fora — o clique num dia passado do
  *   calendário ao lado, que não troca a data mas precisa dizer por quê.
+ * - `onDirtyChange(sujo)`: avisa quem chama se algo difere do que o formulário
+ *   tinha ao abrir — é quem chama que pergunta antes de descartar.
  *
  * Agendamento cujo inspetor saiu do prédio (`inspector_left`) abre sem a
  * escolha antiga: o sugerido já vem marcado, que é a troca que se veio fazer.
  */
-export function FormularioAgendamento({ buildingId, schedule = null, date, onDateChange, antes, onDone, disabled = false, erroData }) {
+export function FormularioAgendamento({ buildingId, schedule = null, date, onDateChange, antes, onDone, disabled = false, erroData, onDirtyChange }) {
   const editando = !!schedule;
   const hoje = toDateKey(new Date());
   const ids = { andares: useId(), inspetor: useId() };
@@ -335,6 +337,29 @@ export function FormularioAgendamento({ buildingId, schedule = null, date, onDat
 
   const dueDate = dueChoice ?? prazoPadrao(date);
   const datasValidas = !!date && !!dueDate && dueDate >= date;
+
+  // Sujo é o que difere do formulário ao abrir: a data que veio, os andares, a
+  // escolha de inspetor e o prazo como estavam, e a observação. A sugestão
+  // marcada sozinha não conta — ninguém escolheu nada.
+  const [inicial] = useState(() => ({
+    date,
+    floors: [...floorIds].sort().join(','),
+    inspector: inspectorChoice,
+    due: dueChoice,
+    notes,
+  }));
+  const sujo =
+    date !== inicial.date ||
+    [...floorIds].sort().join(',') !== inicial.floors ||
+    inspectorChoice !== inicial.inspector ||
+    dueChoice !== inicial.due ||
+    notes !== inicial.notes;
+
+  useEffect(() => {
+    onDirtyChange?.(sujo);
+  }, [sujo, onDirtyChange]);
+  // Desmontado (salvou, voltou, trocou de agendamento), não há o que perder.
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   const { data: floorsData, isLoading: floorsLoading } = useFloors(buildingId);
   const andares = useMemo(() => sortFloorsDesc(floorsData?.floors ?? []), [floorsData]);
@@ -578,7 +603,7 @@ export function FormularioAgendamento({ buildingId, schedule = null, date, onDat
         <ConfirmModal
           open={confirmarCancelamento}
           title="Cancelar agendamento?"
-          message={`A vistoria sai da agenda de ${schedule.inspector?.name ?? 'quem foi escalado'}, que recebe um aviso. O registro continua na lista como cancelado.`}
+          message={`A vistoria sai da agenda de ${schedule.inspector?.name ?? 'quem foi escalado'}, que recebe um aviso. Ela continua na lista como cancelada.`}
           confirmLabel="Cancelar agendamento"
           cancelLabel="Voltar"
           loading={update.isPending && acao === 'CANCELADO'}

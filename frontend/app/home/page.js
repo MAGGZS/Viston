@@ -186,6 +186,7 @@ export default function HomePage() {
                     marks={agenda.marks}
                     getDayHint={agenda.getDayHint}
                     marcaSecundaria={agenda.predioTodo ? agenda.deColega : undefined}
+                    showInspector={agenda.deColega}
                     size="compact"
                     label="Sua agenda de vistorias"
                   />

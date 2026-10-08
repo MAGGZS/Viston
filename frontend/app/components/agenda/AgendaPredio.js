@@ -1,12 +1,14 @@
 'use client';
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, ChevronDown, PanelRightClose, PanelRightOpen, Pin, Plus, Snowflake, UserX, X } from 'lucide-react';
+import { useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, PanelRightClose, PanelRightOpen, Pin, Plus, Snowflake, UserX, X } from 'lucide-react';
 import { Button, Skeleton } from '@/app/components/ui';
 import { CalendarioMensal, LegendaAgenda } from '@/app/components/agenda/CalendarioMensal';
 import { ScheduleListItem } from '@/app/components/agenda/ScheduleListItem';
 import { ScheduleDetailsModal } from '@/app/components/agenda/ScheduleDetailsModal';
 import { FormularioAgendamento } from '@/app/components/agenda/FormularioAgendamento';
-import { useBuildingSchedules, useOverdueSchedules } from '@/app/hooks/useApi';
+import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
+import { useBuildingSchedules } from '@/app/hooks/useApi';
+import { MODAL_EXIT_MS } from '@/app/hooks/useExitTransition';
 import { useMediaQuery } from '@/app/hooks/useMediaQuery';
 import {
   SCHEDULE_STATES,
@@ -16,7 +18,6 @@ import {
   formatMesAno,
   groupSchedulesByDay,
   parseDateKey,
-  resumoAtrasos,
   scheduleState,
   sortByUrgency,
   toDateKey,
@@ -25,11 +26,11 @@ import { T, R, W, NUM } from '@/app/lib/theme';
 
 /** Os recortes da lista do mês, na ordem em que aparecem. */
 export const FILTROS = [
-  { id: 'todos', label: 'Todos' },
+  { id: 'todos', label: 'Todas' },
   { id: 'pendente', label: 'Pendentes' },
-  { id: 'atrasado', label: 'Atrasados' },
-  { id: 'concluido', label: 'Concluídos' },
-  { id: 'cancelado', label: 'Cancelados' },
+  { id: 'atrasado', label: 'Atrasadas' },
+  { id: 'concluido', label: 'Concluídas' },
+  { id: 'cancelado', label: 'Canceladas' },
 ];
 
 /** Quantos chips cabem na célula do calendário antes do "+N". */
@@ -105,8 +106,15 @@ function useEntradaDoPainel(chave, direcao) {
   return ref;
 }
 
-/** Os chips de uma célula do calendário: quem vai e em que pé está. */
-function ChipsDoDia({ marks }) {
+/**
+ * Os chips de uma célula do calendário: quem vai e em que pé está.
+ *
+ * A marca de status é a mesma bolinha da legenda. Era uma barrinha de 4×11px,
+ * e a do pendente (vazada) se lia como "▯" — um glifo que a fonte não tem —
+ * na frente do nome. `selecionado`: o "+N" vai sobre o dourado do dia
+ * escolhido, e ali o cinza não tem contraste.
+ */
+function ChipsDoDia({ marks, selecionado = false }) {
   if (!marks?.length) return null;
   const lista = sortByUrgency(marks);
   const visiveis = lista.length > MAX_CHIPS ? lista.slice(0, MAX_CHIPS - 1) : lista;
@@ -127,7 +135,7 @@ function ChipsDoDia({ marks }) {
               color: cancelado ? T.faint : T.text,
             }}
           >
-            <span style={{ width: 4, height: 11, borderRadius: 2, flexShrink: 0, ...estiloMarca(estado, { espessura: 1 }) }} />
+            <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, ...estiloMarca(estado, { espessura: 1.5 }) }} />
             <span
               style={{
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -143,133 +151,11 @@ function ChipsDoDia({ marks }) {
         );
       })}
       {resto > 0 && (
-        <span style={{ fontSize: 11, lineHeight: '15px', fontWeight: W.strong, color: T.mute, paddingLeft: 4, ...NUM }}>
+        <span style={{ fontSize: 11, lineHeight: '15px', fontWeight: W.strong, color: selecionado ? T.onAccent : T.mute, paddingLeft: 4, ...NUM }}>
           +{resto}
         </span>
       )}
     </span>
-  );
-}
-
-/**
- * O alerta fixo do topo da agenda: os agendamentos atrasados de qualquer mês.
- *
- * Não é `role="alert"`: ele fica na tela enquanto houver atraso, e um alerta
- * de verdade seria lido por cima de tudo a cada nova busca. É uma região com
- * nome, e só a frase da contagem é `aria-live` educado — muda o número, o
- * leitor de tela fala o número, e nada mais.
- *
- * Fechado por padrão: a contagem já diz o que importa, e a lista (que pode ter
- * meses de atraso) empurraria o calendário para baixo em toda visita. Clicar
- * num item leva o calendário ao dia dele; o lápis, a quem pode, edita.
- *
- * Movimento: entra com um esmaecer e 4px de descida (200ms, saída forte) e a
- * lista abre do mesmo jeito. Com "reduzir movimento", só o esmaecer.
- */
-export function AlertaDeAtrasos({ schedules = [], semInspetor = [], onAbrir, onEditar }) {
-  const [aberto, setAberto] = useState(false);
-  const listaId = useId();
-  const caixaRef = useRef(null);
-  const listaRef = useRef(null);
-  // Os atrasados e os que ficaram sem inspetor, sem repetir quem é os dois.
-  const lista = useMemo(() => {
-    const ids = new Set(schedules.map((s) => s.id));
-    return sortByUrgency([...schedules, ...semInspetor.filter((s) => !ids.has(s.id))]);
-  }, [schedules, semInspetor]);
-  const { total, prazoVencido, titulo, detalhe } = resumoAtrasos(schedules);
-  const nSemInspetor = semInspetor.length;
-  const visivel = total > 0 || nSemInspetor > 0;
-
-  useLayoutEffect(() => {
-    if (visivel) animarEntrada(caixaRef.current);
-  }, [visivel]);
-
-  useLayoutEffect(() => {
-    if (aberto) animarEntrada(listaRef.current);
-  }, [aberto]);
-
-  if (!visivel) return null;
-  const grave = prazoVencido > 0;
-
-  return (
-    <section
-      ref={caixaRef}
-      aria-label={nSemInspetor > 0 ? 'Agendamentos que pedem atenção' : 'Vistorias atrasadas'}
-      style={{ background: T.card, borderRadius: R.card, boxShadow: T.cardRing, marginBottom: 20, overflow: 'hidden' }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px 10px 16px' }}>
-        <span
-          aria-hidden="true"
-          style={{
-            width: 32, height: 32, borderRadius: 10, flexShrink: 0,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            // Atrasado é neutro forte, como a etiqueta dele; o vermelho fica
-            // para o prazo vencido.
-            background: grave ? T.dangerSoft : T.chip, color: grave ? T.danger : T.text,
-          }}
-        >
-          <AlertTriangle size={16} />
-        </span>
-        <p aria-live="polite" style={{ flex: 1, minWidth: 0, margin: 0, fontSize: 14, color: T.text, ...NUM }}>
-          {total > 0 && <span style={{ fontWeight: W.strong }}>{titulo}</span>}
-          {detalhe && <span style={{ color: T.danger, fontWeight: W.strong }}> · {detalhe}</span>}
-          {nSemInspetor > 0 && (
-            <span style={{ fontWeight: W.strong }}>
-              {total > 0 ? ' · ' : ''}{nSemInspetor} sem inspetor
-            </span>
-          )}
-          <span style={{ color: T.mute, fontSize: 13 }}>
-            {total > 0 && nSemInspetor > 0
-              ? ' · dia passado sem vistoria ou inspetor que saiu do prédio'
-              : total > 0
-                ? ' · o dia agendado passou sem vistoria'
-                : ' · o inspetor saiu do prédio; troque por outro'}
-          </span>
-        </p>
-        <button
-          type="button"
-          className="press"
-          aria-expanded={aberto}
-          aria-controls={listaId}
-          onClick={() => setAberto((v) => !v)}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
-            minHeight: 36, padding: '6px 12px', borderRadius: R.control,
-            border: 'none', background: T.chip, color: T.text,
-            font: 'inherit', fontSize: 13, fontWeight: W.strong, cursor: 'pointer',
-          }}
-        >
-          {aberto ? 'Ocultar' : nSemInspetor > 0 ? 'Ver lista' : 'Ver atrasadas'}
-          <ChevronDown
-            size={15}
-            aria-hidden="true"
-            style={{ transform: aberto ? 'rotate(180deg)' : 'none', transition: 'transform 200ms var(--ease-saida)' }}
-          />
-        </button>
-      </div>
-      <div id={listaId} hidden={!aberto}>
-        {aberto && (
-          <div
-            ref={listaRef}
-            style={{ borderTop: `1px solid ${T.line}`, maxHeight: 280, overflowY: 'auto', padding: '4px 8px 8px' }}
-          >
-            <ListaDeAgendamentos lista={lista} onAbrir={onAbrir} onEditar={onEditar} />
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-/** O esmaecer com 4px de descida do alerta; com "reduzir movimento", só o esmaecer. */
-function animarEntrada(el) {
-  if (!el || typeof el.animate !== 'function') return;
-  const reduzir = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-  el.animate(
-    reduzir
-      ? [{ opacity: 0 }, { opacity: 1 }]
-      : [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'translateY(0)' }],
-    { duration: reduzir ? 120 : 200, easing: EASE_SAIDA }
   );
 }
 
@@ -280,7 +166,7 @@ function animarEntrada(el) {
  */
 function CabecalhoDoPainel({ titulo, subtitulo, onVoltar, acoes, tituloRef, tituloId }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: onVoltar ? '12px 12px 8px 8px' : '16px 16px 8px', flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: onVoltar ? '12px 12px 8px 8px' : '12px 12px 8px 16px', flexShrink: 0 }}>
       {onVoltar && (
         <button type="button" className="icone-btn icone-btn--compacto" aria-label="Voltar para a lista" onClick={onVoltar}>
           <ArrowLeft size={17} aria-hidden="true" />
@@ -395,22 +281,21 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
   const [escondido, setEscondido] = useState(false);
   const [flutuante, setFlutuante] = useState(false);
   const [transicao, setTransicao] = useState(null);
+  // A entrada `anim-fade-up` do painel fica retida (fill `both`) e venceria o
+  // opacity/transform do recolher; sai na primeira alternância.
+  const [alternado, setAlternado] = useState(false);
   const reduzirMovimento = useMediaQuery(REDUZIR);
+  // O formulário aberto difere do que tinha ao abrir; e a saída que espera o
+  // "Descartar" da confirmação.
+  const [formSujo, setFormSujo] = useState(false);
+  const [saidaPendente, setSaidaPendente] = useState(null);
+  const [, setRefoco] = useState(0);
   const painelId = useId();
   const tituloId = useId();
 
   const podeEscrever = canEdit && !frozen;
 
   const { data, isLoading, isError, refetch, isFetching } = useBuildingSchedules(buildingId, { month, year });
-  const { data: dadosAtrasados } = useOverdueSchedules(buildingId);
-  const atrasadosDeTodosOsMeses = useMemo(() => dadosAtrasados?.schedules ?? [], [dadosAtrasados]);
-  // Os abertos de todos os meses, para achar os que ficaram sem inspetor (ele
-  // saiu do prédio). Só PENDENTE: o recorte que o servidor limita sem mês.
-  const { data: dadosPendentes } = useBuildingSchedules(buildingId, { status: 'PENDENTE' });
-  const semInspetor = useMemo(
-    () => (dadosPendentes?.schedules ?? []).filter((s) => s.inspector_left && (s.status ?? 'PENDENTE') === 'PENDENTE'),
-    [dadosPendentes]
-  );
   const schedules = useMemo(() => data?.schedules ?? [], [data]);
   const porDia = useMemo(() => groupSchedulesByDay(schedules), [schedules]);
 
@@ -429,7 +314,7 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
 
   const contagens = useMemo(() => {
     const c = { todos: schedules.length, pendente: 0, atrasado: 0, concluido: 0, cancelado: 0 };
-    // Prazo vencido conta em "Atrasados" e concluído com atraso em "Concluídos":
+    // Prazo vencido conta em "Atrasadas" e concluída com atraso em "Concluídas":
     // os recortes são do que se faz com o agendamento, não do tom do atraso.
     for (const s of schedules) c[SCHEDULE_STATES[scheduleState(s)].filtro] += 1;
     return c;
@@ -468,24 +353,8 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
   const botaoEsconderRef = useRef(null);
   // De onde o painel flutuante foi aberto — para onde o foco volta ao fechar.
   const origemFlutuanteRef = useRef(null);
-
-  useEffect(() => {
-    const pedido = focoRef.current;
-    if (!pedido) return;
-    focoRef.current = null;
-    if (pedido === 'origem' && focarOrigem()) return;
-    if (pedido === 'mostrar' || pedido === 'esconder') {
-      (pedido === 'mostrar' ? botaoMostrarRef : botaoEsconderRef).current?.focus();
-      return;
-    }
-    if (pedido === 'flutuante-origem') {
-      const o = origemFlutuanteRef.current;
-      origemFlutuanteRef.current = null;
-      if (!focarAlvo(o)) botaoMostrarRef.current?.focus();
-      return;
-    }
-    tituloRef.current?.focus();
-  });
+  // Quem tinha o foco quando a confirmação de descartar abriu.
+  const focoAntesDaPerguntaRef = useRef(null);
 
   function focarOrigem() {
     const o = origemRef.current;
@@ -505,6 +374,67 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
     return true;
   }
 
+  useEffect(() => {
+    const pedido = focoRef.current;
+    if (!pedido) return undefined;
+    // Uma caixa modal saindo (a confirmação de descartar) ainda deixa o resto
+    // da página inerte, e o foco dado agora se perderia: espera ela sair.
+    if (document.querySelector('dialog[open]')) {
+      const t = setTimeout(() => setRefoco((n) => n + 1), MODAL_EXIT_MS + 20);
+      return () => clearTimeout(t);
+    }
+    focoRef.current = null;
+    if (typeof pedido === 'object') {
+      if (!focarAlvo(pedido)) tituloRef.current?.focus();
+      return undefined;
+    }
+    if (pedido === 'origem' && focarOrigem()) return undefined;
+    if (pedido === 'mostrar' || pedido === 'esconder') {
+      (pedido === 'mostrar' ? botaoMostrarRef : botaoEsconderRef).current?.focus();
+      return undefined;
+    }
+    if (pedido === 'flutuante-origem') {
+      const o = origemFlutuanteRef.current;
+      origemFlutuanteRef.current = null;
+      if (!focarAlvo(o)) botaoMostrarRef.current?.focus();
+      return undefined;
+    }
+    tituloRef.current?.focus();
+    return undefined;
+  });
+
+  /**
+   * Toda saída que desmonta o formulário passa por aqui: com alteração não
+   * salva, a ação espera o "Descartar" da confirmação; sem, vai direto.
+   * Salvar não passa — `concluirFormulario` sai sem perguntar.
+   */
+  function guardarSaida(acao) {
+    const comFormulario = painel.modo === 'novo' || painel.modo === 'editar';
+    if (!comFormulario || !formSujo) {
+      acao();
+      return;
+    }
+    const ativo = document.activeElement;
+    focoAntesDaPerguntaRef.current = ativo && ativo !== document.body ? ativo : null;
+    // A função vai dentro de um atualizador, senão o React a executaria.
+    setSaidaPendente(() => acao);
+  }
+
+  function descartar() {
+    const acao = saidaPendente;
+    setSaidaPendente(null);
+    focoAntesDaPerguntaRef.current = null;
+    acao?.();
+  }
+
+  /** "Continuar editando": o foco volta a quem pediu a saída. */
+  function continuarEditando() {
+    setSaidaPendente(null);
+    const el = focoAntesDaPerguntaRef.current;
+    focoAntesDaPerguntaRef.current = null;
+    focoRef.current = el ? { tipo: 'el', el } : 'titulo';
+  }
+
   /** De onde a pessoa saiu da lista — para onde o foco volta. */
   function marcarOrigem(origem) {
     if (painel.modo === 'lista' || !origemRef.current) origemRef.current = origem;
@@ -519,18 +449,6 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
     }
   }
 
-  /** Item do alerta: o calendário vai ao mês e ao dia do agendamento. */
-  function abrirDoAlerta(schedule) {
-    const date = dateKeyOf(schedule.scheduled_date);
-    if (!date) return;
-    irPara(date);
-    marcarOrigem({ tipo: 'linha', id: schedule.id });
-    focoRef.current = 'titulo';
-    setErroData(null);
-    setDirecao('ir');
-    setPainel({ modo: 'dia', date });
-  }
-
   function voltarParaLista() {
     if (painel.modo !== 'lista') focoRef.current = 'origem';
     setErroData(null);
@@ -540,8 +458,8 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
 
   function abrirNovo(dateKey, { focar = true } = {}) {
     if (focar) {
-      const ativo = typeof document !== 'undefined' ? document.activeElement : null;
-      marcarOrigem(ativo && ativo !== document.body ? { tipo: 'el', el: ativo } : null);
+      abrirFlutuante(focoAtual());
+      marcarOrigem(focoAtual());
       focoRef.current = 'titulo';
     }
     setErroData(null);
@@ -556,6 +474,14 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
       setDetalhe(schedule);
       return;
     }
+    // Outro agendamento troca o formulário, e a edição em curso se perderia;
+    // o mesmo que já está aberto não remonta nada.
+    if (painel.modo === 'editar' && painel.schedule.id === schedule.id) abrirEdicaoJa(schedule);
+    else guardarSaida(() => abrirEdicaoJa(schedule));
+  }
+
+  function abrirEdicaoJa(schedule) {
+    abrirFlutuante(focoAtual());
     marcarOrigem({ tipo: 'linha', id: schedule.id });
     focoRef.current = 'titulo';
     setErroData(null);
@@ -579,6 +505,8 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
    * painel mostra o que houve nele.
    */
   function escolherDia(key) {
+    // Painel escondido: o dia abre o flutuante, e não a coluna.
+    abrirFlutuante({ tipo: 'dia', date: key });
     if (podeEscrever && painel.modo === 'editar') {
       mudarData(key);
       return;
@@ -589,7 +517,8 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
     }
     if (!podeEscrever || key < hoje) {
       if (painel.modo === 'dia' && painel.date === key) {
-        voltarParaLista();
+        if (flutuante) fecharFlutuante();
+        else voltarParaLista();
         return;
       }
       origemRef.current = { tipo: 'dia', date: key };
@@ -611,10 +540,192 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
     irPara(key);
   }
 
+  /** O elemento com foco agora, como origem para devolver o foco depois. */
+  function focoAtual() {
+    const ativo = typeof document !== 'undefined' ? document.activeElement : null;
+    return ativo && ativo !== document.body ? { tipo: 'el', el: ativo } : null;
+  }
+
+  /**
+   * Com o painel escondido, o que o abriria abre o flutuante. A primeira
+   * abertura leva o foco ao título (é um diálogo que acabou de aparecer); com
+   * ele já aberto, clicar noutro dia só troca a data, e o foco fica no dia.
+   */
+  function abrirFlutuante(origem) {
+    if (!escondido || flutuante) return;
+    origemFlutuanteRef.current = origem;
+    focoRef.current = 'titulo';
+    medirRecorte();
+    setFlutuante(true);
+  }
+
+  /** X, Esc, clique fora, fim do formulário: volta ao escondido. */
+  function fecharFlutuante() {
+    setFlutuante(false);
+    setErroData(null);
+    setDirecao('voltar');
+    setPainel({ modo: 'lista' });
+    origemRef.current = null;
+    focoRef.current = 'flutuante-origem';
+  }
+
+  function animarColuna(tipo) {
+    setAlternado(true);
+    if (!reduzirMovimento) setTransicao(tipo);
+  }
+
+  /**
+   * Esconder volta o painel à lista: com ele escondido, o dia aceso no
+   * calendário não teria a que corresponder. O foco vai ao botão que o traz
+   * de volta, no cabeçalho do calendário — o que foi clicado sumiu.
+   */
+  function esconderPainel() {
+    animarColuna('recolher');
+    setEscondido(true);
+    setFlutuante(false);
+    setErroData(null);
+    setPainel({ modo: 'lista' });
+    origemRef.current = null;
+    focoRef.current = 'mostrar';
+  }
+
+  /** Mostrar (do escondido) ou fixar (do flutuante, com o conteúdo como está). */
+  function mostrarPainel() {
+    // Do flutuante o painel já está no lugar: só o calendário encolhe.
+    animarColuna(flutuante ? 'fixar' : 'abrir');
+    setEscondido(false);
+    setFlutuante(false);
+    origemFlutuanteRef.current = null;
+    focoRef.current = 'esconder';
+  }
+
+  function concluirFormulario() {
+    if (flutuante) fecharFlutuante();
+    else voltarParaLista();
+  }
+
+  /**
+   * A proporção das colunas, pela Web Animations API, como as outras
+   * animações do arquivo: keyframes explícitos em px (o `clamp(300px, 28vw,
+   * 380px)` resolvido na hora) interpolam sempre do mesmo jeito, sem depender
+   * de o navegador saber interpolar `clamp()` com `vw` contra `0px`, e não
+   * deixam `transition` pendurada no estilo para o redimensionar da janela.
+   */
+  const gradeRef = useRef(null);
+  const escondidoAntes = useRef(escondido);
+  useLayoutEffect(() => {
+    if (escondidoAntes.current === escondido) return;
+    escondidoAntes.current = escondido;
+    const el = gradeRef.current;
+    if (!transicao || !el || typeof el.animate !== 'function') return;
+    const largura = Math.min(380, Math.max(300, window.innerWidth * 0.28));
+    const aberto = { gridTemplateColumns: `minmax(0px, 1fr) ${largura}px`, columnGap: '20px' };
+    const fechado = { gridTemplateColumns: 'minmax(0px, 1fr) 0px', columnGap: '0px' };
+    el.animate(escondido ? [aberto, fechado] : [fechado, aberto], { duration: DURACAO_COLUNA, easing: EASE_GAVETA });
+  }, [escondido, transicao]);
+
+  /**
+   * O recorte do flutuante: do topo da grade de dias ao fim dela, medido em
+   * relação à caixa das colunas. Medido no clique que abre o flutuante (para
+   * ele já nascer no lugar) e, enquanto o painel está escondido, por um
+   * ResizeObserver — que acompanha a troca entre meses de 5 e 6 semanas e o
+   * redimensionar da janela.
+   */
+  const [recorte, setRecorte] = useState({ top: 0, bottom: 0 });
+  function medirRecorte() {
+    const caixa = gradeRef.current;
+    const grade = caixa?.querySelector('[role="grid"]');
+    if (!grade) return;
+    const c = caixa.getBoundingClientRect();
+    const g = grade.getBoundingClientRect();
+    const novo = { top: Math.round(g.top - c.top), bottom: Math.round(c.bottom - g.bottom) };
+    setRecorte((r) => (r.top === novo.top && r.bottom === novo.bottom ? r : novo));
+  }
+  const aoRedimensionar = useEffectEvent(medirRecorte);
+  useEffect(() => {
+    const caixa = gradeRef.current;
+    const grade = caixa?.querySelector('[role="grid"]');
+    if (!escondido || !grade || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => aoRedimensionar());
+    ro.observe(caixa);
+    ro.observe(grade);
+    return () => ro.disconnect();
+  }, [escondido]);
+
+  useEffect(() => {
+    if (!transicao) return undefined;
+    const t = setTimeout(() => setTransicao(null), DURACAO_COLUNA + 40);
+    return () => clearTimeout(t);
+  }, [transicao]);
+
+  /**
+   * O flutuante é um diálogo não modal: o calendário atrás continua vivo
+   * (trocar o dia muda a data do formulário), então nada de prender o foco.
+   * Esc fecha — a menos que uma caixa modal (detalhes, confirmação) esteja
+   * por cima, e aí é ela que fecha. Clique fora fecha só em área sem
+   * controle: dia e setas do mês seguem mandando no painel.
+   */
+  const aoFecharFlutuante = useEffectEvent(() => guardarSaida(fecharFlutuante));
+  useEffect(() => {
+    if (!flutuante) return undefined;
+    function noTeclado(e) {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (document.querySelector('dialog[open]')) return;
+      aoFecharFlutuante();
+    }
+    function noPonteiro(e) {
+      const alvo = e.target;
+      if (!(alvo instanceof Element)) return;
+      if (asideRef.current?.contains(alvo) || !raizRef.current?.contains(alvo)) return;
+      // Dentro de uma caixa modal (detalhes, confirmação) não é "fora".
+      if (alvo.closest('dialog')) return;
+      if (alvo.closest('button, a, input, select, textarea, label, [role="button"]')) return;
+      aoFecharFlutuante();
+    }
+    document.addEventListener('keydown', noTeclado);
+    document.addEventListener('pointerdown', noPonteiro);
+    return () => {
+      document.removeEventListener('keydown', noTeclado);
+      document.removeEventListener('pointerdown', noPonteiro);
+    };
+  }, [flutuante]);
+
   const selecionado = painel.modo === 'lista' ? null : painel.date;
   const doDia = selecionado ? ordenarPorData(porDia[selecionado] ?? []) : [];
   const nomeDoMes = formatMesAno(month, year);
   const atrasados = contagens.atrasado;
+
+  // No cabeçalho do painel: fixo, o botão de esconder; flutuante, fixar e fechar.
+  const acoesDoPainel = flutuante ? (
+    <>
+      <button
+        type="button"
+        className="icone-btn icone-btn--compacto"
+        aria-label="Fixar painel ao lado do calendário"
+        title="Fixar painel"
+        aria-controls={painelId}
+        onClick={mostrarPainel}
+      >
+        <Pin size={16} aria-hidden="true" />
+      </button>
+      <button type="button" className="icone-btn icone-btn--compacto" aria-label="Fechar painel" title="Fechar" onClick={() => guardarSaida(fecharFlutuante)}>
+        <X size={17} aria-hidden="true" />
+      </button>
+    </>
+  ) : (
+    <button
+      ref={botaoEsconderRef}
+      type="button"
+      className="icone-btn icone-btn--compacto"
+      aria-label="Esconder painel"
+      title="Esconder painel"
+      aria-expanded={!escondido}
+      aria-controls={painelId}
+      onClick={() => guardarSaida(esconderPainel)}
+    >
+      <PanelRightClose size={17} aria-hidden="true" />
+    </button>
+  );
 
   let conteudo;
   if (painel.modo === 'lista') {
@@ -624,6 +735,8 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
           titulo="Agendamentos do mês"
           subtitulo={nomeDoMes}
           tituloRef={tituloRef}
+          tituloId={tituloId}
+          acoes={acoesDoPainel}
         />
         <div style={{ padding: '0 16px 12px', flexShrink: 0 }}>
           <FiltroDeStatus valor={filtro} onChange={setFiltro} contagens={contagens} />
@@ -643,7 +756,7 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
           ) : listaDoMes.length === 0 ? (
             <div style={{ padding: '28px 12px', textAlign: 'center' }}>
               <p style={{ fontSize: 14, color: T.text, fontWeight: W.strong, margin: 0 }}>
-                {filtro === 'todos' ? 'Nenhuma vistoria agendada neste mês' : `Nenhum agendamento ${SCHEDULE_STATES[filtro].label.toLowerCase()} neste mês`}
+                {filtro === 'todos' ? 'Nenhuma vistoria agendada neste mês' : `Nenhuma vistoria ${SCHEDULE_STATES[filtro].label.toLowerCase()} neste mês`}
               </p>
               {filtro === 'todos' && podeEscrever && (
                 <p style={{ fontSize: 13, color: T.mute, marginTop: 6, lineHeight: 1.5 }}>
@@ -669,6 +782,8 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
           subtitulo={formatDiaExtenso(painel.date)}
           onVoltar={voltarParaLista}
           tituloRef={tituloRef}
+          tituloId={tituloId}
+          acoes={acoesDoPainel}
         />
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 8px 12px' }}>
           {doDia.length > 0 ? (
@@ -694,8 +809,10 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
         <CabecalhoDoPainel
           titulo={editando ? 'Editar agendamento' : 'Nova vistoria'}
           subtitulo={formatDiaExtenso(painel.date)}
-          onVoltar={voltarParaLista}
+          onVoltar={() => guardarSaida(voltarParaLista)}
           tituloRef={tituloRef}
+          tituloId={tituloId}
+          acoes={acoesDoPainel}
         />
         <FormularioAgendamento
           key={editando ? `e:${painel.schedule.id}` : `n:${rodada}`}
@@ -703,7 +820,8 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
           schedule={editando ? painel.schedule : null}
           date={painel.date}
           onDateChange={mudarData}
-          onDone={voltarParaLista}
+          onDone={concluirFormulario}
+          onDirtyChange={setFormSujo}
           disabled={!podeEscrever}
           erroData={editando ? undefined : erroData}
           antes={
@@ -721,27 +839,63 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
     );
   }
 
+  /**
+   * Onde o painel está. Na grade enquanto a coluna existe — e enquanto ela
+   * recolhe, como cortina. Posicionado por cima do calendário quando está
+   * escondido (invisível ou flutuante) e enquanto é fixado a partir do
+   * flutuante: ali ele já está no lugar final, e só o calendário encolhe.
+   */
+  const naGrade = (!escondido && transicao !== 'fixar') || transicao === 'recolher';
+  const oculto = escondido && !flutuante;
+  const tempoAside = oculto ? 200 : 260; // a saída é mais curta que a entrada
+  const estiloAside = {
+    background: T.card, borderRadius: R.card, overflow: 'hidden',
+    boxShadow: flutuante ? T.elev2 : T.cardRing,
+    opacity: oculto ? 0 : 1,
+    // Com "reduzir movimento", o flutuante só esmaece.
+    transform: oculto && !reduzirMovimento ? 'translateX(24px)' : 'translateX(0)',
+    visibility: oculto && !transicao ? 'hidden' : 'visible',
+    pointerEvents: oculto ? 'none' : undefined,
+    transition: [
+      `opacity ${tempoAside}ms ${EASE_GAVETA}`, `transform ${tempoAside}ms ${EASE_GAVETA}`, `box-shadow ${tempoAside}ms ease`,
+      `top ${DURACAO_COLUNA}ms ${EASE_GAVETA}`, `bottom ${DURACAO_COLUNA}ms ${EASE_GAVETA}`,
+      `visibility 0s linear ${oculto ? tempoAside : 0}ms`,
+    ].join(', '),
+    ...(naGrade
+      ? { position: 'relative', minHeight: 560, gridColumn: 2, gridRow: 1 }
+      : {
+          position: 'absolute', right: 0, width: LARGURA_PAINEL, maxWidth: '100%', zIndex: 3,
+          // Flutuante, começa abaixo do cabeçalho do calendário (resumo,
+          // "Agendar", "Mostrar painel" e as setas do mês seguem à mão) e vai
+          // até o fim da grade. Ao fixar, cresce até a altura da coluna.
+          top: transicao === 'fixar' ? 0 : recorte.top,
+          bottom: transicao === 'fixar' ? 0 : recorte.bottom,
+        }),
+  };
+
   return (
-    <div ref={raizRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '2px 32px 32px' }}>
-      <AlertaDeAtrasos
-        schedules={atrasadosDeTodosOsMeses}
-        semInspetor={semInspetor}
-        onAbrir={abrirDoAlerta}
-        onEditar={podeEscrever ? abrirEdicao : undefined}
-      />
+    <div ref={raizRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '2px 32px 32px', display: 'flex', flexDirection: 'column' }}>
+      {/* Ocupa a altura que sobra na janela: o calendário inteiro à vista, sem
+          rolar. Abaixo do mínimo legível das semanas, aí sim a página rola. */}
       <div
         style={{
+          position: 'relative',
+          flex: '1 0 auto',
           display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) clamp(300px, 28vw, 380px)',
-          gap: 20,
+          gridTemplateColumns: `minmax(0, 1fr) ${escondido ? '0px' : LARGURA_PAINEL}`,
+          columnGap: escondido ? 0 : 20,
           alignItems: 'stretch',
         }}
+        ref={gradeRef}
       >
         {/* Calendário */}
         <section
           aria-label="Calendário da agenda"
           className="anim-fade-up"
-          style={{ background: T.card, borderRadius: R.card, boxShadow: T.cardRing, padding: 20, minWidth: 0 }}
+          style={{
+            background: T.card, borderRadius: R.card, boxShadow: T.cardRing, padding: 20, minWidth: 0,
+            gridColumn: 1, gridRow: 1, display: 'flex', flexDirection: 'column',
+          }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
             <p style={{ fontSize: 13, color: T.mute, margin: 0, ...NUM }} aria-live="polite">
@@ -749,22 +903,38 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
                 <>
                   {contagens.todos} agendamento{contagens.todos !== 1 ? 's' : ''} em {nomeDoMes.toLowerCase()}
                   {atrasados > 0 && (
-                    <span style={{ color: T.text, fontWeight: W.strong }}> · {atrasados} atrasado{atrasados !== 1 ? 's' : ''}</span>
+                    <span style={{ color: T.text, fontWeight: W.strong }}> · {atrasados} atrasada{atrasados !== 1 ? 's' : ''}</span>
                   )}
                   {isFetching && !isLoading && <span className="so-leitor"> (atualizando)</span>}
                 </>
               )}
             </p>
-            {canEdit && (
-              <Button
-                onClick={() => abrirNovo(hoje)}
-                disabled={frozen}
-                title={frozen ? 'Prédio inativo: a agenda está só para leitura' : undefined}
-                style={{ padding: '10px 16px', flexShrink: 0 }}
-              >
-                <Plus size={16} aria-hidden="true" /> Agendar
-              </Button>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              {escondido && (
+                <button
+                  ref={botaoMostrarRef}
+                  type="button"
+                  className="icone-btn icone-btn--compacto icone-btn--chip"
+                  aria-label="Mostrar painel"
+                  title="Mostrar painel"
+                  aria-expanded={false}
+                  aria-controls={painelId}
+                  onClick={mostrarPainel}
+                >
+                  <PanelRightOpen size={17} aria-hidden="true" />
+                </button>
+              )}
+              {canEdit && (
+                <Button
+                  onClick={() => guardarSaida(() => abrirNovo(hoje))}
+                  disabled={frozen}
+                  title={frozen ? 'Prédio inativo: a agenda está só para leitura' : undefined}
+                  style={{ padding: '10px 16px', flexShrink: 0 }}
+                >
+                  <Plus size={16} aria-hidden="true" /> Agendar
+                </Button>
+              )}
+            </div>
           </div>
 
           <CalendarioMensal
@@ -775,21 +945,31 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
             selectedDate={selecionado}
             onSelectDate={escolherDia}
             marks={porDia}
-            renderDayContent={(_key, marks) => <ChipsDoDia marks={marks} />}
+            renderDayContent={(key, marks) => <ChipsDoDia marks={marks} selecionado={key === selecionado} />}
             label="Agenda de vistorias do prédio"
+            semResumo={!!transicao}
           />
         </section>
 
         {/* Painel da direita: lista do mês, dia, ou formulário */}
-        <aside
-          aria-label="Agendamentos"
-          className="anim-fade-up anim-d1"
-          style={{
-            position: 'relative', minHeight: 560,
-            background: T.card, borderRadius: R.card, boxShadow: T.cardRing, overflow: 'hidden',
-          }}
+        {/* Um elemento só nos três estados (coluna, escondido, flutuante): o
+            conteúdo é o mesmo, e o formulário em curso não remonta ao fixar.
+            Flutuante, é diálogo não modal — o calendário atrás segue vivo. */}
+        <div
+          ref={asideRef}
+          id={painelId}
+          role={flutuante ? 'dialog' : 'complementary'}
+          aria-label={flutuante ? undefined : 'Agendamentos'}
+          aria-labelledby={flutuante ? tituloId : undefined}
+          className={alternado ? undefined : 'anim-fade-up anim-d1'}
+          style={estiloAside}
         >
-          <div ref={painelRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
+          {/* Preso à direita com a largura final: na cortina, a coluna
+              estreita recorta o conteúdo em vez de espremê-lo. */}
+          <div
+            ref={painelRef}
+            style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: '100%', minWidth: LARGURA_PAINEL, display: 'flex', flexDirection: 'column' }}
+          >
             {frozen && canEdit && (
               <p
                 role="status"
@@ -804,7 +984,7 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
             )}
             {conteudo}
           </div>
-        </aside>
+        </div>
       </div>
 
       <ScheduleDetailsModal
@@ -814,6 +994,8 @@ export function AgendaPredio({ buildingId, canEdit = false, frozen = false, init
         showBuilding={false}
         onEdit={podeEscrever ? abrirEdicao : undefined}
       />
+
+      <UnsavedChangesModal open={!!saidaPendente} onConfirm={descartar} onCancel={continuarEditando} />
     </div>
   );
 }

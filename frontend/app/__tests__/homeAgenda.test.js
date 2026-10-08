@@ -191,7 +191,7 @@ describe('home do inspetor: calendário da agenda', () => {
 
     const caixa = await screen.findByRole('dialog', { name: 'Agendamento cancelado' });
     expect(within(caixa).getByText('7º Andar')).toBeInTheDocument();
-    expect(within(caixa).getByText('Cancelado')).toBeInTheDocument();
+    expect(within(caixa).getByText('Cancelada')).toBeInTheDocument();
     // Na própria agenda, o nome do inspetor é ruído.
     expect(within(caixa).queryByText('Marina Alves')).not.toBeInTheDocument();
     expect(within(caixa).queryByText(/Nenhuma vistoria agendada/)).not.toBeInTheDocument();
