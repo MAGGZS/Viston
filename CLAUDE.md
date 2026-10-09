@@ -6,6 +6,8 @@ nunca faça as coisas sozinho, sempre delegue tarefas a subapgentes especializad
 
 revise a tarefa sempre que ela fo finalizada para que ela não tenha erros ou incoerencias
 
+Sempre que o pedido envolva o frontend será utilizados skills relacionadas ao auxilio desse desenvolvimento (toda sas instaladas e plugins se houver tbm)
+
 ## Deploy
 
 quando p agnete estiver mexendo no projeto local ele não é commitado, apenas com permissaõ ou pedidos diretos, o deploy a memsa coisa, e os pull request não precisam ser feitos quando o agente estiver trabalhando localmente.

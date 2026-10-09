@@ -1,4 +1,5 @@
 'use client';
+import { AuthCarrossel } from '@/app/components/AuthCarrossel';
 import { Logo } from '@/app/components/Logo';
 import { T, W } from '@/app/lib/theme';
 
@@ -7,10 +8,11 @@ import { T, W } from '@/app/lib/theme';
  * formulário de um lado, a imagem do outro; no telefone, a coluna única
  * chapada de sempre.
  *
- * A metade da direita não carrega conteúdo, e é de propósito: é o lugar da
- * imagem da tela de acesso (`--auth-art-img`, em globals.css), com o degradê
- * fosco segurando o espaço até ela chegar. No telefone ela some — lá a tela
- * inteira já é a superfície, e a imagem roubaria a altura do formulário.
+ * A metade da direita não carrega conteúdo do formulário: é o carrossel de
+ * fotos de escritório (`AuthCarrossel`), sob o véu dourado-escuro, com o degradê
+ * fosco de `--auth-foto-fundo` segurando o espaço até a primeira foto chegar. No
+ * telefone ela some — lá a tela inteira já é a superfície, e a imagem roubaria
+ * a altura do formulário.
  *
  * A entrada é escalonada de cima para baixo — marca, título, campos, rodapé —,
  * que é a ordem em que a tela é lida. É a primeira coisa que o produto mostra a
@@ -24,6 +26,9 @@ import { T, W } from '@/app/lib/theme';
  *   150px de altura para repetir o que a aba do navegador e a imagem ao lado já
  *   dizem. Sem ela o formulário se alinha ao centro em vez de escorrer para
  *   baixo.
+ *   No lugar do lockup inteiro fica só o símbolo, pequeno (`.auth-simbolo`):
+ *   sem nenhuma marca a tela parecia de outro produto, e o "V" sozinho devolve
+ *   a identidade por uma fração da altura — o wordmark era o que pesava.
  * - `escala` multiplica o tamanho da coluna inteira. O login sobra altura — são
  *   dois campos —, então ele cresce um pouco; o resto fica em 1.
  */
@@ -56,8 +61,20 @@ export function AuthShell({ title, subtitle, children, footer, marca = true, esc
                 </div>
               )}
 
-              {/* Sem a marca, o título é quem abre a coluna, e o respiro que o
-                  separava dela não tem mais o que separar. */}
+              {/* Sem o lockup, o símbolo abre a coluna no lugar dele: mesmo
+                  tempo zero da marca. É decorativo — o nome já está no título da
+                  aba e o h1 continua sendo o título —, então sai do leitor de
+                  tela pelo `aria-hidden` do invólucro, que alcança o
+                  `role="img"` do <svg>. O `size` é o corpo do wordmark (ver
+                  Logo): 22 dá ao "V" cerca de 40px de altura. */}
+              {!marca && (
+                <div className="auth-simbolo anim-fade-up" aria-hidden="true" style={{ display: 'flex', justifyContent: 'center' }}>
+                  <Logo size={22} variant="mark" />
+                </div>
+              )}
+
+              {/* Sem a marca, o título vem logo abaixo do símbolo, e o respiro
+                  grande que o separava do lockup dá lugar ao do `.auth-simbolo`. */}
               <h1 className="auth-titulo anim-fade-up anim-d1" style={{
                 fontFamily: T.display, fontWeight: W.title,
                 color: T.text, letterSpacing: '-0.015em',
@@ -82,10 +99,13 @@ export function AuthShell({ title, subtitle, children, footer, marca = true, esc
           </div>
         </div>
 
-        {/* `aria-hidden` porque não há o que anunciar: é superfície, não figura.
-            Sem ele, o leitor de tela pararia num `<div>` vazio entre o rodapé do
-            formulário e o fim da página. */}
-        <div className="auth-card__art" aria-hidden="true" />
+        {/* O painel deixou de ser só degradê e virou o carrossel de fotos. O
+            `aria-hidden` que ficava aqui desceu para dentro dele, nas fotos e na
+            logo: a barra de progresso são botões, e escondê-la junto tiraria do
+            teclado e do leitor de tela o único controle do painel. */}
+        <div className="auth-card__art">
+          <AuthCarrossel />
+        </div>
       </div>
     </div>
   );
