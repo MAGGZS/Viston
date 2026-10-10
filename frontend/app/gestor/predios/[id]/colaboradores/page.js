@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -19,8 +19,10 @@ import {
   useRemoveBuildingManager,
 } from '@/app/hooks/useApi';
 import { useToastStore } from '@/app/store/toast';
-import { avisarErro } from '@/app/lib/erros';
+import { avisarErro, mensagemDoErro } from '@/app/lib/erros';
+import { EscolhaDePapel } from '@/app/components/EscolhaDePapel';
 import { T, R, W } from '@/app/lib/theme';
+import { BotaoAjuda } from '@/app/components/ajuda/BotaoAjuda';
 
 // Gestor não está aqui: é outro tipo de conta, e entra pelo e-mail (ver
 // AddManagerForm). Os quatro papéis de vínculo trocam livremente entre si.
@@ -52,9 +54,9 @@ function Section({ title, hint, children, className = '' }) {
 /**
  * Linha de colaborador — usuário vinculado ao prédio.
  *
- * O papel é decisão do gestor: quem se vincula entra como visualizador e sobe
- * daqui. Virar gestor não passa por esta linha, porque gestor é outro tipo de
- * conta.
+ * O papel é decisão do gestor: escolhido ao aprovar o pedido de acesso, e
+ * trocado daqui quando precisar. Virar gestor não passa por esta linha, porque
+ * gestor é outro tipo de conta.
  */
 function MemberRow({ member, buildingId, onRemove, className = '' }) {
   const updateRole = useUpdateMemberRole();
@@ -191,18 +193,21 @@ function AddManagerForm({ buildingId }) {
   );
 }
 
-/** Uma solicitação pendente: quem pediu, quando, e as duas saídas. */
-function RequestRow({ request, buildingId, className = '' }) {
+/**
+ * Uma solicitação pendente: quem pediu, quando, e as duas saídas.
+ *
+ * "Aprovar" não aprova: abre a escolha de papel (ver `EscolhaDePapel`). Quem
+ * aprova é a escolha confirmada. "Rejeitar" continua direto, porque recusa não
+ * leva papel nenhum.
+ */
+function RequestRow({ request, buildingId, onApprove, aprovarRef, className = '' }) {
   const review = useReviewAccessRequest();
   const { show: toast } = useToastStore();
 
-  async function handle(status) {
+  async function handleReject() {
     try {
-      await review.mutateAsync({ buildingId, requestId: request.id, status });
-      toast(
-        status === 'APPROVED' ? 'Acesso aprovado! Entrou como visualizador.' : 'Solicitação rejeitada',
-        status === 'APPROVED' ? 'success' : 'info'
-      );
+      await review.mutateAsync({ buildingId, requestId: request.id, status: 'REJECTED' });
+      toast('Solicitação rejeitada', 'info');
     } catch (e) {
       avisarErro(toast, e, 'Erro ao revisar solicitação');
     }
@@ -219,16 +224,17 @@ function RequestRow({ request, buildingId, className = '' }) {
         {format(new Date(request.requested_at), 'dd/MM/yyyy', { locale: ptBR })}
       </span>
       <button
-        onClick={() => handle('APPROVED')}
+        ref={aprovarRef}
+        onClick={() => onApprove(request)}
         disabled={review.isPending}
-        title="Aprovar"
-        aria-label={`Aprovar ${request.user?.name}`}
+        title="Aprovar e escolher o papel"
+        aria-label={`Aprovar ${request.user?.name} e escolher o papel`}
         className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-pill bg-accent text-onaccent transition-all duration-150 hover:scale-105 active:scale-95 disabled:opacity-50 flex-shrink-0"
       >
         <Check size={13} /> Aprovar
       </button>
       <button
-        onClick={() => handle('REJECTED')}
+        onClick={handleReject}
         disabled={review.isPending}
         title="Rejeitar"
         aria-label={`Rejeitar ${request.user?.name}`}
@@ -237,6 +243,55 @@ function RequestRow({ request, buildingId, className = '' }) {
         <X size={14} />
       </button>
     </div>
+  );
+}
+
+/** O aviso de quem acabou de entrar, no papel que o gestor escolheu. */
+const APROVADO_TOAST = {
+  INSPECTOR: 'Acesso aprovado. Entrou como inspetor.',
+  RESPONSAVEL: 'Acesso aprovado. Entrou como responsável.',
+  MODERADOR: 'Acesso aprovado. Entrou como moderador.',
+  VIEWER: 'Acesso aprovado. Entrou como visualizador, que usa só o computador.',
+};
+
+/**
+ * O miolo da caixa de solicitações quando o gestor clicou em "Aprovar".
+ *
+ * Fica dentro da mesma caixa, trocando a lista pela escolha, e não numa segunda
+ * caixa por cima: duas caixas empilhadas obrigariam a fechar uma para voltar à
+ * outra, e "Voltar" aqui devolve à lista sem perder o lugar.
+ *
+ * O erro do servidor fica na própria escolha, ligado ao grupo de opções. O de
+ * plano incluído: a frase dele diz qual papel não coube, e quem está escolhendo
+ * precisa lê-la ali, ao lado das opções, para escolher outro.
+ */
+function AprovarComPapel({ request, buildingId, capacity, onDone, onBack }) {
+  const review = useReviewAccessRequest();
+  const { show: toast } = useToastStore();
+  const [erro, setErro] = useState(null);
+
+  async function handleConfirm(role) {
+    setErro(null);
+    try {
+      await review.mutateAsync({ buildingId, requestId: request.id, status: 'APPROVED', role });
+      toast(APROVADO_TOAST[role], 'success');
+      onDone();
+    } catch (e) {
+      // A recusa de plano também recarrega os membros (ver
+      // `useReviewAccessRequest`): o papel que não coube volta desabilitado.
+      setErro(mensagemDoErro(e, 'Não foi possível aprovar. Tente de novo em instantes.'));
+    }
+  }
+
+  return (
+    <EscolhaDePapel
+      request={request}
+      capacity={capacity}
+      pending={review.isPending}
+      error={erro}
+      onConfirm={handleConfirm}
+      onBack={onBack}
+    />
   );
 }
 
@@ -258,6 +313,12 @@ export default function GestorColaboradoresPage() {
   const { show: toast } = useToastStore();
 
   const [requestsModal, setRequestsModal] = useState(false);
+  const [aprovando, setAprovando] = useState(null); // pedido em escolha de papel
+  // O botão "Aprovar" de cada linha, por id do pedido. A escolha de papel troca
+  // a lista inteira dentro da caixa, então o botão clicado sai da tela; no
+  // "Voltar", o foco volta para ele, e não para o começo da página.
+  const botoesAprovar = useRef(new Map());
+  const focoDeVolta = useRef(null);
   const [confirmRemove, setConfirmRemove] = useState(null); // membro a remover
 
   const { data: membersData, isLoading: membersLoading } = useBuildingMembers(id);
@@ -267,6 +328,23 @@ export default function GestorColaboradoresPage() {
   const managers = membersData?.managers ?? [];
   const members = membersData?.members ?? [];
   const ownerId = membersData?.owner_manager_id ?? null;
+  const roleCapacity = membersData?.role_capacity ?? null;
+
+  useEffect(() => {
+    if (aprovando || !focoDeVolta.current) return;
+    botoesAprovar.current.get(focoDeVolta.current)?.focus();
+    focoDeVolta.current = null;
+  }, [aprovando]);
+
+  function voltarParaLista() {
+    focoDeVolta.current = aprovando?.id ?? null;
+    setAprovando(null);
+  }
+
+  function fecharSolicitacoes() {
+    setRequestsModal(false);
+    setAprovando(null);
+  }
 
   return (
     <GestorShell
@@ -274,15 +352,18 @@ export default function GestorColaboradoresPage() {
       title="Colaboradores"
       subtitle="Quem está neste prédio, e o que cada um pode fazer nele"
       actions={
-        <button onClick={() => setRequestsModal(true)}
-          className="relative flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-ink transition-colors flex-shrink-0">
-          <Users size={15} /> Solicitações
-          {requests.length > 0 && (
-            <span className="anim-pop-in flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-accent text-onaccent text-xs font-semibold">
-              {requests.length}
-            </span>
-          )}
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <BotaoAjuda contexto="gestor.colaboradores" compacto />
+          <button onClick={() => setRequestsModal(true)}
+            className="relative flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-ink transition-colors flex-shrink-0">
+            <Users size={15} /> Solicitações
+            {requests.length > 0 && (
+              <span className="anim-pop-in flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-accent text-onaccent text-xs font-semibold">
+                {requests.length}
+              </span>
+            )}
+          </button>
+        </div>
       }
     >
       <div className="flex-1 min-h-0 overflow-y-auto px-6 pt-0.5 pb-8">
@@ -352,30 +433,53 @@ export default function GestorColaboradoresPage() {
         </div>
       </div>
 
-      <Modal open={requestsModal} onClose={() => setRequestsModal(false)} title="Solicitações de acesso" maxWidth={560}>
-        {requestsLoading ? (
-          <div className="flex flex-col gap-3">
-            {[1,2,3].map(i => <div key={i} className="h-12 bg-card rounded-control animate-pulse" />)}
-          </div>
-        ) : requests.length === 0 ? (
-          <p className="text-mute text-sm text-center py-6">Nenhuma solicitação pendente</p>
+      <Modal
+        open={requestsModal}
+        onClose={fecharSolicitacoes}
+        title={aprovando ? `Aprovar ${aprovando.user?.name ?? 'solicitação'}` : 'Solicitações de acesso'}
+        maxWidth={560}
+      >
+        {aprovando ? (
+          <AprovarComPapel
+            key={aprovando.id}
+            request={aprovando}
+            buildingId={id}
+            capacity={roleCapacity}
+            onDone={() => setAprovando(null)}
+            onBack={voltarParaLista}
+          />
         ) : (
-          <div className="flex flex-col gap-2">
-            {requests.map((r, idx) => (
-              <RequestRow
-                key={r.id}
-                request={r}
-                buildingId={id}
-                className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
-              />
-            ))}
-          </div>
+          <>
+            {requestsLoading ? (
+              <div className="flex flex-col gap-3">
+                {[1,2,3].map(i => <div key={i} className="h-12 bg-card rounded-control animate-pulse" />)}
+              </div>
+            ) : requests.length === 0 ? (
+              <p className="text-mute text-sm text-center py-6">Nenhuma solicitação pendente</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {requests.map((r, idx) => (
+                  <RequestRow
+                    key={r.id}
+                    request={r}
+                    buildingId={id}
+                    onApprove={setAprovando}
+                    aprovarRef={(el) => {
+                      if (el) botoesAprovar.current.set(r.id, el);
+                      else botoesAprovar.current.delete(r.id);
+                    }}
+                    className={`anim-fade-up anim-d${Math.min(idx + 1, 6)}`}
+                  />
+                ))}
+              </div>
+            )}
+            <p className="text-faint text-xs mt-4 leading-relaxed">
+              Ao aprovar, você escolhe o papel de quem entra. O visualizador usa
+              só o computador; para trabalhar pelo celular, escolha inspetor ou
+              responsável. O papel pode mudar depois, nesta mesma tela.
+            </p>
+          </>
         )}
-        <p className="text-faint text-xs mt-4 leading-relaxed">
-          Quem é aprovado entra como visualizador. O papel dele muda aqui mesmo,
-          nesta tela — inclusive para moderador, que recebe e fecha os chamados,
-          ou responsável, que os atende.
-        </p>
       </Modal>
 
       {/* Confirmação de desvinculo */}

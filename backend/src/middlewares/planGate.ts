@@ -44,14 +44,67 @@ function countPeople(buildingId: string, role: PlanRole): Promise<number> {
     : buildingRepository.countMembersByRole(buildingId, role);
 }
 
-/** O nome do papel como a pessoa o lê na tela. */
-const NOME_DO_PAPEL: Record<PlanRole, string> = {
-  GESTOR: 'gestores',
-  [BuildingRole.MODERADOR]: 'moderadores',
-  [BuildingRole.RESPONSAVEL]: 'responsáveis',
-  [BuildingRole.INSPECTOR]: 'inspetores',
-  [BuildingRole.VIEWER]: 'visualizadores',
+/**
+ * O nome do papel como a pessoa o lê na tela, no singular e no plural.
+ *
+ * As duas formas ficam lado a lado porque a frase do limite concorda com o
+ * número: "comporta 1 inspetor", "comporta 2 inspetores". Antes só havia o
+ * plural, e o plano Livre, que comporta uma pessoa por papel, aparecia como
+ * "comporta 1 inspetores", que lê como erro de digitação.
+ */
+const NOME_DO_PAPEL: Record<PlanRole, { um: string; varios: string }> = {
+  GESTOR: { um: 'gestor', varios: 'gestores' },
+  [BuildingRole.MODERADOR]: { um: 'moderador', varios: 'moderadores' },
+  [BuildingRole.RESPONSAVEL]: { um: 'responsável', varios: 'responsáveis' },
+  [BuildingRole.INSPECTOR]: { um: 'inspetor', varios: 'inspetores' },
+  [BuildingRole.VIEWER]: { um: 'visualizador', varios: 'visualizadores' },
 };
+
+/**
+ * "1 prédio", "2 prédios". Singular só para exatamente um: zero e os demais
+ * números vão no plural, como se fala ("comporta 0 moderadores").
+ */
+export function quantidadeComNome(quantidade: number, um: string, varios: string): string {
+  return `${quantidade} ${quantidade === 1 ? um : varios}`;
+}
+
+/**
+ * A frase de quando o papel lotou. Exportada para que o teste confira a
+ * concordância em todos os papéis, inclusive com limites que nenhum plano usa
+ * hoje (só o Livre tem teto de pessoas, e ele é sempre um).
+ */
+export function fraseDoLimiteDePapel(role: PlanRole, limite: number): string {
+  const nome = NOME_DO_PAPEL[role];
+  return `O plano deste prédio comporta ${quantidadeComNome(limite, nome.um, nome.varios)} por prédio.`;
+}
+
+type PlanoResolvido = Awaited<ReturnType<typeof planService.resolvePlan>>;
+
+/**
+ * O papel existe neste plano? Hoje só o moderador pode não existir.
+ *
+ * Separado de `assertCanAddPerson` para que a prévia de vagas (`roleCapacity`)
+ * use exatamente a mesma regra e a mesma frase do erro.
+ */
+function recusaPorRecurso(plan: PlanoResolvido, role: PlanRole): FeatureLockedError | null {
+  if (role === BuildingRole.MODERADOR && !plan.features.includes('MODERADOR')) {
+    return new FeatureLockedError('O plano deste prédio não inclui moderadores.', {
+      feature: 'MODERADOR',
+      plan: plan.code,
+    });
+  }
+  return null;
+}
+
+/** Ainda há vaga naquele papel, dado quantos já existem? */
+function recusaPorLimite(plan: PlanoResolvido, role: PlanRole, atuais: number): PlanLimitError | null {
+  const limite = plan.limits.people[role];
+  if (!Number.isFinite(limite) || atuais < limite) return null;
+  return new PlanLimitError(
+    fraseDoLimiteDePapel(role, limite),
+    { limit: limite, current: atuais, plan: plan.code }
+  );
+}
 
 export const planGate = {
   /**
@@ -69,7 +122,7 @@ export const planGate = {
 
     if (atuais >= plan.buildingsAllowed) {
       throw new PlanLimitError(
-        `Seu plano comporta ${plan.buildingsAllowed} ${plan.buildingsAllowed === 1 ? 'prédio' : 'prédios'}.`,
+        `Seu plano comporta ${quantidadeComNome(plan.buildingsAllowed, 'prédio', 'prédios')}.`,
         { limit: plan.buildingsAllowed, current: atuais, plan: plan.code }
       );
     }
@@ -80,7 +133,7 @@ export const planGate = {
    *
    * O papel de moderador tem duas respostas possíveis, e a diferença importa
    * para quem lê: no plano que não o inclui, a mensagem é "seu plano não tem
-   * moderador" — e não "você já tem 0 de 0", que não explica nada.
+   * moderador" e não "você já tem 0 de 0", que não explica nada.
    */
   async assertCanAddPerson(buildingId: string, role: PlanRole, scope?: object): Promise<void> {
     const building = await loadBuilding(buildingId, scope);
@@ -88,23 +141,58 @@ export const planGate = {
 
     const plan = await planService.resolvePlan(building.owner_manager_id, scope);
 
-    if (role === BuildingRole.MODERADOR && !plan.features.includes('MODERADOR')) {
-      throw new FeatureLockedError('O plano deste prédio não inclui moderadores.', {
-        feature: 'MODERADOR',
-        plan: plan.code,
-      });
-    }
+    const semRecurso = recusaPorRecurso(plan, role);
+    if (semRecurso) throw semRecurso;
 
-    const limite = plan.limits.people[role];
-    if (!Number.isFinite(limite)) return;
+    // A contagem só quando o teto é finito: no plano sem limite de pessoas ela
+    // seria uma ida ao banco para uma resposta que já se sabe.
+    if (!Number.isFinite(plan.limits.people[role])) return;
 
-    const atuais = await countPeople(buildingId, role);
-    if (atuais >= limite) {
-      throw new PlanLimitError(
-        `O plano deste prédio comporta ${limite} ${NOME_DO_PAPEL[role]} por prédio.`,
-        { limit: limite, current: atuais, plan: plan.code }
-      );
-    }
+    const semVaga = recusaPorLimite(plan, role, await countPeople(buildingId, role));
+    if (semVaga) throw semVaga;
+  },
+
+  /**
+   * Quais papéis de vínculo ainda cabem neste prédio, e por que não os que não
+   * cabem.
+   *
+   * Existe para a tela de aprovação de pedido de acesso mostrar o papel sem
+   * vaga já desabilitado, com o motivo escrito, antes do clique. As contagens
+   * vêm de quem chama (a lista de membros que a rota já carregou), e o motivo é
+   * a mesma frase do erro de `assertCanAddPerson`: a tela e o 403 dizem a mesma
+   * coisa, porque saem da mesma regra.
+   *
+   * É só uma prévia. A palavra final continua sendo a do `assertCanAddPerson`,
+   * dentro do `withPlanLock`, no momento da aprovação.
+   *
+   * `atuais` pode chegar como promessa: quem chama começa isto junto com a
+   * leitura dos membros, e o prédio e o plano são resolvidos enquanto a lista
+   * ainda está a caminho. As contagens só são esperadas no fim.
+   */
+  async roleCapacity(
+    buildingId: string,
+    atuais: Readonly<Record<BuildingRole, number>> | Promise<Readonly<Record<BuildingRole, number>>>,
+    scope?: object
+  ): Promise<Record<BuildingRole, { allowed: boolean; code: string | null; reason: string | null }>> {
+    const building = await loadBuilding(buildingId, scope);
+    const plan = building.owner_manager_id
+      ? await planService.resolvePlan(building.owner_manager_id, scope)
+      : null;
+    const contagens = await atuais;
+
+    const papeis = Object.values(BuildingRole) as BuildingRole[];
+    return Object.fromEntries(
+      papeis.map((role) => {
+        // Prédio sem dono não é barrado (ver o topo deste arquivo).
+        const recusa = plan
+          ? recusaPorRecurso(plan, role) ?? recusaPorLimite(plan, role, contagens[role] ?? 0)
+          : null;
+        return [
+          role,
+          { allowed: !recusa, code: recusa?.code ?? null, reason: recusa?.message ?? null },
+        ];
+      })
+    ) as Record<BuildingRole, { allowed: boolean; code: string | null; reason: string | null }>;
   },
 
   /** O plano deste prédio abre aquele recurso? */

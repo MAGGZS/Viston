@@ -9,7 +9,7 @@ import { inspectionRepository } from '../repositories/inspection.repository';
 import { buildHeatmap } from '../services/inspection.service';
 import { inspectionFiltersSchema } from '../validators/inspection.validator';
 import { ok, created, noContent } from '../utils/response';
-import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors';
+import { NotFoundError, ConflictError, ForbiddenError, GestorNaoSolicitaAcessoError } from '../utils/errors';
 import { normalizeShareKey, isValidShareKeyFormat, isValidShareTokenFormat } from '../utils/shareKey';
 import { zonedParts, zonedRange } from '../utils/timezone';
 import { normalizeEmail } from '../services/confirmation.service';
@@ -253,12 +253,38 @@ export const buildingController = {
     // O prédio já veio da guarda da rota; aqui sai da cache da requisição. É ele
     // que diz qual dos gestores paga pelo prédio — a tela da troca de dono
     // precisa saber para quem mostrar o botão.
-    const [managers, members, building] = await Promise.all([
+    const membersPromise = buildingRepository.getMembers(req.params.id);
+
+    // Quantos já há em cada papel, contados da lista de membros. É a mesma
+    // contagem de `countMembersByRole` (todo vínculo do prédio), só que sem
+    // quatro idas ao banco a mais.
+    const atuais = membersPromise.then(
+      (members) =>
+        Object.fromEntries(
+          (Object.values(BuildingRole) as BuildingRole[]).map((role) => [
+            role,
+            members.filter((m) => m.role === role).length,
+          ])
+        ) as Record<BuildingRole, number>
+    );
+
+    // `role_capacity` deixa a tela de aprovação de pedidos mostrar o papel sem
+    // vaga desabilitado, com o motivo, antes do clique (ver `planGate.roleCapacity`).
+    // Sai junto com as outras leituras: o plano do dono é resolvido enquanto
+    // a lista de membros ainda chega, e não depois dela.
+    const [managers, members, building, role_capacity] = await Promise.all([
       buildingRepository.getManagers(req.params.id),
-      buildingRepository.getMembers(req.params.id),
+      membersPromise,
       loadBuilding(req.user, req.params.id),
+      planGate.roleCapacity(req.params.id, atuais, req.user),
     ]);
-    ok(res, { managers, members, owner_manager_id: building?.owner_manager_id ?? null });
+
+    ok(res, {
+      managers,
+      members,
+      owner_manager_id: building?.owner_manager_id ?? null,
+      role_capacity,
+    });
   },
 
   /**
@@ -412,7 +438,7 @@ export const buildingController = {
     // entra no prédio sendo adicionada por outro gestor, nunca por aqui — e o id
     // dela não pode virar `user_id` de ninguém.
     if (req.user.kind !== 'USER') {
-      throw new ForbiddenError('Conta de gestor não solicita acesso a prédio');
+      throw new GestorNaoSolicitaAcessoError();
     }
 
     const building = await findBuildingByKeyOrFail(req.body?.key);
@@ -437,33 +463,68 @@ export const buildingController = {
   },
 
   async reviewAccessRequest(req: AuthenticatedRequest, res: Response) {
-    const { status } = req.body as { status: 'APPROVED' | 'REJECTED' };
+    // O validador garante: APPROVED sempre traz `role`, REJECTED nunca traz.
+    const { status, role } = req.body as {
+      status: 'APPROVED' | 'REJECTED';
+      role?: BuildingRole;
+    };
 
     const updated = await withPlanLock(`building:${req.params.id}`, async () => {
-      // A solicitação precisa ser do prédio da rota — caso contrário aprovaria-se
+      // A solicitação precisa ser do prédio da rota; caso contrário aprovaria-se
       // acesso a um prédio só informando o id de outra solicitação.
       const request = await buildingRepository.findAccessRequestById(req.params.requestId);
       if (!request || request.building_id !== req.params.id) throw new NotFoundError('Solicitação');
       if (request.status !== 'PENDING') throw new ConflictError('Solicitação já foi revisada');
 
-      // O teto de visualizadores do plano, antes de mexer na solicitação: se a
-      // vaga não existe, a fila não pode perder o pedido — aprovado sem vínculo,
-      // ele sairia da lista do gestor sem dar acesso a ninguém.
-      if (status === 'APPROVED') {
-        await planGate.assertCanAddPerson(req.params.id, BuildingRole.VIEWER, req.user);
+      // O teto do papel escolhido, antes de mexer na solicitação: se a vaga não
+      // existe, a fila não pode perder o pedido: aprovado sem vínculo, ele
+      // sairia da lista do gestor sem dar acesso a ninguém. É a mesma pergunta
+      // (e o mesmo erro) da promoção de membro, dentro do mesmo lock por prédio,
+      // para que duas aprovações em paralelo não ocupem juntas a última vaga.
+      if (status === 'APPROVED' && role) {
+        await planGate.assertCanAddPerson(req.params.id, role, req.user);
       }
 
       // Resposta e vínculo numa transação só (ver o repositório).
-      return buildingRepository.reviewAccessRequest(req.params.requestId, req.params.id, status);
+      return buildingRepository.reviewAccessRequest(req.params.requestId, req.params.id, status, role);
     });
 
+    // As duas respostas deixam rastro (SEC-03). Antes só a aprovação ficava
+    // registrada, e a recusa sumia: o gestor que recusou alguém por engano não
+    // tinha como ver depois quem recusou nem quando. Nas duas, `request_id`
+    // liga o registro ao pedido que o originou.
+    //
+    // Fora da transação do repositório, de propósito. `auditRepository.log`
+    // engole a própria falha para nunca derrubar a operação principal, e dentro
+    // de uma transação do Postgres isso não funciona: um INSERT que falha
+    // aborta a transação inteira, e a auditoria passaria a desfazer a revisão.
+    // Levá-la para dentro pediria trocar essa regra, que vale para o sistema
+    // todo, e não só para este ponto.
     if (status === 'APPROVED') {
       await auditRepository.log({
         ...actorAudit(req.user),
         building_id: req.params.id,
         action: AuditAction.CREATE,
         entity: 'BuildingMember',
-        metadata: { user_id: updated.user_id, role: BuildingRole.VIEWER },
+        metadata: {
+          request_id: req.params.requestId,
+          user_id: updated.user_id,
+          role,
+          origin: 'ACCESS_REQUEST',
+        },
+      });
+    } else {
+      await auditRepository.log({
+        ...actorAudit(req.user),
+        building_id: req.params.id,
+        action: AuditAction.UPDATE,
+        entity: 'BuildingAccessRequest',
+        entity_id: req.params.requestId,
+        metadata: {
+          request_id: req.params.requestId,
+          user_id: updated.user_id,
+          status: 'REJECTED',
+        },
       });
     }
 

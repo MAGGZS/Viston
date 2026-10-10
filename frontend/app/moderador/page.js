@@ -18,6 +18,7 @@ import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { parseReportDate } from '@/app/lib/date';
 import { CELL_PAD_Y, placeholderCellHeight } from '@/app/lib/pagination';
 import { T, R, W } from '@/app/lib/theme';
+import { BotaoAjuda } from '@/app/components/ajuda/BotaoAjuda';
 
 // A célula de espera tem a altura da de verdade — o `Badge` da coluna de status
 // entre os recuos de `CELL_PAD_Y` —, para o cartão não encolher a cada seta.
@@ -175,6 +176,7 @@ export default function ModeradorPage() {
       isLoading={buildingLoading}
       title="Painel"
       subtitle={building?.name}
+      actions={<BotaoAjuda contexto="moderador.painel" compacto />}
     >
       <div style={{ flex: 1, overflowY: 'auto', padding: '2px 32px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
         {/* Onde estão os chamados, na ordem do caminho que eles fazem.

@@ -416,6 +416,8 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
                         ? `${shownGestor.name} volta a entrar normalmente no sistema.`
                         : `${shownGestor.name} deixa de entrar e de renovar a sessão. Os prédios continuam existindo.`,
                       confirmar: suspenso ? 'Liberar' : 'Suspender',
+                      // Liberar devolve o acesso: não tira nada de ninguém.
+                      destrutiva: !suspenso,
                       acao: alternarSuspensao,
                       mutacao: suspender,
                     })
@@ -672,6 +674,8 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
                                       ? `O prédio "${p.name}" volta a ser visível e editável.`
                                       : `O prédio "${p.name}" fica congelado no painel do gestor.`,
                                     confirmar: inativo ? 'Reativar' : 'Inativar',
+                                    // Reativar só destrava o prédio de volta.
+                                    destrutiva: !inativo,
                                     acao: () => alternarCongelamento(p),
                                     mutacao: congelar,
                                   })
@@ -777,7 +781,7 @@ function GestorDetalhesModal({ gestor, open, onClose, onConceder }) {
         title={confirmacao?.titulo}
         message={confirmacao?.mensagem}
         confirmLabel={confirmacao?.confirmar}
-        confirmVariant="danger"
+        confirmVariant={confirmacao?.destrutiva === false ? 'primary' : 'danger'}
         loading={emCurso.isPending}
         onConfirm={() => confirmacao?.acao()}
         onCancel={() => setConfirmacao(null)}

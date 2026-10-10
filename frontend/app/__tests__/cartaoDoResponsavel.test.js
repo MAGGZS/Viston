@@ -103,7 +103,7 @@ describe('cartão do responsável', () => {
     await screen.findByText(/3º andar · Elétrica/);
 
     expect(screen.queryByText(/Lâmpada do corredor queimada/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Concluir serviço/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Informar conclusão/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Detalhes' })).not.toBeInTheDocument();
   });
 
@@ -117,6 +117,37 @@ describe('cartão do responsável', () => {
     expect(push).toHaveBeenCalledWith('/responsavel/chamados/t1');
   });
 
+  /**
+   * Na fila "Concluídos" moram os dois fins do trabalho dele. A etiqueta
+   * separa um do outro e diz quem fecha: o toque dele não fecha o chamado.
+   */
+  it('em "Concluídos", a etiqueta diz se espera o moderador ou se ele já fechou', async () => {
+    const user = userEvent.setup();
+    Tela([
+      { ...TICKET, id: 't2', status: 'AGUARDANDO_FECHAMENTO', done_at: '2026-08-22T10:00:00.000Z' },
+      { ...TICKET, id: 't3', status: 'CONCLUIDO', floor: { label: '5º andar' }, closed_at: '2026-08-23T10:00:00.000Z' },
+    ]);
+
+    await user.click(await screen.findByRole('tab', { name: /Concluídos/ }));
+
+    const esperando = await screen.findByRole('button', { name: /Abrir Elétrica em 3º andar/ });
+    expect(within(esperando).getByText('Aguardando o moderador fechar')).toBeInTheDocument();
+    const fechado = screen.getByRole('button', { name: /Abrir Elétrica em 5º andar/ });
+    expect(within(fechado).getByText('Fechado pelo moderador')).toBeInTheDocument();
+  });
+
+  it('"Concluídos" vazio explica o caminho, sem dizer que concluir fecha', async () => {
+    const user = userEvent.setup();
+    Tela();
+
+    await user.click(await screen.findByRole('tab', { name: /Concluídos/ }));
+
+    expect(
+      await screen.findByText(/Quando você informar a conclusão de um chamado, ele aparece aqui aguardando o moderador fechar/)
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Você ainda não concluiu nenhum chamado')).not.toBeInTheDocument();
+  });
+
   it('receber continua na lista, e não abre a tela junto', async () => {
     const user = userEvent.setup();
     api.post.mockResolvedValue({ data: {} });
@@ -127,5 +158,45 @@ describe('cartão do responsável', () => {
     expect(api.post).toHaveBeenCalledWith('/tickets/t1/receive');
     // O cartão inteiro abre a tela; receber para o clique antes de chegar nele.
     expect(push).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * O prazo no cartão da lista, no telefone.
+ *
+ * O mesmo fio do quadro do computador (`FioDoPrazo`): a barra do quanto já se
+ * gastou e a notícia em palavras ao lado. Como o rótulo do botão substitui o
+ * que está dentro dele, o prazo vai no rótulo também.
+ */
+describe('prazo no cartão do responsável', () => {
+  const ATRASADO = { dias: 6, limite: 5, restantes: 0, consumo: 1.2, atrasado: true, em_risco: false, congelado: false };
+
+  it('o atrasado diz "Atrasado" no cartão e no rótulo do botão', async () => {
+    const user = userEvent.setup();
+    Tela([{ ...TICKET, sla: ATRASADO }]);
+    await abrirEmAndamento(user);
+
+    const cartao = await screen.findByRole('button', { name: /Abrir Elétrica em 3º andar\. Atrasado há 1 dia útil/ });
+    const texto = within(cartao).getByText('Atrasado há 1 dia útil');
+    expect(texto.getAttribute('style')).toContain('var(--color-danger)');
+  });
+
+  it('no prazo, diz quanto falta', async () => {
+    const user = userEvent.setup();
+    Tela([{ ...TICKET, sla: { ...ATRASADO, dias: 1, restantes: 4, consumo: 0.2, atrasado: false } }]);
+    await abrirEmAndamento(user);
+
+    const cartao = await screen.findByRole('button', { name: /Abrir Elétrica em 3º andar/ });
+    expect(within(cartao).getByText('4 dias úteis para o prazo')).toBeInTheDocument();
+  });
+
+  it('o que o moderador já fechou não mostra prazo', async () => {
+    const user = userEvent.setup();
+    Tela([{ ...TICKET, status: 'CONCLUIDO', closed_at: '2026-08-23T10:00:00.000Z', sla: { ...ATRASADO, congelado: true } }]);
+
+    await user.click(await screen.findByRole('tab', { name: /Concluídos/ }));
+
+    const cartao = await screen.findByRole('button', { name: 'Abrir Elétrica em 3º andar' });
+    expect(within(cartao).queryByText(/Atrasado/)).not.toBeInTheDocument();
   });
 });

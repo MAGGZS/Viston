@@ -1,0 +1,869 @@
+{
+  "pastas": [
+    {
+      "slug": "primeiros-passos",
+      "titulo": "Primeiros passos",
+      "ordem": 1,
+      "descricao": "Criar a conta, entrar em um prédio e conhecer o seu perfil.",
+      "icone": "Rocket",
+      "target_roles": [
+        "SEM_PREDIO"
+      ],
+      "admin_only": false,
+      "funcionalidades": [
+        {
+          "id": "primeiros-passos-criar-conta",
+          "titulo": "Criar sua conta",
+          "dispositivo": "MOBILE",
+          "ordem": 1,
+          "script_hash": "689b1f535b52ac83f78f30e5e9cdf5451851326580d88d34733e44a72db9f9b1",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Abrir o cadastro",
+              "narracao": "Para usar o Viston você precisa de uma conta. Na tela de entrada, toque em Criar conta."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Escolher o cadastro certo",
+              "narracao": "Este é o cadastro para quem vai trabalhar em um prédio: vistoriar, atender chamados ou acompanhar relatórios. Se você vai cadastrar e administrar prédios, use o cadastro de gestor, no link logo acima."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Preencher os dados",
+              "narracao": "Preencha seu nome, seu e-mail e uma senha. Use um e-mail que você abre com frequência, porque é por ele que o Viston fala com você."
+            },
+            {
+              "ordem": 4,
+              "titulo": "Confirmar o e-mail",
+              "narracao": "Mandamos um código para o seu e-mail. Abra a mensagem, digite o código aqui e toque em Confirmar. Sem essa confirmação, a conta não entra."
+            },
+            {
+              "ordem": 5,
+              "titulo": "Primeiro acesso",
+              "narracao": "Pronto. Sua conta começa sem nenhum prédio. O próximo passo é pedir acesso ao prédio em que você vai trabalhar, pelo QR Code, pelo link ou pelo código."
+            }
+          ]
+        },
+        {
+          "id": "primeiros-passos-entrar-qr-link",
+          "titulo": "Entrar em um prédio pelo QR Code ou link",
+          "dispositivo": "MOBILE",
+          "ordem": 2,
+          "script_hash": "da782791efd7fd0f2a56d3168bf665398c5b98b62409a67fa9b829a0e1cd9ac8",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "O que é o QR Code e o link",
+              "narracao": "O gestor do prédio pode te mostrar um QR Code ou te mandar um link. Os dois servem para a mesma coisa e valem por quinze minutos."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Abrir o link",
+              "narracao": "Ao escanear o QR Code ou tocar no link, o Viston abre já mostrando o nome do prédio. Confira se é o prédio certo."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Pedir acesso",
+              "narracao": "Toque em Solicitar acesso ao prédio. Seu pedido vai direto para o gestor."
+            },
+            {
+              "ordem": 4,
+              "titulo": "Esperar a aprovação",
+              "narracao": "Enquanto o gestor não responde, o pedido aparece como pendente. Quando ele aprovar, o prédio surge no seu app, já com o seu papel: inspetor, responsável, moderador ou visualizador."
+            },
+            {
+              "ordem": 5,
+              "titulo": "Se o link expirou",
+              "narracao": "Se aparecer que o link expirou, é porque passaram os quinze minutos. Peça um novo ao gestor, ou use o código do prédio."
+            }
+          ]
+        },
+        {
+          "id": "primeiros-passos-entrar-codigo",
+          "titulo": "Entrar em um prédio pelo código",
+          "dispositivo": "MOBILE",
+          "ordem": 3,
+          "script_hash": "8e725b121467dc167c9bfdca2791b735d6a1d99540a3d9a6da08ae3d4556a27e",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Onde digitar o código",
+              "narracao": "O código do prédio tem doze caracteres e o gestor costuma mandar por mensagem. Na tela inicial, o campo para digitar o código já aparece."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Digitar e enviar",
+              "narracao": "Digite o código exatamente como recebeu e toque em Buscar. Confira o nome do prédio e toque em Conectar-se. Se aparecer código inválido, confira com o gestor: ele pode ter gerado um código novo."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Acompanhar o pedido",
+              "narracao": "Agora é só esperar a aprovação. O gestor escolhe o seu papel na hora de aprovar."
+            }
+          ]
+        },
+        {
+          "id": "primeiros-passos-perfil",
+          "titulo": "Seu perfil",
+          "dispositivo": "MOBILE",
+          "ordem": 4,
+          "script_hash": "d299c363c141c72365ef329e4c19294cc9fa40a460351c438d32a2c37fb849f6",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Abrir o perfil",
+              "narracao": "Seus dados ficam no Perfil, na barra de baixo."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Nome e e-mail",
+              "narracao": "Aqui você corrige seu nome e seu e-mail. Trocar o e-mail pede uma nova confirmação."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Trocar a senha",
+              "narracao": "Para trocar a senha, informe a atual e a nova."
+            },
+            {
+              "ordem": 4,
+              "titulo": "Tema claro ou escuro",
+              "narracao": "Em Tema você escolhe entre o modo escuro e o claro. Em sol forte, no térreo ou na cobertura, o claro costuma ler melhor."
+            },
+            {
+              "ordem": 5,
+              "titulo": "Excluir a conta",
+              "narracao": "Se você quiser sair do Viston de vez, a exclusão fica aqui. Ela pede confirmação e não tem volta."
+            }
+          ]
+        },
+        {
+          "id": "primeiros-passos-usar-ajuda",
+          "titulo": "Como usar a ajuda",
+          "dispositivo": "MOBILE",
+          "ordem": 5,
+          "script_hash": "8393e0f2f323c270a38cedd904a85b0770a2ddd1c8705b47678a88d3b6483201",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Abrir a ajuda",
+              "narracao": "Sempre que tiver dúvida, abra Ajuda e tutoriais no seu Perfil."
+            },
+            {
+              "ordem": 2,
+              "titulo": "As pastas",
+              "narracao": "Cada pasta é um cargo. As do seu cargo aparecem primeiro. As outras continuam abertas, se você quiser entender o trabalho de quem está do outro lado."
+            },
+            {
+              "ordem": 3,
+              "titulo": "As abas de cada tutorial",
+              "narracao": "Cada tutorial é dividido em passos. Toque em um passo e o vídeo vai direto para aquele ponto."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "gestor",
+      "titulo": "Gestor",
+      "ordem": 2,
+      "descricao": "Cadastrar prédios, montar a equipe, aprovar pedidos e acompanhar a operação.",
+      "icone": "Building2",
+      "target_roles": [
+        "GESTOR"
+      ],
+      "admin_only": false,
+      "funcionalidades": [
+        {
+          "id": "gestor-criar-conta-predio",
+          "titulo": "Criar conta de gestor e o primeiro prédio",
+          "dispositivo": "DESKTOP",
+          "ordem": 1,
+          "script_hash": "a596b176ed2e93fd333180bd1b7c5fc55910106c2c6a89c97679c74a5ea29fc7",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "O cadastro de gestor",
+              "narracao": "Gestor é quem cadastra os prédios, monta a equipe e acompanha a operação. Se você recebeu um convite para trabalhar em um prédio, este não é o seu cadastro: use o link do aviso."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Criar a conta",
+              "narracao": "Preencha seus dados e confirme o e-mail com o código que enviamos."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Cadastrar o prédio",
+              "narracao": "No painel, crie o seu primeiro prédio. Com o nome e os dados básicos, ele já existe e já pode receber a equipe."
+            }
+          ]
+        },
+        {
+          "id": "gestor-andares",
+          "titulo": "Cadastrar e remover andares",
+          "dispositivo": "DESKTOP",
+          "ordem": 2,
+          "script_hash": "9b099124d730b7f912384b9835d398032e35d132b2eab0178bc53ff385e3eaf2",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Ver os andares",
+              "narracao": "Os andares são a base da vistoria. Eles aparecem sempre do mais alto para o mais baixo, que é a ordem em que o inspetor percorre o prédio."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Adicionar um andar",
+              "narracao": "Para adicionar, informe o andar. Subsolos usam números negativos, e o Viston coloca cada um no lugar certo da lista."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Remover um andar",
+              "narracao": "Remover pede confirmação. Antes de remover, confira o que acontece com o histórico daquele andar na mensagem da tela."
+            }
+          ]
+        },
+        {
+          "id": "gestor-compartilhar",
+          "titulo": "Compartilhar o prédio com a equipe",
+          "dispositivo": "DESKTOP",
+          "ordem": 3,
+          "script_hash": "766c247cb3372c33a240a2d57e4c4162ada6a29c95f8342de40e6c72e365881c",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "As três formas",
+              "narracao": "Há três formas de chamar alguém para o prédio: QR Code, link e código. Todas levam a um pedido de acesso que você aprova."
+            },
+            {
+              "ordem": 2,
+              "titulo": "QR Code",
+              "narracao": "O QR Code é para quem está com você agora. A pessoa aponta a câmera e pede acesso. Ele vale por quinze minutos."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Link",
+              "narracao": "O link faz o mesmo, mas pode ser enviado por mensagem. Também vale quinze minutos."
+            },
+            {
+              "ordem": 4,
+              "titulo": "Código do prédio",
+              "narracao": "O código é fixo e vale até você gerar outro. É o jeito mais prático de mandar para a equipe toda."
+            },
+            {
+              "ordem": 5,
+              "titulo": "Se o código vazou",
+              "narracao": "Se o código foi parar onde não devia, gere um novo. O antigo para de funcionar na hora. Lembre que o código só permite pedir acesso: quem entra é sempre você que decide."
+            }
+          ]
+        },
+        {
+          "id": "gestor-aprovar-pedidos",
+          "titulo": "Aprovar pedidos escolhendo o papel",
+          "dispositivo": "DESKTOP",
+          "ordem": 4,
+          "script_hash": "c1a943870773b2ae3d87fbeedebbd515d16abe70f61d882f8b77d5f288b17847",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Ver os pedidos",
+              "narracao": "Quando alguém pede acesso, o pedido aparece aqui, com nome e e-mail. Confira se você conhece a pessoa."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Os papéis",
+              "narracao": "Ao aprovar, você escolhe o papel. Inspetor faz as vistorias pelo celular. Responsável atende os chamados de manutenção, também pelo celular. Moderador organiza os chamados e acompanha os números. Visualizador só consulta relatórios, e somente pelo computador."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Aprovar",
+              "narracao": "Escolha o papel e confirme. A pessoa já entra no prédio pronta para trabalhar."
+            },
+            {
+              "ordem": 4,
+              "titulo": "Recusar",
+              "narracao": "Não conhece quem pediu? Recuse. A pessoa não entra e o pedido some da lista."
+            }
+          ]
+        },
+        {
+          "id": "gestor-equipe",
+          "titulo": "Gerenciar a equipe",
+          "dispositivo": "DESKTOP",
+          "ordem": 5,
+          "script_hash": "de2d711db1bb2af5483a12fd151a79d436713a6968a6778367d8335d70972127",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "A lista de membros",
+              "narracao": "Aqui está toda a equipe do prédio e o papel de cada pessoa."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Mudar o papel",
+              "narracao": "Para mudar o papel, escolha o novo na própria lista. A mudança vale na hora, inclusive para o que a pessoa vê no celular."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Remover alguém",
+              "narracao": "Quem sai da equipe perde o acesso ao prédio na hora, inclusive aos relatórios e planilhas. O que a pessoa registrou continua no histórico."
+            }
+          ]
+        },
+        {
+          "id": "gestor-cogestores-transferencia",
+          "titulo": "Co-gestores e transferência do prédio",
+          "dispositivo": "DESKTOP",
+          "ordem": 6,
+          "script_hash": "55b6c767b3db3b45bcec368c123e35c618275ac1a3c6c601adc350c75982eba7",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Adicionar um co-gestor",
+              "narracao": "Gestores não pedem acesso com código. Para dividir a administração, adicione outro gestor aqui. Ele precisa ter uma conta de gestor."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Dono e co-gestor",
+              "narracao": "Um prédio pode ter vários gestores, mas só um dono, que é quem pode transferir o prédio."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Transferir o prédio",
+              "narracao": "Para passar o prédio a outro gestor, inicie a transferência. Ele tem sete dias para aceitar. Até lá, nada muda."
+            },
+            {
+              "ordem": 4,
+              "titulo": "Prédio congelado",
+              "narracao": "Às vezes um prédio aparece congelado, com um aviso explicando o que falta acertar. O histórico continua aberto, mas não entram vistorias novas até isso ser resolvido."
+            }
+          ]
+        },
+        {
+          "id": "gestor-acompanhar-operacao",
+          "titulo": "Acompanhar a operação",
+          "dispositivo": "DESKTOP",
+          "ordem": 7,
+          "script_hash": "26ec2434a11fe8e2bace48aa445861a6d781f01c9573d750dc32bfac90af75e7",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Os chamados do prédio",
+              "narracao": "Como gestor, você enxerga os mesmos chamados que o moderador e também pode encaminhar e fechar."
+            },
+            {
+              "ordem": 2,
+              "titulo": "O painel analítico",
+              "narracao": "O painel mostra como os chamados andam, quanto o prédio custou e como a equipe está atendendo. Os detalhes de cada parte estão na pasta Moderador."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Gestor não vistoria",
+              "narracao": "Gestor não faz vistoria. Quem vistoria é o inspetor. Se você também vai vistoriar, crie uma conta comum e entre no prédio como inspetor."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "inspetor",
+      "titulo": "Inspetor",
+      "ordem": 3,
+      "descricao": "Fazer a vistoria andar por andar, retomar e consultar o histórico.",
+      "icone": "ClipboardCheck",
+      "target_roles": [
+        "INSPECTOR"
+      ],
+      "admin_only": false,
+      "funcionalidades": [
+        {
+          "id": "inspetor-vistoria-completa",
+          "titulo": "Fazer uma vistoria completa",
+          "dispositivo": "MOBILE",
+          "ordem": 1,
+          "script_hash": "f09635213a1b55d53d68ec36a2c6f28b4466798b3362447b387893368b3bca82",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Começar",
+              "narracao": "A vistoria é feita andando pelo prédio, com o celular na mão. Na tela inicial, toque em Iniciar vistoria."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Escolher os andares",
+              "narracao": "Marque os andares que você vai percorrer hoje. Não precisa ser o prédio inteiro. O Viston organiza do andar mais alto para o mais baixo."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Andar sem problema",
+              "narracao": "Andar sem nada a registrar? Marque Nada a relatar e vá para o próximo andar. É o caminho mais comum."
+            },
+            {
+              "ordem": 4,
+              "titulo": "Registrar uma ocorrência",
+              "narracao": "Encontrou algo? Escolha o tipo de manutenção, se ela é corretiva ou preventiva, a prioridade e descreva o que viu. O responsável pode ficar em branco: o moderador encaminha depois."
+            },
+            {
+              "ordem": 5,
+              "titulo": "Mais de uma ocorrência no andar",
+              "narracao": "Se houver mais de um problema no mesmo andar, adicione outro registro. Cada um vira um chamado separado."
+            },
+            {
+              "ordem": 6,
+              "titulo": "Se faltou algo",
+              "narracao": "Se faltar algum campo, o Viston aponta qual é e não deixa avançar. Corrija e siga."
+            },
+            {
+              "ordem": 7,
+              "titulo": "Voltar a um andar",
+              "narracao": "Pode voltar a qualquer andar já feito. O que você preencheu continua lá."
+            },
+            {
+              "ordem": 8,
+              "titulo": "Enviar",
+              "narracao": "No último andar, o botão muda para Enviar vistoria. Ao enviar, ela vira relatório, planilha, entra no calendário e no histórico, e os chamados chegam ao moderador."
+            }
+          ]
+        },
+        {
+          "id": "inspetor-prioridade-situacao",
+          "titulo": "Prioridade e situação do andar",
+          "dispositivo": "MOBILE",
+          "ordem": 2,
+          "script_hash": "fb2491639f4156cc8ebf5931c6d6985446dc9fad510831f4fb1d54aa145e8622",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "As três situações",
+              "narracao": "Cada andar sai da vistoria com uma situação: OK, Atenção ou Problema. Você não escolhe isso. O Viston calcula pela prioridade do que você registrou."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Como é calculado",
+              "narracao": "Andar sem ocorrência fica OK. Prioridade média deixa o andar em Atenção. Prioridade alta deixa em Problema. E a vistoria inteira assume a pior situação entre os andares."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Por que isso importa",
+              "narracao": "É assim que um vazamento grave no subsolo não fica escondido numa vistoria de dez andares. Escolha a prioridade com cuidado."
+            }
+          ]
+        },
+        {
+          "id": "inspetor-retomar-vistoria",
+          "titulo": "Retomar uma vistoria interrompida",
+          "dispositivo": "MOBILE",
+          "ordem": 3,
+          "script_hash": "46d2fd463c465961fafe065ca7f1a916558f64199e297c2f4f3836512c812a9f",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "O que fica salvo",
+              "narracao": "Cada andar que você conclui fica guardado no próprio celular. Se o app fechar ou a bateria acabar, o trabalho não se perde. O andar que você está preenchendo só fica salvo quando você avança."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Retomar",
+              "narracao": "Ao abrir o Viston de novo, ele pergunta se você quer continuar de onde parou. Toque em retomar e você volta ao mesmo andar."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Se a internet cair no envio",
+              "narracao": "Se a internet cair na hora de enviar, nada se perde. É só tentar de novo quando o sinal voltar. O Viston reconhece o reenvio e não cria uma vistoria duplicada."
+            },
+            {
+              "ordem": 4,
+              "titulo": "Descartar",
+              "narracao": "Se não quiser continuar, descarte. O rascunho também vence sozinho depois de um dia."
+            }
+          ]
+        },
+        {
+          "id": "inspetor-historico",
+          "titulo": "Histórico e relatório do dia",
+          "dispositivo": "MOBILE",
+          "ordem": 4,
+          "script_hash": "30887acaa90508a3e6b711603f2a7e403a7a59e9478b4e6c0c753db807e94da1",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Abrir o histórico",
+              "narracao": "No histórico estão todas as vistorias dos seus prédios, das mais novas para as mais antigas."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Vistorias e ocorrências",
+              "narracao": "Use o alternador para ver as ocorrências uma a uma, com a situação de cada chamado: em aberto, encaminhado, em andamento ou concluída."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Abrir o relatório do dia",
+              "narracao": "Ao abrir uma vistoria, você vê o relatório do dia inteiro. Se outra pessoa também vistoriou o prédio naquele dia, os registros dela aparecem juntos, e os nomes de quem vistoriou ficam no topo."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "responsavel",
+      "titulo": "Responsável",
+      "ordem": 4,
+      "descricao": "Receber chamados, registrar o andamento e informar a conclusão.",
+      "icone": "Wrench",
+      "target_roles": [
+        "RESPONSAVEL"
+      ],
+      "admin_only": false,
+      "funcionalidades": [
+        {
+          "id": "responsavel-receber-chamado",
+          "titulo": "Receber um chamado",
+          "dispositivo": "MOBILE",
+          "ordem": 1,
+          "script_hash": "3d92a1dcbbd4ef8405321a9301c50c3a9800bf182ef6552fd7d43b2189077ef0",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "O aviso de chamado novo",
+              "narracao": "Quando o moderador encaminha um chamado para você, o aviso aparece aqui em cima."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Ver o chamado",
+              "narracao": "Abra o chamado para ver o andar, a prioridade, o prazo e as observações do moderador."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Receber",
+              "narracao": "Toque em Receber chamado para assumir. Só você pode fazer isso: é a sua confirmação de que o chamado está com você. A partir daqui, o prazo corre na sua conta."
+            }
+          ]
+        },
+        {
+          "id": "responsavel-trabalhar-chamado",
+          "titulo": "Trabalhar no chamado",
+          "dispositivo": "MOBILE",
+          "ordem": 2,
+          "script_hash": "9e27712fc9998d62d58c45627a68b0437f3a6d4ede26735146784e6d7c493a2e",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Sua fila",
+              "narracao": "Seus chamados ficam separados por etapa: os que esperam você receber, os que estão em andamento e os que você já concluiu."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Registrar o andamento",
+              "narracao": "Registre o que foi feito, com fotos se puder. Isso ajuda o moderador a acompanhar sem precisar te ligar."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Aguardando terceiro",
+              "narracao": "Se o moderador marcar o chamado como aguardando terceiro, é porque depende de uma peça, um fornecedor ou outra equipe. Continue registrando o andamento normalmente."
+            },
+            {
+              "ordem": 4,
+              "titulo": "O prazo",
+              "narracao": "O prazo aparece em cada chamado, na lista e dentro dele. Quando passa, ele fica em vermelho e diz há quanto tempo está atrasado."
+            }
+          ]
+        },
+        {
+          "id": "responsavel-informar-conclusao",
+          "titulo": "Informar a conclusão",
+          "dispositivo": "MOBILE",
+          "ordem": 3,
+          "script_hash": "e3b145d6795a8c8e550d0b5289199dc5f3f5422db49d036069cbf96ce408bce3",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "O relatório do serviço",
+              "narracao": "Terminou? Escreva em poucas palavras o que foi feito. Esse texto vai para o moderador."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Informar conclusão",
+              "narracao": "Toque em Informar conclusão. Atenção: isso não fecha o chamado. Você avisa que terminou, e o moderador revisa e fecha."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Aguardando o fechamento",
+              "narracao": "Enquanto o moderador não fecha, o chamado mostra que está aguardando. Depois de fechado, aparece como fechado pelo moderador."
+            },
+            {
+              "ordem": 4,
+              "titulo": "Desfazer",
+              "narracao": "Informou cedo demais? Toque em Cancelar conclusão. O chamado volta para em andamento e o texto que você escreveu continua lá."
+            }
+          ]
+        },
+        {
+          "id": "responsavel-ocorrencia-avulsa",
+          "titulo": "Registrar uma ocorrência com fotos",
+          "dispositivo": "MOBILE",
+          "ordem": 4,
+          "script_hash": "b167bc3f8bbd4064604385016ef4126a2b4fe0321d6fc9784445fc88b72e8ab5",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Quando usar",
+              "narracao": "Achou um problema fora da vistoria? Você mesmo pode registrar a ocorrência, com fotos."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Preencher",
+              "narracao": "Escolha o andar, o tipo de manutenção, a categoria e a prioridade, e descreva o que encontrou."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Anexar fotos",
+              "narracao": "Anexe fotos do problema. O Viston reduz o tamanho delas antes de enviar, para não pesar no seu plano de dados. Há um limite de fotos por ocorrência, mostrado no botão."
+            },
+            {
+              "ordem": 4,
+              "titulo": "Registrar",
+              "narracao": "Toque em Registrar ocorrência. Como foi você quem encontrou, o chamado já entra na sua fila, em andamento."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "moderador",
+      "titulo": "Moderador",
+      "ordem": 5,
+      "descricao": "Encaminhar e fechar chamados, e acompanhar os números do prédio.",
+      "icone": "ShieldCheck",
+      "target_roles": [
+        "MODERADOR"
+      ],
+      "admin_only": false,
+      "funcionalidades": [
+        {
+          "id": "moderador-painel",
+          "titulo": "O painel do moderador",
+          "dispositivo": "DESKTOP",
+          "ordem": 1,
+          "script_hash": "8a72ca476d68a02b861df9b83bf9e85f8b16b72fdd1624f2ce204eed386161e2",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Os contadores",
+              "narracao": "O painel mostra quantos chamados estão em cada etapa: novos, encaminhados, em andamento e concluídos."
+            },
+            {
+              "ordem": 2,
+              "titulo": "A barra lateral",
+              "narracao": "Pela barra lateral você entra em cada fila. O trabalho do dia começa pelos novos."
+            },
+            {
+              "ordem": 3,
+              "titulo": "O calendário",
+              "narracao": "O calendário mostra os dias com vistoria. Clique em um dia para abrir o relatório."
+            }
+          ]
+        },
+        {
+          "id": "moderador-encaminhar",
+          "titulo": "Encaminhar um chamado",
+          "dispositivo": "DESKTOP",
+          "ordem": 2,
+          "script_hash": "d81c3e2dc88c767e7c40eb87bdfeb28d84f9553dbceb4eb394c2c9d48a89193e",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "A fila de novos",
+              "narracao": "Toda ocorrência registrada na vistoria sem responsável chega aqui como chamado novo."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Abrir o chamado",
+              "narracao": "Abra o chamado para ver o andar, a prioridade, a descrição e quem vistoriou."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Encaminhar",
+              "narracao": "Escolha o responsável e encaminhe. O chamado fica aguardando até ele confirmar o recebimento."
+            },
+            {
+              "ordem": 4,
+              "titulo": "Deixar uma nota",
+              "narracao": "Use as notas para dizer o que precisa ser feito ou o que ficou combinado. Lembre de salvar a nota."
+            },
+            {
+              "ordem": 5,
+              "titulo": "Cancelar o envio",
+              "narracao": "Encaminhou para a pessoa errada? Cancele o envio enquanto ela ainda não recebeu. O chamado volta para os novos, sem responsável."
+            }
+          ]
+        },
+        {
+          "id": "moderador-acompanhar-fechar",
+          "titulo": "Acompanhar e fechar",
+          "dispositivo": "DESKTOP",
+          "ordem": 3,
+          "script_hash": "34a8664221b9ab6cfb3c3efde4aeaa5906bc88b0589cf48972411060862759da",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Em andamento",
+              "narracao": "Aqui ficam os chamados que o responsável já recebeu. Abra para ver o andamento que ele registrou."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Aguardando terceiro",
+              "narracao": "Se o serviço depende de uma peça, um fornecedor ou outra equipe, marque como aguardando terceiro. O responsável é avisado."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Trocar o responsável",
+              "narracao": "Para trocar o responsável com o chamado em andamento, reencaminhe. O novo responsável precisa receber de novo, e o que o anterior informou é descartado."
+            },
+            {
+              "ordem": 4,
+              "titulo": "Concluídos pelo responsável",
+              "narracao": "Quando o responsável informa que terminou, o chamado espera por você. Leia o relatório do serviço e, se estiver tudo certo, finalize."
+            },
+            {
+              "ordem": 5,
+              "titulo": "Finalizar",
+              "narracao": "Ao finalizar, escreva o que foi a manutenção. Se houve gasto, marque a opção e informe o valor. Se não houve, deixe desmarcado: assim o relatório não soma um zero que ninguém conferiu."
+            }
+          ]
+        },
+        {
+          "id": "moderador-painel-analitico",
+          "titulo": "O painel analítico",
+          "dispositivo": "DESKTOP",
+          "ordem": 4,
+          "script_hash": "7b5b8a9420dba181ebaf242b2d4d11e37d0cc7042fa8857588272862687524a0",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Os filtros",
+              "narracao": "Os filtros do topo valem para o painel todo. Escolha o período e, se quiser, um andar."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Processos",
+              "narracao": "Em Processos você vê o caminho dos chamados: o que pede ação hoje, onde eles travam e o que está fora do prazo."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Prédio",
+              "narracao": "Em Prédio você vê onde o dinheiro foi, por tipo de manutenção e por andar. Clique em um andar para filtrar o painel por ele. Os valores vêm do que é informado ao finalizar cada chamado."
+            },
+            {
+              "ordem": 4,
+              "titulo": "Desempenho",
+              "narracao": "Em Desempenho você compara o atendimento da equipe: quanto cada pessoa recebeu e em quanto tempo resolveu."
+            }
+          ]
+        },
+        {
+          "id": "moderador-relatorio-docx",
+          "titulo": "Relatório de chamados em Word",
+          "dispositivo": "DESKTOP",
+          "ordem": 5,
+          "script_hash": "bb8e633cd363e320263b2cc1244d5d9ac6acfd8ae2bed2f061a63783656307d9",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Escolher o período",
+              "narracao": "Para prestar contas, gere o relatório de chamados do período."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Gerar e baixar",
+              "narracao": "O Viston monta um documento Word, pronto para enviar ou imprimir."
+            },
+            {
+              "ordem": 3,
+              "titulo": "O que o documento traz",
+              "narracao": "O documento traz o que foi feito em cada chamado e quanto custou. Por isso vale escrever bem o relatório ao finalizar: é ele que aparece aqui."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "visualizador",
+      "titulo": "Visualizador",
+      "ordem": 6,
+      "descricao": "Acompanhar o calendário de vistorias, os relatórios e as planilhas.",
+      "icone": "Eye",
+      "target_roles": [
+        "VIEWER"
+      ],
+      "admin_only": false,
+      "funcionalidades": [
+        {
+          "id": "visualizador-calendario",
+          "titulo": "O calendário de vistorias",
+          "dispositivo": "DESKTOP",
+          "ordem": 1,
+          "script_hash": "50aa72bc8f449e0290b0c5c0f4837d966db3c19d786e17fb9068118b3cfe4a56",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Visão mensal",
+              "narracao": "O calendário mostra os dias com vistoria. Quanto mais forte a cor, mais vistorias naquele dia."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Semestral e anual",
+              "narracao": "Mude para a visão semestral ou anual para enxergar a frequência das vistorias ao longo do tempo."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Seus prédios",
+              "narracao": "Você só vê os prédios em que tem acesso."
+            }
+          ]
+        },
+        {
+          "id": "visualizador-relatorio-planilha",
+          "titulo": "Relatório do dia e planilha",
+          "dispositivo": "DESKTOP",
+          "ordem": 2,
+          "script_hash": "181b56b52557e5c9b2484818e790f9431217dbdb54c1f2df09c130db323c8592",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "Abrir o dia",
+              "narracao": "Clique em um dia para abrir o relatório."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Ler o relatório",
+              "narracao": "O relatório junta todas as vistorias daquele dia, com os nomes de quem vistoriou. Cada andar mostra a pior situação encontrada no dia."
+            },
+            {
+              "ordem": 3,
+              "titulo": "Baixar a planilha",
+              "narracao": "Baixe a planilha em Excel para guardar ou repassar. O download começa na hora; se demorar para clicar, o link de download vence e é só pedir de novo."
+            }
+          ]
+        },
+        {
+          "id": "visualizador-so-computador",
+          "titulo": "Por que não abre no celular",
+          "dispositivo": "MOBILE",
+          "ordem": 3,
+          "script_hash": "46423bb29af892d2466e855a8092c316616b9c98d3f97f3bc217c116c81dcb3f",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "O aviso",
+              "narracao": "O visualizador consulta relatórios, calendário e planilhas, e isso foi feito para a tela do computador. Pelo celular, aparece este aviso."
+            },
+            {
+              "ordem": 2,
+              "titulo": "O que fazer",
+              "narracao": "Abra o Viston no computador. Se o seu trabalho é vistoriar ou atender chamados, peça ao gestor para mudar o seu papel."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

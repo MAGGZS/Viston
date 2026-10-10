@@ -4,6 +4,7 @@ import { Button } from '@/app/components/ui';
 import { useToastStore } from '@/app/store/toast';
 import { useBuildingByKey, useRequestAccess } from '@/app/hooks/useApi';
 import { formatShareKey, normalizeShareKey, isCompleteShareKey } from '@/app/lib/shareKey';
+import { mensagemDoPedidoDeAcesso } from '@/app/lib/erros';
 import { T, R, W } from '@/app/lib/theme';
 
 /**
@@ -38,7 +39,9 @@ export function JoinBuildingForm({ align = 'left' }) {
       setRequested(true);
       toast('Solicitação enviada! Aguarde a aprovação.', 'success');
     } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao solicitar acesso', 'error');
+      // Conta de gestor recebe a explicação do que fazer, e não a recusa seca
+      // do servidor. Ver `mensagemDoPedidoDeAcesso`.
+      toast(mensagemDoPedidoDeAcesso(e, 'Erro ao solicitar acesso'), 'error');
     }
   }
 

@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { generateShareKey, generateShareToken, SHARE_TOKEN_TTL_MS } from '../utils/shareKey';
 import { sortFloorsDesc } from '../utils/floorOrder';
 import { logger } from '../lib/logger';
+import { ConflictError } from '../utils/errors';
 
 // Campos seguros para expor a quem nao e gestor (nunca inclui share_key).
 const PUBLIC_BUILDING_FIELDS = { id: true, name: true, description: true } as const;
@@ -371,9 +372,10 @@ export const buildingRepository = {
   /**
    * Vincula o usuário ao prédio.
    *
-   * Quem entra por solicitação entra como VIEWER; promover a INSPECTOR é decisão
-   * do gestor, na tela de colaboradores. Não existe promover a gestor por aqui:
-   * gestor é outro tipo de conta.
+   * O papel padrão é VIEWER. Quem entra por solicitação não passa por aqui: o
+   * vínculo nasce em `reviewAccessRequest`, com o papel que o gestor escolheu ao
+   * aprovar. Não existe promover a gestor por aqui: gestor é outro tipo de
+   * conta.
    */
   addMember(buildingId: string, userId: string, role: BuildingRole = BuildingRole.VIEWER) {
     return prisma.buildingMember.create({
@@ -532,24 +534,53 @@ export const buildingRepository = {
   },
 
   /**
-   * Responde a solicitação e, se aprovada, cria o vínculo — as duas coisas ou
+   * Responde a solicitação e, se aprovada, cria o vínculo: as duas coisas ou
    * nenhuma.
    *
    * Separadas, uma falha entre elas deixava a solicitação APPROVED sem vínculo:
-   * o pedido sumia da fila do gestor sem dar acesso a ninguém. Quem aprova entra
-   * sempre como visualizador; o gestor promove depois, se quiser.
+   * o pedido sumia da fila do gestor sem dar acesso a ninguém.
+   *
+   * O vínculo nasce com o papel que o gestor escolheu ao aprovar. Antes era
+   * sempre visualizador, e o visualizador só usa o computador: quem pedia pelo
+   * celular era aprovado e ficava sem nada para fazer. O controller já conferiu
+   * o limite do plano para esse papel, dentro do `withPlanLock` do prédio.
+   *
+   * A troca de status é condicional (SEC-02): só vira APPROVED ou REJECTED o
+   * pedido que ainda está PENDING e é deste prédio. O controller já confere o
+   * status antes, mas essa leitura e esta escrita são dois momentos, e o
+   * `withPlanLock` só serializa dentro de um processo: com duas instâncias do
+   * backend, duas revisões do mesmo pedido passariam juntas pela conferência e
+   * a segunda criaria (ou tentaria criar) um vínculo a mais. Com a condição no
+   * próprio UPDATE, quem chega depois encontra zero linhas, recebe o mesmo 409
+   * de "já foi revisada" e não toca no vínculo, que só nasce depois disso.
    */
-  reviewAccessRequest(id: string, buildingId: string, status: 'APPROVED' | 'REJECTED') {
+  reviewAccessRequest(
+    id: string,
+    buildingId: string,
+    status: 'APPROVED' | 'REJECTED',
+    role?: BuildingRole
+  ) {
     return prisma.$transaction(async (tx) => {
-      const row = await tx.buildingAccessRequest.update({
-        where: { id },
+      const { count } = await tx.buildingAccessRequest.updateMany({
+        where: { id, building_id: buildingId, status: 'PENDING' },
         data: { status, reviewed_at: new Date() },
+      });
+      if (count !== 1) throw new ConflictError('Solicitação já foi revisada');
+
+      // `updateMany` não devolve a linha: ela é lida de novo, na mesma
+      // transação, com a conta de quem pediu, que é o que a tela mostra.
+      const row = await tx.buildingAccessRequest.findUniqueOrThrow({
+        where: { id },
         include: { user: { select: ACCOUNT_FIELDS } },
       });
 
       if (status === 'APPROVED') {
+        // Aprovar sem papel não chega aqui (o validador recusa antes). Se um dia
+        // chegar, falhar é melhor do que adivinhar um papel e repetir o problema
+        // do visualizador que não consegue usar o celular.
+        if (!role) throw new Error('Aprovação sem papel');
         await tx.buildingMember.create({
-          data: { building_id: buildingId, user_id: row.user_id, role: BuildingRole.VIEWER },
+          data: { building_id: buildingId, user_id: row.user_id, role },
         });
       }
 

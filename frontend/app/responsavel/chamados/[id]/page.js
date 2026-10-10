@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -8,24 +8,26 @@ import { RouteGuard } from '@/app/components/RouteGuard';
 import { SoNoCelular } from '@/app/components/TelaPorLargura';
 import { Badge, Skeleton } from '@/app/components/ui';
 import { M, MCard, MButton, MRound, CONTENT_ID, RESPIRO_TOPO } from '@/app/components/mobile/kit';
-import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
+import { ConfirmModal, UnsavedChangesModal } from '@/app/components/ConfirmModal';
 import { UnsavedScope, useUnsavedField, useUnsavedGuard, useUnsavedScope } from '@/app/hooks/useUnsavedGuard';
 import { LinhaDoTempo, temLinhaDoTempo } from '@/app/components/LinhaDoTempo';
 import { CancelarConclusaoBox } from '@/app/components/CancelarConclusaoBox';
+import { TextoDoPrazo } from '@/app/components/PrazoDoChamado';
 import { dayLabel, stampLabel } from '@/app/components/OcorrenciaModal';
 import { useTicket, useTicketUpdates, useReceiveTicket, useReportTicketDone } from '@/app/hooks/useApi';
 import {
   MAINTENANCE_TYPES,
   CATEGORIES,
   PRIORITIES,
-  OCCURRENCE_STATUS_LABEL,
   RECORD_STATUS_VARIANT,
   labelOf,
   formatCost,
 } from '@/app/lib/maintenanceOptions';
+import { INFORMAR_CONCLUSAO, estadoParaOResponsavel } from '@/app/lib/chamadosDoResponsavel';
 import { R, W } from '@/app/lib/theme';
 import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
+import { mensagemDoErro } from '@/app/lib/erros';
 
 const PRIORITY_VARIANT = { ALTA: 'danger', MEDIA: 'warning', BAIXA: 'default' };
 
@@ -62,15 +64,21 @@ function ConclusaoBox({ ticket, temRegistro }) {
   const reportDone = useReportTicketDone();
   const { show: toast } = useToastStore();
   const [report, setReport] = useState(ticket.done_report ?? '');
+  // A confirmação fica entre o toque e o envio: ela é quem diz que este gesto
+  // não fecha o chamado (ver `INFORMAR_CONCLUSAO`).
+  const [confirmando, setConfirmando] = useState(false);
+  const dicaId = useId();
 
   useUnsavedField(report !== (ticket.done_report ?? ''));
 
   async function handleDone() {
     try {
       await reportDone.mutateAsync({ id: ticket.id, done_report: report.trim() });
-      toast('Conclusão informada. O moderador vai fechar o chamado.', 'success');
+      setConfirmando(false);
+      toast(INFORMAR_CONCLUSAO.sucesso, 'success');
     } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao informar conclusão', 'error');
+      setConfirmando(false);
+      toast(mensagemDoErro(e, INFORMAR_CONCLUSAO.falha), 'error');
     }
   }
 
@@ -94,20 +102,34 @@ function ConclusaoBox({ ticket, temRegistro }) {
       </label>
 
       <MButton
-        onClick={handleDone}
+        onClick={() => setConfirmando(true)}
         loading={reportDone.isPending}
         disabled={!temRegistro}
+        aria-describedby={!temRegistro ? dicaId : undefined}
         style={{ width: '100%' }}
       >
-        <CheckCheck size={15} /> Concluir serviço
+        <CheckCheck size={15} /> {INFORMAR_CONCLUSAO.botao}
       </MButton>
 
       {/* Diz o que falta e onde fazer, e não só que o botão está apagado. */}
       {!temRegistro && (
-        <p style={{ color: M.faint, fontSize: 12, lineHeight: 1.6, textAlign: 'center' }}>
-          Registre ao menos uma atualização acima antes de concluir.
+        <p id={dicaId} style={{ color: M.faint, fontSize: 12, lineHeight: 1.6, textAlign: 'center' }}>
+          Registre ao menos uma atualização acima antes de informar a conclusão.
         </p>
       )}
+
+      <ConfirmModal
+        open={confirmando}
+        title={INFORMAR_CONCLUSAO.titulo}
+        message={INFORMAR_CONCLUSAO.mensagem}
+        confirmLabel={INFORMAR_CONCLUSAO.confirmar}
+        cancelLabel={INFORMAR_CONCLUSAO.voltar}
+        confirmVariant="primary"
+        tone="neutral"
+        loading={reportDone.isPending}
+        onConfirm={handleDone}
+        onCancel={() => setConfirmando(false)}
+      />
     </MCard>
   );
 }
@@ -189,8 +211,11 @@ function TelaDaOcorrencia() {
           <UnsavedScope report={report}>
             <MCard className="anim-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {/* O estado dito para quem executou: depois de informar a
+                    conclusão, "Em andamento" aqui faria parecer que o toque não
+                    valeu. Ver `ESTADO_PARA_O_RESPONSAVEL`. */}
                 <Badge variant={RECORD_STATUS_VARIANT[ticket.status] ?? 'default'}>
-                  {OCCURRENCE_STATUS_LABEL[ticket.status] ?? ticket.status}
+                  {estadoParaOResponsavel(ticket.status)}
                 </Badge>
                 <Badge variant={PRIORITY_VARIANT[ticket.priority] ?? 'default'}>
                   {labelOf(PRIORITIES, ticket.priority)}
@@ -217,6 +242,11 @@ function TelaDaOcorrencia() {
                 <Fact label="Vistoriado por">{ticket.report?.inspector?.name ?? '—'}</Fact>
                 {ticket.forwarded_at && <Fact label="Encaminhado em">{stampLabel(ticket.forwarded_at)}</Fact>}
                 {ticket.received_at && <Fact label="Recebido em">{stampLabel(ticket.received_at)}</Fact>}
+                {/* O prazo dito como na caixa do computador: o atraso em
+                    vermelho, com o triângulo e a palavra escrita. */}
+                <Fact label="Prazo">
+                  <TextoDoPrazo ticket={ticket} size={14} color={M.text} weight={W.strong} />
+                </Fact>
                 {ticket.maintenance_cost !== null && ticket.maintenance_cost !== undefined && (
                   <Fact label="Gasto">{formatCost(ticket.maintenance_cost)}</Fact>
                 )}

@@ -10,19 +10,21 @@ import { SoNoCelular } from '@/app/components/TelaPorLargura';
 import { Badge } from '@/app/components/ui';
 import { M, MPage, MTopBar, MCard, MButton, MRound } from '@/app/components/mobile/kit';
 import { RegistrarOcorrenciaModal } from '@/app/components/RegistrarOcorrenciaModal';
+import { FioDoPrazo } from '@/app/components/PrazoDoChamado';
 import { useMyTickets, useReceiveTicket } from '@/app/hooks/useApi';
 import {
   MAINTENANCE_TYPES,
   CATEGORIES,
   PRIORITIES,
-  OCCURRENCE_STATUS_LABEL,
   RECORD_STATUS_VARIANT,
   labelOf,
 } from '@/app/lib/maintenanceOptions';
 import { parseReportDate } from '@/app/lib/date';
+import { estadoParaOResponsavel, prazo, textoDoPrazo } from '@/app/lib/chamadosDoResponsavel';
 import { R, W, MOTION } from '@/app/lib/theme';
 import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
+import { BotaoAjuda } from '@/app/components/ajuda/BotaoAjuda';
 
 const PRIORITY_VARIANT = { ALTA: 'danger', MEDIA: 'warning', BAIXA: 'default' };
 
@@ -64,6 +66,13 @@ function TicketCard({ ticket, className = '' }) {
   }
 
   const day = parseReportDate(ticket.report?.date);
+  // O rótulo do botão substitui o que está dentro dele para o leitor de tela,
+  // então o prazo tem de ir nele também: sem isso, "Atrasado" só chegaria a
+  // quem enxerga o cartão.
+  const mostraPrazo = ticket.status !== 'CONCLUIDO' && prazo(ticket).dias != null;
+  const rotulo =
+    `Abrir ${labelOf(MAINTENANCE_TYPES, ticket.maintenance_type)} em ${ticket.floor?.label ?? 'andar não informado'}` +
+    (mostraPrazo ? `. ${textoDoPrazo(ticket)}` : '');
 
   return (
     // O recuo mora no botão de dentro, e não no cartão: "Receber" é um segundo
@@ -79,7 +88,7 @@ function TicketCard({ ticket, className = '' }) {
       <button
         type="button"
         onClick={() => router.push(`/responsavel/chamados/${ticket.id}`)}
-        aria-label={`Abrir ${labelOf(MAINTENANCE_TYPES, ticket.maintenance_type)} em ${ticket.floor?.label ?? 'andar não informado'}`}
+        aria-label={rotulo}
         style={{
           display: 'flex', flexDirection: 'column', gap: 12, width: '100%', padding: 16,
           background: 'transparent', border: 'none', font: 'inherit', color: 'inherit',
@@ -105,13 +114,26 @@ function TicketCard({ ticket, className = '' }) {
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {/* Na fila "Concluídos" moram os dois fins: o que ele informou e o
+              moderador ainda não fechou, e o que já foi fechado. A etiqueta é
+              o que separa um do outro, e diz quem fecha (ver
+              `ESTADO_PARA_O_RESPONSAVEL`). */}
           <Badge variant={RECORD_STATUS_VARIANT[ticket.status] ?? 'default'}>
-            {OCCURRENCE_STATUS_LABEL[ticket.status] ?? ticket.status}
+            {estadoParaOResponsavel(ticket.status)}
           </Badge>
           <Badge variant={PRIORITY_VARIANT[ticket.priority] ?? 'default'}>
             {labelOf(PRIORITIES, ticket.priority)}
           </Badge>
         </div>
+
+        {/* O mesmo fio do quadro do computador: quanto do prazo já foi gasto e,
+            ao lado, a notícia em palavras. Some só no que o moderador já
+            fechou, como na última coluna de lá. */}
+        {mostraPrazo && (
+          <div style={{ width: '100%' }}>
+            <FioDoPrazo ticket={ticket} fontSize={12} />
+          </div>
+        )}
       </button>
 
       {/* Receber é o único gesto que sobra na lista: é um toque, não tem o que
@@ -220,10 +242,18 @@ const FAIXA_LISTA = {
   overflowX: 'clip',
 };
 
+/**
+ * O que cada fila diz quando está vazia.
+ *
+ * A de "Concluídos" dizia "você ainda não concluiu nenhum chamado", e lia-se
+ * como se concluir fosse um gesto que encerra tudo. O gesto do responsável é
+ * informar a conclusão; quem fecha é o moderador. A frase agora conta o que
+ * aparece ali e em que ordem: primeiro esperando o moderador, depois fechado.
+ */
 const VAZIO = {
   RECEBER: 'Nenhum chamado esperando você receber',
   ANDAMENTO: 'Nenhum chamado em andamento com você',
-  CONCLUIDOS: 'Você ainda não concluiu nenhum chamado',
+  CONCLUIDOS: 'Quando você informar a conclusão de um chamado, ele aparece aqui aguardando o moderador fechar, e continua aqui depois de fechado.',
 };
 
 /** O trilho tem 4px de folga de cada lado; a pílula que corre ocupa o resto. */
@@ -383,9 +413,12 @@ export default function ResponsavelPage() {
           title="Meus"
           accent="chamados"
           actions={
-            <MRound label="Registrar ocorrência" onClick={() => setModalNovaAberta(true)}>
-              <Plus size={18} />
-            </MRound>
+            <>
+              <BotaoAjuda contexto="responsavel.fila" />
+              <MRound label="Registrar ocorrência" onClick={() => setModalNovaAberta(true)}>
+                <Plus size={18} />
+              </MRound>
+            </>
           }
         />
 

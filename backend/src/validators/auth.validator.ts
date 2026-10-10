@@ -46,11 +46,12 @@ export const updateUserSchema = z
 // Os quatro papéis de vínculo: quem vistoria, quem só acompanha, quem recebe os
 // chamados e quem os atende. Promover a gestor não passa por aqui, porque gestor
 // é outro tipo de conta (ver POST /buildings/:id/managers).
+const PAPEIS_DE_VINCULO = ['INSPECTOR', 'VIEWER', 'MODERADOR', 'RESPONSAVEL'] as const;
+const ERRO_DE_PAPEL = 'Papel deve ser INSPECTOR, VIEWER, MODERADOR ou RESPONSAVEL';
+
 export const updateMemberRoleSchema = z
   .object({
-    role: z.enum(['INSPECTOR', 'VIEWER', 'MODERADOR', 'RESPONSAVEL'], {
-      required_error: 'Papel deve ser INSPECTOR, VIEWER, MODERADOR ou RESPONSAVEL',
-    }),
+    role: z.enum(PAPEIS_DE_VINCULO, { required_error: ERRO_DE_PAPEL }),
   })
   .strict();
 
@@ -82,13 +83,40 @@ export const changePasswordSchema = z.object({
 });
 
 // Aprovação/recusa de solicitação de acesso a um prédio.
+//
+// Aprovar exige o papel. Antes toda aprovação entrava como visualizador, e o
+// visualizador só funciona no computador: quem pedia acesso pelo celular era
+// aprovado e não conseguia fazer nada. Sem papel padrão, o gestor decide de
+// propósito o que a pessoa vai fazer no prédio. Os papéis são os mesmos da
+// promoção (PATCH /members/:userId); gestor continua fora, porque é outro tipo
+// de conta.
+//
+// Recusar com papel é recusado: um papel numa recusa não tem efeito nenhum, e
+// aceitá-lo calado esconderia um cliente que achou estar aprovando.
 export const reviewAccessRequestSchema = z
   .object({
     status: z.enum(['APPROVED', 'REJECTED'], {
       required_error: 'Status deve ser APPROVED ou REJECTED',
     }),
+    role: z.enum(PAPEIS_DE_VINCULO, { invalid_type_error: ERRO_DE_PAPEL }).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((body, ctx) => {
+    if (body.status === 'APPROVED' && !body.role) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['role'],
+        message: 'Escolha o papel de quem vai entrar no prédio',
+      });
+    }
+    if (body.status === 'REJECTED' && body.role !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['role'],
+        message: 'Recusa não leva papel',
+      });
+    }
+  });
 
 // ── Prédios ───────────────────────────────────────────────────────────────────
 export const createBuildingSchema = z

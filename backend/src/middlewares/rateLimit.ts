@@ -102,6 +102,20 @@ export const timelineLimiter = perAccount(60_000, 20, 'Muitas atualizações em 
 export const scheduleWriteLimiter = perAccount(60_000, 20, 'Muitas alterações na agenda. Aguarde um instante.');
 
 /**
+ * O "Isso ajudou?" da central de ajuda: cada resposta vira uma linha na caixa
+ * de feedback do admin. Por conta, e não no `sensitiveLimiter` por IP que o
+ * cadastro e o pedido de acesso dividem: ali uma pessoa respondendo tutoriais
+ * gastaria a cota de quem se cadastra pelo mesmo Wi-Fi. Vinte por hora é mais
+ * do que alguém responde lendo de verdade (a rota já aceita uma resposta por
+ * tutorial).
+ */
+export const helpFeedbackLimiter = perAccount(
+  60 * 60_000,
+  20,
+  'Muitas respostas em sequência. Tente de novo mais tarde.'
+);
+
+/**
  * Teto por conta, para rotas que só existem depois do login.
  *
  * Por conta e não por IP: a conta é o que se quer limitar, e o IP muda (4G) ou

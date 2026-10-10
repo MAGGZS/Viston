@@ -19,6 +19,7 @@ import billingRoutes from './routes/billing.routes';
 import ownershipRoutes from './routes/ownership.routes';
 import jobRoutes from './routes/jobs.routes';
 import scheduleRoutes from './routes/schedule.routes';
+import helpRoutes, { adminHelpRoutes } from './routes/help.routes';
 import { errorHandler } from './middlewares/errorHandler';
 import { generalLimiter } from './middlewares/rateLimit';
 
@@ -124,6 +125,11 @@ app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
 app.use('/managers', managerRoutes);
 app.use('/feedbacks', feedbackRoutes);
+// A central de ajuda: leitura para qualquer conta, e a área do admin que põe
+// os vídeos no ar. Antes de `/admin` só por legibilidade: os caminhos não se
+// cruzam (ver help.routes.ts).
+app.use('/help', helpRoutes);
+app.use('/admin/help', adminHelpRoutes);
 // As rotas de plano do suporte. Caminho próprio porque o que mora nelas é o
 // admin olhando para a conta dos outros, e não a conta olhando para si mesma.
 app.use('/admin', adminRoutes);

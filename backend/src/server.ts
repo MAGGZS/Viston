@@ -6,6 +6,7 @@ import { prisma } from './lib/prisma';
 import { logger } from './lib/logger';
 import { verificarProvedorEmail } from './lib/mailer';
 import { flushSentry } from './lib/sentry';
+import { helpStorage } from './services/helpStorage.service';
 
 /**
  * IPv4 primeiro em todas as conexões de saída do processo.
@@ -34,6 +35,8 @@ async function bootstrap() {
     // fora do ar inteiro porque o provedor recusou seria trocar um defeito por
     // um pior. O que ela faz é gritar no log, na hora certa.
     void verificarProvedorEmail();
+    // O bucket dos tutoriais: privado e com teto? Só avisa, nunca segura.
+    void helpStorage.checkBucket();
 
     app.listen(config.port, () => {
       logger.info(

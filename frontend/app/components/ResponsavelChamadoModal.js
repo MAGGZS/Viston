@@ -1,8 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { CheckCheck, Hourglass, Inbox, Timer } from 'lucide-react';
 import { Badge, Button, Modal, Skeleton, Textarea } from '@/app/components/ui';
-import { UnsavedChangesModal } from '@/app/components/ConfirmModal';
+import { ConfirmModal, UnsavedChangesModal } from '@/app/components/ConfirmModal';
 import { UnsavedScope, useUnsavedField, useUnsavedGuard, useUnsavedScope } from '@/app/hooks/useUnsavedGuard';
 import { LinhaDoTempo, temLinhaDoTempo } from '@/app/components/LinhaDoTempo';
 import { CancelarConclusaoBox } from '@/app/components/CancelarConclusaoBox';
@@ -11,15 +11,15 @@ import {
   MAINTENANCE_TYPES,
   CATEGORIES,
   PRIORITIES,
-  RECORD_STATUS,
   RECORD_STATUS_VARIANT,
   labelOf,
   formatCost,
 } from '@/app/lib/maintenanceOptions';
 import { PRIORITY_VARIANT, dayLabel, stampLabel } from '@/app/lib/chamadoFormat';
-import { EXECUTANDO, prazo, textoDoPrazo } from '@/app/lib/chamadosDoResponsavel';
+import { EXECUTANDO, INFORMAR_CONCLUSAO, estadoParaOResponsavel, prazo, textoDoPrazo } from '@/app/lib/chamadosDoResponsavel';
 import { useAuthStore } from '@/app/store/auth';
 import { useToastStore } from '@/app/store/toast';
+import { mensagemDoErro } from '@/app/lib/erros';
 import { T, R, W } from '@/app/lib/theme';
 
 function Fact({ label, children, tone }) {
@@ -42,16 +42,22 @@ function ConclusaoBox({ ticket, temRegistro, onDone }) {
   const reportDone = useReportTicketDone();
   const { show: toast } = useToastStore();
   const [report, setReport] = useState(ticket.done_report ?? '');
+  // Mesma confirmação do telefone: diz, antes do envio, que o gesto não fecha
+  // o chamado (ver `INFORMAR_CONCLUSAO`).
+  const [confirmando, setConfirmando] = useState(false);
+  const dicaId = useId();
 
   useUnsavedField(report !== (ticket.done_report ?? ''));
 
   async function handleDone() {
     try {
       await reportDone.mutateAsync({ id: ticket.id, done_report: report.trim() });
-      toast('Conclusão informada. O moderador vai fechar o chamado.', 'success');
+      setConfirmando(false);
+      toast(INFORMAR_CONCLUSAO.sucesso, 'success');
       onDone?.();
     } catch (e) {
-      toast(e?.response?.data?.error?.message || 'Erro ao informar conclusão', 'error');
+      setConfirmando(false);
+      toast(mensagemDoErro(e, INFORMAR_CONCLUSAO.falha), 'error');
     }
   }
 
@@ -64,14 +70,33 @@ function ConclusaoBox({ ticket, temRegistro, onDone }) {
         onChange={(e) => setReport(e.target.value)}
         placeholder="O resumo do serviço: o que resolveu, o que ficou pendente…"
       />
-      <Button onClick={handleDone} loading={reportDone.isPending} disabled={!temRegistro} style={{ width: '100%' }}>
-        <CheckCheck size={15} /> Concluir serviço
+      <Button
+        onClick={() => setConfirmando(true)}
+        loading={reportDone.isPending}
+        disabled={!temRegistro}
+        aria-describedby={!temRegistro ? dicaId : undefined}
+        style={{ width: '100%' }}
+      >
+        <CheckCheck size={15} /> {INFORMAR_CONCLUSAO.botao}
       </Button>
       {!temRegistro && (
-        <p style={{ color: T.faint, fontSize: 12, lineHeight: 1.6, textAlign: 'center' }}>
-          Registre ao menos uma atualização na linha do tempo antes de concluir.
+        <p id={dicaId} style={{ color: T.faint, fontSize: 12, lineHeight: 1.6, textAlign: 'center' }}>
+          Registre ao menos uma atualização na linha do tempo antes de informar a conclusão.
         </p>
       )}
+
+      <ConfirmModal
+        open={confirmando}
+        title={INFORMAR_CONCLUSAO.titulo}
+        message={INFORMAR_CONCLUSAO.mensagem}
+        confirmLabel={INFORMAR_CONCLUSAO.confirmar}
+        cancelLabel={INFORMAR_CONCLUSAO.voltar}
+        confirmVariant="primary"
+        tone="neutral"
+        loading={reportDone.isPending}
+        onConfirm={handleDone}
+        onCancel={() => setConfirmando(false)}
+      />
     </div>
   );
 }
@@ -140,8 +165,10 @@ export function ResponsavelChamadoModal({ ticketId, inicial, open, onClose }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {/* O estado dito para quem executou, como no telefone: ver
+                      `ESTADO_PARA_O_RESPONSAVEL`. */}
                   <Badge variant={RECORD_STATUS_VARIANT[ticket.status] ?? 'default'}>
-                    {labelOf(RECORD_STATUS, ticket.status)}
+                    {estadoParaOResponsavel(ticket.status)}
                   </Badge>
                   <Badge variant={PRIORITY_VARIANT[ticket.priority] ?? 'default'}>
                     {labelOf(PRIORITIES, ticket.priority)}

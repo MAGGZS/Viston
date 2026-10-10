@@ -178,9 +178,30 @@ Para transferir a gestão, adicione o outro primeiro: dois é um estado válido.
 **Cadastro.** `POST /users` e `POST /managers` são abertos, e o schema é
 `strict` e não tem campo `role`. A conta de usuário nasce sem vínculo nenhum: o
 papel dela aparece dentro de um prédio, quando o pedido feito pela chave de
-compartilhamento é aprovado — e a aprovação sempre entra como `VIEWER`, com o
-gestor promovendo depois. O middleware `validate` reescreve `req.body` com o
+compartilhamento é aprovado. Quem aprova escolhe o papel na hora (ver "Pedido
+de acesso" abaixo); não há papel padrão. O middleware `validate` reescreve `req.body` com o
 resultado do parse, então nenhum campo fora do contrato chega ao service.
+
+**Pedido de acesso.** `PATCH /buildings/:id/access-requests/:requestId` exige
+`role` (`INSPECTOR`, `VIEWER`, `MODERADOR` ou `RESPONSAVEL`) quando `status` é
+`APPROVED`, e recusa `role` quando é `REJECTED`; os dois casos errados voltam
+`400 VALIDATION_ERROR`. Antes toda aprovação entrava como `VIEWER`, que só
+funciona no computador, e quem pedia acesso pelo celular era aprovado sem ter o
+que fazer. O limite do papel escolhido é conferido com
+`planGate.assertCanAddPerson`, dentro do `withPlanLock` do prédio, igual à
+promoção de membro: acima da cota volta o mesmo `403` (`LIMITE_DO_PLANO`, ou
+`RECURSO_DO_PLANO` para moderador no Livre), e o pedido continua na fila.
+Resposta e vínculo saem numa transação só, e a auditoria registra o papel
+concedido. `GET /buildings/:id/members` devolve `role_capacity`, com
+`{ allowed, code, reason }` por papel, para a tela mostrar o papel sem vaga
+desabilitado antes do clique; o `reason` é a mesma frase do `403`.
+
+**Código do prédio.** `POST /buildings/:id/share-key/rotate` troca só a
+`share_key`: o código antigo para de funcionar na hora, mas vínculos existentes
+e pedidos pendentes continuam como estavam (inclusive um pedido feito com o
+código antigo, que segue esperando o gestor). Os tokens de 15 minutos do QR
+Code e do link também não mudam; eles têm a própria rotação em
+`POST /buildings/:id/share-token/rotate`.
 
 A conta também nasce **sem acesso**: `email_verified_at` nulo, e o login para
 num `403 EMAIL_NAO_CONFIRMADO` depois de conferir a senha — depois, e não antes,
@@ -393,6 +414,7 @@ Configure todas as variáveis do `.env.example` com os valores de produção:
 | `SUPABASE_SERVICE_ROLE_KEY` | chave local do `supabase start` | service_role key do painel Supabase |
 | `SUPABASE_BUCKET_EXCEL` | `viston-excel` | `viston-excel` (bucket **privado**) |
 | `SUPABASE_BUCKET_PHOTOS` | `viston-photos` | `viston-photos` |
+| `SUPABASE_BUCKET_TUTORIAIS` | `tutoriais` | `tutoriais` (bucket **privado**, vídeos da central de ajuda) |
 | `JWT_SECRET` | qualquer string | string aleatória 64+ chars |
 | `JWT_REFRESH_SECRET` | qualquer string | string aleatória 64+ chars (diferente do JWT_SECRET) |
 | `PORT` | `4000` | definida pelo Render |
@@ -411,6 +433,13 @@ API de produção e escrevia dados reais.
 > assina a URL na hora do download; enquanto o bucket for público, qualquer link
 > que alguém já tenha guardado continua abrindo sem autenticação. Os arquivos
 > não precisam ser movidos — o caminho dentro do bucket é o mesmo.
+
+> **Bucket dos tutoriais.** `SUPABASE_BUCKET_TUTORIAIS` (padrão `tutoriais`)
+> precisa existir e ser **privado**, com limite de 8 MB por arquivo e os tipos
+> `video/mp4`, `text/vtt`, `image/jpeg` e `application/json`. O admin envia
+> os arquivos direto ao bucket por URL assinada, e o backend confere o pacote
+> no commit (ver `tutoriais/API.md`). Envios abandonados ficam em `tmp/`
+> dentro do bucket e podem ser apagados à mão.
 
 **Backup.** O Supabase faz backup automático do Postgres conforme o plano —
 diário no gratuito, com retenção de 7 dias, e point-in-time nos planos pagos.
@@ -476,9 +505,13 @@ POST   /buildings/:id/managers    DELETE /buildings/:id/managers/:managerId  (ge
 GET    /buildings/:id/members                                     (gestor)
 PATCH  /buildings/:id/members/:userId   DELETE /buildings/:id/members/:userId (gestor)
 DELETE /buildings/:id/members/me                 (sair do prédio)
-POST   /buildings/access-requests                (pedido pela chave)
+POST   /buildings/access-requests                (pedido pela chave;
+                                                  403 GESTOR_NAO_SOLICITA_ACESSO
+                                                  se a conta é de gestor)
 GET    /buildings/:id/access-requests                             (gestor)
-PATCH  /buildings/:id/access-requests/:requestId                  (gestor)
+PATCH  /buildings/:id/access-requests/:requestId                  (gestor;
+                                                  { status, role } ao aprovar)
+POST   /buildings/:id/share-key/rotate                            (gestor)
 
 POST   /inspections                              (vistoria completa; Idempotency-Key)
 GET    /inspections                              (filtros: page, limit, status,
@@ -506,4 +539,43 @@ PATCH  /tickets/:id
 
 POST   /feedbacks                GET  /feedbacks/me
 GET    /feedbacks   PATCH /feedbacks/:id   DELETE /feedbacks/:id   (ADMIN)
+
+GET    /help/folders                             (pastas visíveis; mine = do cargo da conta)
+GET    /help/folders/:slug                       (funcionalidades publicadas da pasta)
+GET    /help/features/:slug                      (abas e URLs assinadas, 4 h)
+GET    /help/search?q=                           (busca nas abas publicadas)
+POST   /help/features/:slug/feedback             ("Isso ajudou?", vira feedback)
+GET    /admin/help/tree                          (árvore com o estado de cada uma)  (ADMIN)
+POST   /admin/help/sync                          (seed a partir do catálogo)        (ADMIN)
+PATCH  /admin/help/folders/order   PATCH /admin/help/folders/:id                    (ADMIN)
+PATCH  /admin/help/folders/:id/features/order                                       (ADMIN)
+GET    /admin/help/features/:id    PATCH /admin/help/features/:id                   (ADMIN)
+PATCH  /admin/help/steps/:id                     (título, texto, start_s)          (ADMIN)
+POST   /admin/help/features/:id/video/upload-urls                                   (ADMIN)
+POST   /admin/help/features/:id/video/commit     (confere e põe o pacote no ar)     (ADMIN)
+POST   /admin/help/features/:id/publish   POST /admin/help/features/:id/unpublish   (ADMIN)
+POST   /admin/help/features/publish-batch        ({ ids: 1 a 100, published }, lote) (ADMIN)
+```
+
+O contrato completo da central de ajuda (corpos, respostas e erros de cada
+rota) está em [`tutoriais/API.md`](../tutoriais/API.md). O conteúdo nasce do
+roteiro: `node tutoriais/scripts/catalogo.mjs` gera `tutoriais/catalogo.json`
+e a cópia `src/data/catalogo.json`, que o `tsc` leva para `dist/`; o seed
+(`npm run seed:ajuda`, ou `POST /admin/help/sync` em produção, que não tem
+shell no Render) cria pastas, funcionalidades e abas. Funcionalidade nova
+nasce publicada, mesmo sem vídeo (a página mostra os passos em texto, e o
+vídeo aparece no topo quando chegar); o que o admin despublicou o seed nunca
+publica de novo. Rodar de novo não duplica nada e nunca apaga vídeo;
+`--textos` (ou `{ "textos": true }`) também reescreve títulos e textos com os
+do roteiro.
+
+Pela linha de comando, o seed recusa qualquer `DATABASE_URL` cujo host não
+seja `localhost`, `127.0.0.1` ou `::1`: nesta máquina o `.env.local` aponta
+para o banco de produção. Para escrever num banco remoto de propósito, passe
+a flag:
+
+```bash
+npm run seed:ajuda                          # só banco local
+npm run seed:ajuda -- --textos              # idem, reescrevendo títulos e textos
+npm run seed:ajuda -- --producao            # autoriza banco remoto (combina com --textos)
 ```

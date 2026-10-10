@@ -1,6 +1,6 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
-import { Users, LayoutDashboard, LogOut, MessageSquare, CreditCard } from 'lucide-react';
+import { Users, LayoutDashboard, LogOut, MessageSquare, CreditCard, Clapperboard } from 'lucide-react';
 import { SidebarShell, SidebarBrand, SidebarNav, SidebarFooter, SidebarItem } from '@/app/components/Sidebar';
 import { useSidebar } from '@/app/store/sidebar';
 import { useAuthStore } from '@/app/store/auth';
@@ -13,6 +13,9 @@ const items = [
   { href: '/desktop/admin', icon: Users, label: 'Usuários' },
   { href: '/desktop/admin/planos', icon: CreditCard, label: 'Planos' },
   { href: '/desktop/admin/feedbacks', icon: MessageSquare, label: 'Feedbacks' },
+  // Os vídeos da central de ajuda: onde cada pacote gravado entra na
+  // funcionalidade e nas abas dela, e onde se publica.
+  { href: '/desktop/admin/tutoriais', icon: Clapperboard, label: 'Tutoriais' },
 ];
 
 /**

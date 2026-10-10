@@ -21,6 +21,8 @@ import { useAuthStore } from '@/app/store/auth';
 import { canInspect } from '@/app/lib/roles';
 import { R } from '@/app/lib/theme';
 import { useToastStore } from '@/app/store/toast';
+import { BotaoAjuda } from '@/app/components/ajuda/BotaoAjuda';
+import { linkDaAjuda } from '@/app/lib/ajudaContexto';
 
 /**
  * O que vai para a API.
@@ -216,6 +218,8 @@ export default function InspecaoPage() {
    */
   const { dirty, report } = useUnsavedScope();
   const saida = useUnsavedGuard(dirty);
+  // Para onde a saída pedida leva: a pergunta muda de frase quando é o "?".
+  const [saindoPara, setSaindoPara] = useState(null);
 
   // Só os prédios em que esta pessoa vistoria — e não a lista inteira: com papel
   // por prédio, dá para ser inspetor num e só acompanhar outro, e abrir a
@@ -309,9 +313,29 @@ export default function InspecaoPage() {
    * a vistoria", não "descartar o andar".
    */
   function handleBack() {
+    setSaindoPara(null);
     if (step !== 'form') return router.back();
     if (currentIndex > 0) return saida.guard(() => setCurrentIndex(i => i - 1));
     saida.guard(resetToSelect);
+  }
+
+  /**
+   * O "?" no meio de um andar passa pela mesma guarda do voltar.
+   *
+   * Ele é um link e sai da vistoria como qualquer outro. Sem nada preenchido no
+   * andar, segue direto (o rascunho dos andares já registrados fica guardado no
+   * aparelho e a vistoria é retomada na volta). Com algo preenchido, pergunta
+   * antes. Abrir em outra aba (Ctrl, Cmd, Shift ou o botão do meio) não tira
+   * ninguém daqui, e passa sem pergunta.
+   */
+  function handleAjuda(e) {
+    if (step !== 'form' || !dirty) return;
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const destino = linkDaAjuda('inspetor.vistoria');
+    if (!destino) return;
+    e.preventDefault();
+    setSaindoPara('ajuda');
+    saida.guard(() => router.push(destino));
   }
 
   async function handleFloorSubmit(records) {
@@ -387,6 +411,11 @@ export default function InspecaoPage() {
                 <p style={{ color: M.mute, fontSize: 12, marginTop: 2 }}>Andar {currentIndex + 1} de {floors.length}</p>
               )}
             </div>
+            {/* O "?" abre o tutorial da vistoria (mapa em app/lib/ajudaContexto.js).
+                No meio de um andar, o clique passa pela guarda (`handleAjuda`). */}
+            <span onClickCapture={handleAjuda} style={{ display: 'contents' }}>
+              <BotaoAjuda contexto="inspetor.vistoria" />
+            </span>
           </div>
           {step === 'form' && (
             <div style={{ marginTop: 14, height: 4, background: M.chip, borderRadius: 99, overflow: 'hidden' }}>
@@ -498,7 +527,9 @@ export default function InspecaoPage() {
         <UnsavedChangesModal
           open={saida.asking}
           message={
-            currentIndex > 0
+            saindoPara === 'ajuda'
+              ? 'Este andar tem ocorrências preenchidas e ainda não enviadas. Abrir a ajuda agora as perde; os andares já registrados continuam guardados.'
+              : currentIndex > 0
               ? 'Este andar tem ocorrências preenchidas e ainda não enviadas. Voltar agora as perde.'
               : 'Este andar tem ocorrências preenchidas e ainda não enviadas. Voltar agora encerra a vistoria e apaga o que foi guardado.'
           }

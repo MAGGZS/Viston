@@ -25,6 +25,7 @@ import { formatShareKey } from '@/app/lib/shareKey';
 import { parseReportDate } from '@/app/lib/date';
 import { useToastStore } from '@/app/store/toast';
 import { ModalShareBuilding } from '@/app/components/ModalShareBuilding';
+import { BotaoAjuda } from '@/app/components/ajuda/BotaoAjuda';
 
 const PLACEHOLDER_CELL_H = 42;
 
@@ -201,13 +202,16 @@ export default function GestorBuildingPage() {
     <GestorShell
       buildingId={id}
       actions={
-        <button
-          ref={shareBtnRef}
-          onClick={() => setShareModal((v) => !v)}
-          className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-ink transition-colors flex-shrink-0"
-        >
-          <Share2 size={15} /> Compartilhar ID
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <BotaoAjuda contexto="gestor.predio" compacto />
+          <button
+            ref={shareBtnRef}
+            onClick={() => setShareModal((v) => !v)}
+            className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-ink transition-colors flex-shrink-0"
+          >
+            <Share2 size={15} /> Compartilhar ID
+          </button>
+        </div>
       }
     >
       <div className="flex-1 min-h-0 overflow-y-auto px-8 pt-0.5 pb-8">
@@ -343,6 +347,7 @@ export default function GestorBuildingPage() {
         anchorRef={shareBtnRef}
         buildingId={id}
         buildingName={data?.building?.name}
+        shareKey={data?.building?.share_key}
       />
     </GestorShell>
   );

@@ -1,7 +1,7 @@
 'use client';
 import { AuthCarrossel } from '@/app/components/AuthCarrossel';
 import { Logo } from '@/app/components/Logo';
-import { T, W } from '@/app/lib/theme';
+import { T, R, W } from '@/app/lib/theme';
 
 /**
  * Casca das telas de acesso: no computador, a janela partida ao meio — o
@@ -32,7 +32,7 @@ import { T, W } from '@/app/lib/theme';
  * - `escala` multiplica o tamanho da coluna inteira. O login sobra altura — são
  *   dois campos —, então ele cresce um pouco; o resto fica em 1.
  */
-export function AuthShell({ title, subtitle, children, footer, marca = true, escala }) {
+export function AuthShell({ title, subtitle, aviso, children, footer, marca = true, escala }) {
   // O posicionamento mora no `globals.css`, e não aqui: ele precisa de media
   // query, e estilo em atributo não tem como expressar uma. Ver `.auth-shell`.
   //
@@ -87,6 +87,11 @@ export function AuthShell({ title, subtitle, children, footer, marca = true, esc
                   {subtitle}
                 </p>
               )}
+
+              {/* O aviso de tipo de conta vem logo abaixo do título, antes do
+                  primeiro campo: é a última chance de trocar de cadastro sem
+                  ter digitado nada. Ver `AvisoCruzado`. */}
+              {aviso}
             </div>
 
             <div className="auth-divisor anim-fade-in anim-d2" style={{ background: T.line }} />
@@ -108,5 +113,60 @@ export function AuthShell({ title, subtitle, children, footer, marca = true, esc
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * O aviso que manda para o outro cadastro.
+ *
+ * São dois tipos de conta, com cadastros diferentes, e a escolha errada só
+ * aparecia tarde: a conta de gestor não consegue pedir acesso a prédio, e a
+ * conta comum não cadastra prédio. As duas telas de cadastro passaram a dizer,
+ * no alto, para quem é a outra. O rodapé tinha um link parecido, mas no rodapé
+ * ele era lido depois do formulário preenchido, quando já era tarde.
+ *
+ * Um parágrafo com um link, e não um botão: é uma saída lateral, e a ação de
+ * peso da tela continua sendo criar a conta. O fundo de chip separa o aviso do
+ * subtítulo sem precisar de borda nem de cor de alerta, porque não é erro
+ * nenhum, é só uma placa na bifurcação.
+ *
+ * O `id` existe para o formulário apontar para o aviso com `aria-describedby`:
+ * quem navega por leitor de tela ouve o aviso ao chegar ao primeiro campo, e
+ * não só se por acaso passar pelo topo.
+ */
+export function AvisoCruzado({ id, pergunta, acao, href }) {
+  return (
+    <p
+      id={id}
+      className="auth-aviso anim-fade-up anim-d2"
+      style={{
+        color: T.mute,
+        background: T.chip,
+        borderRadius: R.control,
+        fontSize: 13,
+        lineHeight: 1.55,
+        textAlign: 'center',
+      }}
+    >
+      {pergunta}{' '}
+      {/* Tinta de texto com sublinhado dourado, e não a letra dourada dos
+          rodapés: sobre o chip do tema claro o dourado escuro fica abaixo do
+          contraste mínimo para letra de 13px. O sublinhado leva a cor da marca
+          e diz que é link sem depender só da cor. */}
+      <a
+        href={href}
+        className="link-acao"
+        style={{
+          color: T.text,
+          fontWeight: W.strong,
+          textDecoration: 'underline',
+          textDecorationColor: T.accentInk,
+          textDecorationThickness: 2,
+          textUnderlineOffset: 3,
+        }}
+      >
+        {acao}
+      </a>
+    </p>
   );
 }

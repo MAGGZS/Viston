@@ -1,10 +1,11 @@
 'use client';
-import { useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import { Check, Clock, Link2, RotateCw, X } from 'lucide-react';
+import { AlertTriangle, Check, Clock, Copy, KeyRound, Link2, RotateCw, X } from 'lucide-react';
 import { Button } from '@/app/components/ui';
-import { useBuildingShareToken, useRotateBuildingShareToken } from '@/app/hooks/useApi';
+import { useBuildingShareToken, useRotateBuildingShareToken, useRotateShareKey } from '@/app/hooks/useApi';
+import { mensagemDoErro } from '@/app/lib/erros';
 import { useToastStore } from '@/app/store/toast';
 import { formatShareKey, normalizeShareKey } from '@/app/lib/shareKey';
 import { T, R, W } from '@/app/lib/theme';
@@ -20,6 +21,17 @@ const POPOVER_WIDTH = 380;
  * ao clicar fora ou pressionar Escape.
  * 
  * Estética 100% matte (fosca), sem brilhos ou auras artificiais.
+ *
+ * São duas formas de convidar, e cada uma tem uma frase dizendo para quem é:
+ *
+ *   QR Code e link  para quem está com você agora. Valem 15 minutos, e por isso
+ *                   podem ser mostrados sem cerimônia.
+ *   Código          a `share_key` do prédio, para mandar por mensagem. Vale até
+ *                   o gestor gerar outro, e é por isso que "gerar novo" pede
+ *                   confirmação e explica o que acontece.
+ *
+ * `shareKey` é a chave atual do prédio, que só a conta de gestor recebe (ver o
+ * painel do prédio no backend). Sem ela, a seção do código não aparece.
  */
 export function ModalShareBuilding({
   open,
@@ -29,12 +41,38 @@ export function ModalShareBuilding({
   centered = false,
   buildingId,
   buildingName,
+  shareKey,
 }) {
   const isCentered = centered || (!anchorRef && !anchorEl);
 
   const { show: toast } = useToastStore();
   const { data: tokenData, isLoading, refetch } = useBuildingShareToken(buildingId, open);
   const rotateMutation = useRotateBuildingShareToken();
+  const rotateKey = useRotateShareKey();
+
+  // A chave gerada agora vale mais que a da prop: a prop vem de uma consulta
+  // que só se refaz depois, e mostrar a antiga por um instante faria o gestor
+  // copiar justamente o código que acabou de invalidar.
+  const [novaChave, setNovaChave] = useState(null);
+  const [confirmandoNovoCodigo, setConfirmandoNovoCodigo] = useState(false);
+  const [erroNovoCodigo, setErroNovoCodigo] = useState(null);
+  const [chaveCopiada, setChaveCopiada] = useState(false);
+  const chaveCopiadaTimeoutRef = useRef(null);
+  const chaveAtual = novaChave && novaChave.buildingId === buildingId ? novaChave.key : shareKey;
+  const chaveFormatada = chaveAtual ? formatShareKey(chaveAtual) : '';
+
+  // Fechar ou trocar de prédio zera a confirmação: ela é de um prédio só, e a
+  // lista do gestor reaproveita este painel para o próximo prédio que abrir.
+  // O ajuste é feito no render, comparando com o painel anterior, e não num
+  // efeito: assim a confirmação velha nunca chega a ser pintada.
+  const painel = open ? buildingId : null;
+  const [painelAnterior, setPainelAnterior] = useState(painel);
+  if (painelAnterior !== painel) {
+    setPainelAnterior(painel);
+    setConfirmandoNovoCodigo(false);
+    setErroNovoCodigo(null);
+    setChaveCopiada(false);
+  }
 
   const [now, setNow] = useState(() => Date.now());
   const [copied, setCopied] = useState(false);
@@ -96,15 +134,27 @@ export function ModalShareBuilding({
     };
   }, [open, isCentered, updatePosition]);
 
-  // Tecla Escape para fechar
+  // Tecla Escape para fechar. Com a confirmação do código novo aberta, o
+  // Escape desfaz só a confirmação: quem apertou queria desistir de trocar o
+  // código, e não perder o painel inteiro. Enquanto o pedido está no ar, o
+  // Escape espera, como o próprio botão Cancelar.
+  const gerandoChave = rotateKey.isPending;
   useEffect(() => {
     if (!open) return;
     function handleKeyDown(e) {
-      if (e.key === 'Escape') onClose?.();
+      if (e.key !== 'Escape') return;
+      if (confirmandoNovoCodigo) {
+        if (!gerandoChave) {
+          setErroNovoCodigo(null);
+          setConfirmandoNovoCodigo(false);
+        }
+        return;
+      }
+      onClose?.();
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, onClose]);
+  }, [open, onClose, confirmandoNovoCodigo, gerandoChave]);
 
   // Garante refetch do token toda vez que for aberto
   useEffect(() => {
@@ -117,6 +167,7 @@ export function ModalShareBuilding({
   useEffect(() => {
     return () => {
       if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
+      if (chaveCopiadaTimeoutRef.current) clearTimeout(chaveCopiadaTimeoutRef.current);
     };
   }, []);
 
@@ -166,10 +217,42 @@ export function ModalShareBuilding({
     }, 4000);
   }
 
+  // A cópia só se anuncia depois que a área de transferência aceitou. Sem
+  // permissão (ou fora de HTTPS) o `writeText` recusa, e dizer "copiado" ali
+  // faria o gestor colar na mensagem o que estava antes na área de transferência.
+  async function handleCopyKey() {
+    if (!chaveFormatada) return;
+    try {
+      await navigator.clipboard.writeText(chaveFormatada);
+    } catch {
+      toast('Não foi possível copiar. Selecione o código e copie.', 'error');
+      return;
+    }
+    setChaveCopiada(true);
+    toast('Código do prédio copiado', 'info');
+    if (chaveCopiadaTimeoutRef.current) clearTimeout(chaveCopiadaTimeoutRef.current);
+    chaveCopiadaTimeoutRef.current = setTimeout(() => setChaveCopiada(false), 4000);
+  }
+
+  function handleGenerateKey() {
+    setErroNovoCodigo(null);
+    rotateKey.mutate(buildingId, {
+      onSuccess: (data) => {
+        setNovaChave({ buildingId, key: data?.share_key });
+        setConfirmandoNovoCodigo(false);
+        setChaveCopiada(false);
+        toast('Novo código gerado. O anterior já não funciona.', 'success');
+      },
+      onError: (err) => {
+        setErroNovoCodigo(mensagemDoErro(err, 'Não foi possível gerar outro código. Tente de novo em instantes.'));
+      },
+    });
+  }
+
   function handleRotateManual() {
     rotateMutation.mutate(buildingId, {
       onSuccess: () => {
-        toast('Novo código gerado com sucesso!', 'success');
+        toast('Novo QR Code e link gerados', 'success');
       },
       onError: () => {
         toast('Erro ao renovar código', 'error');
@@ -205,6 +288,34 @@ export function ModalShareBuilding({
         @keyframes backdrop-fade-in {
           from { opacity: 0; }
           to { opacity: 1; }
+        }
+        /*
+          A confirmação do código novo entra por transição, e não por keyframe:
+          abrir e cancelar em sequência retoma do ponto em que estava, em vez
+          de recomeçar do zero.
+        */
+        .confirmacao-codigo {
+          transition: opacity 200ms var(--ease-saida, ease-out), transform 200ms var(--ease-saida, ease-out);
+        }
+        @starting-style {
+          .confirmacao-codigo { opacity: 0; transform: translateY(6px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          @starting-style {
+            .confirmacao-codigo { transform: none; }
+          }
+        }
+        /*
+          "Copiar" e "Gerar novo código" são texto de 12px: no dedo, o alvo
+          cresce até 44px por dentro (padding) e a margem negativa devolve o
+          espaço, para o desenho não mudar de lugar.
+        */
+        @media (pointer: coarse) {
+          .alvo-toque {
+            min-height: 44px;
+            padding: 0 8px;
+            margin: -13px -8px;
+          }
         }
       `}</style>
 
@@ -290,7 +401,7 @@ export function ModalShareBuilding({
               Compartilhar prédio
             </h2>
             <p style={{ color: T.mute, fontSize: 12, lineHeight: 1.4, margin: '3px 0 0' }}>
-              Convite temporário para acesso a{' '}
+              Convide alguém para{' '}
               <strong style={{ color: T.text, fontWeight: W.strong }}>{buildingName}</strong>.
             </p>
           </div>
@@ -322,6 +433,16 @@ export function ModalShareBuilding({
         {/* Barra sutil de separação */}
         <div style={{ height: 1, background: T.line, width: '100%' }} />
 
+        {/* QR Code e link: a frase que diz para quem é esta forma de convite. */}
+        <div>
+          <h3 style={{ fontFamily: T.display, fontSize: 14, fontWeight: W.title, color: T.text, margin: 0 }}>
+            QR Code e link
+          </h3>
+          <p style={{ color: T.mute, fontSize: 12, lineHeight: 1.5, margin: '3px 0 0' }}>
+            Para quem está com você agora. Valem 15 minutos.
+          </p>
+        </div>
+
         {/* Bloco do QR Code (Sem fundo cinza, direto no card com respiro limpo) */}
         <div
           style={{
@@ -350,6 +471,9 @@ export function ModalShareBuilding({
             >
               <QRCodeSVG
                 value={shareUrl}
+                // O nome da imagem para o leitor de tela: sem ele o QR era um
+                // gráfico mudo no meio do painel.
+                title="QR Code do convite, vale 15 minutos"
                 size={170}
                 level="H"
                 marginSize={1}
@@ -497,9 +621,161 @@ export function ModalShareBuilding({
           <Link2 size={15} />
           Copiar link de convite
         </Button>
+
+        {chaveAtual && (
+          <>
+            <div style={{ height: 1, background: T.line, width: '100%' }} />
+            <CodigoDoPredio
+              chave={chaveFormatada}
+              copiada={chaveCopiada}
+              onCopy={handleCopyKey}
+              confirmando={confirmandoNovoCodigo}
+              onPedirNovo={() => { setErroNovoCodigo(null); setConfirmandoNovoCodigo(true); }}
+              onCancelar={() => { setErroNovoCodigo(null); setConfirmandoNovoCodigo(false); }}
+              onConfirmar={handleGenerateKey}
+              gerando={rotateKey.isPending}
+              erro={erroNovoCodigo}
+            />
+          </>
+        )}
       </div>
     </>,
     document.body
   );
 }
 
+
+/**
+ * O aviso do código do prédio, escrito a partir do que o servidor faz de fato.
+ *
+ * `POST /buildings/:id/share-key/rotate` só troca a `share_key` do prédio. Não
+ * mexe em vínculo nenhum nem na fila de pedidos: quem já entrou continua, e o
+ * pedido que já chegou (inclusive um feito com o código vazado) continua
+ * esperando a resposta do gestor. Também não toca no QR Code e no link de 15
+ * minutos, que são outra credencial. A frase diz isso, para que ninguém gere
+ * um código novo achando que tirou alguém do prédio ou limpou a fila.
+ */
+export const AVISO_CODIGO_DO_PREDIO =
+  'Se este código foi parar onde não devia, gere um novo. O código antigo para de funcionar na hora.';
+export const EFEITO_NOVO_CODIGO =
+  'Quem já está no prédio continua nele, e os pedidos que já chegaram continuam esperando sua resposta. O QR Code e o link não mudam.';
+
+/**
+ * A seção do código permanente do prédio.
+ *
+ * A confirmação mora aqui dentro, no lugar do botão, e não numa segunda caixa:
+ * o painel já é um diálogo, e uma caixa sobre ele tiraria o foco de perto do
+ * código que ela está prestes a trocar.
+ */
+function CodigoDoPredio({ chave, copiada, onCopy, confirmando, onPedirNovo, onCancelar, onConfirmar, gerando, erro }) {
+  const tituloId = useId();
+  const avisoId = useId();
+  const erroId = useId();
+
+  // O foco acompanha a confirmação, porque ela troca de lugar com o botão que
+  // a abriu. Abrindo, vai para "Cancelar", a saída sem estrago. Fechando, volta
+  // para "Gerar novo código" se a pessoa desistiu, ou para "Copiar" se o código
+  // novo saiu, que é o próximo passo dela. Sem isso o foco caía no começo da
+  // página com o botão desmontado.
+  const copiarRef = useRef(null);
+  const pedirNovoRef = useRef(null);
+  const cancelarRef = useRef(null);
+  const chaveAoConfirmar = useRef(null);
+  useEffect(() => {
+    if (confirmando) {
+      chaveAoConfirmar.current = chave;
+      cancelarRef.current?.focus();
+      return;
+    }
+    if (chaveAoConfirmar.current === null) return;
+    const trocou = chaveAoConfirmar.current !== chave;
+    chaveAoConfirmar.current = null;
+    (trocou ? copiarRef : pedirNovoRef).current?.focus();
+    // `chave` fica fora de propósito: só a abertura e o fechamento movem o foco.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmando]);
+
+  return (
+    <section aria-labelledby={tituloId} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div>
+        <h3 id={tituloId} style={{ fontFamily: T.display, fontSize: 14, fontWeight: W.title, color: T.text, margin: 0 }}>
+          Código do prédio
+        </h3>
+        <p style={{ color: T.mute, fontSize: 12, lineHeight: 1.5, margin: '3px 0 0' }}>
+          Para mandar por mensagem. Vale até você gerar outro.
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: T.chip, borderRadius: R.control, padding: '10px 12px' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <KeyRound size={14} color={T.mute} aria-hidden="true" />
+          <span style={{ color: T.text, fontWeight: W.title, fontSize: 15, letterSpacing: '0.14em', fontFamily: 'monospace' }}>
+            {chave}
+          </span>
+        </span>
+        <button
+          ref={copiarRef}
+          type="button"
+          onClick={onCopy}
+          className="link-acao link-acao--acento alvo-toque"
+          aria-label={copiada ? 'Código do prédio copiado' : `Copiar código do prédio ${chave}`}
+          style={{ color: T.accentInk, fontSize: 12, fontWeight: W.strong, display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
+        >
+          {copiada ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
+          {copiada ? 'Copiado' : 'Copiar'}
+        </button>
+      </div>
+
+      <p id={avisoId} style={{ color: T.mute, fontSize: 12, lineHeight: 1.5, margin: 0 }}>
+        {AVISO_CODIGO_DO_PREDIO}
+      </p>
+
+      {confirmando ? (
+        <div
+          role="group"
+          aria-label="Confirmar novo código"
+          className="confirmacao-codigo"
+          style={{ display: 'flex', flexDirection: 'column', gap: 10, background: T.chip, borderRadius: R.control, padding: 12 }}
+        >
+          <p style={{ display: 'flex', gap: 8, alignItems: 'flex-start', color: T.text, fontSize: 13, lineHeight: 1.5, margin: 0 }}>
+            <AlertTriangle size={15} color={T.danger} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+            <span>
+              Gerar um novo código? O atual para de funcionar na hora. {EFEITO_NOVO_CODIGO}
+            </span>
+          </p>
+          {erro && (
+            <p id={erroId} role="alert" style={{ color: T.danger, fontSize: 12, lineHeight: 1.5, margin: 0 }}>
+              {erro}
+            </p>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button ref={cancelarRef} variant="secondary" style={{ flex: 1, fontSize: 13, padding: '9px 12px' }} onClick={onCancelar} disabled={gerando}>
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              style={{ flex: 1, fontSize: 13, padding: '9px 12px' }}
+              onClick={onConfirmar}
+              loading={gerando}
+              aria-describedby={erro ? erroId : undefined}
+            >
+              Gerar novo código
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          ref={pedirNovoRef}
+          type="button"
+          onClick={onPedirNovo}
+          className="link-acao alvo-toque"
+          aria-describedby={avisoId}
+          style={{ alignSelf: 'flex-start', color: T.mute, fontSize: 12, fontWeight: W.strong, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+        >
+          <RotateCw size={13} aria-hidden="true" />
+          Gerar novo código
+        </button>
+      )}
+    </section>
+  );
+}

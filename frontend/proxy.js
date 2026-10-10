@@ -29,6 +29,24 @@ const LOCAL_API_ORIGIN = 'http://localhost:4000';
 const SENTRY_ORIGIN = sentryOrigin(process.env.NEXT_PUBLIC_SENTRY_DSN || '');
 
 /**
+ * A origem exata do Storage deste projeto, para o `media-src`.
+ *
+ * Só o projeto do Viston, e não qualquer `*.supabase.co`: um `<video>` ou uma
+ * `<track>` injetados não tocam mídia de um projeto alheio. Sem a variável (ou
+ * com ela malformada), vale o curinga do Supabase, que é o que as outras
+ * diretivas usam: a alternativa seria barrar o player inteiro em silêncio.
+ */
+function supabaseOrigin(url) {
+  try {
+    const { protocol, origin } = new URL(url);
+    return protocol === 'https:' || protocol === 'http:' ? origin : null;
+  } catch {
+    return null;
+  }
+}
+const MEDIA_ORIGIN = supabaseOrigin(process.env.NEXT_PUBLIC_SUPABASE_URL || '') || 'https://*.supabase.co';
+
+/**
  * CSP do navegador, com nonce novo a cada requisição.
  *
  * O `helmet` do backend protege a API, que só devolve JSON. O que faltava era
@@ -60,6 +78,12 @@ function buildCsp(nonce) {
     // Avatar e planilha vêm do Storage do Supabase; `data:` é o recorte no canvas.
     "img-src 'self' https://*.supabase.co data: blob:",
     "font-src 'self' data:",
+    // O vídeo e a legenda dos tutoriais (app/ajuda) vêm do Storage por URL
+    // assinada. Sem `media-src`, o `default-src 'self'` barra o `<video>` e a
+    // `<track>`: o player abre com a capa e nunca toca, sem erro à vista. A
+    // capa (`poster`) é imagem, e passa pelo `img-src` acima. Sem `blob:`: o
+    // player toca a URL do Storage direto, nunca um objeto montado na página.
+    `media-src 'self' ${MEDIA_ORIGIN}`,
     `connect-src 'self' ${API_ORIGIN}${isDev ? ` ${LOCAL_API_ORIGIN}` : ''} https://*.supabase.co ${SENTRY_ORIGIN}`.trim(),
     "frame-ancestors 'none'",
     "base-uri 'self'",

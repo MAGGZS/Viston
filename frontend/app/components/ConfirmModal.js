@@ -1,5 +1,5 @@
 'use client';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Info } from 'lucide-react';
 import { Button, Modal } from '@/app/components/ui';
 import { T } from '@/app/lib/theme';
 
@@ -16,18 +16,82 @@ import { T } from '@/app/lib/theme';
  * a segunda e a terceira caindo num registro que já tinha ido. Enquanto espera,
  * o botão vira giro e nenhuma das duas saídas responde, nem a tecla Esc, nem o
  * clique no fundo: sair no meio deixaria a pessoa sem saber se apagou.
+ *
+ * `tone` é o ícone ao lado da pergunta. O triângulo vermelho era o único, e
+ * aparecia até em "Informar conclusão", que não apaga nada: o aviso de perigo
+ * gritando onde não há perigo ensina a pessoa a não levar o triângulo a sério
+ * quando ele importa. Sem `tone`, quem decide é o botão: confirmação
+ * `danger` leva o triângulo, qualquer outra leva o "i" neutro, na tinta de
+ * destaque. O ícone é enfeite (`aria-hidden`): a pergunta já está no título.
+ *
+ * `loadingLabel` (opcional) troca o giro mudo do botão por giro e texto
+ * ("Publicando..."), para a confirmação que demora o bastante para a pessoa
+ * se perguntar se o clique pegou. O botão guarda a largura (os dois dividem a
+ * linha), fica `aria-busy`, e `loadingAnnouncement` vai para uma região
+ * `aria-live`, porque o leitor de tela não anuncia a troca de texto de um
+ * botão que já tem o foco. `error` (opcional) mostra a recusa do servidor
+ * dentro da caixa, que continua aberta para tentar de novo. Sem as três, a
+ * caixa é a de sempre.
  */
-export function ConfirmModal({ open, title, message, confirmLabel = 'Confirmar', cancelLabel = 'Voltar', confirmVariant = 'danger', loading = false, onConfirm, onCancel }) {
+export function ConfirmModal({
+  open,
+  title,
+  message,
+  confirmLabel = 'Confirmar',
+  cancelLabel = 'Voltar',
+  confirmVariant = 'danger',
+  tone,
+  loading = false,
+  loadingLabel,
+  loadingAnnouncement,
+  error,
+  onConfirm,
+  onCancel,
+}) {
+  const perigo = (tone ?? (confirmVariant === 'danger' ? 'danger' : 'neutral')) === 'danger';
+  const Icone = perigo ? AlertTriangle : Info;
+
   return (
     <Modal open={open} onClose={loading ? () => {} : onCancel} title={title}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-          <AlertTriangle size={18} color={T.danger} style={{ flexShrink: 0, marginTop: 2 }} />
+          <Icone
+            size={18}
+            color={perigo ? T.danger : T.accentInk}
+            aria-hidden="true"
+            data-tone={perigo ? 'danger' : 'neutral'}
+            style={{ flexShrink: 0, marginTop: 2 }}
+          />
           <p style={{ color: T.text, fontSize: 14, lineHeight: 1.6 }}>{message}</p>
         </div>
+        {error && !loading && (
+          <p role="alert" style={{ color: T.danger, fontSize: 13, lineHeight: 1.5, marginTop: -8 }}>{error}</p>
+        )}
+        {loadingLabel && (
+          <span aria-live="polite" className="sr-only">{loading ? (loadingAnnouncement ?? loadingLabel) : ''}</span>
+        )}
         <div style={{ display: 'flex', gap: 10 }}>
           <Button variant="secondary" style={{ flex: 1 }} disabled={loading} onClick={onCancel}>{cancelLabel}</Button>
-          <Button variant={confirmVariant} style={{ flex: 1 }} loading={loading} onClick={onConfirm}>{confirmLabel}</Button>
+          {loadingLabel ? (
+            <Button
+              variant={confirmVariant}
+              style={{ flex: 1, ...(loading ? { opacity: 1, cursor: 'progress' } : null) }}
+              disabled={loading}
+              aria-busy={loading || undefined}
+              onClick={onConfirm}
+            >
+              {loading ? (
+                <>
+                  <span className="giro" aria-hidden="true" />
+                  {loadingLabel}
+                </>
+              ) : (
+                confirmLabel
+              )}
+            </Button>
+          ) : (
+            <Button variant={confirmVariant} style={{ flex: 1 }} loading={loading} onClick={onConfirm}>{confirmLabel}</Button>
+          )}
         </div>
       </div>
     </Modal>

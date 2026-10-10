@@ -5,7 +5,8 @@ import { format } from 'date-fns';
 import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { LogOut, ArrowLeft, Building2, Check, ChevronRight, CreditCard, KeyRound, MessageSquarePlus, Palette, Pencil, Trash2, UserRound } from 'lucide-react';
+import { LogOut, ArrowLeft, Building2, Check, ChevronRight, CircleHelp, CreditCard, KeyRound, MessageSquarePlus, Monitor, Moon, Palette, Pencil, Sun, Trash2, UserRound } from 'lucide-react';
+import Link from 'next/link';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { CobrancaSection } from '@/app/components/CobrancaSection';
 import { SenhaChecklist, senhaValida, useFocoSenha } from '@/app/components/SenhaChecklist';
@@ -36,7 +37,7 @@ import {
   useMyFeedbacks,
 } from '@/app/hooks/useApi';
 import { canInspect, isAdmin, isManager, isManagerAccount, isResponsible, managedBuildings, moderatedBuilding, roleLabel } from '@/app/lib/roles';
-import { useTheme } from '@/app/lib/tema';
+import { useTheme, useThemePref } from '@/app/lib/tema';
 import { T, R, W, NUM, HERO_SURFACE } from '@/app/lib/theme';
 
 const profileSchema = yup.object({
@@ -123,6 +124,20 @@ function Group({ title, className = '' }) {
     <p className={className} style={{ color: T.mute, fontSize: 14, margin: '22px 0 8px 4px' }}>{title}</p>
   );
 }
+
+/**
+ * Como cada preferência de tema aparece na linha "Tema" do telefone.
+ *
+ * Ícone e rótulo da preferência, não do tema em uso: com "Automático" num
+ * aparelho claro, a linha diz "Automático", que é o que a pessoa escolheu.
+ * São os mesmos ícones das opções do seletor, para a linha e a caixa falarem
+ * a mesma língua.
+ */
+const TEMA_DA_LINHA = {
+  system: { icon: Monitor, rotulo: 'Automático' },
+  dark: { icon: Moon, rotulo: 'Escuro' },
+  light: { icon: Sun, rotulo: 'Claro' },
+};
 
 /** Linha que abre alguma coisa. Alvo de 56px, que é o mínimo confortável. */
 function Row({ icon: Icon, label, hint, tone, onClick, className = '' }) {
@@ -240,9 +255,9 @@ function AbaDaConta({ label, ativa, tone, onClick }) {
  * abria uma caixa — para conferir o próprio e-mail era preciso abrir o
  * formulário que o altera, e sair dele sem mexer em nada.
  */
-function Bloco({ titulo, acao, children }) {
+function Bloco({ titulo, acao, largura, children }) {
   return (
-    <section style={{ background: T.chip, borderRadius: R.control, padding: '16px 18px' }}>
+    <section style={{ background: T.chip, borderRadius: R.control, padding: '16px 18px', maxWidth: largura }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: children ? 14 : 0 }}>
         <h3 style={{ color: T.text, fontSize: 14, fontWeight: W.title }}>{titulo}</h3>
         {acao}
@@ -385,9 +400,48 @@ function PainelDaConta({ secao, user, theme, buildingLabel, onEditarFoto, onAbri
         {/* As duas opções à vista, e não atrás de um botão que abriria uma
             caixa: o tema é a única configuração cujo resultado aparece na
             própria tela em que se escolhe. Escondê-lo num modal fazia a pessoa
-            ver a mudança pela fresta do que estava por cima. */}
-        <Bloco titulo="Tema">
+            ver a mudança pela fresta do que estava por cima.
+            O bloco tem a largura do seletor (640 + 18 de recuo de cada lado):
+            esticado pelo painel inteiro, sobrava um vazio à direita das três
+            opções que fazia o cartão parecer desproporcional. */}
+        <Bloco titulo="Tema" largura={676}>
           <SeletorDeTema />
+        </Bloco>
+      </div>
+    );
+  }
+
+  if (secao === 'ajuda') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <TituloDaSecao>Ajuda e tutoriais</TituloDaSecao>
+
+        {/* A porta da central de ajuda, no computador. Mora aqui, e não num
+            item de menu lateral, por decisão do proprietário: a central é de
+            todas as contas, e as barras laterais são de cada área. Dentro das
+            telas, o "?" do cabeçalho leva direto ao tutorial daquela tela. */}
+        <Bloco
+          titulo="Ajuda e tutoriais"
+          acao={
+            <Link
+              href="/ajuda"
+              className="btn"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                background: 'transparent', border: `1px solid ${T.line}`,
+                padding: '6px 12px', borderRadius: R.pill, textDecoration: 'none',
+                color: T.text, fontFamily: T.display, fontSize: 12, fontWeight: W.strong,
+                '--btn-hover': T.hover,
+              }}
+            >
+              Abrir <ChevronRight size={12} aria-hidden="true" />
+            </Link>
+          }
+        >
+          <p style={{ color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
+            Vídeos curtos, um passo de cada vez, para cada coisa que dá para fazer no
+            Viston. Os do seu cargo aparecem primeiro.
+          </p>
         </Bloco>
       </div>
     );
@@ -649,11 +703,12 @@ function PerfilContent() {
   const { user, logout, clearSession } = useAuthStore();
   const { show: toast } = useToastStore();
   const theme = useTheme();
+  const temaDaLinha = TEMA_DA_LINHA[useThemePref()] ?? TEMA_DA_LINHA.system;
   const router = useRouter();
   const searchParams = useSearchParams();
   const buildingId = searchParams?.get('buildingId') ?? null;
   const [deleteModal, setDeleteModal] = useState(false);
-  // Qual caixa está aberta: 'identity' | 'password' | 'building' | 'feedback'
+  // Qual caixa está aberta: 'identity' | 'password' | 'building' | 'feedback' | 'tema'
   //
   // `undefined` é "ninguém mexeu nas caixas ainda", e é o que permite a URL
   // abrir a de cobrança sozinha (ver `sheet`, logo abaixo das seções). `null`
@@ -687,6 +742,7 @@ function PerfilContent() {
     { id: 'seguranca', label: 'Segurança' },
     { id: 'aparencia', label: 'Aparência' },
     !isManager(user) && { id: 'predio', label: 'Prédio' },
+    { id: 'ajuda', label: 'Ajuda e tutoriais' },
     { id: 'feedback', label: 'Feedback' },
     { id: 'excluir', label: 'Excluir conta', tone: 'danger' },
   ].filter(Boolean);
@@ -845,13 +901,15 @@ function PerfilContent() {
             </header>
           )}
 
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '28px 32px 40px' }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '28px 32px 0', display: 'flex', flexDirection: 'column' }}>
             <h1 className="anim-fade-down" style={{ color: T.text, fontSize: 22, fontWeight: W.title, marginBottom: 20 }}>
               Configurações da conta
             </h1>
 
             {/*
-              Duas colunas dentro de uma superfície só.
+              Duas colunas soltas na página, sem superfície por trás. A grade
+              cresce até o fim da área rolável e a divisória do menu desce junto
+              até a borda de baixo; o respiro final fica em cada coluna.
 
               A largura fixa da esquerda é o que mantém o painel parado ao trocar
               de seção: com `auto`, "Excluir conta" alargaria a coluna e o
@@ -861,11 +919,10 @@ function PerfilContent() {
               className="anim-fade-up anim-d1"
               style={{
                 display: 'grid', gridTemplateColumns: '186px 1fr', gap: 8,
-                background: T.card, borderRadius: R.card, boxShadow: T.cardRing,
-                padding: 14, maxWidth: 1080,
+                flex: 1, maxWidth: 1080,
               }}
             >
-              <nav aria-label="Seções da conta" style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingRight: 8, borderRight: `1px solid ${T.line}` }}>
+              <nav aria-label="Seções da conta" style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingRight: 8, paddingBottom: 40, borderRight: `1px solid ${T.line}` }}>
                 {secoes.map((s) => (
                   <AbaDaConta
                     key={s.id}
@@ -880,7 +937,7 @@ function PerfilContent() {
               {/* `key` na seção: cada painel tem os seus campos, e sem isto o
                   React reaproveitaria o de antes — a senha digitada e não salva
                   reapareceria dentro de outra seção. */}
-              <div key={secaoAtual.id} className="anim-fade-in" style={{ minWidth: 0, padding: '4px 8px 8px 18px' }}>
+              <div key={secaoAtual.id} className="anim-fade-in" style={{ minWidth: 0, padding: '4px 8px 40px 18px' }}>
                 <PainelDaConta
                   secao={secaoAtual.id}
                   user={user}
@@ -950,10 +1007,20 @@ function PerfilContent() {
           <Row icon={KeyRound} label="Alterar senha" onClick={() => setSheet('password')} />
 
           <Group title="Aparência" />
-          {/* As opções à vista, como no desktop: a caixa que as guardava deixou
-              de existir, e o tema é justamente a escolha cujo resultado aparece
-              atrás dela. */}
-          <SeletorDeTema />
+          {/* Uma linha, como as outras da lista: as três opções à vista
+              empurravam o resto da conta para baixo da dobra. A caixa que ela
+              abre aplica no toque, e o app responde atrás dela. */}
+          <Row
+            icon={temaDaLinha.icon}
+            label="Tema"
+            hint={temaDaLinha.rotulo}
+            onClick={() => setSheet('tema')}
+          />
+
+          {/* A porta da central de ajuda no telefone: uma linha, como as outras
+              da conta, e não uma aba nova na barra de baixo. */}
+          <Group title="Ajuda" />
+          <Row icon={CircleHelp} label="Ajuda e tutoriais" onClick={() => router.push('/ajuda')} />
 
           <Group title="Feedback" />
           <Row
@@ -1011,6 +1078,12 @@ function PerfilContent() {
           o foco a cada tecla. */}
       <Modal open={sheet === 'building'} onClose={() => setSheet(null)} title="Prédio vinculado" maxWidth={440}>
         {BuildingSection()}
+      </Modal>
+
+      {/* Sem salvar e fora do escopo de alterações: a troca vale no toque, e
+          não há nada a perder ao fechar. */}
+      <Modal open={sheet === 'tema'} onClose={() => setSheet(null)} title="Tema" maxWidth={440}>
+        <SeletorDeTema />
       </Modal>
 
       <Modal open={sheet === 'cobranca'} onClose={() => setSheet(null)} title="Planos e cobrança" maxWidth={640}>

@@ -346,7 +346,11 @@ describe('a tela da troca de dono', () => {
       .set('Authorization', `Bearer ${tokenCogestor}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ managers: [], members: [], owner_manager_id: DONO_ID });
+    expect(res.body).toEqual(
+      expect.objectContaining({ managers: [], members: [], owner_manager_id: DONO_ID })
+    );
+    // As vagas por papel vêm junto, para a aprovação de pedidos (ver gating.test).
+    expect(res.body.role_capacity).toBeDefined();
     // O prédio veio da guarda da rota: o controller não busca de novo.
     expect(mockBuildings.findById).toHaveBeenCalledTimes(1);
   });

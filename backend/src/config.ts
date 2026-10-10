@@ -41,6 +41,9 @@ export const config = {
     serviceRoleKey: required('SUPABASE_SERVICE_ROLE_KEY'),
     bucketExcel: process.env.SUPABASE_BUCKET_EXCEL || 'viston-excel',
     bucketPhotos: process.env.SUPABASE_BUCKET_PHOTOS || 'viston-photos',
+    // Os vídeos da central de ajuda. Privado: leitura e envio só por URL
+    // assinada (ver src/services/helpStorage.service.ts).
+    bucketTutoriais: process.env.SUPABASE_BUCKET_TUTORIAIS || 'tutoriais',
   },
 
   jwt: {

@@ -1,4 +1,5 @@
 import { parseReportDate } from '@/app/lib/date';
+import { OCCURRENCE_STATUS_LABEL } from '@/app/lib/maintenanceOptions';
 
 /**
  * As regras da mesa do responsável no desktop — o que o quadro, o painel e a
@@ -51,6 +52,56 @@ export const COLUNAS = [
 ];
 
 export const EXECUTANDO = ['EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO'];
+
+/**
+ * O estado do chamado dito do ponto de vista de quem executou.
+ *
+ * O rótulo curto do histórico (`OCCURRENCE_STATUS_LABEL`) foi escrito para
+ * quem só lê o chamado, e para essa pessoa "o responsável terminou, falta o
+ * moderador" ainda é "em andamento". Para o responsável essa leitura engana:
+ * ele acabou de informar a conclusão, olha o cartão e lê "Em andamento", como
+ * se o toque não tivesse valido. E "Concluída", no fim, não diz que quem
+ * encerrou foi outra pessoa, e era justamente isso que fazia gente achar que o
+ * próprio toque fechava o chamado.
+ *
+ * Por isso os dois estados do fim ganham frase própria aqui, e só aqui: o
+ * moderador e o histórico continuam lendo os rótulos de sempre.
+ */
+export const ESTADO_PARA_O_RESPONSAVEL = {
+  ...OCCURRENCE_STATUS_LABEL,
+  AGUARDANDO_FECHAMENTO: 'Aguardando o moderador fechar',
+  CONCLUIDO: 'Fechado pelo moderador',
+};
+
+export function estadoParaOResponsavel(status) {
+  return ESTADO_PARA_O_RESPONSAVEL[status] ?? status;
+}
+
+/**
+ * Os textos de "Informar conclusão", iguais no telefone e no computador.
+ *
+ * O botão se chamava "Concluir serviço", e o nome prometia mais do que o
+ * gesto faz: ele não fecha o chamado, só avisa o moderador que o trabalho
+ * terminou. Quem fecha é o moderador, depois de ler a linha do tempo e o
+ * relatório. A confirmação existe para dizer isso uma vez, antes do toque, e
+ * não para perguntar "tem certeza?": desfazer continua possível enquanto o
+ * moderador não fecha (ver `CancelarConclusaoBox`), e a caixa diz isso também,
+ * para ninguém hesitar por medo de errar.
+ *
+ * Mora aqui, e não em cada tela, porque são duas telas com o mesmo gesto, e
+ * texto copiado em dois lugares acaba discordando.
+ */
+export const INFORMAR_CONCLUSAO = {
+  botao: 'Informar conclusão',
+  titulo: 'Informar conclusão?',
+  mensagem:
+    'Isso não fecha o chamado. Você avisa que terminou, e o moderador revisa o serviço e fecha. ' +
+    'Enquanto ele não fechar, você ainda pode cancelar a conclusão.',
+  confirmar: 'Informar conclusão',
+  voltar: 'Voltar',
+  sucesso: 'Conclusão informada. Agora o moderador revisa e fecha o chamado.',
+  falha: 'Erro ao informar conclusão',
+};
 
 /** Os estados que ainda esperam algum gesto — de quem quer que seja. */
 export const ABERTOS = ['ENCAMINHADO', 'EM_ANDAMENTO', 'AGUARDANDO_TERCEIRO', 'AGUARDANDO_FECHAMENTO'];

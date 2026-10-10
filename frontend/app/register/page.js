@@ -1,15 +1,16 @@
 'use client';
-import { Suspense, useState } from 'react';
+import { Suspense, useId, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Eye, EyeOff } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AuthShell } from '@/app/components/AuthShell';
+import { AuthShell, AvisoCruzado } from '@/app/components/AuthShell';
 import { ConfirmarCodigo } from '@/app/components/ConfirmarCodigo';
 import { SenhaChecklist, senhaValida, useFocoSenha } from '@/app/components/SenhaChecklist';
 import { useUnsavedFlag } from '@/app/hooks/useUnsavedGuard';
 import { useCreateUser } from '@/app/hooks/useApi';
+import { redirectSeguro, vemDoConvite } from '@/app/lib/convite';
 import { T, R } from '@/app/lib/theme';
 
 const schema = yup.object({
@@ -41,11 +42,13 @@ const S = {
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const rawRedirect = searchParams?.get('redirect');
-  const redirectUrl =
-    rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') && !rawRedirect.startsWith('/\\')
-      ? rawRedirect
-      : null;
+  const redirectUrl = redirectSeguro(searchParams?.get('redirect'));
+  // Quem chegou pelo convite de um prédio (link ou QR Code) precisa de conta
+  // comum, e só dela: nesse caminho a tela não oferece o cadastro de gestor.
+  // Ver `vemDoConvite`.
+  const doConvite = vemDoConvite(redirectUrl);
+  const avisoId = useId();
+  const campoId = useId();
   const createUser = useCreateUser();
   // Campos vazios declarados: sem eles `isDirty` nunca volta a falso, e o
   // cadastro passa a perguntar "descartar alterações?" ao sair mesmo com tudo
@@ -136,18 +139,28 @@ function RegisterForm() {
     <AuthShell
       marca={false}
       title="Criar conta"
-      subtitle="Depois de entrar, peça a chave do prédio ao administrador para começar a vistoriar."
+      subtitle={
+        doConvite
+          ? 'Conta comum, a que pede acesso a prédios. Depois de confirmar o e-mail e entrar, você volta ao convite para enviar o pedido.'
+          : 'Depois de entrar, peça a chave do prédio ao administrador para começar a vistoriar.'
+      }
+      // O atalho para o cadastro de gestor saiu do rodapé e subiu para cá, onde
+      // é lido antes de qualquer campo. No caminho do convite ele não aparece.
+      aviso={
+        doConvite ? null : (
+          <AvisoCruzado
+            id={avisoId}
+            pergunta="Vai cadastrar e administrar prédios?"
+            acao="Crie uma conta de gestor."
+            href="/register/gestor"
+          />
+        )
+      }
       footer={
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <p style={{ color: T.faint, fontSize: 14 }}>
-            Já tem conta?{' '}
-            <a href={redirectUrl ? `/login?redirect=${encodeURIComponent(redirectUrl)}` : '/login'} style={{ color: T.accentInk, fontWeight: 600, textDecoration: 'none' }}>Entrar</a>
-          </p>
-          <p style={{ color: T.faint, fontSize: 14 }}>
-            Vai administrar um prédio?{' '}
-            <a href="/register/gestor" style={{ color: T.accentInk, fontWeight: 600, textDecoration: 'none' }}>Cadastre-se como gestor</a>
-          </p>
-        </div>
+        <p style={{ color: T.faint, fontSize: 14 }}>
+          Já tem conta?{' '}
+          <a href={redirectUrl ? `/login?redirect=${encodeURIComponent(redirectUrl)}` : '/login'} style={{ color: T.accentInk, fontWeight: 600, textDecoration: 'none' }}>Entrar</a>
+        </p>
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="auth-form">
@@ -174,12 +187,23 @@ function RegisterForm() {
               const inputStyle = { ...S.input, ...(isPassword ? { paddingRight: 46 } : {}), ...(errors[name] ? { borderColor: T.danger } : {}) };
               return (
                 <div key={name} style={S.field} {...(name === 'password' ? foco.ancora : {})}>
-                  <label style={S.label}>{label}</label>
+                  {/* Rótulo amarrado ao campo, e o erro também: sem isso o
+                      leitor de tela anunciava só "caixa de edição". O primeiro
+                      campo aponta ainda para o aviso de tipo de conta. */}
+                  <label htmlFor={`${campoId}-${name}`} style={S.label}>{label}</label>
                   <div style={S.inputWrap}>
                     <input
+                      id={`${campoId}-${name}`}
                       type={isPassword && showPassword ? 'text' : type}
                       placeholder={placeholder}
                       style={inputStyle}
+                      aria-invalid={errors[name] ? true : undefined}
+                      aria-describedby={
+                        [
+                          errors[name] ? `${campoId}-${name}-erro` : null,
+                          name === 'name' && !doConvite ? avisoId : null,
+                        ].filter(Boolean).join(' ') || undefined
+                      }
                       {...register(name)}
                     />
                     {isPassword && (
@@ -189,7 +213,7 @@ function RegisterForm() {
                       </button>
                     )}
                   </div>
-                  {errors[name] && <span style={{ fontSize: 12, color: T.danger }}>{errors[name].message}</span>}
+                  {errors[name] && <span id={`${campoId}-${name}-erro`} style={{ fontSize: 12, color: T.danger }}>{errors[name].message}</span>}
                   {/* A lista fica sob a senha, e nao sob a confirmacao: e naquele
                       campo que as regras valem. */}
                   {name === 'password' && <SenhaChecklist senha={senhaDigitada} aberta={foco.aberta} />}

@@ -1348,6 +1348,14 @@ input:-webkit-autofill:focus {
   margin-top: 8px;
 }
 
+/* O aviso que manda para o outro cadastro (ver `AvisoCruzado`). Fica colado
+   ao subtítulo, que é o que ele completa, e longe o bastante para não se ler
+   como parte da mesma frase. */
+.auth-aviso {
+  margin-top: 14px;
+  padding: 10px 14px;
+}
+
 .auth-divisor {
   height: 1px;
   margin: 26px 0;
@@ -1404,6 +1412,11 @@ input:-webkit-autofill:focus {
 
   .auth-sub {
     margin-top: 6px;
+  }
+
+  .auth-aviso {
+    margin-top: 10px;
+    padding: 8px 12px;
   }
 
   .auth-divisor {
@@ -1908,3 +1921,757 @@ input:-webkit-autofill:focus {
 }
 .icone-btn--chip { background: var(--color-chip); color: var(--color-ink); }
 
+
+/* ── Central de ajuda (app/ajuda e a pré-visualização do admin) ─────────────
+ *
+ * Um conteúdo só para as duas larguras (ver `AjudaShell`): no telefone o miolo
+ * ocupa a tela, no computador ele ganha a faixa de cima e uma coluna de leitura.
+ * A coluna é estreita de propósito: o texto de cada passo é para ser lido
+ * enquanto o vídeo roda, e uma linha de 1.400px obriga a cabeça a ir e voltar.
+ */
+.ajuda-faixa {
+  height: 60px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-page);
+}
+
+.ajuda-miolo {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+@media (min-width: 1024px) {
+  .ajuda-miolo { padding: 0 16px; }
+}
+
+.ajuda-topo {
+  padding: calc(20px + env(safe-area-inset-top)) 0 22px;
+}
+
+@media (min-width: 1024px) {
+  .ajuda-topo { padding: 28px 0 24px; }
+}
+
+/* A coluna do tutorial: player e "Isso ajudou?" um sobre o outro. */
+.ajuda-tutorial {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 880px;
+}
+
+/* Grade das pastas: uma coluna no telefone, duas no tablet, três no computador. */
+.ajuda-grade {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 640px) {
+  .ajuda-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .ajuda-grade { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+}
+
+/*
+ * O cartão que leva a algum lugar (pasta, tutorial, resultado de busca).
+ *
+ * Hover e foco em CSS pelo mesmo motivo do `.btn`. O aperto de 0,98 é a
+ * resposta ao toque: no telefone não há hover, e sem ele o cartão parece não
+ * ter ouvido o dedo até a próxima tela chegar.
+ */
+.ajuda-cartao {
+  background: var(--color-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-ring);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 150ms ease, transform 160ms var(--ease-saida);
+}
+.ajuda-cartao:active { transform: scale(0.985); }
+@media (hover: hover) and (pointer: fine) {
+  .ajuda-cartao:hover { background-color: var(--color-hover); }
+}
+.ajuda-cartao:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 2px;
+}
+
+/* O ícone da pasta, no círculo dourado rebaixado de todo ícone de destaque. */
+.ajuda-icone {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ajuda-icone--grande { width: 48px; height: 48px; }
+
+/* A capa do tutorial na lista: proporção fixa, para a linha não pular quando a imagem chega. */
+.ajuda-capa {
+  width: 104px;
+  aspect-ratio: 16 / 10;
+  border-radius: 10px;
+  background: var(--color-chip);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.ajuda-capa img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* O campo da busca: a superfície do `Input`, com espaço para a lupa e o X. */
+.ajuda-busca {
+  width: 100%;
+  background: var(--color-chip);
+  border: 1px solid var(--input-line);
+  border-radius: var(--radius-control);
+  padding: 13px 46px 13px 44px;
+  color: var(--color-ink);
+  font-size: 16px;
+  outline: none;
+  transition: border-color 150ms ease;
+}
+.ajuda-busca::-webkit-search-cancel-button { display: none; }
+.ajuda-busca:focus-visible { border-color: var(--color-accent-ink); }
+
+/*
+ * O palco do vídeo.
+ *
+ * Fundo preto nos dois temas: é a cor de onde o vídeo sai, e um palco branco no
+ * tema claro faria as tarjas laterais de um vídeo em pé parecerem moldura.
+ *
+ * O vídeo gravado no celular é em pé. Na largura toda ele passaria da altura da
+ * tela, e os controles ficariam abaixo da dobra; o teto de altura mantém o vídeo
+ * inteiro à vista, centrado no palco.
+ */
+.ajuda-palco {
+  background: #000;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+.ajuda-palco video {
+  display: block;
+  width: 100%;
+  max-height: 70vh;
+  margin: 0 auto;
+  background: #000;
+}
+.ajuda-palco[data-dispositivo='celular'] video { max-height: min(72vh, 640px); }
+
+/*
+ * O selo do tutorial sem vídeo, no lugar do palco.
+ *
+ * Pequeno de propósito: o tutorial em texto é completo, e um bloco do tamanho
+ * do vídeo dizendo "sem vídeo" faria a tela parecer quebrada. A pílula só diz
+ * o formato e quantos passos há, e as abas sobem para perto do título. O ícone
+ * em dourado e o texto na cor do corpo: dourado sobre chip, no texto, ficaria
+ * abaixo de 4,5:1 no tema claro.
+ */
+.ajuda-modo-texto {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--color-chip);
+  color: var(--color-ink);
+  font-size: 13px;
+  line-height: 1.2;
+}
+.ajuda-modo-texto svg { color: var(--color-accent-ink); }
+.ajuda-modo-texto__sep { color: var(--color-mute); }
+
+/*
+ * A trilha do tutorial em texto: um segmento por passo, aceso até o atual.
+ *
+ * Faz o papel do fio da aba, que no modo texto não existe (não há tempo para
+ * medir): mostra quanto do caminho já foi. Só a cor muda, em 200 ms, e por
+ * isso fica igual com movimento reduzido.
+ */
+.ajuda-trilha {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.ajuda-trilha__seg {
+  flex: 1;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--color-hover-strong);
+  transition: background-color 200ms ease;
+}
+.ajuda-trilha__seg.is-feito { background: var(--color-accent-ink); }
+
+/*
+ * As abas dos passos.
+ *
+ * Rolam na horizontal quando não cabem, sem barra de rolagem à vista: o fade
+ * nas pontas é o que diz que há mais passos para o lado, e a barra fina do
+ * sistema, colada embaixo das pílulas, parecia um sublinhado da aba ativa.
+ * `scroll-padding` deixa a aba que entra pela ponta longe da borda do fade.
+ *
+ * O fade só aparece do lado em que há mais aba escondida: o player marca
+ * `data-sobra` (`esq`, `dir` ou `ambos`) a cada rolagem e a cada mudança de
+ * largura. Fade fixo nas duas pontas apagava a primeira aba no começo da lista,
+ * onde não há nada à esquerda, e a última quando tudo cabia.
+ */
+.ajuda-abas {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-padding-inline: 16px;
+  padding: 2px 2px 4px;
+}
+.ajuda-abas[data-sobra='dir'] {
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 12px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 12px), transparent 100%);
+}
+.ajuda-abas[data-sobra='esq'] {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px);
+  mask-image: linear-gradient(90deg, transparent 0, #000 12px);
+}
+.ajuda-abas[data-sobra='ambos'] {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+}
+.ajuda-abas::-webkit-scrollbar { display: none; }
+
+.ajuda-aba {
+  position: relative;
+  flex-shrink: 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: var(--color-chip);
+  color: var(--color-mute);
+  font-family: inherit;
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background-color 150ms ease, color 150ms ease, transform 160ms var(--ease-saida);
+}
+.ajuda-aba:active { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) {
+  .ajuda-aba:not(.is-on):hover { background-color: var(--color-hover-strong); color: var(--color-ink); }
+}
+.ajuda-aba.is-on {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-ink);
+  font-weight: 500;
+}
+/*
+ * No tema claro, o `--color-accent-ink` (#8A6B00) sobre o dourado translúcido
+ * da aba ativa dá 4,2:1 contra a página (#F5F6F8 por baixo), abaixo do mínimo
+ * de 4,5:1. O tom mais escuro vale só aqui, e não no token: o token passa nas
+ * superfícies lisas, e escurecê-lo mudaria o dourado do produto inteiro. Com
+ * #7A5E00: 5,1:1 sobre a página e 5,5:1 sobre o cartão. No escuro, o dourado
+ * sobre o fundo da aba ativa dá 9,6:1 e fica como está.
+ */
+html[data-theme='light'] .ajuda-aba.is-on { color: #7A5E00; }
+.ajuda-aba:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: -2px;
+}
+.ajuda-aba__num { font-variant-numeric: tabular-nums; }
+
+/*
+ * O fio do capítulo: quanto do passo ativo já passou.
+ *
+ * É a peça que liga a aba ao vídeo. A barra de tempo do player diz onde se
+ * está no vídeo inteiro; este fio diz onde se está no passo, que é a unidade
+ * que a pessoa lê. Linear, porque é progresso, e no ritmo do `timeupdate`
+ * (cerca de quatro vezes por segundo): a transição cobre o intervalo entre um
+ * evento e o próximo, e o fio anda contínuo em vez de aos saltos.
+ */
+.ajuda-aba__fio {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--color-accent-ink);
+  transform-origin: left center;
+  transition: transform 250ms linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ajuda-aba__fio { transition: none; }
+  .ajuda-cartao, .ajuda-aba { transition: background-color 150ms ease, color 150ms ease; }
+  .ajuda-cartao:active, .ajuda-aba:active { transform: none; }
+}
+
+.ajuda-painel:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 2px;
+}
+
+/* O rótulo que faz as vezes de botão do seletor de arquivo (ver EnvioDoPacote). */
+.ajuda-escolha {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border-radius: var(--radius-control);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.ajuda-escolha[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
+.ajuda-escolha:focus-within {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 2px;
+}
+
+/* A barra do envio anda por `transform`, contínua entre um evento de progresso e o próximo. */
+.ajuda-progresso { transition: transform 200ms linear; }
+@media (prefers-reduced-motion: reduce) {
+  .ajuda-progresso { transition: none; }
+}
+
+
+/* ── Tutoriais do admin: filtro segmentado e modo de seleção ────────────────
+ * (ver app/desktop/admin/tutoriais/page.js)
+ *
+ * O filtro é uma pílula só, no chip, como o `.seg` da fila de chamados, mas
+ * com contagem em cada segmento e um realce que desliza. O realce é dourado
+ * suave, e não o cartão, pelo mesmo motivo do `.seg`: no escuro o cartão é
+ * mais escuro que o chip e o ligado pareceria o apagado. O admin troca de
+ * corte várias vezes seguidas, e ver o realce andar diz de onde para onde
+ * foi. 220 ms e curva de saída, que é o tempo de um controle, e não de uma
+ * entrada de tela.
+ */
+.filtro-seg {
+  position: relative;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--color-chip);
+  border-radius: var(--radius-control);
+}
+.filtro-seg__realce {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  border-radius: calc(var(--radius-control) - 4px);
+  background: var(--color-accent-soft);
+  pointer-events: none;
+}
+.filtro-seg.is-animado .filtro-seg__realce {
+  transition: transform 220ms var(--ease-out), width 220ms var(--ease-out);
+}
+.filtro-seg__btn {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 10px 0 14px;
+  border: none;
+  border-radius: calc(var(--radius-control) - 4px);
+  background: transparent;
+  color: var(--color-mute);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: color 150ms ease, transform 160ms var(--ease-saida);
+}
+.filtro-seg__btn:active { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) {
+  .filtro-seg__btn:not(.is-on):hover { color: var(--color-ink); }
+}
+.filtro-seg__btn.is-on { color: var(--color-accent-ink); font-weight: 500; }
+/* Antes da medida (primeira pintura, teste), o próprio segmento pinta o realce. */
+.filtro-seg:not(.is-medido) .filtro-seg__btn.is-on { background: var(--color-accent-soft); }
+.filtro-seg__btn:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 1px;
+}
+.filtro-seg__n {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-card);
+  color: var(--color-mute);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.filtro-seg__btn.is-on .filtro-seg__n { color: var(--color-accent-ink); }
+.filtro-seg__n.is-alerta { color: var(--color-danger); }
+.filtro-seg__btn.is-on .filtro-seg__n.is-alerta { background: var(--color-danger-soft); }
+.filtro-seg__fio {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--color-line);
+}
+
+/**
+ * A caixa de marcar. O `<input>` de verdade cobre os 44 px, transparente; o
+ * desenho é a irmã dele. Borda em `mute` porque controle precisa de 3:1 contra
+ * o fundo, e `faint` não garante isso no chip. Marcada, é o dourado com o
+ * visto em preto (12,6:1), traçado em 160 ms pelo `stroke-dashoffset`.
+ */
+.marcar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+.marcar__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.marcar__caixa {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--color-card);
+  box-shadow: inset 0 0 0 1.5px var(--color-mute);
+  pointer-events: none;
+  transition: background-color 120ms ease, box-shadow 120ms ease, transform 160ms var(--ease-saida);
+}
+.marcar__caixa svg { fill: none; stroke: #000; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.marcar__visto { stroke-dasharray: 16; stroke-dashoffset: 16; transition: stroke-dashoffset 160ms var(--ease-out); }
+.marcar__traco { opacity: 0; }
+.marcar__input:checked + .marcar__caixa,
+.marcar__input:indeterminate + .marcar__caixa {
+  background: var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--accent-edge);
+}
+.marcar__input:checked + .marcar__caixa .marcar__visto { stroke-dashoffset: 0; }
+.marcar__input:indeterminate + .marcar__caixa .marcar__visto { opacity: 0; }
+.marcar__input:indeterminate + .marcar__caixa .marcar__traco { opacity: 1; }
+.marcar__input:active + .marcar__caixa { transform: scale(0.9); }
+.marcar__input:focus-visible + .marcar__caixa {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 2px;
+}
+
+/* A linha no modo de seleção: ela toda é o rótulo da caixa. */
+.linha-sel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 10px 2px 0;
+  border-radius: var(--radius-control);
+  background: var(--color-chip);
+  color: var(--color-ink);
+  cursor: pointer;
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .linha-sel:not(.is-marcada):hover { background: var(--color-hover); }
+}
+.linha-sel.is-marcada {
+  background: var(--color-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--color-accent-ink);
+}
+
+/**
+ * A barra da seleção. A faixa é `fixed` no rodapé e tem a largura do `<main>`
+ * (medida em JS); ela não recebe clique, só a barra dentro dela. Entra de
+ * baixo, curta, e sai sem animação: sair é resposta, e resposta não espera.
+ */
+.barra-sel-faixa {
+  position: fixed;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  padding: 0 24px;
+  pointer-events: none;
+  /* A barra decide o que esconder pela largura que tem, e não pela da janela:
+     a barra lateral aberta ou recolhida muda a conta. */
+  container-type: inline-size;
+  container-name: barra-sel;
+}
+.barra-sel {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  max-width: 720px;
+  height: 56px;
+  padding: 0 8px 0 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-card);
+  box-shadow: var(--card-ring), var(--elev-2);
+  pointer-events: auto;
+  animation: barra-sel-entra 200ms var(--ease-out) both;
+}
+@keyframes barra-sel-entra {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes barra-sel-aparece {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .barra-sel { animation-name: barra-sel-aparece; }
+  .filtro-seg.is-animado .filtro-seg__realce,
+  .marcar__visto { transition: none; }
+}
+.barra-sel__conta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding-right: 4px;
+  color: var(--color-ink);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.barra-sel__vazio { color: var(--color-mute); }
+.barra-sel__n {
+  min-width: 26px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-ink);
+  font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.barra-sel__fio { width: 1px; height: 24px; margin: 0 4px; flex-shrink: 0; background: var(--color-line); }
+.barra-sel__mola { flex: 1 1 0; min-width: 8px; }
+
+/* Os atalhos do meio: texto pequeno, sem fundo, como link. */
+.barra-sel__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-mute);
+  font-family: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, transform 160ms var(--ease-saida);
+}
+.barra-sel__link:not(:disabled):active { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) {
+  .barra-sel__link:not(:disabled):hover { background: var(--color-hover); color: var(--color-ink); }
+}
+.barra-sel__link:disabled { opacity: 0.5; cursor: not-allowed; }
+.barra-sel__link:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 2px;
+}
+.barra-sel .barra-sel__acao { white-space: nowrap; border-radius: 999px; }
+.barra-sel .barra-sel__acao:not(:disabled):active { transform: scale(0.97); }
+
+/* Os ícones dos atalhos e das ações só aparecem quando o texto sai. */
+.barra-sel__link svg,
+.barra-sel__acao svg { display: none; }
+
+/* Estreita: os atalhos do meio viram ícone. */
+@container barra-sel (max-width: 600px) {
+  .barra-sel__link .barra-sel__txt { display: none; }
+  .barra-sel__link svg { display: block; }
+  .barra-sel__link { width: 36px; padding: 0; justify-content: center; }
+}
+/* Mais estreita: as ações também, e a contagem fica só no número. */
+@container barra-sel (max-width: 460px) {
+  .barra-sel__acao .barra-sel__txt,
+  .barra-sel__conta .barra-sel__txt { display: none; }
+  .barra-sel__acao svg { display: block; }
+  .barra-sel .barra-sel__acao { width: 40px; padding: 0 !important; }
+  .barra-sel__vazio { font-size: 13px; }
+}
+
+/**
+ * O giro dentro de um botão que trabalha ("Publicando..."). Herda a cor da
+ * letra do botão, e por isso aparece tanto no dourado (preto) quanto no
+ * secundário: o `Spinner` comum é dourado sobre dourado suave e sumiria no
+ * botão primário. Gira só por `transform`. Com menos movimento pedido, não
+ * gira nem aparece: o texto do botão já diz que está trabalhando.
+ */
+.giro {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .giro { display: none; }
+}
+
+/**
+ * Seletor de tema (ver components/SeletorDeTema.js), no perfil do desktop e
+ * do telefone.
+ *
+ * Três colunas iguais até 640px, com a prévia em proporção fixa: o cartão
+ * cresce e encolhe com a coluna sem esticar a miniatura. O seletor é contêiner
+ * para que o ícone saia pela largura que ele tem, e não pela da janela: em 360px
+ * cada opção tem ~100px e "Automático" não cabe ao lado do ícone.
+ */
+.tema-seletor {
+  max-width: 640px;
+  container-type: inline-size;
+  container-name: tema;
+}
+.tema-seletor__grade {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tema-opcao {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: none;
+  border-radius: 16px;
+  background: var(--color-card);
+  /* O fio dourado é o que diz qual está valendo; o resto da caixa é igual. */
+  box-shadow: var(--card-ring);
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 150ms ease, transform 160ms ease-out;
+}
+/* `accent-ink`: o dourado puro sobre o cartão branco dá 1,63:1, e a opção
+   marcada ficava sem marca nenhuma no tema claro. */
+.tema-opcao[aria-checked='true'] { box-shadow: 0 0 0 2px var(--color-accent-ink); }
+.tema-opcao:active { transform: scale(0.97); }
+.tema-opcao:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 3px;
+}
+
+.tema-previa {
+  display: block;
+  aspect-ratio: 16 / 10;
+  border-radius: 12px;
+  overflow: hidden;
+}
+/* A página da miniatura: a faixa do título e um cartão que ocupa o resto. */
+.tema-previa__tela {
+  display: flex;
+  flex-direction: column;
+  padding: 9%;
+}
+.tema-previa > .tema-previa__tela { padding: 12% 9%; }
+.tema-previa__linha {
+  display: block;
+  flex-shrink: 0;
+  height: 5px;
+  border-radius: 3px;
+  margin-bottom: 8%;
+}
+.tema-previa__cartao {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  flex: 1;
+  min-height: 0;
+  padding: 7%;
+  border-radius: 9px;
+  overflow: hidden;
+}
+.tema-previa__pilula {
+  display: block;
+  flex-shrink: 0;
+  height: 6px;
+  border-radius: 999px;
+  background: #F5C518;
+  margin-bottom: 6px;
+}
+
+.tema-opcao__rotulo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.tema-opcao__icone { flex-shrink: 0; }
+.tema-opcao__texto {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* O check no canto da prévia, fora do fluxo: não empurra o rótulo. */
+.tema-opcao__marca {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #000;
+  box-shadow: inset 0 0 0 1px var(--accent-edge), 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+/* Estreito (o telefone): caixa mais justa, letra um ponto menor e sem ícone,
+   para as três seguirem lado a lado com o rótulo inteiro. */
+@container tema (max-width: 420px) {
+  .tema-seletor__grade { gap: 8px; }
+  .tema-opcao { padding: 8px; gap: 8px; border-radius: 14px; }
+  .tema-previa { border-radius: 10px; }
+  .tema-opcao__icone { display: none; }
+  .tema-opcao__rotulo { font-size: 13px; }
+  .tema-opcao__marca { top: 12px; right: 12px; width: 18px; height: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tema-opcao { transition: box-shadow 150ms ease; }
+  .tema-opcao:active { transform: none; }
+}

@@ -102,7 +102,11 @@ export const billingService = {
     const extras = data.extra_buildings ?? 0;
     const teto = PLANS[data.plan].limits.extraBuildings;
     if (extras > teto) {
-      throw new ValidationError(`O plano ${PLANS[data.plan].name} comporta até ${teto} prédios extras.`);
+      // Concorda com o número, como a frase do limite em planGate: hoje nenhum
+      // plano pago tem teto de um extra, mas a frase não deve depender disso.
+      throw new ValidationError(
+        `O plano ${PLANS[data.plan].name} comporta até ${teto} ${teto === 1 ? 'prédio extra' : 'prédios extras'}.`
+      );
     }
 
     const customer = await ensureCustomer(managerId);

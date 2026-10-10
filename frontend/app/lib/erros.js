@@ -76,3 +76,49 @@ export function avisarErro(toast, err, fallback = PADRAO) {
 export function dispararUpgrade(err, fallback = PADRAO) {
   useUpgradeModalStore.getState().openFromError(err, fallback);
 }
+
+/**
+ * Conta de gestor tentando pedir acesso a um prédio.
+ *
+ * O servidor recusa com 403 e uma frase curta ("Conta de gestor não solicita
+ * acesso a prédio"), e ela está certa, mas não ajuda: quem a lê quase sempre
+ * criou a conta de gestor por engano, ou recebeu o QR Code de um prédio que
+ * outra pessoa administra, e fica sem saber o que fazer em seguida. Esta é a
+ * exceção à regra do topo do arquivo, a de que a frase do servidor vale: aqui a
+ * tela sabe o próximo passo e o servidor não tem como dizê-lo.
+ *
+ * O reconhecimento é pelo código próprio, `GESTOR_NAO_SOLICITA_ACESSO`. Antes
+ * era pela frase, porque o servidor devolvia o `FORBIDDEN` genérico, que o
+ * mesmo pedido devolve por outros motivos. A frase ficou como reserva para um
+ * servidor ainda na versão antiga durante a troca: se ele responder com o
+ * genérico, a tela continua sabendo o próximo passo. As telas perguntam a esta
+ * função, e não ao código nem à frase.
+ */
+export const CODIGO_GESTOR_PEDINDO_ACESSO = 'GESTOR_NAO_SOLICITA_ACESSO';
+const FRASE_GESTOR_PEDINDO_ACESSO = /conta de gestor n[aã]o solicita acesso/i;
+
+export function ehGestorPedindoAcesso(err) {
+  const status = err?.response?.status;
+  if (status !== 403) return false;
+  const erro = err?.response?.data?.error ?? {};
+  if (erro.code === CODIGO_GESTOR_PEDINDO_ACESSO) return true;
+  return FRASE_GESTOR_PEDINDO_ACESSO.test(erro.message ?? '');
+}
+
+export const GESTOR_NAO_PEDE_ACESSO = {
+  titulo: 'Conta de gestor não pede acesso',
+  texto:
+    'Gestores entram em um prédio sendo adicionados por outro gestor, e não por código, link ou QR Code. ' +
+    'Peça ao gestor deste prédio para adicionar você.',
+};
+
+/**
+ * A frase de um pedido de acesso que não passou.
+ *
+ * Igual a `mensagemDoErro`, com a explicação acima no lugar da frase seca
+ * quando quem pediu é uma conta de gestor.
+ */
+export function mensagemDoPedidoDeAcesso(err, fallback = PADRAO) {
+  if (ehGestorPedindoAcesso(err)) return `${GESTOR_NAO_PEDE_ACESSO.titulo}. ${GESTOR_NAO_PEDE_ACESSO.texto}`;
+  return mensagemDoErro(err, fallback);
+}

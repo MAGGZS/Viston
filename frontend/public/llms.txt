@@ -13,9 +13,14 @@ desta descrição.
 - **Prédios**: cada prédio tem andares cadastrados e uma chave de
   compartilhamento de 12 caracteres. É por essa chave — nunca pelo id — que um
   usuário pede acesso ao prédio.
-- **Vínculo**: o usuário informa a chave, envia uma solicitação e um
-  administrador aprova ou recusa. Só quem está vinculado enxerga os dados
-  daquele prédio.
+- **Vínculo**: o usuário informa a chave, envia uma solicitação e um gestor
+  do prédio aprova ou recusa. Ao aprovar, o gestor escolhe o papel da pessoa;
+  não existe papel padrão. Só quem está vinculado enxerga os dados daquele
+  prédio.
+- **Convite**: o QR Code e o link valem 15 minutos, para quem está junto do
+  gestor. O código do prédio serve para mandar por mensagem e vale até o gestor
+  gerar outro; o antigo para de funcionar na hora, mas quem já entrou continua
+  e os pedidos pendentes continuam na fila.
 - **Vistoria**: a vistoria inteira é enviada em uma única requisição, já
   concluída. Cada andar carrega suas ocorrências (tipo de manutenção,
   categoria, prioridade, descrição e, se o inspetor souber, o responsável).
@@ -42,7 +47,8 @@ administra quem entra neles e define os papéis — do **usuário** comum; o
 Dentro de cada prédio, o vínculo do usuário diz o que ele faz ali:
 
 - **INSPECTOR**: realiza vistorias.
-- **VIEWER**: apenas consulta, e somente pelo desktop. É como todo mundo entra.
+- **VIEWER**: apenas consulta, e somente pelo desktop. No celular vê um aviso
+  para abrir no computador ou pedir ao gestor outro papel.
 - **MODERADOR**: recebe os chamados abertos pelas vistorias, encaminha a um
   responsável e é o único que fecha um chamado.
 - **RESPONSAVEL**: técnico alocado no prédio. Atende o chamado encaminhado e
@@ -67,6 +73,8 @@ A mesma conta pode ter papéis diferentes em prédios diferentes.
 
 - Não existe API pública: todos os endpoints exigem `Authorization: Bearer`.
 - As rotas internas (`/home`, `/inspecao`, `/historico`, `/perfil`, `/desktop`,
-  `/gestor`, `/moderador`, `/responsavel`) estão bloqueadas no `robots.txt` e
-  não devem ser rastreadas.
+  `/gestor`, `/moderador`, `/responsavel`, `/ajuda`) estão bloqueadas no
+  `robots.txt` e não devem ser rastreadas.
+- `/ajuda` é a central de ajuda interna: tutoriais em vídeo por cargo, só para
+  contas logadas. Não há versão pública dela.
 - Idioma do produto: português do Brasil.

@@ -4,6 +4,7 @@ import { Avatar } from '@/app/components/Avatar';
 import { Logo } from '@/app/components/Logo';
 import { useAuthStore } from '@/app/store/auth';
 import { T } from '@/app/lib/theme';
+import { BotaoAjuda } from '@/app/components/ajuda/BotaoAjuda';
 
 /**
  * Topo da tela de prédios do gestor.
@@ -12,7 +13,7 @@ import { T } from '@/app/lib/theme';
  * num prédio passa a ter a barra lateral (ver `GestorShell`), que já leva de
  * volta para cá. Aqui bastam a marca e o perfil.
  */
-export function GestorHeader() {
+export function GestorHeader({ ajuda = null }) {
   const { user } = useAuthStore();
 
   return (
@@ -25,9 +26,13 @@ export function GestorHeader() {
         <Logo size={17} variant="horizontal" />
       </div>
 
-      <Link href="/perfil" aria-label="Abrir perfil" className="transition-transform duration-150 hover:scale-105">
-        <Avatar user={user} size={34} />
-      </Link>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {/* `ajuda` é a chave do "?" desta tela no mapa de app/lib/ajudaContexto.js. */}
+        {ajuda && <BotaoAjuda contexto={ajuda} compacto />}
+        <Link href="/perfil" aria-label="Abrir perfil" className="transition-transform duration-150 hover:scale-105">
+          <Avatar user={user} size={34} />
+        </Link>
+      </div>
     </header>
   );
 }

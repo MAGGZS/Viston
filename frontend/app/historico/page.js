@@ -25,6 +25,7 @@ import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { useActiveBuilding } from '@/app/hooks/useActiveBuilding';
 import { parseReportDate } from '@/app/lib/date';
 import { useAuthStore } from '@/app/store/auth';
+import { BotaoAjuda } from '@/app/components/ajuda/BotaoAjuda';
 
 const S = {
   page: { minHeight: '100vh', background: M.bg },
@@ -422,11 +423,17 @@ export default function HistoricoPage() {
         className="anim-fade-down"
         eyebrow={historico.eyebrow}
         title="Histórico"
-        actions={hasBuilding ? (
-          <MRound label="Filtros" onClick={() => setShowFilters(true)}>
-            <SlidersHorizontal size={17} />
-          </MRound>
-        ) : null}
+        actions={
+          <>
+            {/* O tutorial do histórico (mapa em app/lib/ajudaContexto.js). */}
+            <BotaoAjuda contexto="inspetor.historico" />
+            {hasBuilding && (
+              <MRound label="Filtros" onClick={() => setShowFilters(true)}>
+                <SlidersHorizontal size={17} />
+              </MRound>
+            )}
+          </>
+        }
       />
 
       {buildingsLoading ? (

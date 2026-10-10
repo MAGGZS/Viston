@@ -6,7 +6,7 @@ Sistema de vistoria e manutenção predial. O inspetor percorre o prédio andar 
 
 ## Como funciona
 
-- **Prédios e vínculo**: cada prédio possui andares cadastrados, uma chave permanente de compartilhamento de 12 caracteres (`share_key`, sem caracteres ambíguos como `0/O/1/I/L`) e tokens temporários de 15 minutos para entrada rápida via QR Code, link direto ou código rotativo. Usuários pedem acesso ao prédio, entram como `VIEWER` após aprovação do gestor e só enxergam dados dos prédios aos quais estão vinculados.
+- **Prédios e vínculo**: cada prédio possui andares cadastrados, uma chave permanente de compartilhamento de 12 caracteres (`share_key`, sem caracteres ambíguos como `0/O/1/I/L`) e tokens temporários de 15 minutos para entrada rápida via QR Code, link direto ou código rotativo. Usuários pedem acesso ao prédio e entram no papel que o gestor escolhe ao aprovar (não há papel padrão; a tela diz em qual aparelho cada papel funciona e desabilita, com o motivo, o papel que o plano não comporta). Só enxergam dados dos prédios aos quais estão vinculados. O QR Code e o link valem 15 minutos, para quem está junto do gestor; o código do prédio serve para mandar por mensagem e vale até o gestor gerar outro, o que invalida o antigo na hora sem tirar ninguém do prédio nem apagar pedidos pendentes.
 - **Vistoria em requisição única**: a vistoria inteira é preenchida com rascunho local e enviada já concluída em uma única chamada (`POST /inspections`), protegida por `Idempotency-Key` contra toque duplo ou reenvio de rede. O status de cada andar é derivado da maior prioridade relatada nele (`ALTA` → `PROBLEMA`, `MEDIA` → `ATENCAO`, demais casos → `OK`). Também é possível registrar ocorrências avulsas fora do roteiro de vistoria.
 - **Relatório do dia e planilha (`.xlsx`)**: a unidade do relatório consolidado é o **dia** no fuso do prédio (`America/Sao_Paulo`), e não a vistoria individual. Se três inspetores vistoriarem o mesmo prédio no mesmo dia, o sistema gera um único documento consolidado com os três nomes em *"Inspeção feita por"*. A planilha é montada em background via ExcelJS e guardada em bucket privado no Supabase Storage, acessível apenas por URL assinada de curta duração.
 - **Fluxo de chamados**: cada ocorrência registrada nasce como um chamado `ABERTO`. O moderador do prédio encaminha o chamado a um responsável técnico (`ENCAMINHADO`), que confirma o recebimento (`EM_ANDAMENTO`), registra o passo a passo da execução na linha do tempo (`TicketUpdate`, com texto e fotos) ou sinaliza dependência externa (`AGUARDANDO_TERCEIRO`), e informa quando terminou (`AGUARDANDO_FECHAMENTO`). Informar conclusão não encerra o chamado: somente o moderador dá o fechamento definitivo (`CONCLUIDO`), podendo registrar nota de manutenção, custo em reais e exportar o relatório do período em Word (`.docx`) ou CSV.
@@ -37,8 +37,8 @@ Determina o que uma conta de usuário faz em um prédio específico. A mesma con
 |---|---|---|
 | `INSPECTOR` | Mobile | Percorre os andares, realiza vistorias e registra ocorrências. |
 | `RESPONSAVEL` | Mobile | Recebe chamados encaminhados, atualiza o andamento com fotos/relatos e informa a conclusão do serviço. |
-| `MODERADOR` | Desktop / Mobile | Tria chamados recém-abertos, encaminha aos responsáveis, acompanha estatísticas/custos e fecha chamados concluídos. |
-| `VIEWER` | Desktop | Papel inicial de todo membro aprovado. Consulta relatórios, histórico e painéis do prédio. |
+| `MODERADOR` | Desktop | Tria chamados recém-abertos, encaminha aos responsáveis, acompanha estatísticas/custos e fecha chamados concluídos. A mesa do moderador (painel e filas de chamados) só abre no computador: no celular ele vê um aviso para usar o computador. |
+| `VIEWER` | Desktop | Consulta relatórios, histórico e painéis do prédio. Não abre no celular: ali vê um aviso para usar o computador ou pedir outro papel ao gestor. |
 
 ---
 

@@ -168,7 +168,7 @@ export default function GestorHomePage() {
   return (
     <RouteGuard roles={['GESTOR', 'ADMIN']}>
       <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', flexDirection: 'column' }}>
-        <GestorHeader />
+        <GestorHeader ajuda="gestor.predios" />
 
         <main id={CONTENT_ID} style={{
           flex: 1, display: 'flex', flexDirection: 'column',
@@ -257,6 +257,7 @@ export default function GestorHomePage() {
         centered
         buildingId={shareModal?.id}
         buildingName={shareModal?.name}
+        shareKey={shareModal?.share_key}
       />
     </RouteGuard>
   );

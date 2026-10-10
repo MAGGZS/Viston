@@ -1,7 +1,7 @@
 'use client';
 import { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AlertTriangle, CheckCheck, Inbox, Plus, Search, Spline, UserCheck } from 'lucide-react';
+import { CheckCheck, Inbox, Plus, Search, Spline, UserCheck } from 'lucide-react';
 import { ResponsavelShell } from '@/app/components/ResponsavelShell';
 import { ResponsavelChamadoModal } from '@/app/components/ResponsavelChamadoModal';
 import { RegistrarOcorrenciaModal } from '@/app/components/RegistrarOcorrenciaModal';
@@ -13,12 +13,12 @@ import { PRIORITY_VARIANT, stampLabel } from '@/app/lib/chamadoFormat';
 import {
   COLUNAS,
   ordenarColuna,
-  prazo,
   prediosDaLista,
-  textoDoPrazo,
 } from '@/app/lib/chamadosDoResponsavel';
+import { FioDoPrazo } from '@/app/components/PrazoDoChamado';
 import { useToastStore } from '@/app/store/toast';
 import { T, R, W } from '@/app/lib/theme';
+import { BotaoAjuda } from '@/app/components/ajuda/BotaoAjuda';
 
 const ICONE_DA_COLUNA = { RECEBER: Inbox, ANDAMENTO: Spline, MODERADOR: UserCheck, CONCLUIDOS: CheckCheck };
 
@@ -31,32 +31,6 @@ function carimbo(colunaId, t) {
   if (colunaId === 'ANDAMENTO') return `Recebido em ${stampLabel(t.received_at)}`;
   if (colunaId === 'MODERADOR') return `Concluído em ${stampLabel(t.done_at)}`;
   return `Finalizado em ${stampLabel(t.closed_at)}`;
-}
-
-/**
- * O fio do prazo, no pé do cartão.
- *
- * Enche com o quanto do prazo já foi gasto — é o que mostra o chamado chegando
- * no limite antes de passar dele. O texto ao lado repete a notícia em palavras,
- * para ninguém depender da cor.
- */
-function FioDoPrazo({ ticket }) {
-  const p = prazo(ticket);
-  if (p.dias === null || p.dias === undefined) return null;
-  const cor = p.atrasado ? T.danger : p.em_risco ? T.accentInk : T.mute;
-  const largura = `${Math.min(1, p.consumo) * 100}%`;
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <div aria-hidden="true" style={{ flex: 1, height: 3, borderRadius: 999, background: T.chip, overflow: 'hidden' }}>
-        <div style={{ width: largura, height: '100%', borderRadius: 999, background: cor }} />
-      </div>
-      <span style={{ color: p.atrasado ? T.danger : T.faint, fontSize: 11, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-        {p.atrasado && <AlertTriangle size={11} aria-hidden="true" />}
-        {textoDoPrazo(ticket)}
-      </span>
-    </div>
-  );
 }
 
 /**
@@ -235,9 +209,12 @@ function Quadro() {
       title="Chamados"
       subtitle="Tudo o que foi encaminhado a você, na ordem em que o chamado anda"
       actions={
-        <button type="button" onClick={() => setRegistrando(true)} className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-ink transition-colors flex-shrink-0">
-          <Plus size={15} /> Registrar ocorrência
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <BotaoAjuda contexto="responsavel.chamados" compacto />
+          <button type="button" onClick={() => setRegistrando(true)} className="flex items-center gap-2 px-4 py-2 bg-chip rounded-control text-mute text-sm hover:text-ink transition-colors flex-shrink-0">
+            <Plus size={15} /> Registrar ocorrência
+          </button>
+        </div>
       }
     >
       {/* Os filtros têm a medida dos chips das outras mesas (ver

@@ -1,7 +1,7 @@
 'use client';
 import { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Building2, Check, Clock, AlertCircle, LogIn, ArrowLeft, LogOut } from 'lucide-react';
+import { Building2, Check, Clock, AlertCircle, LogIn, ArrowLeft, LogOut, Info } from 'lucide-react';
 import { Logo } from '@/app/components/Logo';
 import { Button, Skeleton } from '@/app/components/ui';
 import { Avatar } from '@/app/components/Avatar';
@@ -10,6 +10,7 @@ import { useBuildingByKey, useRequestAccess, useMyBuildings, useManagedBuildings
 import { roleIn, buildingRoleLabel } from '@/app/lib/roles';
 import { normalizeShareKey } from '@/app/lib/shareKey';
 import { useToastStore } from '@/app/store/toast';
+import { GESTOR_NAO_PEDE_ACESSO, ehGestorPedindoAcesso, mensagemDoPedidoDeAcesso } from '@/app/lib/erros';
 import { T, R, W } from '@/app/lib/theme';
 
 /**
@@ -34,6 +35,10 @@ function ConectarContent() {
   const { show: toast } = useToastStore();
 
   const [requested, setRequested] = useState(false);
+  // O servidor recusou porque esta é uma conta de gestor. Fica na tela, e não
+  // num aviso que some: a pessoa precisa ler o que fazer, e talvez trocar de
+  // conta logo em seguida. Ver `GESTOR_NAO_PEDE_ACESSO`.
+  const [contaDeGestor, setContaDeGestor] = useState(false);
 
   // Busca o prédio pelo token informado
   const { data: building, isLoading, error } = useBuildingByKey(token);
@@ -157,8 +162,10 @@ function ConectarContent() {
     } catch (e) {
       if (e?.response?.status === 409) {
         toast('Você já possui vínculo com este prédio!', 'info');
+      } else if (ehGestorPedindoAcesso(e)) {
+        setContaDeGestor(true);
       } else {
-        toast(e?.response?.data?.error?.message || 'Erro ao solicitar acesso', 'error');
+        toast(mensagemDoPedidoDeAcesso(e, 'Erro ao solicitar acesso'), 'error');
       }
     }
   }
@@ -462,14 +469,52 @@ function ConectarContent() {
               </div>
             </div>
 
-            <Button
-              className="anim-fade-up anim-d3"
-              onClick={handleConfirmRequest}
-              loading={requestAccess.isPending}
-              style={{ width: '100%', padding: '14px', fontSize: 15, fontWeight: W.strong, marginTop: 4 }}
-            >
-              Solicitar Acesso ao Prédio
-            </Button>
+            {contaDeGestor ? (
+              /* Conta de gestor não pede acesso. O botão de pedir sai de cena,
+                 porque tocar de novo daria o mesmo não, e no lugar dele fica o
+                 que fazer: pedir ao gestor do prédio, ou entrar com a conta
+                 comum, se a pessoa tiver uma. `role="alert"` para o leitor de
+                 tela anunciar a troca, que acontece sem mudar de página. */
+              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div
+                  role="alert"
+                  className="anim-fade-up"
+                  style={{
+                    display: 'flex', gap: 10, alignItems: 'flex-start', textAlign: 'left',
+                    background: T.chip, borderRadius: R.control, padding: '14px 16px',
+                  }}
+                >
+                  <Info size={18} color={T.accentInk} strokeWidth={2} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div>
+                    <p style={{ color: T.text, fontSize: 14, fontWeight: W.strong, margin: 0 }}>
+                      {GESTOR_NAO_PEDE_ACESSO.titulo}
+                    </p>
+                    <p style={{ color: T.mute, fontSize: 13, lineHeight: 1.55, marginTop: 4, marginBottom: 0 }}>
+                      {GESTOR_NAO_PEDE_ACESSO.texto}
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  className="anim-fade-up anim-d1"
+                  variant="secondary"
+                  onClick={handleSwitchAccount}
+                  style={{ width: '100%', padding: '14px', fontSize: 15, fontWeight: W.strong }}
+                >
+                  <LogOut size={16} />
+                  Entrar com outra conta
+                </Button>
+              </div>
+            ) : (
+              <Button
+                className="anim-fade-up anim-d3"
+                onClick={handleConfirmRequest}
+                loading={requestAccess.isPending}
+                style={{ width: '100%', padding: '14px', fontSize: 15, fontWeight: W.strong, marginTop: 4 }}
+              >
+                Solicitar Acesso ao Prédio
+              </Button>
+            )}
           </div>
         )}
       </div>

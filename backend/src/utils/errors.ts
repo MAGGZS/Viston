@@ -180,3 +180,18 @@ export class BuildingFrozenError extends AppError {
     super('PREDIO_CONGELADO', message, 403);
   }
 }
+
+/**
+ * Conta de gestor pedindo para entrar num prédio.
+ *
+ * Gestor entra num prédio sendo adicionado por outro gestor, nunca por pedido
+ * de acesso. Era um FORBIDDEN genérico, e a tela tinha de reconhecer o caso
+ * pela frase: trocar uma vírgula da mensagem quebrava o aviso que manda a
+ * pessoa para o caminho certo. Agora o app lê o `code`, e a frase segue a mesma
+ * para quem já a conhece.
+ */
+export class GestorNaoSolicitaAcessoError extends AppError {
+  constructor() {
+    super('GESTOR_NAO_SOLICITA_ACESSO', 'Conta de gestor não solicita acesso a prédio', 403);
+  }
+}

@@ -2,6 +2,7 @@
 import { Suspense } from 'react';
 import { PainelAnalitico } from '@/app/components/analytics/PainelAnalitico';
 import { ModeradorShell, useModeratorBuilding } from '@/app/components/ModeradorShell';
+import { BotaoAjuda } from '@/app/components/ajuda/BotaoAjuda';
 
 /**
  * O painel analítico do moderador.
@@ -25,6 +26,7 @@ export default function PainelAnaliticoPage() {
       isLoading={isLoading}
       title="Painel analítico"
       subtitle="Como o prédio está andando, onde o processo trava e o que está fora do prazo"
+      actions={<BotaoAjuda contexto="moderador.analitico" compacto />}
     >
       <div style={{ padding: '2px 32px 32px', overflowY: 'auto' }}>
         <Suspense fallback={null}>

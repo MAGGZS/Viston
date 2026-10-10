@@ -323,17 +323,23 @@ function ToggleButton({ collapsed, animated, onToggle }) {
 /**
  * A casca da barra: a largura que anima, a borda e o botão que a comanda.
  *
- * A largura é o único valor animado — texto e ícones ficam parados enquanto ela
+ * A largura é o único valor animado: texto e ícones ficam parados enquanto ela
  * corre. Animar o recuo junto faria os ícones andarem de lado, e ícone que anda
  * é ícone que se perde de vista.
+ *
+ * A barra fica presa no topo com a altura exata da tela. Com `minHeight` ela
+ * esticava até a altura do conteúdo, e em página longa o rodapé com "Sair" ia
+ * parar no fim da página, fora de vista. O `sticky` também serve de referência
+ * para o botão absoluto, por isso o `relative` saiu.
  */
 export function SidebarShell({ collapsed, animated, onToggle, children }) {
   return (
     <aside
       style={{
-        position: 'relative', zIndex: 20, flexShrink: 0,
+        position: 'sticky', top: 0, alignSelf: 'flex-start',
+        zIndex: 20, flexShrink: 0,
         width: collapsed ? SIDEBAR_RAIL : SIDEBAR_OPEN,
-        minHeight: '100vh',
+        height: '100vh',
         background: T.bg, borderRight: `1px solid ${T.line}`,
         display: 'flex', flexDirection: 'column',
         transition: animated ? `width ${WIDTH_MS}ms ${EASE}` : 'none',
@@ -358,6 +364,9 @@ export function SidebarShell({ collapsed, animated, onToggle, children }) {
 export function SidebarNav({ children }) {
   const items = Children.toArray(children);
   const activeIndex = items.findIndex((child) => Boolean(child?.props?.active));
+  // Rolagem só com a barra aberta: `overflow` diferente de `visible` corta o
+  // balão `.rail-tip`, que no trilho sai pela borda direita da navegação.
+  const recolhida = items.some((child) => Boolean(child?.props?.collapsed));
   const pillRef = useRef(null);
 
   useLayoutEffect(() => {
@@ -386,7 +395,7 @@ export function SidebarNav({ children }) {
 
   return (
     <NavContext.Provider value={true}>
-      <nav style={{ position: 'relative', flex: 1, padding: '0 12px', display: 'flex', flexDirection: 'column', gap: SIDEBAR_GAP }}>
+      <nav style={{ position: 'relative', flex: 1, minHeight: 0, overflowY: recolhida ? 'visible' : 'auto', padding: '0 12px', display: 'flex', flexDirection: 'column', gap: SIDEBAR_GAP }}>
         {activeIndex >= 0 && (
           <span
             ref={pillRef}

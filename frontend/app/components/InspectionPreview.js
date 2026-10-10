@@ -2,6 +2,7 @@
 import { useId, useState } from 'react';
 import { Download, FileSpreadsheet, FileText, X } from 'lucide-react';
 import { ReportDocumentModal } from '@/app/components/ReportDocumentModal';
+import { AvisoRelatorioDoDia } from '@/app/components/AvisoRelatorioDoDia';
 import { Badge, Button, Dialog, Spinner } from '@/app/components/ui';
 import { useDayReport, useGenerateExcel } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
@@ -55,11 +56,16 @@ export function InspectionPreview({ report, reportId }) {
 
   return (
     <>
+      {/* No topo, antes das ações: quem abriu a própria vistoria precisa saber
+          logo que está vendo o dia inteiro. Os nomes saíram da linha de baixo
+          e foram para o aviso (ver `AvisoRelatorioDoDia`). */}
+      <AvisoRelatorioDoDia report={report} />
+
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
         <div>
           <p style={{ color: T.text, fontWeight: W.title, fontSize: 14 }}>{report.building?.name}</p>
           <p style={{ color: T.mute, fontSize: 12 }}>
-            Inspeção feita por: {(report.inspectors ?? []).join(' / ') || '—'} · {entries.length} andar{entries.length !== 1 ? 'es' : ''} · {rows.length} ocorrência{rows.length !== 1 ? 's' : ''}
+            {entries.length} andar{entries.length !== 1 ? 'es' : ''} · {rows.length} ocorrência{rows.length !== 1 ? 's' : ''}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

@@ -7,6 +7,7 @@ import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthShell } from '@/app/components/AuthShell';
 import { useAuthStore } from '@/app/store/auth';
+import { redirectSeguro, vemDoConvite } from '@/app/lib/convite';
 import { T, R } from '@/app/lib/theme';
 import { Modal, Button } from '@/app/components/ui';
 import { useLogin, useResendConfirmation } from '@/app/hooks/useApi';
@@ -40,11 +41,7 @@ const S = {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const rawRedirect = searchParams?.get('redirect');
-  const redirectUrl =
-    rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') && !rawRedirect.startsWith('/\\')
-      ? rawRedirect
-      : null;
+  const redirectUrl = redirectSeguro(searchParams?.get('redirect'));
   const { login } = useAuthStore();
   const { mutateAsync, isPending, error, reset: limparErro } = useLogin();
   const { register, handleSubmit, formState: { errors } } = useForm({ resolver: yupResolver(schema) });
@@ -165,10 +162,15 @@ function LoginForm() {
               Criar conta
             </a>
           </p>
-          <p style={S.footer}>
-            Vai administrar um prédio?{' '}
-            <a href="/register/gestor" style={S.link}>Cadastre-se como gestor</a>
-          </p>
+          {/* Quem veio do convite de um prédio só pode usar conta comum: o
+              atalho para o cadastro de gestor some nesse caminho. Ver
+              `vemDoConvite`. */}
+          {!vemDoConvite(redirectUrl) && (
+            <p style={S.footer}>
+              Vai administrar um prédio?{' '}
+              <a href="/register/gestor" style={S.link}>Cadastre-se como gestor</a>
+            </p>
+          )}
         </div>
       }
     >

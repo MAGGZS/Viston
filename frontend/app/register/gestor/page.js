@@ -1,11 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { AuthShell } from '@/app/components/AuthShell';
+import { AuthShell, AvisoCruzado } from '@/app/components/AuthShell';
 import { ConfirmarCodigo } from '@/app/components/ConfirmarCodigo';
 import { SenhaChecklist, senhaValida, useFocoSenha } from '@/app/components/SenhaChecklist';
 import { useUnsavedFlag } from '@/app/hooks/useUnsavedGuard';
@@ -48,6 +48,8 @@ const S = {
 export default function RegisterGestorPage() {
   const router = useRouter();
   const createManager = useCreateManager();
+  const avisoId = useId();
+  const campoId = useId();
   // Campos vazios declarados: sem eles `isDirty` nunca volta a falso, e o
   // cadastro passa a perguntar "descartar alterações?" ao sair mesmo com tudo
   // apagado (ver desktop/admin/page.js).
@@ -127,17 +129,23 @@ export default function RegisterGestorPage() {
       marca={false}
       title="Criar conta de gestor"
       subtitle="Conta de gestor: você cadastra os prédios, aprova quem entra e define quem vistoria."
+      // O par do aviso de `/register`: quem recebeu um convite de prédio está
+      // no cadastro errado, porque conta de gestor não pede acesso (ver
+      // `GESTOR_NAO_PEDE_ACESSO`, em lib/erros). Ele saiu do rodapé, onde só
+      // era lido depois do formulário preenchido.
+      aviso={
+        <AvisoCruzado
+          id={avisoId}
+          pergunta="Recebeu um código, link ou QR Code de um prédio?"
+          acao="Crie uma conta comum."
+          href="/register"
+        />
+      }
       footer={
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <p style={{ color: T.faint, fontSize: 14 }}>
-            Já tem conta?{' '}
-            <a href="/login" style={{ color: T.accentInk, fontWeight: W.title, textDecoration: 'none' }}>Entrar</a>
-          </p>
-          <p style={{ color: T.faint, fontSize: 14 }}>
-            Vai vistoriar um prédio de outra pessoa?{' '}
-            <a href="/register" style={{ color: T.accentInk, fontWeight: W.title, textDecoration: 'none' }}>Criar conta comum</a>
-          </p>
-        </div>
+        <p style={{ color: T.faint, fontSize: 14 }}>
+          Já tem conta?{' '}
+          <a href="/login" style={{ color: T.accentInk, fontWeight: W.title, textDecoration: 'none' }}>Entrar</a>
+        </p>
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="auth-form">
@@ -155,12 +163,21 @@ export default function RegisterGestorPage() {
           const inputStyle = { ...S.input, ...(isPassword ? { paddingRight: 46 } : {}), ...(errors[name] ? { borderColor: T.danger } : {}) };
           return (
             <div key={name} style={S.field} {...(name === 'password' ? foco.ancora : {})}>
-              <label style={S.label}>{label}</label>
+              {/* Rótulo e erro amarrados ao campo, como em `/register`. */}
+              <label htmlFor={`${campoId}-${name}`} style={S.label}>{label}</label>
               <div style={S.inputWrap}>
                 <input
+                  id={`${campoId}-${name}`}
                   type={isPassword && showPassword ? 'text' : type}
                   placeholder={placeholder}
                   style={inputStyle}
+                  aria-invalid={errors[name] ? true : undefined}
+                  aria-describedby={
+                    [
+                      errors[name] ? `${campoId}-${name}-erro` : null,
+                      name === 'name' ? avisoId : null,
+                    ].filter(Boolean).join(' ') || undefined
+                  }
                   {...register(name)}
                 />
                 {isPassword && (
@@ -170,7 +187,7 @@ export default function RegisterGestorPage() {
                   </button>
                 )}
               </div>
-              {errors[name] && <span style={{ fontSize: 12, color: T.danger }}>{errors[name].message}</span>}
+              {errors[name] && <span id={`${campoId}-${name}-erro`} style={{ fontSize: 12, color: T.danger }}>{errors[name].message}</span>}
               {name === 'password' && <SenhaChecklist senha={senhaDigitada} aberta={foco.aberta} />}
             </div>
           );

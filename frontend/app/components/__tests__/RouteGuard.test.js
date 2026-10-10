@@ -104,5 +104,60 @@ describe('RouteGuard', () => {
     render(<RouteGuard roles={['VIEWER']}><p>painel</p></RouteGuard>);
     expect(screen.queryByText('painel')).not.toBeInTheDocument();
     expect(screen.getByText(/apenas pelo computador/i)).toBeInTheDocument();
+    // A saída vem escrita: abrir no computador ou pedir outro papel ao gestor.
+    expect(
+      screen.getByText(
+        'Você é visualizador neste prédio. Abra o Viston no computador ou peça ao gestor para mudar seu papel.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('o aviso do telefone leva ao tutorial que o explica', () => {
+    comoUsuario({ kind: 'USER', role: 'NONE', memberships: [{ building_id: 'p1', role: 'VIEWER' }] });
+
+    render(<RouteGuard roles={['VIEWER']}><p>painel</p></RouteGuard>);
+    expect(screen.getByRole('link', { name: 'Ver tutorial' })).toHaveAttribute(
+      'href',
+      '/ajuda/visualizador/visualizador-so-computador'
+    );
+  });
+
+  it('com qualquerAparelho, o visualizador vê a tela no telefone', () => {
+    comoUsuario({ kind: 'USER', role: 'NONE', memberships: [{ building_id: 'p1', role: 'VIEWER' }] });
+
+    render(<RouteGuard qualquerAparelho><p>ajuda</p></RouteGuard>);
+    expect(screen.getByText('ajuda')).toBeInTheDocument();
+    expect(screen.queryByText(/apenas pelo computador/i)).not.toBeInTheDocument();
+  });
+
+  it('sem qualquerAparelho, o mesmo visualizador vê o aviso', () => {
+    comoUsuario({ kind: 'USER', role: 'NONE', memberships: [{ building_id: 'p1', role: 'VIEWER' }] });
+
+    render(<RouteGuard><p>ajuda</p></RouteGuard>);
+    expect(screen.queryByText('ajuda')).not.toBeInTheDocument();
+    expect(screen.getByText(/apenas pelo computador/i)).toBeInTheDocument();
+  });
+
+  it('qualquerAparelho não abre a tela para quem não tem o papel exigido', () => {
+    comoUsuario({ kind: 'USER', role: 'NONE', memberships: [{ building_id: 'p1', role: 'VIEWER' }] });
+
+    render(<RouteGuard roles={['INSPECTOR']} qualquerAparelho><p>vistoria</p></RouteGuard>);
+    expect(screen.queryByText('vistoria')).not.toBeInTheDocument();
+    expect(replace).toHaveBeenCalledWith('/');
+  });
+
+  it('com mais de um prédio, todos como visualizador, a frase não fala de um prédio só', () => {
+    comoUsuario({
+      kind: 'USER',
+      role: 'NONE',
+      memberships: [
+        { building_id: 'p1', role: 'VIEWER' },
+        { building_id: 'p2', role: 'VIEWER' },
+      ],
+    });
+
+    render(<RouteGuard roles={['VIEWER']}><p>painel</p></RouteGuard>);
+    expect(screen.getByText(/você é visualizador nos seus prédios/i)).toBeInTheDocument();
+    expect(screen.getByText(/peça ao gestor para mudar seu papel/i)).toBeInTheDocument();
   });
 });

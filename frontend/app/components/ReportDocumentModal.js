@@ -1,16 +1,14 @@
 'use client';
 import { useId } from 'react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { Download, FileSpreadsheet, X } from 'lucide-react';
 import { Logo } from '@/app/components/Logo';
+import { AvisoRelatorioDoDia } from '@/app/components/AvisoRelatorioDoDia';
 import { Button, Dialog, Spinner } from '@/app/components/ui';
 import { useDayReport, useGenerateExcel } from '@/app/hooks/useApi';
 import { useExitTransition, useKeepWhileClosing } from '@/app/hooks/useExitTransition';
 import { useIsDesktop } from '@/app/hooks/useMediaQuery';
 import { useExcelDownload } from '@/app/hooks/useExcelDownload';
 import { sortFloorsDesc } from '@/app/lib/floorOrder';
-import { parseReportDate } from '@/app/lib/date';
 import { MAINTENANCE_TYPES, CATEGORIES, PRIORITIES, RECORD_STATUS, FLOOR_STATUS_LABEL, labelOf } from '@/app/lib/maintenanceOptions';
 import { useToastStore } from '@/app/store/toast';
 import { T, R, W } from '@/app/lib/theme';
@@ -75,17 +73,12 @@ function DesktopSheet({ report, entries, totalRecords }) {
       <p style={D.eyebrow}>Relatório do dia</p>
       <h1 style={D.title}>{report.building?.name}</h1>
 
+      {/* O dia e quem vistoriou moravam na grade abaixo, como dois números a
+          mais. Subiram para o aviso, que diz o que eles significam: este é o
+          documento do dia inteiro, e estes são todos que vistoriaram nele. */}
+      <AvisoRelatorioDoDia report={report} style={{ marginTop: 18 }} />
+
       <div style={D.metaGrid}>
-        <div>
-          <p style={D.metaLabel}>Dia</p>
-          <p style={D.metaValue}>{format(parseReportDate(report.date), "d 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
-        </div>
-        <div>
-          {/* Os nomes separados por barra: o relatório é do dia, e o dia pode
-              ter tido mais de uma vistoria, de gente diferente. */}
-          <p style={D.metaLabel}>Inspeção feita por</p>
-          <p style={D.metaValue}>{(report.inspectors ?? []).join(' / ') || '—'}</p>
-        </div>
         <div>
           <p style={D.metaLabel}>Andares vistoriados</p>
           <p style={D.metaValue}>{entries.length}</p>
@@ -202,12 +195,9 @@ function MobileSheet({ report, entries, totalRecords }) {
       <h1 style={{ fontSize: 22, fontWeight: W.title, letterSpacing: '-0.015em', lineHeight: 1.25 }}>
         {report.building?.name}
       </h1>
-      <p style={{ fontSize: 14, color: INK_SOFT, marginTop: 6, lineHeight: 1.5 }}>
-        {format(parseReportDate(report.date), "d 'de' MMMM 'de' yyyy", { locale: ptBR })}
-      </p>
-      <p style={{ fontSize: 14, color: INK_SOFT, marginTop: 2 }}>
-        Por {(report.inspectors ?? []).join(' / ') || '—'}
-      </p>
+      {/* A data e o "Por" que ficavam aqui viraram o aviso do dia: mesma
+          informação, agora dizendo que o relatório junta todas as vistorias. */}
+      <AvisoRelatorioDoDia report={report} style={{ marginTop: 12 }} />
 
       {/* Três números, como o resto do mobile mostra resumo */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, margin: '18px 0 4px' }}>

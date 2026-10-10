@@ -708,7 +708,7 @@ describe('gestão do prédio', () => {
     expect(res.body.building).not.toHaveProperty('share_key');
   });
 
-  it('aprova a solicitação vinculando como visualizador', async () => {
+  it('aprova a solicitação vinculando com o papel escolhido pelo gestor', async () => {
     comoGestorDoPredio();
     mockBuildingRepo.findAccessRequestById.mockResolvedValue({
       id: 'b1111111-1111-4111-8111-111111111111',
@@ -724,15 +724,83 @@ describe('gestão do prédio', () => {
     const res = await request(app)
       .patch(`/buildings/${BUILDING_ID}/access-requests/b1111111-1111-4111-8111-111111111111`)
       .set('Authorization', `Bearer ${tokenGestor}`)
-      .send({ status: 'APPROVED' });
+      .send({ status: 'APPROVED', role: 'VIEWER' });
 
     expect(res.status).toBe(200);
-    // Resposta e vínculo (VIEWER) saem na mesma transação do repositório.
+    // Resposta e vínculo (com o papel escolhido) saem na mesma transação do repositório.
     expect(mockBuildingRepo.reviewAccessRequest).toHaveBeenCalledWith(
       'b1111111-1111-4111-8111-111111111111',
       BUILDING_ID,
-      'APPROVED'
+      'APPROVED',
+      'VIEWER'
     );
+  });
+
+  describe('aprovação com papel: o que fica de fora', () => {
+    const PEDIDO_ID = 'b1111111-1111-4111-8111-111111111111';
+    const rota = `/buildings/${BUILDING_ID}/access-requests/${PEDIDO_ID}`;
+
+    it('pedido de outro prédio dá 404, e não aprova nada', async () => {
+      comoGestorDoPredio();
+      // O id existe, mas é de outro prédio: aprovar aqui daria acesso a um
+      // prédio só por informar o id de um pedido alheio.
+      mockBuildingRepo.findAccessRequestById.mockResolvedValue({
+        id: PEDIDO_ID,
+        building_id: '55555555-5555-4555-8555-555555555555',
+        status: 'PENDING',
+      } as any);
+
+      const res = await request(app)
+        .patch(rota)
+        .set('Authorization', `Bearer ${tokenGestor}`)
+        .send({ status: 'APPROVED', role: 'VIEWER' });
+
+      expect(res.status).toBe(404);
+      expect(mockBuildingRepo.reviewAccessRequest).not.toHaveBeenCalled();
+    });
+
+    it('pedido já revisado dá 409, e não aprova de novo', async () => {
+      comoGestorDoPredio();
+      mockBuildingRepo.findAccessRequestById.mockResolvedValue({
+        id: PEDIDO_ID,
+        building_id: BUILDING_ID,
+        status: 'APPROVED',
+      } as any);
+
+      const res = await request(app)
+        .patch(rota)
+        .set('Authorization', `Bearer ${tokenGestor}`)
+        .send({ status: 'APPROVED', role: 'INSPECTOR' });
+
+      expect(res.status).toBe(409);
+      expect(mockBuildingRepo.reviewAccessRequest).not.toHaveBeenCalled();
+    });
+
+    it('papel ADMIN na aprovação dá 400: admin não é papel de prédio', async () => {
+      comoGestorDoPredio();
+
+      const res = await request(app)
+        .patch(rota)
+        .set('Authorization', `Bearer ${tokenGestor}`)
+        .send({ status: 'APPROVED', role: 'ADMIN' });
+
+      expect(res.status).toBe(400);
+      expect(mockBuildingRepo.findAccessRequestById).not.toHaveBeenCalled();
+      expect(mockBuildingRepo.reviewAccessRequest).not.toHaveBeenCalled();
+    });
+
+    it.each(['MODERADOR', 'RESPONSAVEL'])('membro %s não aprova pedido: só o gestor', async (papel) => {
+      mockBuildingRepo.findMember.mockResolvedValue({ id: 'm1', role: papel } as any);
+      const tokenMembro = signAccessToken('d3333333-3333-4333-8333-333333333333', 'NONE');
+
+      const res = await request(app)
+        .patch(rota)
+        .set('Authorization', `Bearer ${tokenMembro}`)
+        .send({ status: 'APPROVED', role: 'INSPECTOR' });
+
+      expect(res.status).toBe(403);
+      expect(mockBuildingRepo.reviewAccessRequest).not.toHaveBeenCalled();
+    });
   });
 
   it('ex-membro solicita acesso de novo ao mesmo prédio', async () => {
@@ -1031,6 +1099,9 @@ describe('entrada malformada', () => {
       .send({ key: 'ABCD23456789' });
 
     expect(res.status).toBe(403);
+    // Código próprio: o app reconhece o caso por ele, e não pela frase.
+    expect(res.body.error.code).toBe('GESTOR_NAO_SOLICITA_ACESSO');
+    expect(res.body.error.message).toBe('Conta de gestor não solicita acesso a prédio');
     expect(mockBuildingRepo.createAccessRequest).not.toHaveBeenCalled();
   });
 });

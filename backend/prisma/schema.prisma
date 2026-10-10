@@ -188,6 +188,16 @@ enum BillingInterval {
   YEARLY
 }
 
+/// Onde o tutorial foi gravado, e portanto onde ele faz sentido.
+///
+/// Enum, e não texto, porque são os dois valores do roteiro (`celular` e
+/// `computador`) e a tela escolhe o ícone por eles: um terceiro valor exige
+/// mexer na tela de qualquer jeito.
+enum HelpDevice {
+  MOBILE
+  DESKTOP
+}
+
 // ─────────────────────────────────────────────
 // MODELS
 // ─────────────────────────────────────────────
@@ -229,6 +239,7 @@ model User {
   schedules_created InspectionSchedule[] @relation("ScheduleCreatedByUser")
   schedules_updated InspectionSchedule[] @relation("ScheduleUpdatedByUser")
   notifications     Notification[]
+  help_videos       HelpFeature[]        @relation("HelpVideoUploadedBy")
 
   @@map("users")
 }
@@ -634,14 +645,26 @@ model Feedback {
   created_at  DateTime       @default(now())
   /// Quando o admin decidiu o que fazer com ele. Nulo enquanto está PENDENTE.
   reviewed_at DateTime?
+  /// A resposta do "Isso ajudou?" de um tutorial: de qual funcionalidade ela
+  /// é. Nulo no feedback comum, escrito no perfil. Ver a migration
+  /// `central_de_ajuda` para o porquê de morar aqui e não numa tabela própria.
+  help_feature_id String?
+  /// Sim ou não do "Isso ajudou?". Nulo no feedback comum.
+  helpful         Boolean?
 
-  user    User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
-  manager Manager? @relation(fields: [manager_id], references: [id], onDelete: SetNull)
+  user         User?        @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  manager      Manager?     @relation(fields: [manager_id], references: [id], onDelete: SetNull)
+  help_feature HelpFeature? @relation(fields: [help_feature_id], references: [id], onDelete: SetNull)
 
   // A tela do admin é sempre "um status, do mais novo para o mais velho".
   @@index([status, created_at(sort: Desc)])
   @@index([user_id])
   @@index([manager_id])
+  // "Esta conta já respondeu sobre este tutorial?" e o ON DELETE da FK.
+  // A regra "uma resposta por conta e tutorial" são dois índices únicos
+  // parciais (WHERE ... IS NOT NULL) que moram só na migration
+  // `central_de_ajuda`: o Prisma não modela índice com WHERE.
+  @@index([help_feature_id])
   @@map("feedbacks")
 }
 
@@ -975,4 +998,98 @@ model BuildingOwnershipTransfer {
   @@index([building_id])
   @@index([from_manager_id])
   @@map("building_ownership_transfers")
+}
+
+// ─────────────────────────────────────────────
+// CENTRAL DE AJUDA
+// ─────────────────────────────────────────────
+
+/// Uma pasta da central de ajuda: um cargo (Inspetor, Gestor...).
+///
+/// O conteúdo nasce do roteiro (`tutoriais/roteiros.md`, via `catalogo.json` e
+/// o seed); o admin pode reescrever título e descrição e reordenar pela tela.
+///
+/// `target_roles` é texto, e não um enum, porque mistura duas coisas que no
+/// schema vivem em lugares diferentes: papéis de prédio (`INSPECTOR`...) e
+/// tipos de conta (`GESTOR`, `ADMIN`, `SEM_PREDIO`). Os valores aceitos estão
+/// documentados no mapa `PASTAS` de `tutoriais/scripts/catalogo.mjs`.
+model HelpFolder {
+  id           String   @id @default(uuid())
+  /// O pedaço da URL (`/ajuda/inspetor`) e a `pasta` do pacote de vídeo.
+  slug         String   @unique
+  title        String
+  description  String
+  /// Nome de um ícone do lucide-react (`HardHat`).
+  icon         String
+  order        Int
+  target_roles String[]
+  /// A pasta nem aparece para quem não é ADMIN.
+  admin_only   Boolean  @default(false)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  features HelpFeature[]
+
+  @@map("help_folders")
+}
+
+/// Uma funcionalidade: um tutorial, com um vídeo.
+///
+/// Os caminhos são do bucket privado `tutoriais`, e não URLs: a URL é
+/// assinada na hora da leitura (ver `helpStorage`). `video_script_hash` é o
+/// `script_hash` que veio no `passos.json` do pacote enviado; comparado com o
+/// do `catalogo.json` atual, diz se o vídeo ficou velho (estado DESATUALIZADO).
+model HelpFeature {
+  id                String     @id @default(uuid())
+  folder_id         String
+  /// O `id` da funcionalidade no roteiro (`inspetor-vistoria-completa`).
+  slug              String     @unique
+  title             String
+  summary           String?
+  device            HelpDevice
+  order             Int
+  /// O seed cria publicada (os passos em texto já ensinam, com ou sem vídeo);
+  /// o padrão falso só vale para quem criar fora do seed. Despublicar é do admin.
+  published         Boolean    @default(false)
+  video_path        String?
+  captions_path     String?
+  poster_path       String?
+  duration_s        Float?
+  video_script_hash String?
+  video_uploaded_at DateTime?
+  video_uploaded_by String?
+  created_at        DateTime   @default(now())
+  updated_at        DateTime   @updatedAt
+
+  folder      HelpFolder @relation(fields: [folder_id], references: [id], onDelete: Cascade)
+  uploaded_by User?      @relation("HelpVideoUploadedBy", fields: [video_uploaded_by], references: [id], onDelete: SetNull)
+  steps       HelpStep[]
+  feedbacks   Feedback[]
+
+  // A pasta é sempre lida "as funcionalidades dela, em ordem".
+  @@index([folder_id, order])
+  @@index([video_uploaded_by])
+  @@map("help_features")
+}
+
+/// Uma aba: um passo da funcionalidade, e um capítulo do vídeo dela.
+///
+/// `start_s` fica nulo enquanto não há vídeo; o commit do pacote o preenche a
+/// partir do `passos.json`, e o admin pode ajustar depois.
+model HelpStep {
+  id         String   @id @default(uuid())
+  feature_id String
+  order      Int
+  title      String
+  body       String
+  start_s    Float?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  feature HelpFeature @relation(fields: [feature_id], references: [id], onDelete: Cascade)
+
+  // Uma aba por posição: é o que deixa o seed casar a aba do roteiro com a do
+  // banco sem ambiguidade, e o índice já serve a leitura "as abas, em ordem".
+  @@unique([feature_id, order])
+  @@map("help_steps")
 }

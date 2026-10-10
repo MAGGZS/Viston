@@ -158,9 +158,11 @@ const BUTTON_BASE = {
 };
 
 /** Ação principal: amarelo sólido. */
-export function MButton({ children, onClick, type = 'button', disabled, loading, style = {} }) {
+// O resto das props desce ao <button>: é por elas que o botão apagado aponta,
+// com `aria-describedby`, para a frase que diz o que falta para ele acender.
+export function MButton({ children, onClick, type = 'button', disabled, loading, style = {}, ...props }) {
   return (
-    <button type={type} onClick={onClick} disabled={disabled || loading}
+    <button type={type} onClick={onClick} disabled={disabled || loading} {...props}
       style={{ ...BUTTON_BASE, background: M.accent, color: M.onAccent, boxShadow: `inset 0 0 0 1px ${M.accentEdge}`, opacity: disabled || loading ? 0.5 : 1, ...style }}>
       {loading ? 'Aguarde...' : children}
     </button>

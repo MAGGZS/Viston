@@ -1,7 +1,7 @@
 'use client';
 import { Check, Monitor, Moon, Sun } from 'lucide-react';
 import { setTheme, useThemePref } from '@/app/lib/tema';
-import { T, R, W } from '@/app/lib/theme';
+import { T } from '@/app/lib/theme';
 
 /**
  * As cores das miniaturas são literais de propósito, e é a única parte do
@@ -17,15 +17,21 @@ const PREVIEW = {
   light: { page: '#F5F6F8', card: '#FFFFFF', ring: 'rgba(16,19,23,0.10)', line: 'rgba(16,19,23,0.22)' },
 };
 
-/** Metade da miniatura, para a prévia partida do automático. */
+/**
+ * Metade da miniatura, para a prévia partida do automático.
+ *
+ * Medidas em porcentagem e não em pixel: a prévia acompanha a largura da
+ * coluna (com proporção fixa), e um cartão de 40px dentro dela ficaria gordo no
+ * telefone e magro no desktop.
+ */
 function Metade({ tone }) {
   const c = PREVIEW[tone];
 
   return (
-    <span style={{ width: '50%', background: c.page, padding: 9, display: 'block' }}>
-      <span style={{ display: 'block', width: '80%', height: 5, borderRadius: 3, background: c.line, marginBottom: 8 }} />
-      <span style={{ display: 'block', height: 40, borderRadius: 9, padding: 8, background: c.card }}>
-        <span style={{ display: 'block', width: '70%', height: 6, borderRadius: 999, background: '#F5C518' }} />
+    <span className="tema-previa__tela" style={{ width: '50%', background: c.page }}>
+      <span className="tema-previa__linha" style={{ width: '80%', background: c.line }} />
+      <span className="tema-previa__cartao" style={{ background: c.card }}>
+        <span className="tema-previa__pilula" style={{ width: '70%' }} />
       </span>
     </span>
   );
@@ -44,10 +50,8 @@ function Preview({ tone }) {
     return (
       <span
         aria-hidden="true"
-        style={{
-          display: 'flex', height: 76, borderRadius: R.pill, overflow: 'hidden',
-          boxShadow: `inset 0 0 0 1px ${PREVIEW.light.ring}`,
-        }}
+        className="tema-previa"
+        style={{ display: 'flex', boxShadow: `inset 0 0 0 1px ${PREVIEW.light.ring}` }}
       >
         <Metade tone="dark" />
         <Metade tone="light" />
@@ -60,48 +64,36 @@ function Preview({ tone }) {
   return (
     <span
       aria-hidden="true"
-      style={{
-        display: 'block', height: 76, borderRadius: R.pill, padding: 9,
-        background: c.page, boxShadow: `inset 0 0 0 1px ${c.ring}`,
-      }}
+      className="tema-previa tema-previa__tela"
+      style={{ background: c.page, boxShadow: `inset 0 0 0 1px ${c.ring}` }}
     >
-      <span style={{ display: 'block', width: '46%', height: 5, borderRadius: 3, background: c.line, marginBottom: 8 }} />
-      <span
-        style={{
-          display: 'block', height: 40, borderRadius: 9, padding: 8,
-          background: c.card, boxShadow: `inset 0 0 0 1px ${c.ring}`,
-        }}
-      >
-        <span style={{ display: 'block', width: 26, height: 6, borderRadius: 999, background: '#F5C518', marginBottom: 6 }} />
-        <span style={{ display: 'block', width: '72%', height: 4, borderRadius: 2, background: c.line }} />
+      <span className="tema-previa__linha" style={{ width: '46%', background: c.line }} />
+      <span className="tema-previa__cartao" style={{ background: c.card, boxShadow: `inset 0 0 0 1px ${c.ring}` }}>
+        <span className="tema-previa__pilula" style={{ width: '34%' }} />
+        <span className="tema-previa__linha" style={{ width: '72%', background: c.line, marginBottom: 0 }} />
       </span>
     </span>
   );
 }
 
 function Option({ tone, label, icon: Icon, selected, onSelect }) {
+  // Caixa, fio dourado, foco e toque moram em `.tema-opcao` (globals.css): o
+  // tamanho da letra e o ícone mudam pela largura do seletor, e isso só uma
+  // consulta de contêiner sabe fazer.
   return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      style={{
-        background: T.card, border: 'none', borderRadius: R.control, padding: 10,
-        cursor: 'pointer', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10,
-        // O fio dourado é o que diz qual está valendo; o resto da caixa é igual.
-        // `accentInk`: o dourado puro sobre o cartão branco dá 1,63:1, e a opção
-        // marcada ficava sem marca nenhuma no tema claro.
-        boxShadow: selected ? `0 0 0 2px ${T.accentInk}` : T.cardRing,
-        transition: 'box-shadow 0.15s ease',
-      }}
-    >
+    <button type="button" role="radio" aria-checked={selected} onClick={onSelect} className="tema-opcao">
       <Preview tone={tone} />
-      <span style={{ display: 'flex', alignItems: 'center', gap: 7, color: T.text, fontSize: 14, fontWeight: W.strong }}>
-        <Icon size={15} strokeWidth={1.8} style={{ flexShrink: 0 }} />
-        <span style={{ flex: 1 }}>{label}</span>
-        {selected && <Check size={15} strokeWidth={2.4} color={T.accentInk} />}
+      <span className="tema-opcao__rotulo">
+        <Icon size={15} strokeWidth={1.8} aria-hidden="true" className="tema-opcao__icone" />
+        <span className="tema-opcao__texto">{label}</span>
       </span>
+      {/* O check fica no canto da prévia, fora do fluxo: entrar ou sair não
+          empurra o rótulo, e as três opções ficam com a mesma linha de texto. */}
+      {selected && (
+        <span className="tema-opcao__marca" aria-hidden="true">
+          <Check size={11} strokeWidth={3} />
+        </span>
+      )}
     </button>
   );
 }
@@ -109,17 +101,19 @@ function Option({ tone, label, icon: Icon, selected, onSelect }) {
 /**
  * A escolha do tema, onde quer que ela precise aparecer.
  *
- * Morava numa caixa que abria por cima da tela. Caixa é interrupção, e trocar o
- * tema não interrompe nada: o resultado aparece atrás dela, no próprio app, e a
- * pessoa fica olhando a mudança pela fresta. Agora as três opções ficam na
- * seção de aparência, à vista, e a tela inteira responde ao toque.
+ * No desktop, as três opções ficam à vista na seção de aparência: há espaço, e
+ * a tela inteira responde ao toque sem nada por cima. No telefone, à vista elas
+ * empurravam o resto da conta para baixo da dobra, então moram numa caixa que
+ * abre a partir da linha "Tema" — e a caixa não esconde o resultado, que
+ * aparece no app atrás dela.
  *
  * Sem botão de salvar: a troca acontece no toque e a tela por trás já responde,
  * então confirmar seria pedir para a pessoa aprovar o que ela acabou de ver.
  *
- * O fundo das opções é `T.card` porque elas vivem dentro de um bloco de
- * `T.chip` — a miniatura precisa de uma moldura que se distinga do que está
- * atrás dela, senão as duas prévias flutuam soltas no mesmo cinza.
+ * O fundo das opções é `T.card` porque no desktop elas vivem dentro de um
+ * bloco de `T.chip` — a miniatura precisa de uma moldura que se distinga do que
+ * está atrás dela, senão as duas prévias flutuam soltas no mesmo cinza. Na
+ * caixa do telefone o fundo também é `T.card`, e quem separa é o `cardRing`.
  */
 export function SeletorDeTema() {
   // A preferência, e não o tema em uso: com "Automático" marcado num aparelho
@@ -128,17 +122,15 @@ export function SeletorDeTema() {
   const pref = useThemePref();
 
   return (
-    // A mesma medida que as opções tinham dentro da caixa: 440 de largura menos
-    // os 22 de recuo de cada lado. Fora dela o painel de configurações é muito
-    // mais largo, e duas miniaturas esticadas por ele viram dois retângulos
-    // compridos que não se parecem mais com a tela que prometem mostrar.
-    <div style={{ maxWidth: 396 }}>
-      {/* Três opções na mesma fileira, e a fileira quebra antes de espremer:
-          abaixo de ~110px a miniatura deixa de parecer uma tela. */}
+    // Três colunas iguais até 640px. Mais largo que isso, a miniatura viraria
+    // uma faixa que não se parece mais com uma tela; mais estreito, sobra o
+    // vazio à direita que o painel do desktop tinha. O texto de ajuda fica na
+    // mesma medida, para o bloco terminar numa borda só.
+    <div className="tema-seletor">
       <div
         role="radiogroup"
         aria-label="Tema"
-        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10 }}
+        className="tema-seletor__grade"
       >
         <Option
           tone="system"
@@ -163,7 +155,7 @@ export function SeletorDeTema() {
         />
       </div>
 
-      <p style={{ color: T.mute, fontSize: 13, marginTop: 12, lineHeight: 1.45 }}>
+      <p style={{ color: T.mute, fontSize: 13, marginTop: 14, lineHeight: 1.5 }}>
         No automático, o Viston segue a aparência do aparelho e muda junto com ela.
         A escolha vale neste aparelho; entrando de outro, ela começa no automático de novo.
       </p>

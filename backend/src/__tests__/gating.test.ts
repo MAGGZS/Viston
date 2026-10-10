@@ -22,7 +22,8 @@ import { planRepository } from '../repositories/plan.repository';
 import { usageService } from '../services/usage.service';
 import { authService } from '../services/auth.service';
 import { signAccessToken } from '../utils/jwt';
-import { AccountSuspendedError } from '../utils/errors';
+import { AccountSuspendedError, ConflictError } from '../utils/errors';
+import { fraseDoLimiteDePapel, quantidadeComNome } from '../middlewares/planGate';
 
 const mockBuildings = buildingRepository as jest.Mocked<typeof buildingRepository>;
 const mockAudit = auditRepository as jest.Mocked<typeof auditRepository>;
@@ -129,6 +130,8 @@ describe('teto de prédios', () => {
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('LIMITE_DO_PLANO');
     expect(res.body.error.details).toEqual({ limit: 1, current: 1, plan: 'LIVRE' });
+    // Limite um, singular: "1 prédios" lia como erro de digitação.
+    expect(res.body.error.message).toBe('Seu plano comporta 1 prédio.');
     expect(mockBuildings.create).not.toHaveBeenCalled();
   });
 
@@ -155,6 +158,7 @@ describe('teto de prédios', () => {
 
     expect(res.status).toBe(403);
     expect(res.body.error.details.limit).toBe(7);
+    expect(res.body.error.message).toBe('Seu plano comporta 7 prédios.');
   });
 
   it('a concessão do admin manda mais que a assinatura', async () => {
@@ -222,6 +226,7 @@ describe('teto de pessoas', () => {
 
     expect(res.status).toBe(403);
     expect(res.body.error.details).toEqual({ limit: 1, current: 1, plan: 'LIVRE' });
+    expect(res.body.error.message).toBe('O plano deste prédio comporta 1 inspetor por prédio.');
   });
 
   it('repetir o papel que a pessoa já tem não conta contra o limite', async () => {
@@ -247,10 +252,15 @@ describe('teto de pessoas', () => {
     const res = await request(app)
       .patch(`/buildings/${BUILDING_ID}/access-requests/${REQUEST_ID}`)
       .set('Authorization', `Bearer ${tokenGestor}`)
-      .send({ status: 'APPROVED' });
+      .send({ status: 'APPROVED', role: 'INSPECTOR' });
 
+    // O mesmo erro da promoção de membro: código, limite e plano.
     expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('LIMITE_DO_PLANO');
+    expect(res.body.error.details).toEqual({ limit: 1, current: 1, plan: 'LIVRE' });
+    expect(mockBuildings.countMembersByRole).toHaveBeenCalledWith(BUILDING_ID, BuildingRole.INSPECTOR);
     expect(mockBuildings.reviewAccessRequest).not.toHaveBeenCalled();
+    expect(mockAudit.log).not.toHaveBeenCalled();
   });
 
   it('recusar solicitação não passa por limite nenhum', async () => {
@@ -269,6 +279,167 @@ describe('teto de pessoas', () => {
     expect(res.status).toBe(200);
   });
 
+  it.each([
+    ['INSPECTOR', PlanCode.LIVRE],
+    ['VIEWER', PlanCode.LIVRE],
+    ['RESPONSAVEL', PlanCode.LIVRE],
+    // Moderador não existe no LIVRE (ver o teste da promoção): aprova-se num
+    // plano que o inclui.
+    ['MODERADOR', PlanCode.ESSENCIAL],
+  ] as const)('aprova a solicitação com o papel %s escolhido pelo gestor', async (role, plano) => {
+    if (plano !== PlanCode.LIVRE) comPlano(plano);
+
+    const res = await request(app)
+      .patch(`/buildings/${BUILDING_ID}/access-requests/${REQUEST_ID}`)
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send({ status: 'APPROVED', role });
+
+    expect(res.status).toBe(200);
+    // No LIVRE o teto é finito, então a cota do papel escolhido é contada.
+    if (plano === PlanCode.LIVRE) {
+      expect(mockBuildings.countMembersByRole).toHaveBeenCalledWith(BUILDING_ID, role);
+    }
+    expect(mockBuildings.reviewAccessRequest).toHaveBeenCalledWith(
+      REQUEST_ID,
+      BUILDING_ID,
+      'APPROVED',
+      role
+    );
+    // A auditoria registra o papel concedido, e não um papel fixo.
+    expect(mockAudit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        building_id: BUILDING_ID,
+        entity: 'BuildingMember',
+        metadata: expect.objectContaining({ user_id: USER_ID, role }),
+      })
+    );
+  });
+
+  it('aprovar sem papel é recusado antes de tocar na fila', async () => {
+    const res = await request(app)
+      .patch(`/buildings/${BUILDING_ID}/access-requests/${REQUEST_ID}`)
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send({ status: 'APPROVED' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: 'role' })])
+    );
+    expect(mockBuildings.reviewAccessRequest).not.toHaveBeenCalled();
+  });
+
+  it('aprovar como gestor não passa: gestor é outro tipo de conta', async () => {
+    const res = await request(app)
+      .patch(`/buildings/${BUILDING_ID}/access-requests/${REQUEST_ID}`)
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send({ status: 'APPROVED', role: 'GESTOR' });
+
+    expect(res.status).toBe(400);
+    expect(mockBuildings.reviewAccessRequest).not.toHaveBeenCalled();
+  });
+
+  it('recusar sem papel funciona e não grava vínculo', async () => {
+    mockBuildings.reviewAccessRequest.mockResolvedValue({
+      id: REQUEST_ID,
+      user_id: USER_ID,
+      status: 'REJECTED',
+    } as never);
+
+    const res = await request(app)
+      .patch(`/buildings/${BUILDING_ID}/access-requests/${REQUEST_ID}`)
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send({ status: 'REJECTED' });
+
+    expect(res.status).toBe(200);
+    expect(mockBuildings.reviewAccessRequest).toHaveBeenCalledWith(
+      REQUEST_ID,
+      BUILDING_ID,
+      'REJECTED',
+      undefined
+    );
+    // A recusa deixa rastro próprio (SEC-03), no pedido, e não num vínculo que
+    // não existe: nada de `BuildingMember` aqui.
+    expect(mockAudit.log).toHaveBeenCalledTimes(1);
+    // Sem `manager_id`: `actorAudit` vem do módulo mockado nesta suíte e não
+    // devolve nada. Quem agiu sai dele, como nas outras auditorias do controller.
+    expect(mockAudit.log).toHaveBeenCalledWith({
+      building_id: BUILDING_ID,
+      action: 'UPDATE',
+      entity: 'BuildingAccessRequest',
+      entity_id: REQUEST_ID,
+      metadata: { request_id: REQUEST_ID, user_id: USER_ID, status: 'REJECTED' },
+    });
+  });
+
+  it('a aprovação registra o pedido que a originou', async () => {
+    const res = await request(app)
+      .patch(`/buildings/${BUILDING_ID}/access-requests/${REQUEST_ID}`)
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send({ status: 'APPROVED', role: 'VIEWER' });
+
+    expect(res.status).toBe(200);
+    expect(mockAudit.log).toHaveBeenCalledTimes(1);
+    // Sem `manager_id`: `actorAudit` vem do módulo mockado nesta suíte e não
+    // devolve nada. Quem agiu sai dele, como nas outras auditorias do controller.
+    expect(mockAudit.log).toHaveBeenCalledWith({
+      building_id: BUILDING_ID,
+      action: 'CREATE',
+      entity: 'BuildingMember',
+      metadata: { request_id: REQUEST_ID, user_id: USER_ID, role: 'VIEWER', origin: 'ACCESS_REQUEST' },
+    });
+  });
+
+  it('pedido revisado em paralelo dá 409 e não deixa auditoria', async () => {
+    // A conferência do controller viu PENDING, mas outra revisão chegou antes
+    // ao UPDATE condicional do repositório (SEC-02), que achou zero linhas.
+    mockBuildings.reviewAccessRequest.mockRejectedValue(new ConflictError('Solicitação já foi revisada'));
+
+    const res = await request(app)
+      .patch(`/buildings/${BUILDING_ID}/access-requests/${REQUEST_ID}`)
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send({ status: 'APPROVED', role: 'VIEWER' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toBe('Solicitação já foi revisada');
+    expect(mockAudit.log).not.toHaveBeenCalled();
+  });
+
+  it('recusar com papel é recusado: papel numa recusa não tem efeito', async () => {
+    const res = await request(app)
+      .patch(`/buildings/${BUILDING_ID}/access-requests/${REQUEST_ID}`)
+      .set('Authorization', `Bearer ${tokenGestor}`)
+      .send({ status: 'REJECTED', role: 'INSPECTOR' });
+
+    expect(res.status).toBe(400);
+    expect(mockBuildings.reviewAccessRequest).not.toHaveBeenCalled();
+  });
+
+  it('a lista de membros diz, antes do clique, quais papéis ainda cabem', async () => {
+    mockBuildings.getManagers.mockResolvedValue([] as never);
+    mockBuildings.getMembers.mockResolvedValue([
+      { id: 'm1', user_id: 'u1', role: BuildingRole.INSPECTOR },
+    ] as never);
+
+    const res = await request(app)
+      .get(`/buildings/${BUILDING_ID}/members`)
+      .set('Authorization', `Bearer ${tokenGestor}`);
+
+    expect(res.status).toBe(200);
+    const cap = res.body.role_capacity;
+    // A mesma frase e o mesmo código do 403 da aprovação e da promoção.
+    expect(cap.INSPECTOR).toEqual({
+      allowed: false,
+      code: 'LIMITE_DO_PLANO',
+      reason: 'O plano deste prédio comporta 1 inspetor por prédio.',
+    });
+    expect(cap.MODERADOR).toEqual(
+      expect.objectContaining({ allowed: false, code: 'RECURSO_DO_PLANO' })
+    );
+    expect(cap.VIEWER).toEqual({ allowed: true, code: null, reason: null });
+    expect(cap.RESPONSAVEL).toEqual({ allowed: true, code: null, reason: null });
+  });
+
   it('prédio sem dono não é barrado: não há plano a consultar', async () => {
     mockBuildings.findById.mockResolvedValue(predio({ owner_manager_id: null }));
     mockBuildings.countMembersByRole.mockResolvedValue(50);
@@ -279,6 +450,28 @@ describe('teto de pessoas', () => {
       .send({ role: 'INSPECTOR' });
 
     expect(res.status).toBe(200);
+  });
+});
+
+describe('concordância da frase do limite', () => {
+  // Hoje só o Livre tem teto de pessoas, e ele é sempre um. O limite dois não
+  // existe em plano nenhum: entra aqui para prender o plural, que é o que um
+  // plano futuro com teto maior vai mostrar.
+  it.each([
+    ['GESTOR', 'gestor', 'gestores'],
+    [BuildingRole.MODERADOR, 'moderador', 'moderadores'],
+    [BuildingRole.RESPONSAVEL, 'responsável', 'responsáveis'],
+    [BuildingRole.INSPECTOR, 'inspetor', 'inspetores'],
+    [BuildingRole.VIEWER, 'visualizador', 'visualizadores'],
+  ] as const)('%s: singular com limite 1, plural com limite 2', (role, um, varios) => {
+    expect(fraseDoLimiteDePapel(role, 1)).toBe(`O plano deste prédio comporta 1 ${um} por prédio.`);
+    expect(fraseDoLimiteDePapel(role, 2)).toBe(`O plano deste prédio comporta 2 ${varios} por prédio.`);
+  });
+
+  it('prédio: singular só para exatamente um', () => {
+    expect(quantidadeComNome(1, 'prédio', 'prédios')).toBe('1 prédio');
+    expect(quantidadeComNome(2, 'prédio', 'prédios')).toBe('2 prédios');
+    expect(quantidadeComNome(0, 'prédio', 'prédios')).toBe('0 prédios');
   });
 });
 

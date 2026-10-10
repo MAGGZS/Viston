@@ -584,14 +584,61 @@ export function useRotateBuildingShareToken() {
   });
 }
 
+/**
+ * Aprova ou recusa um pedido de acesso.
+ *
+ * Aprovar leva o papel escolhido pelo gestor (`role`), que o servidor exige;
+ * recusar não leva papel nenhum, e o servidor recusa se levar. Por isso o
+ * campo só entra no corpo quando é aprovação.
+ *
+ * O painel do prédio entra na invalidação porque os contadores de inspetores e
+ * visualizadores mudam com quem acabou de entrar.
+ */
 export function useReviewAccessRequest() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ buildingId, requestId, status }) =>
-      api.patch(`/buildings/${buildingId}/access-requests/${requestId}`, { status }).then((r) => r.data),
+    mutationFn: ({ buildingId, requestId, status, role }) =>
+      api
+        .patch(
+          `/buildings/${buildingId}/access-requests/${requestId}`,
+          status === 'APPROVED' ? { status, role } : { status }
+        )
+        .then((r) => r.data),
     onSuccess: (_, { buildingId }) => {
       qc.invalidateQueries({ queryKey: ['access-requests', buildingId] });
       qc.invalidateQueries({ queryKey: ['building-members', buildingId] });
+      qc.invalidateQueries({ queryKey: ['building-dashboard', buildingId] });
+    },
+    // Recusa de plano na aprovação quer dizer que o `role_capacity` que
+    // desenhou as opções ficou velho (alguém entrou por outro caminho, o plano
+    // mudou). Recarregar os membros devolve as vagas certas, e o papel que não
+    // cabe aparece desabilitado com o motivo.
+    onError: (err, { buildingId }) => {
+      if (err?.response?.status === 403) {
+        qc.invalidateQueries({ queryKey: ['building-members', buildingId] });
+      }
+    },
+  });
+}
+
+/**
+ * Gera um novo código permanente do prédio (a `share_key`).
+ *
+ * O código antigo deixa de funcionar na hora. Quem já é membro continua, e os
+ * pedidos que já chegaram continuam na fila: o servidor só troca a chave do
+ * prédio (ver `rotateShareKey` no repositório do backend). O QR Code e o link
+ * de 15 minutos são outra credencial e não mudam aqui.
+ *
+ * A chave aparece no painel do prédio e na lista de prédios do gestor, então
+ * as duas consultas são atualizadas.
+ */
+export function useRotateShareKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (buildingId) => api.post(`/buildings/${buildingId}/share-key/rotate`).then((r) => r.data),
+    onSuccess: (_, buildingId) => {
+      qc.invalidateQueries({ queryKey: ['building-dashboard', buildingId] });
+      qc.invalidateQueries({ queryKey: ['managed-buildings'] });
     },
   });
 }

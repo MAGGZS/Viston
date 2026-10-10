@@ -51,6 +51,9 @@ services:
         value: viston-excel
       - key: SUPABASE_BUCKET_PHOTOS
         value: viston-photos
+      # Os vídeos da central de ajuda. Privado: leitura e envio por URL assinada.
+      - key: SUPABASE_BUCKET_TUTORIAIS
+        value: tutoriais
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET

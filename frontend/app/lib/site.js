@@ -37,4 +37,6 @@ export const PRIVATE_ROUTE_PREFIXES = [
   '/gestor',
   '/moderador',
   '/responsavel',
+  // A central de ajuda: interna, só para quem está logado.
+  '/ajuda',
 ];

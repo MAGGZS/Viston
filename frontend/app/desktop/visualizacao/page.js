@@ -19,6 +19,7 @@ import {
   NumerosDaAgenda,
 } from './_componentes/PainelSupervisor';
 import { InspecoesRecentes } from './_componentes/InspecoesRecentes';
+import { BotaoAjuda } from '@/app/components/ajuda/BotaoAjuda';
 
 function primeiroNome(nome = '') {
   return nome.trim().split(/\s+/)[0] ?? '';
@@ -59,10 +60,15 @@ export default function VisualizacaoPage() {
     <VisualizadorShell
       ctx={ctx}
       title="Painel"
-      subtitle={nome ? `Olá, ${nome} — como anda a agenda e a equipe do prédio` : 'Como anda a agenda e a equipe do prédio'}
-      actions={ctx.supervisiona && (
-        <PeriodoFiltro year={year} month={month} onYear={setYear} onMonth={setMonth} />
-      )}
+      subtitle={nome ? `Olá, ${nome}. Veja como andam a agenda e a equipe do prédio` : 'Como andam a agenda e a equipe do prédio'}
+      actions={
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <BotaoAjuda contexto="visualizador.calendario" compacto />
+          {ctx.supervisiona && (
+            <PeriodoFiltro year={year} month={month} onYear={setYear} onMonth={setMonth} />
+          )}
+        </div>
+      }
     >
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '2px 32px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
         {ctx.supervisiona && (overview.isError ? (
