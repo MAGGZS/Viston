@@ -1,5 +1,5 @@
 'use client';
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, useQueries, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import api from '@/app/lib/api';
 
 /**
@@ -24,16 +24,31 @@ export function useHelpFolders() {
   });
 }
 
-/** Uma pasta e os tutoriais publicados dela. */
-export function useHelpFolder(slug) {
-  return useQuery({
+/** A consulta de uma pasta, a mesma para a tela da pasta e para a árvore. */
+function consultaDaPasta(slug, enabled = true) {
+  return {
     queryKey: ['help', 'folder', slug],
     queryFn: () => api.get(`/help/folders/${encodeURIComponent(slug)}`).then((r) => r.data),
-    enabled: !!slug,
+    enabled: !!slug && enabled,
     // 404 é resposta, e não falha passageira: a pasta não existe para esta
     // conta, e perguntar de novo três vezes só atrasa a tela que diz isso.
     retry: (n, err) => err?.response?.status !== 404 && n < 2,
-  });
+  };
+}
+
+/** Uma pasta e os tutoriais publicados dela. */
+export function useHelpFolder(slug) {
+  return useQuery(consultaDaPasta(slug));
+}
+
+/**
+ * Várias pastas de uma vez, cada uma só quando `enabled`: é o que a árvore do
+ * computador usa para abrir as pastas sob demanda. A chave é a mesma de
+ * `useHelpFolder`, então a pasta aberta na árvore já chega pronta na tela dela,
+ * e vice-versa. Devolve os resultados na ordem dos pedidos.
+ */
+export function useHelpFolderContents(pedidos) {
+  return useQueries({ queries: pedidos.map(({ slug, enabled }) => consultaDaPasta(slug, enabled)) });
 }
 
 /**

@@ -16,6 +16,8 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "seed:ajuda": "ts-node --transpile-only src/scripts/seedAjuda.ts",
+    "seed:demo": "ts-node --transpile-only prisma/seed-demo.ts",
+    "seed:demo:limpar": "ts-node --transpile-only prisma/seed-demo-limpar.ts",
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand",
     "test:coverage": "jest --coverage --runInBand"

@@ -1930,6 +1930,7 @@ input:-webkit-autofill:focus {
  * enquanto o vídeo roda, e uma linha de 1.400px obriga a cabeça a ir e voltar.
  */
 .ajuda-faixa {
+  display: flex;
   height: 60px;
   align-items: center;
   justify-content: space-between;
@@ -2042,6 +2043,222 @@ input:-webkit-autofill:focus {
 }
 .ajuda-busca::-webkit-search-cancel-button { display: none; }
 .ajuda-busca:focus-visible { border-color: var(--color-accent-ink); }
+
+/* A lista de cartões de tutorial (pasta, começo da central no computador) e a de resultados. */
+.ajuda-lista,
+.ajuda-resultados {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/*
+ * A mesa do computador: a forma de "Configurações da conta" (ver o perfil).
+ *
+ * O título no topo e duas colunas soltas na página, sem cartão por trás. A
+ * grade cresce até o fim da página e a divisória da coluna da esquerda desce
+ * junto até a borda de baixo, mesmo com pouco conteúdo à direita. A largura
+ * fixa da esquerda mantém o conteúdo parado ao trocar de pasta: com `auto`, um
+ * título comprido na árvore empurraria a coluna da direita a cada clique.
+ */
+.ajuda-mesa {
+  min-height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+  padding: 28px 32px 0;
+}
+.ajuda-mesa__titulo {
+  font-size: 22px;
+  margin-bottom: 20px;
+}
+.ajuda-mesa__grade {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 8px;
+  max-width: 1200px;
+}
+.ajuda-mesa__conteudo {
+  min-width: 0;
+  padding: 0 8px 48px 24px;
+}
+
+/* A coluna da árvore. A divisória fica nela, que estica até o fim da grade;
+ * o miolo dela é que gruda no topo e rola sozinho quando é mais alto que a tela. */
+.ajuda-lateral {
+  border-right: 1px solid var(--color-line);
+}
+.ajuda-lateral__fixa {
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 2px 12px 40px 0;
+}
+.ajuda-lateral__busca { margin-bottom: 6px; }
+.ajuda-lateral__passos { margin-top: 18px; }
+
+/* O topo da tela à direita da árvore: sem o recuo do telefone, alinhado ao início da árvore. */
+.ajuda-topo--mesa { padding: 2px 0 22px; }
+
+.ajuda-busca--compacta {
+  font-size: 14px;
+  padding: 9px 36px 9px 34px;
+}
+
+/*
+ * A árvore das pastas, como a barra lateral de arquivos de um editor.
+ *
+ * Cada linha é um link: a pasta leva à tela da pasta, o tutorial ao tutorial.
+ * A linha da tela aberta tem o fundo dourado suave arredondado, o mesmo da
+ * seção aberta no perfil. Hover só com mouse, e sem movimento: a árvore é
+ * usada dezenas de vezes seguidas, e cada linha que se mexesse atrasaria o
+ * olho. O que anda é só a seta, que gira 90 graus ao abrir, em 150 ms.
+ */
+.ajuda-arvore__secao + .ajuda-arvore__secao { margin-top: 14px; }
+.ajuda-arvore__rotulo {
+  color: var(--color-faint);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 10px 8px 6px;
+}
+.ajuda-arvore__lista,
+.ajuda-arvore__grupo {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ajuda-arvore__lista { display: flex; flex-direction: column; gap: 1px; }
+
+/* O fio que liga os tutoriais à pasta, na coluna da seta. */
+.ajuda-arvore__grupo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 1px 0 4px;
+}
+.ajuda-arvore__grupo::before {
+  content: '';
+  position: absolute;
+  left: 17px;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--color-line);
+}
+
+.ajuda-no {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  color: var(--color-mute);
+  font-size: 14px;
+  line-height: 1.35;
+  text-decoration: none;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.ajuda-no--pasta { color: var(--color-ink); }
+.ajuda-no--tutorial {
+  padding-left: 32px;
+  font-size: 13px;
+}
+.ajuda-no__icone { flex-shrink: 0; color: var(--color-mute); }
+.ajuda-no__titulo { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ajuda-no__conta {
+  flex-shrink: 0;
+  color: var(--color-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ajuda-no__seta {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-right: -4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-mute);
+  cursor: pointer;
+}
+.ajuda-no__seta svg { transition: transform 150ms var(--ease-saida); }
+.ajuda-no[aria-expanded='true'] .ajuda-no__seta svg { transform: rotate(90deg); }
+
+@media (hover: hover) and (pointer: fine) {
+  .ajuda-no:hover { background-color: var(--color-hover); color: var(--color-ink); }
+  .ajuda-no__seta:hover { background-color: var(--color-hover-strong); color: var(--color-ink); }
+}
+
+.ajuda-no[aria-current='page'] {
+  background-color: var(--color-accent-soft);
+  color: var(--color-ink);
+  font-weight: 500;
+}
+.ajuda-no[aria-current='page'] .ajuda-no__icone { color: var(--color-accent-ink); }
+/* A pasta do tutorial aberto: sem fundo (o fundo é do tutorial), só o ícone aceso. */
+.ajuda-no[data-contem-ativo] .ajuda-no__icone { color: var(--color-accent-ink); }
+
+/* O contorno de foco vai por dentro: a coluna rola e cortaria o de fora. */
+.ajuda-no:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: -2px;
+}
+
+.ajuda-arvore__aviso {
+  color: var(--color-mute);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px;
+}
+.ajuda-arvore__aviso button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  color: var(--color-accent-ink);
+  font-size: 13px;
+}
+.ajuda-arvore__aviso--dentro { padding-left: 32px; }
+
+/* Um passo achado pela busca, na coluna da árvore: mais baixo que o cartão. */
+.ajuda-resultados--compactos { gap: 2px; }
+.ajuda-resultado {
+  display: block;
+  padding: 8px;
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 120ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ajuda-resultado:hover { background-color: var(--color-hover); }
+}
+.ajuda-resultado:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: -2px;
+}
+.ajuda-resultado__trecho {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ajuda-no__seta svg { transition: none; }
+}
 
 /*
  * O palco do vídeo.

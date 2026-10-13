@@ -50,7 +50,7 @@
           "titulo": "Entrar em um prédio pelo QR Code ou link",
           "dispositivo": "MOBILE",
           "ordem": 2,
-          "script_hash": "da782791efd7fd0f2a56d3168bf665398c5b98b62409a67fa9b829a0e1cd9ac8",
+          "script_hash": "3b5aa80f4c81b9c8c3e9ae431f06a02505ce431172e9c1facf2cd5f0945c1ce9",
           "abas": [
             {
               "ordem": 1,
@@ -70,7 +70,7 @@
             {
               "ordem": 4,
               "titulo": "Esperar a aprovação",
-              "narracao": "Enquanto o gestor não responde, o pedido aparece como pendente. Quando ele aprovar, o prédio surge no seu app, já com o seu papel: inspetor, responsável, moderador ou visualizador."
+              "narracao": "Agora o pedido está com o gestor. Quando ele aprovar, o prédio aparece na sua tela inicial, já com o seu papel: inspetor, responsável, moderador ou visualizador. Toque em Acessar Início para voltar."
             },
             {
               "ordem": 5,
@@ -108,7 +108,7 @@
           "titulo": "Seu perfil",
           "dispositivo": "MOBILE",
           "ordem": 4,
-          "script_hash": "d299c363c141c72365ef329e4c19294cc9fa40a460351c438d32a2c37fb849f6",
+          "script_hash": "055f2672496334ccd56162504dde855c39f984329805d6d7e4f052af46dbac31",
           "abas": [
             {
               "ordem": 1,
@@ -118,17 +118,17 @@
             {
               "ordem": 2,
               "titulo": "Nome e e-mail",
-              "narracao": "Aqui você corrige seu nome e seu e-mail. Trocar o e-mail pede uma nova confirmação."
+              "narracao": "Em Identificação você corrige seu nome. O e-mail é a identidade da conta e não muda por aqui."
             },
             {
               "ordem": 3,
               "titulo": "Trocar a senha",
-              "narracao": "Para trocar a senha, informe a atual e a nova."
+              "narracao": "Para trocar a senha, toque em Alterar senha e informe a atual e a nova."
             },
             {
               "ordem": 4,
               "titulo": "Tema claro ou escuro",
-              "narracao": "Em Tema você escolhe entre o modo escuro e o claro. Em sol forte, no térreo ou na cobertura, o claro costuma ler melhor."
+              "narracao": "Em Tema você escolhe o modo escuro, o claro ou o automático, que segue o celular. Em sol forte, no térreo ou na cobertura, o claro costuma ler melhor."
             },
             {
               "ordem": 5,
@@ -179,7 +179,7 @@
           "titulo": "Criar conta de gestor e o primeiro prédio",
           "dispositivo": "DESKTOP",
           "ordem": 1,
-          "script_hash": "a596b176ed2e93fd333180bd1b7c5fc55910106c2c6a89c97679c74a5ea29fc7",
+          "script_hash": "176bb125ceabb0fe048737677ad478b5b1de80c41edff44cb5c3f39067ec0d80",
           "abas": [
             {
               "ordem": 1,
@@ -194,7 +194,7 @@
             {
               "ordem": 3,
               "titulo": "Cadastrar o prédio",
-              "narracao": "No painel, crie o seu primeiro prédio. Com o nome e os dados básicos, ele já existe e já pode receber a equipe."
+              "narracao": "No painel, clique em Criar prédio. Dê um nome e cadastre pelo menos um andar, que o prédio não é criado sem isso. Pronto: ele já existe e já pode receber a equipe."
             }
           ]
         },
@@ -203,22 +203,22 @@
           "titulo": "Cadastrar e remover andares",
           "dispositivo": "DESKTOP",
           "ordem": 2,
-          "script_hash": "9b099124d730b7f912384b9835d398032e35d132b2eab0178bc53ff385e3eaf2",
+          "script_hash": "f2366f6c5384496f79fad23446149ad37344133351899e9c4257509cd13bcf6e",
           "abas": [
             {
               "ordem": 1,
               "titulo": "Ver os andares",
-              "narracao": "Os andares são a base da vistoria. Eles aparecem sempre do mais alto para o mais baixo, que é a ordem em que o inspetor percorre o prédio."
+              "narracao": "Os andares ficam em Editar prédio, no cartão do prédio. Eles são a base da vistoria, e o inspetor sempre os percorre do mais alto para o mais baixo."
             },
             {
               "ordem": 2,
               "titulo": "Adicionar um andar",
-              "narracao": "Para adicionar, informe o andar. Subsolos usam números negativos, e o Viston coloca cada um no lugar certo da lista."
+              "narracao": "Para adicionar, escreva o andar e aperte Enter. Para um subsolo, escreva, por exemplo, segundo subsolo. O Viston entende o número e coloca cada andar no lugar certo da vistoria. Depois, clique em Salvar."
             },
             {
               "ordem": 3,
               "titulo": "Remover um andar",
-              "narracao": "Remover pede confirmação. Antes de remover, confira o que acontece com o histórico daquele andar na mensagem da tela."
+              "narracao": "Para remover, clique no X do andar. A remoção não pede confirmação e só vale quando você clica em Salvar. Atenção: remover um andar apaga junto o histórico de vistorias dele. O prédio precisa ter pelo menos um andar."
             }
           ]
         },
@@ -261,7 +261,7 @@
           "titulo": "Aprovar pedidos escolhendo o papel",
           "dispositivo": "DESKTOP",
           "ordem": 4,
-          "script_hash": "c1a943870773b2ae3d87fbeedebbd515d16abe70f61d882f8b77d5f288b17847",
+          "script_hash": "94b74664c8e4647552891b55f45039950585736edbf3fe347414b07c386314d3",
           "abas": [
             {
               "ordem": 1,
@@ -280,8 +280,8 @@
             },
             {
               "ordem": 4,
-              "titulo": "Recusar",
-              "narracao": "Não conhece quem pediu? Recuse. A pessoa não entra e o pedido some da lista."
+              "titulo": "Rejeitar",
+              "narracao": "Não conhece quem pediu? Clique em Rejeitar, o X ao lado de Aprovar. Não há confirmação: a pessoa não entra e o pedido some da lista na hora."
             }
           ]
         },
@@ -314,12 +314,12 @@
           "titulo": "Co-gestores e transferência do prédio",
           "dispositivo": "DESKTOP",
           "ordem": 6,
-          "script_hash": "55b6c767b3db3b45bcec368c123e35c618275ac1a3c6c601adc350c75982eba7",
+          "script_hash": "dd63b4a168e28383832ab10fa976844000730061589fba32c2287232c3be5c26",
           "abas": [
             {
               "ordem": 1,
               "titulo": "Adicionar um co-gestor",
-              "narracao": "Gestores não pedem acesso com código. Para dividir a administração, adicione outro gestor aqui. Ele precisa ter uma conta de gestor."
+              "narracao": "Gestores não pedem acesso com código. Para dividir a administração, informe aqui o e-mail de outro gestor e clique em Adicionar. Ele precisa ter uma conta de gestor."
             },
             {
               "ordem": 2,
@@ -329,12 +329,12 @@
             {
               "ordem": 3,
               "titulo": "Transferir o prédio",
-              "narracao": "Para passar o prédio a outro gestor, inicie a transferência. Ele tem sete dias para aceitar. Até lá, nada muda."
+              "narracao": "Para passar o prédio a outro gestor, escolha o nome e clique em Passar o prédio. Ele recebe um convite e tem sete dias para aceitar. Até lá, nada muda. Se ele recusar ou deixar o prazo passar, o prédio fica inativo."
             },
             {
               "ordem": 4,
-              "titulo": "Prédio congelado",
-              "narracao": "Às vezes um prédio aparece congelado, com um aviso explicando o que falta acertar. O histórico continua aberto, mas não entram vistorias novas até isso ser resolvido."
+              "titulo": "Prédio inativo",
+              "narracao": "Às vezes um prédio aparece inativo, com um aviso no topo explicando o que falta acertar. O histórico continua aberto para leitura, mas vistorias, chamados e convites novos ficam suspensos até isso ser resolvido."
             }
           ]
         },
@@ -343,7 +343,7 @@
           "titulo": "Acompanhar a operação",
           "dispositivo": "DESKTOP",
           "ordem": 7,
-          "script_hash": "26ec2434a11fe8e2bace48aa445861a6d781f01c9573d750dc32bfac90af75e7",
+          "script_hash": "beb6348f618dbd00d102490ac271c5ced6429c6122fb4ea460569ba678ad599c",
           "abas": [
             {
               "ordem": 1,
@@ -353,7 +353,7 @@
             {
               "ordem": 2,
               "titulo": "O painel analítico",
-              "narracao": "O painel mostra como os chamados andam, quanto o prédio custou e como a equipe está atendendo. Os detalhes de cada parte estão na pasta Moderador."
+              "narracao": "Em Análise, o painel mostra como os chamados andam, quanto o prédio custou e como a equipe está atendendo. Os detalhes de cada parte estão na pasta Moderador."
             },
             {
               "ordem": 3,
@@ -380,12 +380,12 @@
           "titulo": "Fazer uma vistoria completa",
           "dispositivo": "MOBILE",
           "ordem": 1,
-          "script_hash": "f09635213a1b55d53d68ec36a2c6f28b4466798b3362447b387893368b3bca82",
+          "script_hash": "22999058750c9d785c923a7c303bc401b7e65cfac2d1d64df5303d63ca919ea5",
           "abas": [
             {
               "ordem": 1,
               "titulo": "Começar",
-              "narracao": "A vistoria é feita andando pelo prédio, com o celular na mão. Na tela inicial, toque em Iniciar vistoria."
+              "narracao": "A vistoria é feita andando pelo prédio, com o celular na mão. Na tela inicial, toque em Nova vistoria."
             },
             {
               "ordem": 2,
@@ -395,7 +395,7 @@
             {
               "ordem": 3,
               "titulo": "Andar sem problema",
-              "narracao": "Andar sem nada a registrar? Marque Nada a relatar e vá para o próximo andar. É o caminho mais comum."
+              "narracao": "Andar sem nada a registrar? Marque Nada a relatar neste andar e toque em Próximo andar. É o caminho mais comum."
             },
             {
               "ordem": 4,
@@ -405,7 +405,7 @@
             {
               "ordem": 5,
               "titulo": "Mais de uma ocorrência no andar",
-              "narracao": "Se houver mais de um problema no mesmo andar, adicione outro registro. Cada um vira um chamado separado."
+              "narracao": "Se houver mais de um problema no mesmo andar, toque em Adicionar ocorrência. Cada uma vira um chamado separado."
             },
             {
               "ordem": 6,
@@ -453,7 +453,7 @@
           "titulo": "Retomar uma vistoria interrompida",
           "dispositivo": "MOBILE",
           "ordem": 3,
-          "script_hash": "46d2fd463c465961fafe065ca7f1a916558f64199e297c2f4f3836512c812a9f",
+          "script_hash": "c83fb46d15e304578b09f4d8cad8c2cabc0ef192d38d701d3920568dd134236c",
           "abas": [
             {
               "ordem": 1,
@@ -463,7 +463,7 @@
             {
               "ordem": 2,
               "titulo": "Retomar",
-              "narracao": "Ao abrir o Viston de novo, ele pergunta se você quer continuar de onde parou. Toque em retomar e você volta ao mesmo andar."
+              "narracao": "Ao abrir o Viston de novo, ele pergunta se você quer continuar de onde parou. Toque em Continuar vistoria e você volta ao mesmo andar."
             },
             {
               "ordem": 3,
@@ -473,7 +473,7 @@
             {
               "ordem": 4,
               "titulo": "Descartar",
-              "narracao": "Se não quiser continuar, descarte. O rascunho também vence sozinho depois de um dia."
+              "narracao": "Se não quiser continuar, toque em Descartar e começar de novo. O rascunho também vence sozinho depois de um dia."
             }
           ]
         },
@@ -543,7 +543,7 @@
           "titulo": "Trabalhar no chamado",
           "dispositivo": "MOBILE",
           "ordem": 2,
-          "script_hash": "9e27712fc9998d62d58c45627a68b0437f3a6d4ede26735146784e6d7c493a2e",
+          "script_hash": "03221079e77e53b86e018a7aa590595d032a8324fe72c412abeb6b3897ac2ba8",
           "abas": [
             {
               "ordem": 1,
@@ -553,12 +553,12 @@
             {
               "ordem": 2,
               "titulo": "Registrar o andamento",
-              "narracao": "Registre o que foi feito, com fotos se puder. Isso ajuda o moderador a acompanhar sem precisar te ligar."
+              "narracao": "Registre o que foi feito, com fotos se puder, e toque em Registrar. Isso ajuda o moderador a acompanhar sem precisar te ligar."
             },
             {
               "ordem": 3,
-              "titulo": "Aguardando terceiro",
-              "narracao": "Se o moderador marcar o chamado como aguardando terceiro, é porque depende de uma peça, um fornecedor ou outra equipe. Continue registrando o andamento normalmente."
+              "titulo": "Aguardando responsável",
+              "narracao": "Chamado que o moderador mandou para você e que ainda não foi recebido espera na fila A receber, com a etiqueta Encaminhado. Dá para receber direto pelo botão Receber do cartão, sem abrir. O moderador vê que o chamado está aguardando você. E repare no prazo do cartão: ele conta desde o dia da vistoria, por isso não deixe o chamado parado nesta fila."
             },
             {
               "ordem": 4,
@@ -643,22 +643,22 @@
           "titulo": "O painel do moderador",
           "dispositivo": "DESKTOP",
           "ordem": 1,
-          "script_hash": "8a72ca476d68a02b861df9b83bf9e85f8b16b72fdd1624f2ce204eed386161e2",
+          "script_hash": "181bca477793b92522797b42a21ee10c5371cc5cbc05e99ad2be0a08ffca1223",
           "abas": [
             {
               "ordem": 1,
               "titulo": "Os contadores",
-              "narracao": "O painel mostra quantos chamados estão em cada etapa: novos, encaminhados, em andamento e concluídos."
+              "narracao": "O painel mostra quantos chamados estão em cada etapa: em aberto, encaminhados, em andamento e concluídos. O cartão Fora do prazo junta os que já passaram do prazo."
             },
             {
               "ordem": 2,
               "titulo": "A barra lateral",
-              "narracao": "Pela barra lateral você entra em cada fila. O trabalho do dia começa pelos novos."
+              "narracao": "Pela barra lateral você entra em cada fila. O trabalho do dia começa por Novos chamados."
             },
             {
               "ordem": 3,
-              "titulo": "O calendário",
-              "narracao": "O calendário mostra os dias com vistoria. Clique em um dia para abrir o relatório."
+              "titulo": "O histórico do painel",
+              "narracao": "Mais abaixo fica o histórico do prédio, com as vistorias e as ocorrências. Clique em uma vistoria para abrir o relatório completo do dia."
             }
           ]
         },
@@ -667,7 +667,7 @@
           "titulo": "Encaminhar um chamado",
           "dispositivo": "DESKTOP",
           "ordem": 2,
-          "script_hash": "d81c3e2dc88c767e7c40eb87bdfeb28d84f9553dbceb4eb394c2c9d48a89193e",
+          "script_hash": "11260f6dd82eced0bc3af2b3a0f4636d1075ccd8d6946c71880cc84ef8bf2a30",
           "abas": [
             {
               "ordem": 1,
@@ -682,17 +682,17 @@
             {
               "ordem": 3,
               "titulo": "Encaminhar",
-              "narracao": "Escolha o responsável e encaminhe. O chamado fica aguardando até ele confirmar o recebimento."
+              "narracao": "Em Encaminhar para, escolha o responsável e clique em Encaminhar. O chamado fica aguardando até ele confirmar o recebimento."
             },
             {
               "ordem": 4,
               "titulo": "Deixar uma nota",
-              "narracao": "Use as notas para dizer o que precisa ser feito ou o que ficou combinado. Lembre de salvar a nota."
+              "narracao": "Quando o responsável já recebeu o chamado, aparece o campo Notas para o responsável. Use para dizer o que precisa ser feito ou o que ficou combinado, e clique em Salvar nota."
             },
             {
               "ordem": 5,
               "titulo": "Cancelar o envio",
-              "narracao": "Encaminhou para a pessoa errada? Cancele o envio enquanto ela ainda não recebeu. O chamado volta para os novos, sem responsável."
+              "narracao": "Encaminhou para a pessoa errada? Clique em Cancelar envio enquanto ela ainda não recebeu. O chamado volta para Novos chamados, sem responsável."
             }
           ]
         },
@@ -701,22 +701,22 @@
           "titulo": "Acompanhar e fechar",
           "dispositivo": "DESKTOP",
           "ordem": 3,
-          "script_hash": "34a8664221b9ab6cfb3c3efde4aeaa5906bc88b0589cf48972411060862759da",
+          "script_hash": "5da65bf426f40bb5a0f6acddcf0a11ba294ea6b3f23c15cdc17ca5109831e40a",
           "abas": [
             {
               "ordem": 1,
               "titulo": "Em andamento",
-              "narracao": "Aqui ficam os chamados que o responsável já recebeu. Abra para ver o andamento que ele registrou."
+              "narracao": "Em Processamento ficam os chamados que já foram encaminhados. Abra um chamado em andamento para ver o que o responsável registrou."
             },
             {
               "ordem": 2,
-              "titulo": "Aguardando terceiro",
-              "narracao": "Se o serviço depende de uma peça, um fornecedor ou outra equipe, marque como aguardando terceiro. O responsável é avisado."
+              "titulo": "Aguardando responsável",
+              "narracao": "Na coluna Encaminhados ficam os chamados que o responsável ainda não recebeu. Ao abrir um, você vê desde quando ele está aguardando. Enquanto ninguém recebe, a única ação é Cancelar envio: o chamado volta para Novos chamados, e aí você encaminha para quem quiser."
             },
             {
               "ordem": 3,
               "titulo": "Trocar o responsável",
-              "narracao": "Para trocar o responsável com o chamado em andamento, reencaminhe. O novo responsável precisa receber de novo, e o que o anterior informou é descartado."
+              "narracao": "Para trocar o responsável com o chamado em andamento, escolha outra pessoa em Reenviar para e clique em Reenviar. O novo responsável precisa receber de novo, e o que o anterior informou é descartado."
             },
             {
               "ordem": 4,
@@ -764,17 +764,17 @@
           "titulo": "Relatório de chamados em Word",
           "dispositivo": "DESKTOP",
           "ordem": 5,
-          "script_hash": "bb8e633cd363e320263b2cc1244d5d9ac6acfd8ae2bed2f061a63783656307d9",
+          "script_hash": "7ab1b16e4eb397a8de48e680335e50ce4cd0dc21184aeeea814b207a700f3014",
           "abas": [
             {
               "ordem": 1,
               "titulo": "Escolher o período",
-              "narracao": "Para prestar contas, gere o relatório de chamados do período."
+              "narracao": "Para prestar contas, entre em Finalizados e clique em Gerar relatório. Escolha o período."
             },
             {
               "ordem": 2,
               "titulo": "Gerar e baixar",
-              "narracao": "O Viston monta um documento Word, pronto para enviar ou imprimir."
+              "narracao": "Gere o arquivo. O Viston monta um documento Word, pronto para enviar ou imprimir."
             },
             {
               "ordem": 3,
@@ -801,12 +801,12 @@
           "titulo": "O calendário de vistorias",
           "dispositivo": "DESKTOP",
           "ordem": 1,
-          "script_hash": "50aa72bc8f449e0290b0c5c0f4837d966db3c19d786e17fb9068118b3cfe4a56",
+          "script_hash": "5f1edb3c21a6fee3aa7b1745acdac01d716538fccfbb5b1e6ee57db853de7657",
           "abas": [
             {
               "ordem": 1,
               "titulo": "Visão mensal",
-              "narracao": "O calendário mostra os dias com vistoria. Quanto mais forte a cor, mais vistorias naquele dia."
+              "narracao": "O calendário fica em Histórico, na barra lateral, e mostra os dias com vistoria. Quanto mais forte a cor, mais vistorias naquele dia."
             },
             {
               "ordem": 2,
@@ -816,7 +816,7 @@
             {
               "ordem": 3,
               "titulo": "Seus prédios",
-              "narracao": "Você só vê os prédios em que tem acesso."
+              "narracao": "Você só vê os prédios em que tem acesso. Se tiver mais de um, escolha o prédio no seletor do topo."
             }
           ]
         },

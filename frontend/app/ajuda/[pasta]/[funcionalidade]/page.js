@@ -3,7 +3,7 @@ import { Suspense, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { Monitor, RefreshCw, Smartphone } from 'lucide-react';
-import { AjudaShell, CabecalhoAjuda, EstadoDaAjuda } from '@/app/components/ajuda/AjudaShell';
+import { CabecalhoAjuda, EstadoDaAjuda } from '@/app/components/ajuda/AjudaShell';
 import { PlayerTutorial } from '@/app/components/ajuda/PlayerTutorial';
 import { IssoAjudou } from '@/app/components/ajuda/IssoAjudou';
 import { Button, Skeleton } from '@/app/components/ui';
@@ -30,11 +30,9 @@ import { T, R } from '@/app/lib/theme';
  */
 export default function TutorialPage() {
   return (
-    <AjudaShell>
-      <Suspense fallback={null}>
-        <ConteudoDoTutorial />
-      </Suspense>
-    </AjudaShell>
+    <Suspense fallback={null}>
+      <ConteudoDoTutorial />
+    </Suspense>
   );
 }
 
