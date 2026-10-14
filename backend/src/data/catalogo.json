@@ -500,6 +500,40 @@
               "narracao": "Ao abrir uma vistoria, você vê o relatório do dia inteiro. Se outra pessoa também vistoriou o prédio naquele dia, os registros dela aparecem juntos, e os nomes de quem vistoriou ficam no topo."
             }
           ]
+        },
+        {
+          "id": "inspetor-no-computador",
+          "titulo": "O inspetor no computador",
+          "dispositivo": "DESKTOP",
+          "ordem": 5,
+          "script_hash": "63d27f8380c1e7d3066db8283fa31717f4599001a67415e1b01ea9dac4d6a31c",
+          "abas": [
+            {
+              "ordem": 1,
+              "titulo": "A sua tela no computador",
+              "narracao": "No computador, o inspetor tem uma tela própria. Na barra lateral ficam Início e Histórico, e no pé, Perfil e Sair."
+            },
+            {
+              "ordem": 2,
+              "titulo": "Seu mês e sua agenda",
+              "narracao": "Em Início estão os números do seu mês e a sua agenda. Clique num dia marcado para ver os detalhes."
+            },
+            {
+              "ordem": 3,
+              "titulo": "O histórico",
+              "narracao": "Em Histórico ficam as vistorias e as ocorrências do prédio. Aqui você também tem o calendário mensal, semestral ou anual e a prévia de cada vistoria."
+            },
+            {
+              "ordem": 4,
+              "titulo": "Por que a vistoria é no celular",
+              "narracao": "A vistoria em si não começa pelo computador. Ela é feita andando pelo prédio, com o celular na mão. Se você abrir a vistoria aqui, o Viston volta para o Início."
+            },
+            {
+              "ordem": 5,
+              "titulo": "O que é igual nos dois",
+              "narracao": "A agenda, os avisos do sino e o histórico são os mesmos nos dois aparelhos. Para vistoriar, abra o Viston no celular."
+            }
+          ]
         }
       ]
     },
