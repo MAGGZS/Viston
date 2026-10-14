@@ -1,0 +1,26 @@
+{
+  "pasta": "primeiros-passos",
+  "id": "primeiros-passos-entrar-codigo",
+  "script_hash": "8e725b121467dc167c9bfdca2791b735d6a1d99540a3d9a6da08ae3d4556a27e",
+  "duracao_s": 15,
+  "abas": [
+    {
+      "ordem": 1,
+      "titulo": "Onde digitar o código",
+      "texto": "O código do prédio tem doze caracteres e o gestor costuma mandar por mensagem. Na tela inicial, o campo para digitar o código já aparece.",
+      "inicio_s": 0
+    },
+    {
+      "ordem": 2,
+      "titulo": "Digitar e enviar",
+      "texto": "Digite o código exatamente como recebeu e toque em Buscar. Confira o nome do prédio e toque em Conectar-se. Se aparecer código inválido, confira com o gestor: ele pode ter gerado um código novo.",
+      "inicio_s": 5
+    },
+    {
+      "ordem": 3,
+      "titulo": "Acompanhar o pedido",
+      "texto": "Agora é só esperar a aprovação. O gestor escolhe o seu papel na hora de aprovar.",
+      "inicio_s": 10
+    }
+  ]
+}

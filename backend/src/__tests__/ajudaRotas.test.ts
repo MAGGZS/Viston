@@ -37,7 +37,8 @@ const tokenAdmin = signAccessToken(ADMIN_ID, 'ADMIN', 'USER');
 const tokenUser = signAccessToken(USER_ID, 'NONE', 'USER');
 const tokenManager = signAccessToken(MANAGER_ID, 'NONE', 'MANAGER');
 
-const EXEMPLO = path.resolve(__dirname, '..', '..', '..', 'tutoriais', 'exemplo');
+// Cópia do pacote de exemplo: `tutoriais/` fica fora do repositório.
+const EXEMPLO = path.join(__dirname, 'fixtures', 'pacote-exemplo');
 const exemplo = (arquivo: string) => readFileSync(path.join(EXEMPLO, arquivo));
 
 function folder(slug: string, target_roles: string[], admin_only = false, count = 1) {

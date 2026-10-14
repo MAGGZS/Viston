@@ -31,3 +31,13 @@ iniciar-viston/
 .agents/
 .claude/skills/
 skills-lock.json
+
+# Fora do repositório: só o que afeta o deploy é versionado.
+# Ferramentas de agente, roteiros e produção dos tutoriais ficam locais.
+agent/
+.claude/
+tutoriais/
+brag-output*/
+backend/prisma/seed-demo.ts
+backend/prisma/seed-demo-limpar.ts
+backend/prisma/demo-escopo.ts
