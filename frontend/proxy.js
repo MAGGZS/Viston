@@ -81,9 +81,12 @@ function buildCsp(nonce) {
     // O vídeo e a legenda dos tutoriais (app/ajuda) vêm do Storage por URL
     // assinada. Sem `media-src`, o `default-src 'self'` barra o `<video>` e a
     // `<track>`: o player abre com a capa e nunca toca, sem erro à vista. A
-    // capa (`poster`) é imagem, e passa pelo `img-src` acima. Sem `blob:`: o
-    // player toca a URL do Storage direto, nunca um objeto montado na página.
-    `media-src 'self' ${MEDIA_ORIGIN}`,
+    // capa (`poster`) é imagem, e passa pelo `img-src` acima. O `blob:` é do
+    // admin: no envio de um `video.mp4` sozinho, a tela abre o arquivo escolhido
+    // num `<video>` fora da tela para ler a duração e tirar a capa (ver
+    // app/lib/pacoteDoVideo.js). O player do usuário continua tocando a URL do
+    // Storage direto.
+    `media-src 'self' ${MEDIA_ORIGIN} blob:`,
     `connect-src 'self' ${API_ORIGIN}${isDev ? ` ${LOCAL_API_ORIGIN}` : ''} https://*.supabase.co ${SENTRY_ORIGIN}`.trim(),
     "frame-ancestors 'none'",
     "base-uri 'self'",

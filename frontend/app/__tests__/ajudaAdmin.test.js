@@ -806,3 +806,105 @@ describe('a funcionalidade, no admin', () => {
     expect(within(caixa).getByRole('button', { name: 'Despublicar' })).toBeEnabled();
   });
 });
+
+// O navegador do jsdom não decodifica vídeo: a duração e o quadro da capa vêm
+// daqui. A conta dos tempos e da legenda é a de verdade.
+jest.mock('../lib/pacoteDoVideo', () => {
+  const real = jest.requireActual('../lib/pacoteDoVideo');
+  return {
+    ...real,
+    abrirVideoOculto: jest.fn(async () => ({ video: { duration: 40 }, fechar: jest.fn() })),
+    capaDoVideo: jest.fn(async () => new Blob(['jpg'], { type: 'image/jpeg' })),
+  };
+});
+
+describe('enviar só o video.mp4', () => {
+  const xhrOriginal = global.XMLHttpRequest;
+  beforeEach(() => {
+    XhrFalso.todos = [];
+    global.XMLHttpRequest = XhrFalso;
+    localStorage.clear();
+  });
+  afterEach(() => {
+    global.XMLHttpRequest = xhrOriginal;
+  });
+
+  const bytes = (...marcas) =>
+    new Uint8Array([0, 0, 0, 24, ...[...'ftypisom', ...marcas.join('')].map((c) => c.charCodeAt(0))]);
+  const mp4 = (...marcas) => new File([bytes(...marcas)], 'gravacao-final.mp4', { type: 'video/mp4' });
+  const lerArquivo = (file) =>
+    new Promise((ok) => {
+      const r = new FileReader();
+      r.onload = () => ok(String(r.result));
+      r.readAsText(file);
+    });
+
+  it('monta capa, legenda e passos no navegador, envia pelo fluxo de sempre e avisa dos tempos estimados', async () => {
+    const user = userEvent.setup();
+    const ENVIADO = { ...COM_VIDEO, video_url: 'https://x.supabase.co/inspetor/inspetor-vistoria-completa/up-1/video.mp4?t=1' };
+    api.post.mockImplementation((url) => {
+      if (url.endsWith('/upload-urls')) return Promise.resolve({ data: URLS });
+      if (url.endsWith('/commit')) return Promise.resolve({ data: { feature: ENVIADO } });
+      return Promise.reject(new Error('rota inesperada'));
+    });
+    mockParams = { id: 'f1' };
+    montar(TutorialAdminPage, { feature: SEM_VIDEO });
+    await screen.findByRole('heading', { level: 1 });
+
+    await user.upload(screen.getByLabelText(/Ou só o video.mp4/), mp4('moov', 'avc1', 'mp4a'));
+
+    const nota = await screen.findByRole('note');
+    expect(nota).toHaveTextContent('Tempos estimados');
+    expect(within(nota).getByRole('list', { name: 'Inícios estimados' })).toHaveTextContent('0:00,0 · Começar');
+
+    await user.click(screen.getByRole('button', { name: /Enviar vídeo/ }));
+    for (let i = 0; i < 4; i += 1) {
+      await waitFor(() => expect(XhrFalso.todos).toHaveLength(i + 1));
+      act(() => XhrFalso.todos[i].responder(200));
+    }
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/help/features/f1/video/commit', { upload_id: 'up-1' }));
+
+    const [video, legenda, , passos] = XhrFalso.todos.map((x) => x.corpo);
+    expect(video.name).toBe('video.mp4');
+    expect(await lerArquivo(legenda)).toMatch(/^WEBVTT\n\n1\n00:00:00\.000 --> /);
+    const json = JSON.parse(await lerArquivo(passos));
+    expect(json).toMatchObject({ pasta: 'inspetor', id: 'inspetor-vistoria-completa', script_hash: 'h', duracao_s: 40 });
+    expect(json.abas.map((a) => a.inicio_s)[0]).toBe(0);
+    expect(json.abas).toHaveLength(4);
+
+    // Depois do envio, a página avisa até o admin dizer que conferiu.
+    api.get.mockImplementation((url) => {
+      if (url === '/admin/help/tree') return Promise.resolve({ data: ARVORE });
+      if (url.startsWith('/admin/help/features/')) return Promise.resolve({ data: { feature: ENVIADO } });
+      return Promise.resolve({ data: [] });
+    });
+    expect(await screen.findByText('Os tempos dos passos foram estimados')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Já conferi os tempos' }));
+    expect(screen.queryByText('Os tempos dos passos foram estimados')).not.toBeInTheDocument();
+  });
+
+  it('recusa vídeo que não é H.264 antes de enviar, com a frase clara', async () => {
+    const user = userEvent.setup();
+    mockParams = { id: 'f1' };
+    montar(TutorialAdminPage, { feature: SEM_VIDEO });
+    await screen.findByRole('heading', { level: 1 });
+
+    await user.upload(screen.getByLabelText(/Ou só o video.mp4/), mp4('moov', 'hev1', 'mp4a'));
+    const alerta = await screen.findByRole('alert');
+    expect(alerta).toHaveTextContent('video.mp4');
+    expect(alerta).toHaveTextContent('H.264');
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('recusa vídeo acima de 8 MB', async () => {
+    const user = userEvent.setup();
+    mockParams = { id: 'f1' };
+    montar(TutorialAdminPage, { feature: SEM_VIDEO });
+    await screen.findByRole('heading', { level: 1 });
+    const grande = mp4('avc1', 'mp4a');
+    Object.defineProperty(grande, 'size', { value: 9 * 1024 * 1024 });
+
+    await user.upload(screen.getByLabelText(/Ou só o video.mp4/), grande);
+    expect(await screen.findByRole('alert')).toHaveTextContent('acima do limite de 8,0 MB');
+  });
+});

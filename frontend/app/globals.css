@@ -2330,106 +2330,202 @@ input:-webkit-autofill:focus {
 .ajuda-trilha__seg.is-feito { background: var(--color-accent-ink); }
 
 /*
- * As abas dos passos.
- *
- * Rolam na horizontal quando não cabem, sem barra de rolagem à vista: o fade
- * nas pontas é o que diz que há mais passos para o lado, e a barra fina do
- * sistema, colada embaixo das pílulas, parecia um sublinhado da aba ativa.
- * `scroll-padding` deixa a aba que entra pela ponta longe da borda do fade.
- *
- * O fade só aparece do lado em que há mais aba escondida: o player marca
- * `data-sobra` (`esq`, `dir` ou `ambos`) a cada rolagem e a cada mudança de
- * largura. Fade fixo nas duas pontas apagava a primeira aba no começo da lista,
- * onde não há nada à esquerda, e a última quando tudo cabia.
+ * O player do tutorial (ver PlayerTutorial). Uma coluna, nos dois modos: o
+ * palco (ou o selo do modo texto), o passo atual e a lista de passos.
  */
-.ajuda-abas {
+.ajuda-player {
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  scroll-padding-inline: 16px;
-  padding: 2px 2px 4px;
+  flex-direction: column;
+  gap: 12px;
 }
-.ajuda-abas[data-sobra='dir'] {
-  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 12px), transparent 100%);
-  mask-image: linear-gradient(90deg, #000 calc(100% - 12px), transparent 100%);
-}
-.ajuda-abas[data-sobra='esq'] {
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px);
-  mask-image: linear-gradient(90deg, transparent 0, #000 12px);
-}
-.ajuda-abas[data-sobra='ambos'] {
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
-}
-.ajuda-abas::-webkit-scrollbar { display: none; }
 
-.ajuda-aba {
+/*
+ * A linha de capítulos, debaixo do vídeo: um trecho por passo, do tamanho dele
+ * no vídeo, e as frestas entre os trechos são as marcas dos capítulos. O trecho
+ * do passo atual enche com o tempo. O botão tem 16px de altura para o dedo
+ * acertar; o trilho visível é o `::before`, de 4px.
+ */
+.ajuda-capitulos {
+  display: flex;
+  gap: 3px;
+  margin-top: -4px;
+}
+.ajuda-capitulo {
   position: relative;
-  flex-shrink: 0;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
+  flex-basis: 0;
+  min-width: 6px;
+  height: 16px;
+  padding: 0;
   border: none;
-  border-radius: var(--radius-control);
-  background: var(--color-chip);
-  color: var(--color-mute);
-  font-family: inherit;
-  font-size: 14px;
-  white-space: nowrap;
+  background: transparent;
   cursor: pointer;
-  overflow: hidden;
-  transition: background-color 150ms ease, color 150ms ease, transform 160ms var(--ease-saida);
 }
-.ajuda-aba:active { transform: scale(0.97); }
-@media (hover: hover) and (pointer: fine) {
-  .ajuda-aba:not(.is-on):hover { background-color: var(--color-hover-strong); color: var(--color-ink); }
-}
-.ajuda-aba.is-on {
-  background: var(--color-accent-soft);
-  color: var(--color-accent-ink);
-  font-weight: 500;
-}
-/*
- * No tema claro, o `--color-accent-ink` (#8A6B00) sobre o dourado translúcido
- * da aba ativa dá 4,2:1 contra a página (#F5F6F8 por baixo), abaixo do mínimo
- * de 4,5:1. O tom mais escuro vale só aqui, e não no token: o token passa nas
- * superfícies lisas, e escurecê-lo mudaria o dourado do produto inteiro. Com
- * #7A5E00: 5,1:1 sobre a página e 5,5:1 sobre o cartão. No escuro, o dourado
- * sobre o fundo da aba ativa dá 9,6:1 e fica como está.
- */
-html[data-theme='light'] .ajuda-aba.is-on { color: #7A5E00; }
-.ajuda-aba:focus-visible {
-  outline: 2px solid var(--color-accent-ink);
-  outline-offset: -2px;
-}
-.ajuda-aba__num { font-variant-numeric: tabular-nums; }
-
-/*
- * O fio do capítulo: quanto do passo ativo já passou.
- *
- * É a peça que liga a aba ao vídeo. A barra de tempo do player diz onde se
- * está no vídeo inteiro; este fio diz onde se está no passo, que é a unidade
- * que a pessoa lê. Linear, porque é progresso, e no ritmo do `timeupdate`
- * (cerca de quatro vezes por segundo): a transição cobre o intervalo entre um
- * evento e o próximo, e o fio anda contínuo em vez de aos saltos.
- */
-.ajuda-aba__fio {
+.ajuda-capitulo::before,
+.ajuda-capitulo__cheio {
+  content: '';
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
-  height: 2px;
+  top: 6px;
+  height: 4px;
+  border-radius: 999px;
+}
+.ajuda-capitulo::before {
+  background: var(--color-hover-strong);
+  transition: background-color 150ms ease;
+}
+.ajuda-capitulo__cheio {
   background: var(--color-accent-ink);
   transform-origin: left center;
+  /* No ritmo do `timeupdate` (uns quatro por segundo): a transição cobre o
+     intervalo, e o trecho enche contínuo em vez de aos saltos. */
   transition: transform 250ms linear;
 }
+@media (hover: hover) and (pointer: fine) {
+  .ajuda-capitulo:hover::before { background: var(--color-faint); }
+}
+
+/* O passo atual: rótulo, título e o texto narrado. */
+.ajuda-agora {
+  background: var(--color-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-ring);
+  padding: 18px 18px 20px;
+}
+.ajuda-agora__rotulo {
+  color: var(--color-mute);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.ajuda-agora__tempo { color: var(--color-faint); }
+.ajuda-agora__titulo {
+  color: var(--color-ink);
+  font-size: 17px;
+  line-height: 1.3;
+  margin-top: 4px;
+}
+.ajuda-narrado {
+  color: var(--color-ink);
+  font-size: 16px;
+  line-height: 1.7;
+  margin-top: 10px;
+  text-wrap: pretty;
+}
+.ajuda-narrado--texto {
+  font-size: 15px;
+  line-height: 1.65;
+  white-space: pre-line;
+}
+@media (min-width: 1024px) {
+  .ajuda-player--video .ajuda-narrado { font-size: 17px; }
+}
+
+/*
+ * As frases do passo, acompanhando a fala.
+ *
+ * A dita agora fica na cor do corpo, com o marca-texto dourado andando por
+ * baixo no ritmo dela (`--andou`, de 0 a 1, posto pelo player a cada
+ * `timeupdate`). Num elemento de linha, o fundo atravessa as quebras como uma
+ * faixa só, e o marca-texto desce de uma linha para a outra sozinho. A
+ * anterior fica apagada, e as outras mais ainda. Só cor e tamanho de fundo
+ * mudam, em transição: a leitura escorre de uma frase para a outra, sem salto.
+ */
+.ajuda-fala {
+  border-radius: 3px;
+  background-image: linear-gradient(var(--color-accent-soft), var(--color-accent-soft));
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+  transition: color 320ms ease, background-size 250ms linear;
+}
+.ajuda-fala--agora {
+  color: var(--color-ink);
+  background-size: calc(var(--andou, 0) * 100%) 100%;
+}
+.ajuda-fala--antes { color: var(--color-mute); }
+.ajuda-fala--dita,
+.ajuda-fala--vem { color: var(--color-faint); }
+
+/*
+ * A lista de passos. O mesmo desenho nos dois modos: com vídeo, uma lista de
+ * botões que levam o vídeo ao passo (`aria-current` no atual); sem vídeo, uma
+ * tablist vertical que troca o painel.
+ */
+.ajuda-passos {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--color-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-ring);
+}
+.ajuda-passo {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px 9px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-mute);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 200ms ease, color 200ms ease, transform 160ms var(--ease-saida);
+}
+.ajuda-passo:active { transform: scale(0.985); }
+@media (hover: hover) and (pointer: fine) {
+  .ajuda-passo:not(.is-on):hover { background-color: var(--color-hover); color: var(--color-ink); }
+}
+.ajuda-passo:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: -2px;
+}
+.ajuda-passo__num {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--color-chip);
+  color: var(--color-mute);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+.ajuda-passo__titulo { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ajuda-passo__tempo {
+  flex-shrink: 0;
+  color: var(--color-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.ajuda-passo.is-feito { color: var(--color-ink); }
+.ajuda-passo.is-feito .ajuda-passo__num { background: var(--color-hover-strong); color: var(--color-ink); }
+.ajuda-passo.is-on {
+  background: var(--color-accent-soft);
+  color: var(--color-ink);
+  font-weight: 500;
+}
+.ajuda-passo.is-on .ajuda-passo__num { background: var(--color-accent); color: var(--color-onaccent); }
+.ajuda-passo.is-on .ajuda-passo__tempo { color: var(--color-mute); }
+
 @media (prefers-reduced-motion: reduce) {
-  .ajuda-aba__fio { transition: none; }
-  .ajuda-cartao, .ajuda-aba { transition: background-color 150ms ease, color 150ms ease; }
-  .ajuda-cartao:active, .ajuda-aba:active { transform: none; }
+  .ajuda-capitulo__cheio { transition: none; }
+  /* O marca-texto aparece inteiro, sem andar; a troca de cor fica, curta. */
+  .ajuda-fala { transition: color 150ms ease; }
+  .ajuda-fala--agora { background-size: 100% 100%; }
+  .ajuda-passo { transition: background-color 150ms ease, color 150ms ease; }
+  .ajuda-passo:active, .ajuda-cartao:active { transform: none; }
+  .ajuda-cartao { transition: background-color 150ms ease, color 150ms ease; }
 }
 
 .ajuda-painel:focus-visible {

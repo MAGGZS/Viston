@@ -57,8 +57,8 @@ function ConteudoDoTutorial() {
     // tutorial no cache dela: com duração, há vídeo (e o aparelho diz se é em
     // pé); sem duração, é passo a passo em texto, e um palco de esqueleto
     // anunciaria um vídeo que não vem. Quem veio pelo "?" ou por um link não
-    // tem cache, e aí o esqueleto fica neutro: só abas e painel, que existem
-    // nos dois modos.
+    // tem cache, e aí o esqueleto fica neutro: só o passo atual e a lista de
+    // passos, que existem nos dois modos.
     const doCache = queryClient
       .getQueryData(['help', 'folder', pasta])
       ?.features?.find((f) => f.slug === funcionalidade);
@@ -73,8 +73,8 @@ function ConteudoDoTutorial() {
         <CabecalhoAjuda voltar={voltarPasta} titulo={naoExiste ? 'Abrindo a pasta...' : 'Carregando o tutorial...'} />
         <div aria-busy="true" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {palco && <Skeleton style={palco} />}
-          <Skeleton style={{ height: 44 }} />
           <Skeleton style={{ height: 140, borderRadius: R.card }} />
+          <Skeleton style={{ height: 176, borderRadius: R.card }} />
         </div>
       </>
     );

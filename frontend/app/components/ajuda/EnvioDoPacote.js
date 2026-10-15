@@ -2,12 +2,20 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Check, FileCheck2, FolderOpen, Files, Upload } from 'lucide-react';
+import { Check, FileCheck2, FileVideo, FolderOpen, Files, Sparkles, Upload } from 'lucide-react';
 import { Button } from '@/app/components/ui';
 import { ConfirmModal } from '@/app/components/ConfirmModal';
 import { pedirUrlsDeEnvio, useCommitHelpVideo } from '@/app/hooks/useAjuda';
-import { ARQUIVOS_DO_PACOTE, conferirPassos, formatarTamanho, separarArquivosDoPacote } from '@/app/lib/ajuda';
+import {
+  ARQUIVOS_DO_PACOTE,
+  conferirPassos,
+  formatarDuracao,
+  formatarInicio,
+  formatarTamanho,
+  separarArquivosDoPacote,
+} from '@/app/lib/ajuda';
 import { enviarPacote, ErroDeEnvio } from '@/app/lib/envioDoPacote';
+import { abrirVideoOculto, capaDoVideo, conferirMp4, montarPacoteDeTexto } from '@/app/lib/pacoteDoVideo';
 import { codigoDoErro, mensagemDoErro } from '@/app/lib/erros';
 import { useToastStore } from '@/app/store/toast';
 import { T, R, W, NUM } from '@/app/lib/theme';
@@ -20,6 +28,17 @@ function lerTexto(file) {
     leitor.onload = () => resolve(String(leitor.result ?? ''));
     leitor.onerror = () => reject(leitor.error);
     leitor.readAsText(file);
+  });
+}
+
+/** Os bytes de um arquivo; `Blob.arrayBuffer()` onde existe, `FileReader` onde não. */
+function lerBytes(file) {
+  if (typeof file.arrayBuffer === 'function') return file.arrayBuffer();
+  return new Promise((resolve, reject) => {
+    const leitor = new FileReader();
+    leitor.onload = () => resolve(leitor.result);
+    leitor.onerror = () => reject(leitor.error);
+    leitor.readAsArrayBuffer(file);
   });
 }
 
@@ -43,10 +62,18 @@ function lerTexto(file) {
  *    então troca o vídeo. Falhou, o vídeo anterior continua no ar, e a frase do
  *    servidor diz qual arquivo marcar.
  *
+ * Há um terceiro jeito de escolher: só o `video.mp4`. A tela monta o resto no
+ * navegador (ver app/lib/pacoteDoVideo.js): lê a duração num `<video>` fora da
+ * tela, tira a `capa.jpg` de um quadro, e gera o `passos.json` e a
+ * `legenda.vtt` com tempos estimados pela narração do roteiro. Daí em diante é
+ * o mesmo caminho, e o servidor confere o pacote como confere qualquer outro.
+ * Confirmado o envio, `onEnviado({ estimado, uploadId })` avisa a página, que
+ * mostra o aviso de conferir os tempos.
+ *
  * Substituir o vídeo pede confirmação; o primeiro envio, não, porque não há o
  * que perder.
  */
-export function EnvioDoPacote({ feature, arvore }) {
+export function EnvioDoPacote({ feature, arvore, onEnviado }) {
   const commit = useCommitHelpVideo(feature.id);
   const qc = useQueryClient();
   const { show: toast } = useToastStore();
@@ -62,6 +89,7 @@ export function EnvioDoPacote({ feature, arvore }) {
   const montado = useRef(false);
   const pastaId = useId();
   const arquivosId = useId();
+  const videoId = useId();
   const erroId = useId();
   const temVideo = Boolean(feature.video_url);
 
@@ -107,6 +135,61 @@ export function EnvioDoPacote({ feature, arvore }) {
     setFase('pronto');
   };
 
+  /**
+   * Só o `video.mp4`: confere o arquivo e monta os outros três aqui.
+   *
+   * Tamanho e codecs vêm antes de tudo, com a mesma regra do servidor (H.264
+   * com áudio AAC, até 8 MB): é o erro mais provável de um vídeo exportado à
+   * mão, e dizê-lo aqui poupa o upload. O servidor confere de novo no commit.
+   */
+  const escolherVideo = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    setErro(null);
+    setPacote(null);
+    setFase('escolher');
+    if (!file) return;
+
+    const teto = ARQUIVOS_DO_PACOTE.find((a) => a.nome === 'video.mp4').maxBytes;
+    if (!/\.mp4$/i.test(file.name) && file.type !== 'video/mp4') {
+      setErro({ msg: 'Escolha um arquivo de vídeo .mp4.', arquivo: 'video.mp4' });
+      return;
+    }
+    if (file.size > teto) {
+      setErro({
+        msg: `O vídeo tem ${formatarTamanho(file.size)}, acima do limite de ${formatarTamanho(teto)}. Exporte de novo com menos qualidade ou mais curto.`,
+        arquivo: 'video.mp4',
+      });
+      return;
+    }
+
+    setFase('preparando');
+    let aberto = null;
+    try {
+      const problema = conferirMp4(new Uint8Array(await lerBytes(file)));
+      if (problema) throw new Error(problema);
+      aberto = await abrirVideoOculto(file);
+      const pronto = montarPacoteDeTexto(feature, aberto.video.duration);
+      if (!pronto.ok) throw new Error(pronto.erro);
+      const capa = await capaDoVideo(aberto.video);
+      if (!montado.current) return;
+      const arquivos = {
+        'video.mp4': file.name === 'video.mp4' ? file : new File([file], 'video.mp4', { type: 'video/mp4' }),
+        'legenda.vtt': new File([pronto.vtt], 'legenda.vtt', { type: 'text/vtt' }),
+        'capa.jpg': new File([capa], 'capa.jpg', { type: 'image/jpeg' }),
+        'passos.json': new File([JSON.stringify(pronto.passos, null, 2)], 'passos.json', { type: 'application/json' }),
+      };
+      setPacote({ arquivos, passos: pronto.passos, estimado: true });
+      setFase('pronto');
+    } catch (err) {
+      if (!montado.current) return;
+      setFase('escolher');
+      setErro({ msg: err?.message || 'Não deu para preparar o vídeo. Tente outro arquivo.', arquivo: 'video.mp4' });
+    } finally {
+      aberto?.fechar();
+    }
+  };
+
   const enviar = async () => {
     setConfirmando(false);
     setErro(null);
@@ -128,6 +211,7 @@ export function EnvioDoPacote({ feature, arvore }) {
 
       setFase('conferindo');
       await commit.mutateAsync(urls.upload_id);
+      onEnviado?.({ estimado: Boolean(pacote.estimado), uploadId: urls.upload_id });
       toast(temVideo ? 'Vídeo substituído' : 'Vídeo enviado');
       setPacote(null);
       setFase('escolher');
@@ -166,14 +250,16 @@ export function EnvioDoPacote({ feature, arvore }) {
     }
   };
 
-  const ocupado = fase === 'enviando' || fase === 'conferindo';
+  const ocupado = fase === 'enviando' || fase === 'conferindo' || fase === 'preparando';
+  const enviandoOuConferindo = fase === 'enviando' || fase === 'conferindo';
   const porcento = Math.round(progresso.fracao * 100);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <p style={{ color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
         Escolha a pasta do pacote gerado para <strong style={{ color: T.text, fontWeight: W.strong }}>{feature.folder?.slug}/{feature.slug}</strong>.
-        Ela tem quatro arquivos: video.mp4, legenda.vtt, capa.jpg e passos.json.
+        Ela tem quatro arquivos: video.mp4, legenda.vtt, capa.jpg e passos.json. Tem só o vídeo? Escolha o video.mp4
+        sozinho: a capa, a legenda e os tempos dos passos são montados aqui.
       </p>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -202,7 +288,25 @@ export function EnvioDoPacote({ feature, arvore }) {
             aria-describedby={erro ? erroId : undefined}
           />
         </label>
+        <label htmlFor={videoId} className="btn btn--ghost ajuda-escolha" aria-disabled={ocupado || undefined}>
+          <FileVideo size={16} aria-hidden="true" /> Ou só o video.mp4
+          <input
+            id={videoId}
+            type="file"
+            accept=".mp4,video/mp4"
+            className="sr-only"
+            disabled={ocupado}
+            onChange={escolherVideo}
+            aria-describedby={erro ? erroId : undefined}
+          />
+        </label>
       </div>
+
+      {fase === 'preparando' && (
+        <p role="status" style={{ color: T.mute, fontSize: 13 }}>
+          Lendo o vídeo e montando a capa, a legenda e os passos...
+        </p>
+      )}
 
       {pacote && (
         <ul aria-label="Arquivos do pacote" style={{ listStyle: 'none', margin: 0, background: T.chip, borderRadius: R.control, padding: '10px 14px' }}>
@@ -215,12 +319,33 @@ export function EnvioDoPacote({ feature, arvore }) {
           ))}
           <li style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: T.mute, padding: '6px 0 2px' }}>
             <FileCheck2 size={14} color={T.success} aria-hidden="true" />
-            Pacote desta funcionalidade, com {pacote.passos.abas.length === 1 ? '1 aba' : `${pacote.passos.abas.length} abas`}.
+            {pacote.estimado ? 'Montado aqui a partir do vídeo, com' : 'Pacote desta funcionalidade, com'}{' '}
+            {pacote.passos.abas.length === 1 ? '1 aba' : `${pacote.passos.abas.length} abas`}.
           </li>
         </ul>
       )}
 
-      {ocupado && (
+      {pacote?.estimado && (
+        <div role="note" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: T.accentSoft, borderRadius: R.control, padding: '12px 14px' }}>
+          <Sparkles size={16} color={T.accentInk} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ fontSize: 13, lineHeight: 1.55, color: T.text, minWidth: 0 }}>
+            <p style={{ fontWeight: W.title }}>Tempos estimados: confira depois do envio</p>
+            <p style={{ marginTop: 2 }}>
+              O vídeo tem {formatarDuracao(pacote.passos.duracao_s)}. O início de cada passo e a legenda foram calculados pelo tamanho da
+              narração, e não pela fala de verdade.
+            </p>
+            <ol aria-label="Inícios estimados" style={{ margin: '8px 0 0', paddingLeft: 18, color: T.mute, ...NUM }}>
+              {pacote.passos.abas.map((a) => (
+                <li key={a.ordem}>
+                  {formatarInicio(a.inicio_s)} · {a.titulo}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      )}
+
+      {enviandoOuConferindo && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div
             role="progressbar"

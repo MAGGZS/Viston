@@ -2,7 +2,7 @@
 import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Eye, EyeOff, Monitor, Pencil, Smartphone, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Monitor, Pencil, Smartphone, Sparkles, TriangleAlert } from 'lucide-react';
 import { RouteGuard } from '@/app/components/RouteGuard';
 import { AdminSidebar } from '@/app/components/AdminSidebar';
 import { ConfirmModal } from '@/app/components/ConfirmModal';
@@ -16,6 +16,7 @@ import { CONTENT_ID } from '@/app/components/mobile/kit';
 import { useAdminHelpFeature, useHelpTree, usePublishHelpFeature } from '@/app/hooks/useAjuda';
 import { AVISO_DESATUALIZADO, estadoDoVideo, formatarDuracao } from '@/app/lib/ajuda';
 import { mensagemDoErro } from '@/app/lib/erros';
+import { limparTemposEstimados, marcarTemposEstimados, temposEstimados } from '@/app/lib/temposEstimados';
 import { useToastStore } from '@/app/store/toast';
 import { T, R, W } from '@/app/lib/theme';
 
@@ -84,6 +85,19 @@ function Conteudo({ feature, arvore, onUrlsVencidas }) {
   const [pergunta, setPergunta] = useState(null);
   const [erroDaPergunta, setErroDaPergunta] = useState(null);
   const [editando, setEditando] = useState(false);
+  // Só para redesenhar quando a marca de tempos estimados muda no navegador
+  // (ver app/lib/temposEstimados.js).
+  const [, setMarca] = useState(0);
+  const estimado = temposEstimados(feature);
+  const aoEnviar = ({ estimado: foiEstimado, uploadId }) => {
+    if (foiEstimado) marcarTemposEstimados(feature.id, uploadId);
+    else limparTemposEstimados(feature.id);
+    setMarca((n) => n + 1);
+  };
+  const jaConferi = () => {
+    limparTemposEstimados(feature.id);
+    setMarca((n) => n + 1);
+  };
 
   const desatualizado = estadoDoVideo(feature) === 'DESATUALIZADO';
   const celular = feature.device === 'MOBILE';
@@ -160,12 +174,26 @@ function Conteudo({ feature, arvore, onUrlsVencidas }) {
         </Aviso>
       )}
 
+      {estimado && temVideo && (
+        <div role="note" aria-labelledby="estimados-titulo" style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: T.accentSoft, borderRadius: R.card, padding: '14px 16px', marginBottom: 18, maxWidth: 880 }}>
+          <Sparkles size={18} color={T.accentInk} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p id="estimados-titulo" style={{ color: T.text, fontWeight: W.title, fontSize: 14 }}>Os tempos dos passos foram estimados</p>
+            <p style={{ color: T.text, fontSize: 14, lineHeight: 1.55, marginTop: 2 }}>
+              Este vídeo foi enviado sozinho, e o início de cada passo (e a legenda) saiu do tamanho da narração, não da fala de
+              verdade. Toque a pré-visualização, pause onde cada passo começa e use &quot;Usar o tempo atual do vídeo&quot; na aba dele.
+            </p>
+            <Button variant="secondary" onClick={jaConferi} style={{ marginTop: 10 }}>Já conferi os tempos</Button>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]" style={{ alignItems: 'start' }}>
         <section aria-labelledby="previa-titulo" className="anim-fade-up" style={{ minWidth: 0 }}>
           <h2 id="previa-titulo" style={{ color: T.text, fontSize: 15, fontWeight: W.title, marginBottom: 4 }}>Pré-visualização</h2>
           <p style={{ color: T.mute, fontSize: 13, marginBottom: 12 }}>
             {temVideo
-              ? 'Exatamente o que a pessoa vê na central. Clique nas abas para conferir se cada uma cai no ponto certo.'
+              ? 'Exatamente o que a pessoa vê na central. Toque o vídeo e confira se cada passo acende no ponto certo da fala; clicar num passo leva o vídeo até ele.'
               : 'Exatamente o que a pessoa vê na central enquanto não há vídeo: o passo a passo em texto.'}
           </p>
           <PlayerTutorial feature={feature} videoRef={videoRef} onUrlsVencidas={onUrlsVencidas} tituloNivel="h3" />
@@ -176,7 +204,7 @@ function Conteudo({ feature, arvore, onUrlsVencidas }) {
             <h2 id="video-titulo" style={{ color: T.text, fontSize: 15, fontWeight: W.title, marginBottom: 10 }}>
               {temVideo ? 'Substituir o vídeo' : 'Enviar vídeo'}
             </h2>
-            <EnvioDoPacote feature={feature} arvore={arvore} />
+            <EnvioDoPacote feature={feature} arvore={arvore} onEnviado={aoEnviar} />
           </section>
 
           <section aria-labelledby="abas-titulo" className="anim-fade-up anim-d2" style={{ background: T.card, borderRadius: R.card, boxShadow: T.cardRing, padding: 18 }}>

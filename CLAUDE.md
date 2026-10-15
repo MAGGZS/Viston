@@ -23,3 +23,12 @@ branch gera preview na Vercel, que é justamente o que se quer para avaliar// de
 
 Migração em banco de produção continua exigindo pergunta antes de rodar, PR
 ou não.
+
+### Quando a cota acaba
+
+Autorizado sem perguntar: quando a cota (semanal ou de sessão) estiver acabando
+no meio de um trabalho, commitar e dar push direto na `main` do que estiver
+pronto, e continuar o trabalho numa sessão na nuvem. Quando o trabalho na nuvem
+terminar, commitar e dar push direto na `main` também. Só sobe o que passa nos
+testes e no build; o que estiver pela metade vai para um branch `wip/<tema>`, com
+aviso ao proprietário. A regra da migração acima continua valendo.

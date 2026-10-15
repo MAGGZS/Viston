@@ -2,84 +2,90 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, ListOrdered } from 'lucide-react';
 import { Button } from '@/app/components/ui';
-import { SELO_TEXTO, indiceDaAbaNoTempo, progressoDaAba } from '@/app/lib/ajuda';
+import { SELO_TEXTO, formatarInicio, indiceDaAbaNoTempo, progressoDaAba } from '@/app/lib/ajuda';
+import { falasCronometradas, falasDoTrecho, indiceDaFala } from '@/app/lib/pacoteDoVideo';
 import { T, R, W } from '@/app/lib/theme';
 
 /**
- * O player de um tutorial: o vídeo, uma aba por passo e o texto do passo.
+ * O player de um tutorial: o vídeo, o passo a passo e o texto narrado.
  *
  * É o mesmo componente na Tela 3 do usuário e na pré-visualização do admin, e
- * isso é o requisito, não economia: o admin confere se cada aba cai no ponto
+ * isso é o requisito, não economia: o admin confere se cada passo cai no ponto
  * certo do vídeo, e só confere de verdade se o que ele vê é exatamente o que a
- * pessoa vai ver. Duas versões do player bastariam para a pré-visualização
- * passar e a tela do usuário errar.
+ * pessoa vai ver.
  *
- * O vídeo e as abas andam juntos nos dois sentidos:
- * - clicar numa aba leva o vídeo ao `start_s` dela;
- * - durante a reprodução, a aba ativa é a última com `start_s <= currentTime`
- *   (ver `indiceDaAbaNoTempo`), recalculada a cada `timeupdate`.
+ * Com vídeo, o formato é contínuo: uma narração só, e cada passo é um ponto
+ * (`start_s`) dentro dela. Por isso não há abas para trocar, e sim um passo a
+ * passo que anda sozinho:
+ * - o passo atual é o último com `start_s <= currentTime` (`indiceDaAbaNoTempo`);
+ * - a linha de capítulos debaixo do vídeo tem um trecho por passo, e o trecho
+ *   do passo atual enche conforme ele passa;
+ * - o texto do passo aparece frase a frase, acompanhando a fala: a frase dita
+ *   agora acesa e com o marca-texto andando sob ela, a anterior apagada, as
+ *   próximas mais apagadas ainda. As frases saem das falas da `legenda.vtt`
+ *   (lidas da `<track>`); sem elas, de uma estimativa pelo tamanho do texto;
+ * - clicar num passo, ou num trecho da linha, leva o vídeo àquele ponto.
  *
- * As abas seguem o padrão WAI-ARIA de tablist com ativação automática: a seta
- * move o foco e já troca o passo, Home e End vão às pontas. A ativação é
- * automática porque trocar de aba é barato (o texto já está carregado e o
- * vídeo só muda de posição), e é o que o padrão recomenda nesse caso.
+ * Sem vídeo (`video_url` nulo), o tutorial é o passo a passo em texto, com
+ * navegação manual: a lista de passos é uma tablist vertical, com o mesmo
+ * desenho da lista do vídeo, e o painel mostra o passo escolhido.
  *
- * Aba sem `start_s` (tempo apagado pelo admin) continua funcionando só com o
- * texto: o clique troca o painel e deixa o vídeo onde está.
- *
- * Tutorial sem vídeo (`video_url` nulo) é tutorial completo, e não tela
- * quebrada: desde 2026-10-10 ele vai ao ar só com os passos em texto, e o
- * vídeo, quando chegar, aparece no topo (ver tutoriais/API.md). Nesse modo não
- * há `<video>`, nem `<track>`, nem fio de progresso, nem espaço guardado para um
- * palco que não vem: o selo "Passo a passo em texto" abre a tela, as abas e os
- * botões andam pelos passos, e trocar de aba só troca o texto. A trilha de
- * segmentos no painel faz o papel que o vídeo fazia, o de mostrar quanto do
- * caminho já foi.
- *
- * `passo` é o índice pedido de fora, que vem do `?passo=N` da URL. Mudou (um
- * resultado de busca para outra aba do mesmo tutorial, por exemplo), o player
- * vai até lá. `onPassoChange` avisa cada troca, para a página manter a URL em
- * dia. `videoRef` dá ao admin o `<video>`, de onde sai o "Usar o tempo atual".
+ * `passo` é o índice pedido de fora (o `?passo=N` da URL); `onPassoChange`
+ * avisa cada troca, para a página manter a URL em dia. `videoRef` dá ao admin o
+ * `<video>`, de onde sai o "Usar o tempo atual do vídeo".
  */
 export function PlayerTutorial({ feature, passo = 0, onPassoChange, videoRef, onUrlsVencidas, tituloNivel = 'h2' }) {
   const steps = useMemo(() => feature?.steps ?? [], [feature?.steps]);
   const total = steps.length;
   const temVideo = Boolean(feature?.video_url);
-  const base = useId();
 
   const [ativa, setAtiva] = useState(() => Math.min(passo, Math.max(total - 1, 0)));
-  const [progresso, setProgresso] = useState(0);
 
-  // O passo pedido de fora. Ajustado no próprio render, e não num efeito, pelo
-  // mesmo motivo do resto do projeto (react-hooks/set-state-in-effect): num
-  // efeito, a aba velha chegaria a aparecer por um quadro.
+  // O passo pedido de fora, ajustado no próprio render (e não num efeito, pela
+  // regra react-hooks/set-state-in-effect): num efeito, o passo velho chegaria
+  // a aparecer por um quadro.
   const [pedidoVisto, setPedidoVisto] = useState(passo);
   if (passo !== pedidoVisto) {
     setPedidoVisto(passo);
     if (passo >= 0 && passo < total) setAtiva(passo);
   }
 
+  if (total === 0) {
+    return <p style={{ color: T.mute, fontSize: 14 }}>Este tutorial ainda não tem passos.</p>;
+  }
+
+  const props = { feature, steps, total, ativa, setAtiva, passo, onPassoChange, tituloNivel };
+  return temVideo ? (
+    <PassoAPassoComVideo {...props} videoRef={videoRef} onUrlsVencidas={onUrlsVencidas} />
+  ) : (
+    <PassoAPassoEmTexto {...props} />
+  );
+}
+
+/* ── Com vídeo: o passo a passo que anda sozinho ──────────────────────────── */
+
+function PassoAPassoComVideo({ feature, steps, total, ativa, setAtiva, passo, onPassoChange, videoRef, onUrlsVencidas, tituloNivel }) {
+  const base = useId();
+  const [tempo, setTempo] = useState(() => (typeof steps[ativa]?.start_s === 'number' ? steps[ativa].start_s : 0));
+  const [duracaoLida, setDuracaoLida] = useState(null);
+  const [falasDaLegenda, setFalasDaLegenda] = useState(null);
+  const [anuncio, setAnuncio] = useState('');
+
   const videoEl = useRef(null);
-  const listaEl = useRef(null);
-  const abasEl = useRef([]);
-  // Enquanto um seek pedido pela aba não termina, o `timeupdate` ainda informa
-  // o tempo antigo, e devolveria a aba ativa para onde ela estava: a aba
-  // piscaria de volta antes de o vídeo chegar.
+  const trackEl = useRef(null);
+  // Enquanto um seek pedido pelo passo não termina, o `timeupdate` ainda informa
+  // o tempo antigo, e devolveria o destaque para onde estava antes.
   const buscando = useRef(false);
   const ativaRef = useRef(ativa);
   // O último passo que o próprio player avisou para fora. A página escreve esse
-  // passo na URL, a URL volta como `passo`, e sem esta marca o player trataria
-  // o eco como um pedido novo: levaria o vídeo de volta ao começo do capítulo a
-  // cada troca durante a reprodução, um tranco a cada passo.
+  // passo na URL, a URL volta como `passo`, e sem esta marca o eco seria tratado
+  // como pedido novo: o vídeo voltaria ao começo do capítulo a cada troca.
   const avisado = useRef(null);
-  // Os botões do painel. Na ponta, o botão clicado fica desabilitado e o foco
-  // cairia no `body`: quem navega pelo teclado perderia o lugar.
-  const anteriorEl = useRef(null);
-  const proximoEl = useRef(null);
-  const painelEl = useRef(null);
   useEffect(() => {
     ativaRef.current = ativa;
   }, [ativa]);
+
+  const duracao = duracaoLida ?? (typeof feature?.duration_s === 'number' ? feature.duration_s : null);
 
   const ligarVideo = useCallback(
     (el) => {
@@ -90,41 +96,33 @@ export function PlayerTutorial({ feature, passo = 0, onPassoChange, videoRef, on
   );
 
   /**
-   * Põe o vídeo num tempo e marca a busca em andamento.
-   *
-   * A marca só vale com os metadados já carregados (`readyState >= 1`). Antes
-   * disso o navegador guarda o tempo pedido e não dispara `seeked`, e a marca
-   * ficaria presa: o `timeupdate` seria ignorado para sempre e as abas parariam
-   * de acompanhar a reprodução. Sem metadados, o `onLoadedMetadata` refaz a ida.
+   * Põe o vídeo num tempo e marca a busca em andamento. A marca só vale com os
+   * metadados carregados (`readyState >= 1`): antes disso não há `seeked`, e
+   * ela ficaria presa, com o passo a passo parado para sempre.
    */
   const buscar = useCallback((video, inicio) => {
-    const pronto = video.readyState >= 1;
-    buscando.current = pronto;
+    buscando.current = video.readyState >= 1;
     try {
       video.currentTime = inicio;
     } catch {
-      // Alguns navegadores recusam o seek antes do `loadedmetadata`.
       buscando.current = false;
     }
   }, []);
 
-  /** Leva o vídeo ao começo de uma aba, quando ela tem tempo. */
   const levarVideo = useCallback(
     (indice) => {
       const video = videoEl.current;
       const inicio = steps[indice]?.start_s;
       if (!video || typeof inicio !== 'number') return;
       buscar(video, inicio);
+      setTempo(inicio);
     },
     [steps, buscar]
   );
 
-  // O passo pedido pela URL também move o vídeo. Isto é efeito de verdade
-  // (mexe no elemento de mídia), e não estado: por isso mora num efeito.
-  //
-  // A dependência é o tempo do passo pedido, e não a lista de passos inteira:
-  // cada releitura da funcionalidade traz uma lista nova, e o vídeo voltaria ao
-  // passo da URL no meio da reprodução sem ninguém ter pedido.
+  // O passo pedido pela URL também move o vídeo. A dependência é o tempo do
+  // passo pedido, e não a lista inteira: cada releitura da funcionalidade traz
+  // uma lista nova, e o vídeo voltaria ao passo da URL sem ninguém ter pedido.
   const inicioPedido = steps[passo]?.start_s;
   useEffect(() => {
     const video = videoEl.current;
@@ -133,86 +131,28 @@ export function PlayerTutorial({ feature, passo = 0, onPassoChange, videoRef, on
     buscar(video, inicioPedido);
   }, [passo, inicioPedido, buscar]);
 
-  const irPara = (indice, { focar = false } = {}) => {
-    if (indice < 0 || indice >= total) return;
+  const trocarPasso = (indice) => {
     setAtiva(indice);
-    setProgresso(0);
     avisado.current = indice;
     onPassoChange?.(indice);
-    levarVideo(indice);
-    if (focar) abasEl.current[indice]?.focus();
+    // Só a troca é anunciada, e não o andar dentro do passo: um leitor de tela
+    // lendo o tempo a cada quarto de segundo tornaria o vídeo inaudível.
+    setAnuncio(`Passo ${indice + 1} de ${total}: ${steps[indice]?.title ?? ''}`);
   };
 
-  /**
-   * A aba ativa sempre à vista, no telefone.
-   *
-   * As abas rolam na horizontal, e a reprodução avança sozinha de uma para a
-   * outra: sem isto, a aba acesa sairia pela direita e a pessoa perderia de
-   * vista em que passo está. A rolagem é da lista, e não `scrollIntoView`: este
-   * último rola também a página na vertical, e puxaria a tela para cima toda
-   * vez que o vídeo trocasse de capítulo.
-   */
-  useEffect(() => {
-    const lista = listaEl.current;
-    const aba = abasEl.current[ativa];
-    if (!lista || !aba) return;
-    const folga = 16;
-    let destino = null;
-    if (aba.offsetLeft - folga < lista.scrollLeft) destino = aba.offsetLeft - folga;
-    else if (aba.offsetLeft + aba.offsetWidth + folga > lista.scrollLeft + lista.clientWidth) {
-      destino = aba.offsetLeft + aba.offsetWidth + folga - lista.clientWidth;
-    }
-    if (destino === null) return;
-    const reduzir = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-    if (typeof lista.scrollTo === 'function') lista.scrollTo({ left: Math.max(0, destino), behavior: reduzir ? 'auto' : 'smooth' });
-    else lista.scrollLeft = Math.max(0, destino);
-  }, [ativa]);
-
-  /**
-   * Marca de que lado há aba escondida, para o fade aparecer só ali.
-   *
-   * Direto no atributo, e não em estado: a rolagem dispara dezenas de vezes por
-   * segundo, e um render a cada uma só para trocar uma máscara de CSS seria
-   * trabalho jogado fora. Mede na montagem, a cada rolagem e quando a largura
-   * muda (girar o telefone, redimensionar a janela).
-   */
-  useEffect(() => {
-    const lista = listaEl.current;
-    if (!lista) return undefined;
-    const medir = () => {
-      const esq = lista.scrollLeft > 1;
-      const dir = lista.scrollLeft + lista.clientWidth < lista.scrollWidth - 1;
-      const sobra = esq && dir ? 'ambos' : esq ? 'esq' : dir ? 'dir' : '';
-      if (sobra) lista.dataset.sobra = sobra;
-      else delete lista.dataset.sobra;
-    };
-    medir();
-    lista.addEventListener('scroll', medir, { passive: true });
-    let observador = null;
-    if (typeof ResizeObserver === 'function') {
-      observador = new ResizeObserver(medir);
-      observador.observe(lista);
-    } else {
-      window.addEventListener('resize', medir);
-    }
-    return () => {
-      lista.removeEventListener('scroll', medir);
-      if (observador) observador.disconnect();
-      else window.removeEventListener('resize', medir);
-    };
-  }, [total]);
+  const irPara = (indice) => {
+    if (indice < 0 || indice >= total) return;
+    if (indice !== ativaRef.current) trocarPasso(indice);
+    levarVideo(indice);
+  };
 
   const aoAndar = () => {
     const video = videoEl.current;
     if (!video || buscando.current) return;
     const t = video.currentTime;
+    setTempo(t);
     const indice = indiceDaAbaNoTempo(steps, t);
-    if (indice !== ativaRef.current) {
-      setAtiva(indice);
-      avisado.current = indice;
-      onPassoChange?.(indice);
-    }
-    setProgresso(progressoDaAba(steps, indice, t, video.duration || feature?.duration_s));
+    if (indice !== ativaRef.current && typeof steps[indice]?.start_s === 'number') trocarPasso(indice);
   };
 
   const aoTerminarBusca = () => {
@@ -220,30 +160,234 @@ export function PlayerTutorial({ feature, passo = 0, onPassoChange, videoRef, on
     aoAndar();
   };
 
+  const aoCarregar = () => {
+    const video = videoEl.current;
+    if (video && Number.isFinite(video.duration) && video.duration > 0) setDuracaoLida(video.duration);
+    if (ativaRef.current > 0) levarVideo(ativaRef.current);
+    else buscando.current = false;
+  };
+
   /**
-   * A URL assinada venceu com a tela aberta.
-   *
-   * Ela vale quatro horas, e uma aba esquecida aberta passa disso. O contrato
-   * pede para buscar a funcionalidade de novo e trocar as URLs; quem busca é a
-   * página, que é dona da consulta. Só depois do vencimento: um erro de rede
-   * comum com a URL ainda válida não se resolve pedindo outra.
+   * A URL assinada venceu com a tela aberta (vale quatro horas). Quem busca a
+   * funcionalidade de novo é a página, dona da consulta; só depois do
+   * vencimento, porque um erro de rede comum não se resolve com outra URL.
    */
   const aoFalhar = () => {
     const vence = feature?.urls_expire_at ? Date.parse(feature.urls_expire_at) : NaN;
     if (Number.isFinite(vence) && Date.now() >= vence - 60 * 1000) onUrlsVencidas?.();
   };
 
-  const aoCarregar = () => {
-    if (ativaRef.current > 0) levarVideo(ativaRef.current);
-    else buscando.current = false;
+  /**
+   * As falas da legenda, lidas da `<track>` quando ela termina de carregar.
+   * O navegador já as interpretou (é o mesmo arquivo que desenha a legenda no
+   * vídeo), e ler daqui poupa baixar e interpretar o `.vtt` de novo.
+   */
+  const lerFalas = useCallback(() => {
+    const cues = trackEl.current?.track?.cues;
+    if (!cues || cues.length === 0) return;
+    setFalasDaLegenda(
+      Array.from(cues).map((c) => ({
+        inicio: c.startTime,
+        fim: c.endTime,
+        texto: String(c.text ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
+      }))
+    );
+  }, []);
+  // A `<track>` pode ter carregado antes de o React ligar o `onLoad`.
+  useEffect(() => {
+    lerFalas();
+  }, [lerFalas, feature?.captions_url]);
+
+  // Sem legenda lida, as falas saem do texto dos passos, pela mesma conta que
+  // monta a legenda de um vídeo enviado sozinho. Só com todos os tempos.
+  const falasEstimadas = useMemo(() => {
+    if (!duracao || steps.some((s) => typeof s.start_s !== 'number')) return null;
+    return falasCronometradas(
+      steps.map((s) => s.body),
+      steps.map((s) => s.start_s),
+      duracao
+    );
+  }, [steps, duracao]);
+  const falas = falasDaLegenda ?? falasEstimadas;
+
+  const step = steps[Math.min(ativa, total - 1)];
+  const inicioAtiva = step?.start_s;
+  const proximoInicio = steps.slice(ativa + 1).find((s) => typeof s.start_s === 'number')?.start_s;
+  const fimAtiva = typeof proximoInicio === 'number' ? proximoInicio : duracao;
+  const falasDoPasso = typeof inicioAtiva === 'number' ? falasDoTrecho(falas, inicioAtiva, proximoInicio) : [];
+  const falaAtual = indiceDaFala(falasDoPasso, tempo);
+  const progresso = progressoDaAba(steps, ativa, tempo, duracao);
+
+  const Titulo = tituloNivel;
+  const tituloId = `${base}-agora`;
+
+  return (
+    <div className="ajuda-player ajuda-player--video">
+      <div className="ajuda-palco" data-dispositivo={feature?.device === 'MOBILE' ? 'celular' : 'computador'}>
+        {/*
+          `crossOrigin="anonymous"`: a legenda mora no Storage, outro domínio,
+          e sem ele o navegador baixa a `<track>` mas se recusa a usá-la.
+          `preload="metadata"` baixa só o começo: quem abre o tutorial para ler
+          não paga o vídeo inteiro. A `<track>` só entra com a legenda em mãos.
+        */}
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <video
+          ref={ligarVideo}
+          controls
+          preload="metadata"
+          poster={feature.poster_url ?? undefined}
+          playsInline
+          crossOrigin="anonymous"
+          src={feature.video_url}
+          aria-label={`Vídeo do tutorial: ${feature.title}`}
+          onTimeUpdate={aoAndar}
+          onSeeked={aoTerminarBusca}
+          onLoadedMetadata={aoCarregar}
+          onError={aoFalhar}
+        >
+          {feature.captions_url && (
+            <track ref={trackEl} kind="captions" srcLang="pt-BR" label="Português" src={feature.captions_url} default onLoad={lerFalas} />
+          )}
+        </video>
+      </div>
+
+      <LinhaDeCapitulos steps={steps} ativa={ativa} progresso={progresso} duracao={duracao} onIr={irPara} />
+
+      <section aria-labelledby={tituloId} className="ajuda-agora">
+        <p className="ajuda-agora__rotulo">
+          Passo {ativa + 1} de {total}
+          {typeof inicioAtiva === 'number' && typeof fimAtiva === 'number' && (
+            <span className="ajuda-agora__tempo"> · {formatarInicio(inicioAtiva).replace(/,\d$/, '')}</span>
+          )}
+        </p>
+        <Titulo id={tituloId} className="ajuda-agora__titulo" style={{ fontFamily: T.display, fontWeight: W.title }}>
+          {step.title}
+        </Titulo>
+        <TextoNarrado key={step.id ?? ativa} texto={step.body} falas={falasDoPasso} atual={falaAtual} tempo={tempo} />
+      </section>
+
+      <ol className="ajuda-passos" aria-label="Passos do tutorial">
+        {steps.map((s, i) => {
+          const on = i === ativa;
+          const feito = i < ativa;
+          return (
+            <li key={s.id ?? i}>
+              <button
+                type="button"
+                className={`ajuda-passo${on ? ' is-on' : ''}${feito ? ' is-feito' : ''}`}
+                aria-current={on ? 'step' : undefined}
+                onClick={() => irPara(i)}
+              >
+                <span className="ajuda-passo__num" aria-hidden="true">{i + 1}</span>
+                <span className="sr-only">{`Passo ${i + 1}: `}</span>
+                <span className="ajuda-passo__titulo">{s.title}</span>
+                {typeof s.start_s === 'number' && (
+                  <span className="ajuda-passo__tempo">
+                    <span className="sr-only">, começa em </span>
+                    {formatarInicio(s.start_s).replace(/,\d$/, '')}
+                  </span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+
+      <p className="sr-only" aria-live="polite">{anuncio}</p>
+    </div>
+  );
+}
+
+/**
+ * A linha de capítulos: um trecho por passo, do tamanho dele no vídeo.
+ *
+ * Os trechos já passados ficam cheios, o atual enche com o tempo, e os
+ * próximos ficam vazios. As frestas entre os trechos são as marcas dos
+ * capítulos. É um atalho de ponteiro (clicar leva ao capítulo) e uma leitura
+ * visual: fica fora do leitor de tela e do Tab, porque a lista de passos logo
+ * abaixo já dá o mesmo caminho, com nome.
+ */
+function LinhaDeCapitulos({ steps, ativa, progresso, duracao, onIr }) {
+  const marcados = steps.map((s, i) => ({ i, inicio: s.start_s })).filter((m) => typeof m.inicio === 'number');
+  if (!duracao || marcados.length === 0) return null;
+  return (
+    <div className="ajuda-capitulos" aria-hidden="true">
+      {marcados.map((m, j) => {
+        const fim = j + 1 < marcados.length ? marcados[j + 1].inicio : duracao;
+        const tamanho = Math.max(0.001, fim - m.inicio);
+        const cheio = m.i < ativa ? 1 : m.i === ativa ? progresso : 0;
+        return (
+          <button
+            key={m.i}
+            type="button"
+            tabIndex={-1}
+            className={`ajuda-capitulo${m.i === ativa ? ' is-on' : ''}`}
+            style={{ flexGrow: tamanho }}
+            title={`${m.i + 1}. ${steps[m.i].title}`}
+            onClick={() => onIr(m.i)}
+          >
+            <span className="ajuda-capitulo__cheio" style={{ transform: `scaleX(${cheio})` }} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * O texto do passo, frase a frase, acompanhando a fala.
+ *
+ * Com as falas cronometradas, cada uma vira um trecho: a dita agora fica
+ * acesa, com o marca-texto andando por baixo no ritmo da fala; a anterior
+ * apagada; as que vêm, mais apagadas. A troca é por transição de cor e do
+ * tamanho do fundo, e não de bloco: a leitura escorre de uma frase para a
+ * outra. Com movimento reduzido, o marca-texto aparece inteiro, sem andar.
+ *
+ * Sem falas (passo sem tempo), é o texto corrido, como no modo texto.
+ */
+function TextoNarrado({ texto, falas, atual, tempo }) {
+  if (!falas || falas.length === 0) {
+    return <p className="ajuda-narrado">{texto}</p>;
+  }
+  return (
+    <p className="ajuda-narrado">
+      {falas.map((f, i) => {
+        const estado = i === atual ? 'agora' : i < atual ? i === atual - 1 ? 'antes' : 'dita' : 'vem';
+        const duracao = Math.max(0.001, f.fim - f.inicio);
+        const andou = i === atual ? Math.min(1, Math.max(0, (tempo - f.inicio) / duracao)) : i < atual ? 1 : 0;
+        return (
+          <span key={`${f.inicio}-${i}`}>
+            <span className={`ajuda-fala ajuda-fala--${estado}`} style={{ '--andou': andou }}>
+              {f.texto}
+            </span>
+            {i < falas.length - 1 ? ' ' : ''}
+          </span>
+        );
+      })}
+    </p>
+  );
+}
+
+/* ── Sem vídeo: passo a passo em texto, navegação manual ──────────────────── */
+
+function PassoAPassoEmTexto({ steps, total, ativa, setAtiva, onPassoChange, tituloNivel }) {
+  const base = useId();
+  const abasEl = useRef([]);
+  const anteriorEl = useRef(null);
+  const proximoEl = useRef(null);
+  const painelEl = useRef(null);
+
+  const irPara = (indice, { focar = false } = {}) => {
+    if (indice < 0 || indice >= total) return;
+    setAtiva(indice);
+    onPassoChange?.(indice);
+    if (focar) abasEl.current[indice]?.focus();
   };
 
   /**
-   * Os botões "Passo anterior" e "Próximo passo".
-   *
-   * Chegando à ponta, o botão clicado vira `disabled` e perde o foco. O foco
-   * vai para o botão do outro lado, que é o próximo gesto provável; com um
-   * passo só (os dois desabilitados), vai para o painel.
+   * Chegando à ponta, o botão clicado vira `disabled` e perderia o foco: ele
+   * vai para o botão do outro lado, o próximo gesto provável; com um passo só,
+   * para o painel.
    */
   const andarPeloBotao = (direcao) => {
     const destino = ativa + direcao;
@@ -256,6 +400,7 @@ export function PlayerTutorial({ feature, passo = 0, onPassoChange, videoRef, on
     else painelEl.current?.focus();
   };
 
+  // Padrão WAI-ARIA de tablist, vertical e com ativação automática.
   const aoTeclar = (e) => {
     const mapa = {
       ArrowRight: (ativa + 1) % total,
@@ -270,73 +415,55 @@ export function PlayerTutorial({ feature, passo = 0, onPassoChange, videoRef, on
     irPara(mapa[e.key], { focar: true });
   };
 
-  if (total === 0) {
-    return (
-      <p style={{ color: T.mute, fontSize: 14 }}>Este tutorial ainda não tem passos.</p>
-    );
-  }
-
   const step = steps[Math.min(ativa, total - 1)];
   const Titulo = tituloNivel;
   const painelId = `${base}-painel`;
   const abaId = (i) => `${base}-aba-${i}`;
 
   return (
-    <div className="ajuda-player" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {temVideo ? (
-        <div className="ajuda-palco" data-dispositivo={feature?.device === 'MOBILE' ? 'celular' : 'computador'}>
-          {/*
-            `crossOrigin="anonymous"`: a legenda mora no Storage, outro domínio,
-            e sem ele o navegador baixa a `<track>` mas se recusa a usá-la.
+    <div className="ajuda-player ajuda-player--texto">
+      <p className="ajuda-modo-texto">
+        <ListOrdered size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
+        <span>{SELO_TEXTO}</span>
+        <span aria-hidden="true" className="ajuda-modo-texto__sep">·</span>
+        <span style={{ color: T.mute }}>{total === 1 ? '1 passo' : `${total} passos`}</span>
+      </p>
 
-            `preload="metadata"` baixa só o começo (duração e dimensões): quem
-            abre o tutorial para ler o texto de um passo não paga o vídeo
-            inteiro.
-
-            A `<track>` só entra com a legenda em mãos: uma `<track>` sem `src`
-            é legenda nenhuma, e ainda gera um pedido inválido. O pacote sempre
-            traz a legenda (ver EnvioDoPacote), então na prática ela está lá;
-            a regra do lint não enxerga a condição.
-          */}
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video
-            ref={ligarVideo}
-            controls
-            preload="metadata"
-            poster={feature.poster_url ?? undefined}
-            playsInline
-            crossOrigin="anonymous"
-            src={feature.video_url}
-            aria-label={`Vídeo do tutorial: ${feature.title}`}
-            onTimeUpdate={aoAndar}
-            onSeeked={aoTerminarBusca}
-            onLoadedMetadata={aoCarregar}
-            onError={aoFalhar}
-          >
-            {feature.captions_url && (
-              <track kind="captions" srcLang="pt-BR" label="Português" src={feature.captions_url} default />
-            )}
-          </video>
-        </div>
-      ) : (
-        <p className="ajuda-modo-texto">
-          <ListOrdered size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
-          <span>{SELO_TEXTO}</span>
-          <span aria-hidden="true" className="ajuda-modo-texto__sep">·</span>
-          <span style={{ color: T.mute }}>{total === 1 ? '1 passo' : `${total} passos`}</span>
-        </p>
-      )}
-
-      {/* As abas. A lista rola na horizontal quando não cabe, e o fade das
-          pontas (ver `.ajuda-abas` no globals.css) é o que avisa que há mais
-          passos para o lado. */}
       <div
-        ref={listaEl}
-        role="tablist"
-        aria-label="Passos do tutorial"
-        aria-orientation="horizontal"
-        className="ajuda-abas"
+        ref={painelEl}
+        id={painelId}
+        role="tabpanel"
+        aria-labelledby={abaId(ativa)}
+        tabIndex={0}
+        className="ajuda-agora ajuda-painel"
+        style={{ borderRadius: R.card }}
       >
+        <p className="ajuda-agora__rotulo">Passo {ativa + 1} de {total}</p>
+        {total > 1 && (
+          // A trilha repete o "Passo N de M" em forma de caminho, e por isso
+          // fica fora do leitor de tela.
+          <div aria-hidden="true" className="ajuda-trilha">
+            {steps.map((s, i) => (
+              <span key={s.id ?? i} className={`ajuda-trilha__seg${i <= ativa ? ' is-feito' : ''}`} />
+            ))}
+          </div>
+        )}
+        <Titulo className="ajuda-agora__titulo" style={{ fontFamily: T.display, fontWeight: W.title }}>
+          {step.title}
+        </Titulo>
+        <p className="ajuda-narrado ajuda-narrado--texto">{step.body}</p>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
+          <Button variant="secondary" ref={anteriorEl} onClick={() => andarPeloBotao(-1)} disabled={ativa === 0} style={{ flex: '1 1 140px' }}>
+            <ArrowLeft size={16} aria-hidden="true" /> Passo anterior
+          </Button>
+          <Button variant="primary" ref={proximoEl} onClick={() => andarPeloBotao(1)} disabled={ativa === total - 1} style={{ flex: '1 1 140px' }}>
+            Próximo passo <ArrowRight size={16} aria-hidden="true" />
+          </Button>
+        </div>
+      </div>
+
+      <div role="tablist" aria-label="Passos do tutorial" aria-orientation="vertical" className="ajuda-passos">
         {steps.map((s, i) => {
           const on = i === ativa;
           return (
@@ -351,73 +478,16 @@ export function PlayerTutorial({ feature, passo = 0, onPassoChange, videoRef, on
               aria-selected={on}
               aria-controls={painelId}
               tabIndex={on ? 0 : -1}
-              className={`ajuda-aba${on ? ' is-on' : ''}`}
+              className={`ajuda-passo${on ? ' is-on' : ''}${i < ativa ? ' is-feito' : ''}`}
               onClick={() => irPara(i)}
               onKeyDown={aoTeclar}
             >
-              <span className="ajuda-aba__num" aria-hidden="true">{i + 1}.</span>
+              <span className="ajuda-passo__num" aria-hidden="true">{i + 1}</span>
               <span className="sr-only">{`Passo ${i + 1}: `}</span>
-              {s.title}
-              {on && temVideo && typeof s.start_s === 'number' && (
-                <span
-                  aria-hidden="true"
-                  className="ajuda-aba__fio"
-                  style={{ transform: `scaleX(${progresso})` }}
-                />
-              )}
+              <span className="ajuda-passo__titulo">{s.title}</span>
             </button>
           );
         })}
-      </div>
-
-      <div
-        ref={painelEl}
-        id={painelId}
-        role="tabpanel"
-        aria-labelledby={abaId(ativa)}
-        tabIndex={0}
-        className="ajuda-painel"
-        style={{ background: T.card, borderRadius: R.card, boxShadow: T.cardRing, padding: '18px 18px 16px' }}
-      >
-        <p style={{ color: T.mute, fontSize: 12, letterSpacing: '0.02em' }}>
-          Passo {ativa + 1} de {total}
-        </p>
-        {!temVideo && total > 1 && (
-          // A trilha repete o "Passo N de M" em forma de caminho, e por isso
-          // fica fora do leitor de tela: ele já leu a frase acima.
-          <div aria-hidden="true" className="ajuda-trilha">
-            {steps.map((s, i) => (
-              <span key={s.id ?? i} className={`ajuda-trilha__seg${i <= ativa ? ' is-feito' : ''}`} />
-            ))}
-          </div>
-        )}
-        <Titulo style={{ fontFamily: T.display, fontWeight: W.title, fontSize: 17, color: T.text, marginTop: 4, lineHeight: 1.3 }}>
-          {step.title}
-        </Titulo>
-        <p style={{ color: T.text, fontSize: 15, lineHeight: 1.65, marginTop: 10, whiteSpace: 'pre-line' }}>
-          {step.body}
-        </p>
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
-          <Button
-            variant="secondary"
-            ref={anteriorEl}
-            onClick={() => andarPeloBotao(-1)}
-            disabled={ativa === 0}
-            style={{ flex: '1 1 140px' }}
-          >
-            <ArrowLeft size={16} aria-hidden="true" /> Passo anterior
-          </Button>
-          <Button
-            variant="primary"
-            ref={proximoEl}
-            onClick={() => andarPeloBotao(1)}
-            disabled={ativa === total - 1}
-            style={{ flex: '1 1 140px' }}
-          >
-            Próximo passo <ArrowRight size={16} aria-hidden="true" />
-          </Button>
-        </div>
       </div>
     </div>
   );

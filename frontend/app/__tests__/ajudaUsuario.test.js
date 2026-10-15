@@ -272,9 +272,18 @@ describe('Tela 3: o tutorial', () => {
   const video = () => document.querySelector('video');
   const aba = (nome) => screen.getByRole('tab', { name: new RegExp(nome) });
 
+  const lista = () => screen.getByRole('list', { name: 'Passos do tutorial' });
+  const passoBtn = (nome) => within(lista()).getByRole('button', { name: new RegExp(nome) });
+  const agora = () => document.querySelector('.ajuda-agora');
+  const tocar = (t) =>
+    act(() => {
+      video().currentTime = t;
+      fireEvent.timeUpdate(video());
+    });
+
   it('monta o vídeo como o contrato pede, com legenda em pt-BR', async () => {
     const { container } = abrir();
-    await screen.findByRole('tablist', { name: 'Passos do tutorial' });
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
 
     const v = video();
     expect(v).toHaveAttribute('controls');
@@ -286,136 +295,136 @@ describe('Tela 3: o tutorial', () => {
     expect(track).toHaveAttribute('kind', 'captions');
     expect(track).toHaveAttribute('srclang', 'pt-BR');
     expect(track).toHaveAttribute('default');
+    // Formato contínuo: não há abas para trocar.
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
 
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('clicar na aba leva o vídeo ao início dela e mostra o texto do passo', async () => {
+  it('clicar num passo leva o vídeo ao início dele, marca o passo e mostra o texto', async () => {
     const user = userEvent.setup();
     const replaceState = jest.spyOn(window.history, 'replaceState');
     abrir();
-    await screen.findByRole('tablist');
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
 
-    await user.click(aba('Escolher os andares'));
+    await user.click(passoBtn('Escolher os andares'));
 
     expect(video().currentTime).toBe(9.4);
-    expect(aba('Escolher os andares')).toHaveAttribute('aria-selected', 'true');
-    expect(aba('Começar')).toHaveAttribute('aria-selected', 'false');
-    expect(screen.getByRole('tabpanel')).toHaveTextContent('Marque os andares.');
+    expect(passoBtn('Escolher os andares')).toHaveAttribute('aria-current', 'step');
+    expect(passoBtn('Começar')).not.toHaveAttribute('aria-current');
+    expect(agora()).toHaveTextContent('Passo 2 de 4');
+    expect(agora()).toHaveTextContent('Marque os andares.');
     expect(replaceState).toHaveBeenLastCalledWith(null, '', '/ajuda/inspetor/inspetor-vistoria-completa?passo=2');
     replaceState.mockRestore();
   });
 
-  it('durante a reprodução, a aba ativa acompanha o tempo do vídeo', async () => {
+  it('o passo avança sozinho com o tempo do vídeo, e só a troca é anunciada', async () => {
     abrir();
-    await screen.findByRole('tablist');
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
+    const anuncio = document.querySelector('.ajuda-player [aria-live="polite"]');
+    expect(anuncio).toHaveTextContent('');
 
-    act(() => {
-      video().currentTime = 20;
-      fireEvent.timeUpdate(video());
-    });
-    expect(aba('Registrar')).toHaveAttribute('aria-selected', 'true');
+    tocar(5);
+    expect(passoBtn('Começar')).toHaveAttribute('aria-current', 'step');
+    expect(anuncio).toHaveTextContent('');
 
-    act(() => {
-      video().currentTime = 31;
-      fireEvent.timeUpdate(video());
-    });
-    expect(aba('Enviar')).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tabpanel')).toHaveTextContent('Envie a vistoria.');
+    tocar(20);
+    expect(passoBtn('Registrar')).toHaveAttribute('aria-current', 'step');
+    expect(anuncio).toHaveTextContent('Passo 3 de 4: Registrar');
+
+    tocar(31);
+    expect(passoBtn('Enviar')).toHaveAttribute('aria-current', 'step');
+    expect(agora()).toHaveTextContent('Envie a vistoria.');
+    expect(anuncio).toHaveTextContent('Passo 4 de 4: Enviar');
   });
 
-  it('as setas, Home e End andam pelas abas e levam o foco junto', async () => {
-    const user = userEvent.setup();
-    abrir();
-    await screen.findByRole('tablist');
+  it('a linha de capítulos tem um trecho por passo, e o atual enche com o tempo', async () => {
+    const { container } = abrir();
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
+    const trechos = container.querySelectorAll('.ajuda-capitulo');
+    expect(trechos).toHaveLength(4);
+    // Tamanho proporcional ao trecho no vídeo: 9,4 s, 8,6 s, 12 s e 10 s.
+    expect(trechos[0].style.flexGrow).toBe('9.4');
+    expect(trechos[3].style.flexGrow).toBe('10');
 
-    aba('Começar').focus();
-    await user.keyboard('{ArrowRight}');
-    expect(aba('Escolher os andares')).toHaveAttribute('aria-selected', 'true');
-    expect(aba('Escolher os andares')).toHaveFocus();
-    expect(aba('Escolher os andares')).toHaveAttribute('tabindex', '0');
-    expect(aba('Começar')).toHaveAttribute('tabindex', '-1');
+    tocar(24);
+    const cheio = (i) => trechos[i].querySelector('.ajuda-capitulo__cheio').style.transform;
+    expect(cheio(0)).toBe('scaleX(1)');
+    expect(cheio(1)).toBe('scaleX(1)');
+    expect(cheio(2)).toBe('scaleX(0.5)');
+    expect(cheio(3)).toBe('scaleX(0)');
 
-    await user.keyboard('{End}');
-    expect(aba('Enviar')).toHaveFocus();
-    await user.keyboard('{ArrowRight}');
-    expect(aba('Começar')).toHaveFocus();
-    await user.keyboard('{ArrowLeft}');
-    expect(aba('Enviar')).toHaveFocus();
-    await user.keyboard('{Home}');
-    expect(aba('Começar')).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(trechos[3]);
+    expect(video().currentTime).toBe(30);
+    expect(passoBtn('Enviar')).toHaveAttribute('aria-current', 'step');
   });
 
-  it('"Próximo passo" e "Passo anterior" trocam a aba', async () => {
-    const user = userEvent.setup();
-    abrir();
-    await screen.findByRole('tablist');
+  it('o texto narrado acende a frase dita e apaga a anterior', async () => {
+    const feature = {
+      ...FEATURE,
+      steps: [
+        { id: 's1', order: 1, title: 'Começar', body: 'Primeira frase aqui. Segunda frase aqui. Terceira frase aqui.', start_s: 0 },
+        { id: 's2', order: 2, title: 'Fim', body: 'Acabou.', start_s: 30 },
+      ],
+    };
+    const { container } = abrir({ feature });
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
+    const estado = (texto) =>
+      [...container.querySelectorAll('.ajuda-fala')].find((el) => el.textContent === texto)?.className;
 
-    expect(screen.getByRole('button', { name: /Passo anterior/ })).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: /Próximo passo/ }));
-    expect(aba('Escolher os andares')).toHaveAttribute('aria-selected', 'true');
-    expect(video().currentTime).toBe(9.4);
+    tocar(15);
+    expect(estado('Segunda frase aqui.')).toContain('ajuda-fala--agora');
+    expect(estado('Primeira frase aqui.')).toContain('ajuda-fala--antes');
+    expect(estado('Terceira frase aqui.')).toContain('ajuda-fala--vem');
+
+    tocar(25);
+    expect(estado('Terceira frase aqui.')).toContain('ajuda-fala--agora');
+    expect(estado('Segunda frase aqui.')).toContain('ajuda-fala--antes');
+    expect(estado('Primeira frase aqui.')).toContain('ajuda-fala--dita');
   });
 
-  it('"Passo anterior" e "Próximo passo" passam o foco ao outro botão na ponta', async () => {
-    const user = userEvent.setup();
-    abrir({ passo: 3 });
-    await screen.findByRole('tablist');
-
-    await user.click(screen.getByRole('button', { name: /Próximo passo/ }));
-    expect(aba('Enviar')).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('button', { name: /Próximo passo/ })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Passo anterior/ })).toHaveFocus();
-  });
-
-  it('sem metadados do vídeo (readyState 0), a aba continua acompanhando a reprodução', async () => {
+  it('sem metadados do vídeo (readyState 0), o passo continua acompanhando a reprodução', async () => {
     const user = userEvent.setup();
     abrir();
-    await screen.findByRole('tablist');
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
     // O jsdom não carrega mídia: o `<video>` fica em HAVE_NOTHING, como o
     // celular antes do `loadedmetadata`. O seek ali não dispara `seeked`.
     expect(video().readyState).toBe(0);
 
-    await user.click(aba('Escolher os andares'));
-    act(() => {
-      video().currentTime = 20;
-      fireEvent.timeUpdate(video());
-    });
-    expect(aba('Registrar')).toHaveAttribute('aria-selected', 'true');
+    await user.click(passoBtn('Escolher os andares'));
+    tocar(20);
+    expect(passoBtn('Registrar')).toHaveAttribute('aria-current', 'step');
   });
 
-  it('com metadados, o timeupdate antigo não devolve a aba antes do seeked', async () => {
+  it('com metadados, o timeupdate antigo não devolve o passo antes do seeked', async () => {
     const user = userEvent.setup();
     abrir();
-    await screen.findByRole('tablist');
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
     Object.defineProperty(video(), 'readyState', { configurable: true, get: () => 1 });
 
-    await user.click(aba('Registrar'));
-    act(() => {
-      video().currentTime = 2;
-      fireEvent.timeUpdate(video());
-    });
-    expect(aba('Registrar')).toHaveAttribute('aria-selected', 'true');
+    await user.click(passoBtn('Registrar'));
+    tocar(2);
+    expect(passoBtn('Registrar')).toHaveAttribute('aria-current', 'step');
 
     act(() => {
       video().currentTime = 18;
       fireEvent.seeked(video());
     });
-    expect(aba('Registrar')).toHaveAttribute('aria-selected', 'true');
+    expect(passoBtn('Registrar')).toHaveAttribute('aria-current', 'step');
   });
 
   it('sem legenda, o vídeo não ganha uma <track> vazia', async () => {
     abrir({ feature: { ...FEATURE, captions_url: null } });
-    await screen.findByRole('tablist');
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
     expect(video().querySelector('track')).toBeNull();
   });
 
-  it('?passo=N abre direto na aba N e leva o vídeo até ela', async () => {
+  it('?passo=N abre direto no passo N e leva o vídeo até ele', async () => {
     abrir({ passo: 3 });
-    await screen.findByRole('tablist');
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
 
-    expect(aba('Registrar')).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tabpanel')).toHaveTextContent('Registre cada andar.');
+    expect(passoBtn('Registrar')).toHaveAttribute('aria-current', 'step');
+    expect(agora()).toHaveTextContent('Registre cada andar.');
     expect(video().currentTime).toBe(18);
   });
 
@@ -480,7 +489,7 @@ describe('Tela 3: o tutorial', () => {
 
     it('quando o vídeo chega, o player aparece no topo', async () => {
       const { container } = abrir({ feature: FEATURE });
-      await screen.findByRole('tablist');
+      await screen.findByRole('list', { name: 'Passos do tutorial' });
       const player = container.querySelector('.ajuda-player');
       expect(player.firstElementChild).toHaveClass('ajuda-palco');
       expect(screen.queryByText('Passo a passo em texto')).not.toBeInTheDocument();
@@ -503,7 +512,7 @@ describe('Tela 3: o tutorial', () => {
     const user = userEvent.setup();
     api.post.mockResolvedValue({ data: { feedback: { id: 'fb1', helpful: true, created_at: '2026-10-09T12:00:00.000Z' } } });
     abrir();
-    await screen.findByRole('tablist');
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
 
     await user.click(screen.getByRole('button', { name: /Sim/ }));
 
@@ -519,7 +528,7 @@ describe('Tela 3: o tutorial', () => {
     const mensagem = 'Muitas respostas em sequência. Tente de novo mais tarde.';
     api.post.mockRejectedValue({ response: { status: 429, data: { error: { code: 'TOO_MANY_REQUESTS', message: mensagem } } } });
     abrir();
-    await screen.findByRole('tablist');
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
 
     await user.click(screen.getByRole('button', { name: /Sim/ }));
 
@@ -530,7 +539,7 @@ describe('Tela 3: o tutorial', () => {
 
   it('quem já respondeu não vê a pergunta de novo', async () => {
     abrir({ feature: { ...FEATURE, my_feedback: { helpful: false, created_at: '2026-10-09T12:00:00.000Z' } } });
-    await screen.findByRole('tablist');
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
     expect(screen.getByText(/Obrigado pela resposta/)).toBeInTheDocument();
     expect(screen.queryByText('Isso ajudou?')).not.toBeInTheDocument();
   });
@@ -539,7 +548,7 @@ describe('Tela 3: o tutorial', () => {
     const user = userEvent.setup();
     api.post.mockResolvedValue({ data: { feedback: { id: 'fb1', helpful: false, created_at: '2026-10-09T12:00:00.000Z' } } });
     abrir();
-    await screen.findByRole('tablist');
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
 
     await user.click(screen.getByRole('button', { name: /Não/ }));
     await user.type(screen.getByLabelText('O que faltou? (opcional)'), 'Rápido demais');
@@ -552,7 +561,7 @@ describe('Tela 3: o tutorial', () => {
     const user = userEvent.setup();
     api.post.mockResolvedValue({ data: { feedback: { id: 'fb1', helpful: false, created_at: '2026-10-09T12:00:00.000Z' } } });
     abrir();
-    await screen.findByRole('tablist');
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
 
     await user.click(screen.getByRole('button', { name: /Não/ }));
     expect(screen.getByLabelText('O que faltou? (opcional)')).toHaveFocus();
