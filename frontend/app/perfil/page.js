@@ -310,7 +310,7 @@ function Campo({ label, value }) {
  */
 function Campos({ children }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 24px' }}>
+    <div className="conta-campos" style={{ display: 'grid', gap: '18px 24px' }}>
       {children}
     </div>
   );
@@ -868,7 +868,7 @@ function PerfilContent() {
   return (
     <RouteGuard>
       {/* ── DESKTOP ── */}
-      <div className="hidden lg:flex" style={{ minHeight: '100vh', background: T.bg }}>
+      <div className="hidden desk:flex" style={{ minHeight: '100vh', background: T.bg }}>
         <BarraLateralDaConta user={user} buildingId={buildingId} />
 
         <main id={CONTENT_ID} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: '100vh', overflow: 'hidden' }}>
@@ -901,7 +901,7 @@ function PerfilContent() {
             </header>
           )}
 
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '28px 32px 0', display: 'flex', flexDirection: 'column' }}>
+          <div className="conta-mesa" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
             <h1 className="anim-fade-down" style={{ color: T.text, fontSize: 22, fontWeight: W.title, marginBottom: 20 }}>
               Configurações da conta
             </h1>
@@ -916,9 +916,9 @@ function PerfilContent() {
               conteúdo inteiro daria um salto lateral a cada clique.
             */}
             <div
-              className="anim-fade-up anim-d1"
+              className="conta-mesa__grade anim-fade-up anim-d1"
               style={{
-                display: 'grid', gridTemplateColumns: '186px 1fr', gap: 8,
+                display: 'grid', gap: 8,
                 flex: 1, maxWidth: 1080,
               }}
             >
@@ -955,7 +955,7 @@ function PerfilContent() {
       </div>
 
       {/* ── MOBILE ── */}
-      <div className="lg:hidden">
+      <div className="desk:hidden">
         <MPage>
           {/* O mesmo respiro do MTopBar, e vindo de lá: são a primeira linha
               da tela nas duas, e desencontrados um teria o entalhe descontado

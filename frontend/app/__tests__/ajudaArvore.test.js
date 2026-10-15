@@ -26,6 +26,7 @@ import PastaPage from '@/app/ajuda/[pasta]/page';
 import TutorialPage from '@/app/ajuda/[pasta]/[funcionalidade]/page';
 import { AjudaShell } from '@/app/components/ajuda/AjudaShell';
 import { useAuthStore } from '@/app/store/auth';
+import { simularAparelho, COMPUTADOR, TELEFONE } from './helpers/aparelho';
 
 /**
  * A central no computador: a árvore das pastas à esquerda, montada no layout
@@ -98,16 +99,7 @@ function rotas(extra = {}) {
 }
 
 function telaComoComputador(desktop) {
-  window.matchMedia = (query) => ({
-    matches: desktop && query.includes('1024'),
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  });
+  simularAparelho(desktop ? COMPUTADOR : TELEFONE);
 }
 
 /** Monta o layout com a página dentro, e devolve como trocar de página sem desmontar o layout. */
@@ -240,7 +232,7 @@ describe('no computador, a central tem a árvore das pastas', () => {
       caminho: '/ajuda/inspetor/inspetor-vistoria-completa',
     });
 
-    await screen.findByRole('tablist', { name: 'Passos do tutorial' });
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
     const ativo = await within(arvore()).findByRole('treeitem', { name: 'Fazer uma vistoria completa' });
     expect(ativo).toHaveAttribute('aria-current', 'page');
     expect(ativo).toHaveAttribute('tabindex', '0');
@@ -361,7 +353,7 @@ describe('no computador, a central tem a árvore das pastas', () => {
       params: { pasta: 'inspetor', funcionalidade: 'inspetor-vistoria-completa' },
       caminho: '/ajuda/inspetor/inspetor-vistoria-completa',
     });
-    await screen.findByRole('tablist');
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
     const antes = arvore();
 
     // Abre "Primeiros passos" e fecha "Gestor" (que já estava fechada): a escolha é da pessoa.
@@ -421,7 +413,7 @@ describe('no telefone, a central continua sem árvore', () => {
       params: { pasta: 'inspetor', funcionalidade: 'inspetor-vistoria-completa' },
       caminho: '/ajuda/inspetor/inspetor-vistoria-completa',
     });
-    await screen.findByRole('tablist');
+    await screen.findByRole('list', { name: 'Passos do tutorial' });
     expect(screen.queryByRole('tree')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Voltar para Inspetor' })).toHaveAttribute('href', '/ajuda/inspetor');
     expect(await axe(container)).toHaveNoViolations();

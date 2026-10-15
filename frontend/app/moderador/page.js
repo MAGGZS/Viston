@@ -197,7 +197,7 @@ export default function ModeradorPage() {
             é o que se via como desalinhamento. Com o mínimo zerado, as cinco
             colunas ficam iguais e quem cede é o rótulo, quebrando em duas
             linhas como "EM ANDAMENTO" já fazia. */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 16 }}>
+        <div className="fileira-de-cinco" style={{ gap: 16 }}>
           <StatCard className="anim-fade-up anim-d1" icon={Inbox} label="Em aberto" value={stats?.abertos} loading={statsLoading} />
           <StatCard className="anim-fade-up anim-d2" icon={Send} label="Encaminhados" value={stats?.encaminhados} loading={statsLoading} />
           <StatCard className="anim-fade-up anim-d3" icon={Loader} label="Em andamento" value={stats?.em_andamento} loading={statsLoading} />
@@ -205,7 +205,7 @@ export default function ModeradorPage() {
           <CartaoForaDoPrazo buildingId={buildingId} href="/moderador/dashboard?motivo=ATRASADOS" />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, alignItems: 'start' }}>
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]" style={{ gap: 20, alignItems: 'start' }}>
           {/* Categorias das ocorrências do período, em pizza. */}
           <OcorrenciasPorCategoriaPizza
             buildingId={buildingId}

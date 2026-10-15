@@ -1,13 +1,11 @@
 'use client';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, ListOrdered } from 'lucide-react';
-import { Button } from '@/app/components/ui';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Captions, ListOrdered, Search, X } from 'lucide-react';
 import { SELO_TEXTO, formatarInicio, indiceDaAbaNoTempo, progressoDaAba } from '@/app/lib/ajuda';
-import { falasCronometradas, falasDoTrecho, indiceDaFala } from '@/app/lib/pacoteDoVideo';
-import { T, R, W } from '@/app/lib/theme';
+import { falasCronometradas, indiceDaFala } from '@/app/lib/pacoteDoVideo';
 
 /**
- * O player de um tutorial: o vídeo, o passo a passo e o texto narrado.
+ * O player de um tutorial: o vídeo e a transcrição da narração, passo a passo.
  *
  * É o mesmo componente na Tela 3 do usuário e na pré-visualização do admin, e
  * isso é o requisito, não economia: o admin confere se cada passo cai no ponto
@@ -15,20 +13,21 @@ import { T, R, W } from '@/app/lib/theme';
  * pessoa vai ver.
  *
  * Com vídeo, o formato é contínuo: uma narração só, e cada passo é um ponto
- * (`start_s`) dentro dela. Por isso não há abas para trocar, e sim um passo a
- * passo que anda sozinho:
+ * (`start_s`) dentro dela. Por isso não há abas nem "próximo passo", e sim a
+ * transcrição inteira, que anda sozinha:
  * - o passo atual é o último com `start_s <= currentTime` (`indiceDaAbaNoTempo`);
  * - a linha de capítulos debaixo do vídeo tem um trecho por passo, e o trecho
  *   do passo atual enche conforme ele passa;
- * - o texto do passo aparece frase a frase, acompanhando a fala: a frase dita
- *   agora acesa e com o marca-texto andando sob ela, a anterior apagada, as
- *   próximas mais apagadas ainda. As frases saem das falas da `legenda.vtt`
- *   (lidas da `<track>`); sem elas, de uma estimativa pelo tamanho do texto;
- * - clicar num passo, ou num trecho da linha, leva o vídeo àquele ponto.
+ * - abaixo (ou ao lado, com vídeo em pé), a transcrição: todas as falas do
+ *   vídeo, agrupadas por passo, com a dita agora destacada e seguida pela
+ *   rolagem. As falas saem da `legenda.vtt` (lidas da `<track>`); sem elas, de
+ *   uma estimativa pelo tamanho do texto;
+ * - clicar numa fala, num passo ou num trecho da linha leva o vídeo àquele ponto;
+ * - a busca filtra as falas, e o botão de legenda liga e desliga a legenda
+ *   desenhada sobre o vídeo.
  *
- * Sem vídeo (`video_url` nulo), o tutorial é o passo a passo em texto, com
- * navegação manual: a lista de passos é uma tablist vertical, com o mesmo
- * desenho da lista do vídeo, e o painel mostra o passo escolhido.
+ * Sem vídeo (`video_url` nulo), o tutorial é o passo a passo em texto: todos os
+ * passos à vista, no mesmo desenho de cartões, e escolher um o marca como atual.
  *
  * `passo` é o índice pedido de fora (o `?passo=N` da URL); `onPassoChange`
  * avisa cada troca, para a página manter a URL em dia. `videoRef` dá ao admin o
@@ -51,7 +50,7 @@ export function PlayerTutorial({ feature, passo = 0, onPassoChange, videoRef, on
   }
 
   if (total === 0) {
-    return <p style={{ color: T.mute, fontSize: 14 }}>Este tutorial ainda não tem passos.</p>;
+    return <p style={{ color: 'var(--color-mute)', fontSize: 14 }}>Este tutorial ainda não tem passos.</p>;
   }
 
   const props = { feature, steps, total, ativa, setAtiva, passo, onPassoChange, tituloNivel };
@@ -62,7 +61,76 @@ export function PlayerTutorial({ feature, passo = 0, onPassoChange, videoRef, on
   );
 }
 
-/* ── Com vídeo: o passo a passo que anda sozinho ──────────────────────────── */
+/* ── Busca sem acento e sem caixa ─────────────────────────────────────────── */
+
+const semAcento = (s) =>
+  String(s ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
+
+/** O termo como a busca o compara: sem acento, sem caixa e com espaços simples. */
+const termoDaBusca = (s) => semAcento(s).replace(/\s+/g, ' ').trim();
+
+/**
+ * O texto partido nos trechos que batem com o termo (`{ texto, bate }`), ou
+ * `null` quando nada bate. A comparação é sem acento, mas o recorte volta ao
+ * texto original: "camera" acha e realça "câmera" inteira.
+ */
+function partesDaBusca(texto, termo) {
+  if (!termo) return null;
+  const original = String(texto ?? '');
+  let normal = '';
+  const origem = [];
+  for (let i = 0; i < original.length; i++) {
+    const n = semAcento(original[i]);
+    for (let j = 0; j < n.length; j++) {
+      normal += n[j];
+      origem.push(i);
+    }
+  }
+  let achou = normal.indexOf(termo);
+  if (achou < 0) return null;
+  const partes = [];
+  let desde = 0;
+  while (achou >= 0) {
+    const de = origem[achou];
+    const ate = origem[achou + termo.length - 1] + 1;
+    if (de > desde) partes.push({ texto: original.slice(desde, de), bate: false });
+    partes.push({ texto: original.slice(de, ate), bate: true });
+    desde = ate;
+    achou = normal.indexOf(termo, achou + termo.length);
+  }
+  if (desde < original.length) partes.push({ texto: original.slice(desde), bate: false });
+  return partes;
+}
+
+function Realce({ texto, termo }) {
+  const partes = useMemo(() => partesDaBusca(texto, termo), [texto, termo]);
+  if (!partes) return texto;
+  return partes.map((p, i) =>
+    p.bate ? (
+      <mark key={i} className="ajuda-realce">
+        {p.texto}
+      </mark>
+    ) : (
+      p.texto
+    )
+  );
+}
+
+/** Liga (`showing`) ou esconde (`hidden`) a legenda desenhada sobre o vídeo; as falas continuam carregadas. */
+function mostrarLegenda(trackElement, mostrar) {
+  const track = trackElement?.track;
+  if (track) track.mode = mostrar ? 'showing' : 'hidden';
+}
+
+const tempoCurto = (s) => formatarInicio(s).replace(/,\d$/, '');
+
+/* ── Com vídeo: o vídeo e a transcrição que anda sozinha ──────────────────── */
+
+/** Por quanto tempo a transcrição para de seguir a fala depois de a pessoa rolar ou buscar. */
+const PAUSA_DO_SEGUIR_MS = 4000;
 
 function PassoAPassoComVideo({ feature, steps, total, ativa, setAtiva, passo, onPassoChange, videoRef, onUrlsVencidas, tituloNivel }) {
   const base = useId();
@@ -70,9 +138,16 @@ function PassoAPassoComVideo({ feature, steps, total, ativa, setAtiva, passo, on
   const [duracaoLida, setDuracaoLida] = useState(null);
   const [falasDaLegenda, setFalasDaLegenda] = useState(null);
   const [anuncio, setAnuncio] = useState('');
+  // A orientação vem do próprio vídeo quando os metadados chegam; até lá, o
+  // aparelho da gravação é o melhor palpite (celular grava em pé).
+  const [emPe, setEmPe] = useState(feature?.device === 'MOBILE');
+  const [legendaNoVideo, setLegendaNoVideo] = useState(true);
+  const [busca, setBusca] = useState('');
 
   const videoEl = useRef(null);
   const trackEl = useRef(null);
+  const listaEl = useRef(null);
+  const seguirSoDepois = useRef(0);
   // Enquanto um seek pedido pelo passo não termina, o `timeupdate` ainda informa
   // o tempo antigo, e devolveria o destaque para onde estava antes.
   const buscando = useRef(false);
@@ -146,6 +221,15 @@ function PassoAPassoComVideo({ feature, steps, total, ativa, setAtiva, passo, on
     levarVideo(indice);
   };
 
+  /** Clicar numa fala: o vídeo vai ao começo dela, e o passo dela vira o atual. */
+  const irParaFala = (fala, indice) => {
+    if (indice !== ativaRef.current) trocarPasso(indice);
+    const video = videoEl.current;
+    if (!video) return;
+    buscar(video, fala.inicio);
+    setTempo(fala.inicio);
+  };
+
   const aoAndar = () => {
     const video = videoEl.current;
     if (!video || buscando.current) return;
@@ -163,6 +247,7 @@ function PassoAPassoComVideo({ feature, steps, total, ativa, setAtiva, passo, on
   const aoCarregar = () => {
     const video = videoEl.current;
     if (video && Number.isFinite(video.duration) && video.duration > 0) setDuracaoLida(video.duration);
+    if (video?.videoWidth > 0 && video?.videoHeight > 0) setEmPe(video.videoWidth < video.videoHeight);
     if (ativaRef.current > 0) levarVideo(ativaRef.current);
     else buscando.current = false;
   };
@@ -198,6 +283,24 @@ function PassoAPassoComVideo({ feature, steps, total, ativa, setAtiva, passo, on
     lerFalas();
   }, [lerFalas, feature?.captions_url]);
 
+  // O botão de legenda manda no modo da `<track>`: `hidden` some com a legenda
+  // do vídeo mas mantém as falas carregadas, e a transcrição continua.
+  useEffect(() => {
+    mostrarLegenda(trackEl.current, legendaNoVideo);
+  }, [legendaNoVideo, feature?.captions_url]);
+
+  // E o menu de legenda do próprio player do navegador manda no botão.
+  useEffect(() => {
+    const faixas = videoEl.current?.textTracks;
+    if (!faixas?.addEventListener) return undefined;
+    const aoMudar = () => {
+      const track = trackEl.current?.track;
+      if (track) setLegendaNoVideo(track.mode === 'showing');
+    };
+    faixas.addEventListener('change', aoMudar);
+    return () => faixas.removeEventListener('change', aoMudar);
+  }, [feature?.captions_url]);
+
   // Sem legenda lida, as falas saem do texto dos passos, pela mesma conta que
   // monta a legenda de um vídeo enviado sozinho. Só com todos os tempos.
   const falasEstimadas = useMemo(() => {
@@ -210,93 +313,315 @@ function PassoAPassoComVideo({ feature, steps, total, ativa, setAtiva, passo, on
   }, [steps, duracao]);
   const falas = falasDaLegenda ?? falasEstimadas;
 
-  const step = steps[Math.min(ativa, total - 1)];
-  const inicioAtiva = step?.start_s;
-  const proximoInicio = steps.slice(ativa + 1).find((s) => typeof s.start_s === 'number')?.start_s;
-  const fimAtiva = typeof proximoInicio === 'number' ? proximoInicio : duracao;
-  const falasDoPasso = typeof inicioAtiva === 'number' ? falasDoTrecho(falas, inicioAtiva, proximoInicio) : [];
-  const falaAtual = indiceDaFala(falasDoPasso, tempo);
+  /**
+   * As falas agrupadas por passo. Cada fala vai para o passo em que ela começa,
+   * pela mesma conta que acha o passo atual: assim a fala acesa está sempre
+   * debaixo do passo aceso. Um passo sem fala (sem tempo, ou sem texto na
+   * legenda) mostra o próprio texto no lugar.
+   */
+  const grupos = useMemo(() => {
+    const lista = steps.map((step, i) => ({ step, i, falas: [] }));
+    (falas ?? []).forEach((f, k) => {
+      if (!f.texto) return;
+      lista[indiceDaAbaNoTempo(steps, f.inicio)]?.falas.push({ ...f, k });
+    });
+    return lista;
+  }, [steps, falas]);
+
+  const termo = termoDaBusca(busca);
+  const visiveis = useMemo(() => {
+    if (!termo) return grupos.map((g) => ({ ...g, mostrar: g.falas, corpo: g.falas.length === 0 }));
+    const bate = (s) => semAcento(s).replace(/\s+/g, ' ').includes(termo);
+    return grupos
+      .map((g) => {
+        const tituloBate = bate(g.step.title);
+        const mostrar = tituloBate ? g.falas : g.falas.filter((f) => bate(f.texto));
+        const corpo = g.falas.length === 0 && Boolean(g.step.body) && (tituloBate || bate(g.step.body));
+        return { ...g, mostrar, corpo, achou: tituloBate || mostrar.length > 0 || corpo };
+      })
+      .filter((g) => g.achou);
+  }, [grupos, termo]);
+
+  const falaAtual = indiceDaFala(falas, tempo);
   const progresso = progressoDaAba(steps, ativa, tempo, duracao);
 
+  /**
+   * A transcrição segue a fala: quando a atual sai da área visível, a lista
+   * rola até ela. Só a lista rola, nunca a página (por isso a conta à mão, e
+   * não `scrollIntoView`, que rolaria a página junto). Enquanto há busca, ou
+   * logo depois de a pessoa rolar, não segue: ela está lendo outra parte.
+   */
+  useEffect(() => {
+    const lista = listaEl.current;
+    if (!lista || termo || Date.now() < seguirSoDepois.current) return;
+    const alvo = lista.querySelector('[data-fala-atual]') ?? lista.querySelector('[data-passo-atual]');
+    if (!alvo) return;
+    const caixa = lista.getBoundingClientRect();
+    const r = alvo.getBoundingClientRect();
+    if (caixa.height === 0) return;
+    const folga = 48;
+    if (r.top >= caixa.top + folga && r.bottom <= caixa.bottom - 12) return;
+    const topo = Math.max(0, lista.scrollTop + (r.top - caixa.top) - Math.min(caixa.height * 0.3, 96));
+    const reduzido = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    if (typeof lista.scrollTo === 'function') lista.scrollTo({ top: topo, behavior: reduzido ? 'auto' : 'smooth' });
+    else lista.scrollTop = topo;
+  }, [falaAtual, ativa, termo]);
+
+  const pausarSeguir = () => {
+    seguirSoDepois.current = Date.now() + PAUSA_DO_SEGUIR_MS;
+  };
+
+  // Rolar a lista à mão (roda, dedo, teclado ou barra) pausa o seguir. Ouvintes
+  // nativos e passivos: a rolagem não espera o React.
+  const semResultado = visiveis.length === 0;
+  useEffect(() => {
+    const lista = listaEl.current;
+    if (!lista) return undefined;
+    const pausar = () => {
+      seguirSoDepois.current = Date.now() + PAUSA_DO_SEGUIR_MS;
+    };
+    const aoTeclar = (e) => {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) pausar();
+    };
+    // `focusin`: quem anda pela lista com Tab está lendo ali; `pointerdown`:
+    // arrastar a barra de rolagem não dispara `wheel` nem `touchmove`.
+    const eventos = [
+      ['wheel', pausar, { passive: true }],
+      ['touchmove', pausar, { passive: true }],
+      ['pointerdown', pausar, { passive: true }],
+      ['focusin', pausar, undefined],
+      ['keydown', aoTeclar, undefined],
+    ];
+    eventos.forEach(([nome, fn, opcoes]) => lista.addEventListener(nome, fn, opcoes));
+    return () => eventos.forEach(([nome, fn]) => lista.removeEventListener(nome, fn));
+  }, [semResultado]);
+
+  // As falas e os cabeçalhos são memorizados (o `timeupdate` re-renderiza o
+  // player umas quatro vezes por segundo); recebem ações estáveis, que leem a
+  // versão atual de `irPara` e `irParaFala` por ref.
+  const acoes = useRef({});
+  useEffect(() => {
+    acoes.current = { irPara, irParaFala };
+  });
+  const aoIrPasso = useCallback((indice) => acoes.current.irPara?.(indice), []);
+  const aoIrFala = useCallback((fala, indice) => acoes.current.irParaFala?.(fala, indice), []);
+
+  const achados = termo ? visiveis.reduce((n, g) => n + g.mostrar.length + (g.corpo ? 1 : 0), 0) : 0;
+
+  const limparBusca = () => {
+    setBusca('');
+    pausarSeguir();
+  };
+
   const Titulo = tituloNivel;
-  const tituloId = `${base}-agora`;
+  const buscaId = `${base}-busca`;
+  const temLegenda = Boolean(feature.captions_url);
 
   return (
-    <div className="ajuda-player ajuda-player--video">
-      <div className="ajuda-palco" data-dispositivo={feature?.device === 'MOBILE' ? 'celular' : 'computador'}>
-        {/*
-          `crossOrigin="anonymous"`: a legenda mora no Storage, outro domínio,
-          e sem ele o navegador baixa a `<track>` mas se recusa a usá-la.
-          `preload="metadata"` baixa só o começo: quem abre o tutorial para ler
-          não paga o vídeo inteiro. A `<track>` só entra com a legenda em mãos.
-        */}
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-        <video
-          ref={ligarVideo}
-          controls
-          preload="metadata"
-          poster={feature.poster_url ?? undefined}
-          playsInline
-          crossOrigin="anonymous"
-          src={feature.video_url}
-          aria-label={`Vídeo do tutorial: ${feature.title}`}
-          onTimeUpdate={aoAndar}
-          onSeeked={aoTerminarBusca}
-          onLoadedMetadata={aoCarregar}
-          onError={aoFalhar}
-        >
-          {feature.captions_url && (
-            <track ref={trackEl} kind="captions" srcLang="pt-BR" label="Português" src={feature.captions_url} default onLoad={lerFalas} />
-          )}
-        </video>
-      </div>
+    <div className="ajuda-player ajuda-player--video" data-orientacao={emPe ? 'em-pe' : 'deitado'}>
+      <div className="ajuda-player__grade">
+        <div className="ajuda-palco" data-dispositivo={feature?.device === 'MOBILE' ? 'celular' : 'computador'}>
+          {/*
+            `crossOrigin="anonymous"`: a legenda mora no Storage, outro domínio,
+            e sem ele o navegador baixa a `<track>` mas se recusa a usá-la.
+            `preload="metadata"` baixa só o começo: quem abre o tutorial para ler
+            não paga o vídeo inteiro. A `<track>` só entra com a legenda em mãos.
+          */}
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <video
+            ref={ligarVideo}
+            controls
+            preload="metadata"
+            poster={feature.poster_url ?? undefined}
+            playsInline
+            crossOrigin="anonymous"
+            src={feature.video_url}
+            aria-label={`Vídeo do tutorial: ${feature.title}`}
+            onTimeUpdate={aoAndar}
+            onSeeked={aoTerminarBusca}
+            onLoadedMetadata={aoCarregar}
+            onError={aoFalhar}
+          >
+            {temLegenda && (
+              <track ref={trackEl} kind="captions" srcLang="pt-BR" label="Português" src={feature.captions_url} default onLoad={lerFalas} />
+            )}
+          </video>
+        </div>
 
-      <LinhaDeCapitulos steps={steps} ativa={ativa} progresso={progresso} duracao={duracao} onIr={irPara} />
+        <LinhaDeCapitulos steps={steps} ativa={ativa} progresso={progresso} duracao={duracao} onIr={irPara} />
 
-      <section aria-labelledby={tituloId} className="ajuda-agora">
-        <p className="ajuda-agora__rotulo">
-          Passo {ativa + 1} de {total}
-          {typeof inicioAtiva === 'number' && typeof fimAtiva === 'number' && (
-            <span className="ajuda-agora__tempo"> · {formatarInicio(inicioAtiva).replace(/,\d$/, '')}</span>
-          )}
-        </p>
-        <Titulo id={tituloId} className="ajuda-agora__titulo" style={{ fontFamily: T.display, fontWeight: W.title }}>
-          {step.title}
-        </Titulo>
-        <TextoNarrado key={step.id ?? ativa} texto={step.body} falas={falasDoPasso} atual={falaAtual} tempo={tempo} />
-      </section>
-
-      <ol className="ajuda-passos" aria-label="Passos do tutorial">
-        {steps.map((s, i) => {
-          const on = i === ativa;
-          const feito = i < ativa;
-          return (
-            <li key={s.id ?? i}>
+        <section className="ajuda-roteiro" aria-label="Transcrição do vídeo">
+          <div className="ajuda-roteiro__barra">
+            {temLegenda && (
               <button
                 type="button"
-                className={`ajuda-passo${on ? ' is-on' : ''}${feito ? ' is-feito' : ''}`}
-                aria-current={on ? 'step' : undefined}
-                onClick={() => irPara(i)}
+                className="ajuda-roteiro__legenda"
+                aria-pressed={legendaNoVideo}
+                title={legendaNoVideo ? 'Esconder a legenda do vídeo' : 'Mostrar a legenda no vídeo'}
+                onClick={() => setLegendaNoVideo((v) => !v)}
               >
-                <span className="ajuda-passo__num" aria-hidden="true">{i + 1}</span>
-                <span className="sr-only">{`Passo ${i + 1}: `}</span>
-                <span className="ajuda-passo__titulo">{s.title}</span>
-                {typeof s.start_s === 'number' && (
-                  <span className="ajuda-passo__tempo">
-                    <span className="sr-only">, começa em </span>
-                    {formatarInicio(s.start_s).replace(/,\d$/, '')}
-                  </span>
-                )}
+                <Captions size={20} aria-hidden="true" />
+                <span className="sr-only">Legenda no vídeo</span>
               </button>
-            </li>
-          );
-        })}
-      </ol>
+            )}
+            <div className="ajuda-roteiro__campo">
+              <Search size={17} aria-hidden="true" className="ajuda-roteiro__lupa" />
+              <label htmlFor={buscaId} className="sr-only">
+                Buscar na legenda
+              </label>
+              <input
+                id={buscaId}
+                type="search"
+                className="ajuda-busca ajuda-busca--legenda"
+                placeholder="Buscar na legenda"
+                autoComplete="off"
+                spellCheck={false}
+                value={busca}
+                onChange={(e) => {
+                  setBusca(e.target.value);
+                  pausarSeguir();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape' && busca) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    limparBusca();
+                  }
+                }}
+              />
+              {busca && (
+                <button type="button" className="ajuda-roteiro__limpar" aria-label="Limpar a busca na legenda" onClick={limparBusca}>
+                  <X size={16} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          </div>
 
-      <p className="sr-only" aria-live="polite">{anuncio}</p>
+          <p className="sr-only" role="status">
+            {termo
+              ? achados === 0
+                ? 'Nenhum trecho encontrado.'
+                : achados === 1
+                  ? '1 trecho encontrado.'
+                  : `${achados} trechos encontrados.`
+              : ''}
+          </p>
+
+          {semResultado ? (
+            <p className="ajuda-roteiro__vazio">
+              Nenhum trecho encontrado para “{busca.trim()}”.
+              <button type="button" onClick={limparBusca}>
+                Limpar a busca
+              </button>
+            </p>
+          ) : (
+            <ol
+              ref={listaEl}
+              className="ajuda-roteiro__lista"
+              aria-label="Passos do tutorial"
+            >
+              {visiveis.map(({ step: s, i, mostrar, corpo }) => {
+                const on = i === ativa;
+                return (
+                  <li key={s.id ?? i} className={`ajuda-roteiro__grupo${on ? ' is-on' : ''}`}>
+                    <Titulo className="ajuda-roteiro__passo" data-passo-atual={on ? '' : undefined}>
+                      <CabecaDoPasso
+                        indice={i}
+                        titulo={s.title}
+                        inicio={s.start_s}
+                        on={on}
+                        feito={i < ativa}
+                        termo={termo}
+                        onIr={aoIrPasso}
+                      />
+                    </Titulo>
+                    {mostrar.length > 0 && (
+                      <ol className="ajuda-deixas">
+                        {mostrar.map((f) => {
+                          const estado =
+                            f.k === falaAtual ? 'agora' : f.k < falaAtual ? (f.k === falaAtual - 1 ? 'antes' : 'dita') : 'vem';
+                          // Só a fala atual recebe um `andou` que muda com o tempo; as
+                          // outras, um valor fixo, e por isso não re-renderizam.
+                          const andou =
+                            estado === 'agora'
+                              ? Math.min(1, Math.max(0, (tempo - f.inicio) / Math.max(0.001, f.fim - f.inicio)))
+                              : estado === 'vem'
+                                ? 0
+                                : 1;
+                          return (
+                            <Fala key={`${f.inicio}-${f.k}`} fala={f} passo={i} estado={estado} andou={andou} termo={termo} onIr={aoIrFala} />
+                          );
+                        })}
+                      </ol>
+                    )}
+                    {corpo && s.body && (
+                      <p className="ajuda-deixa ajuda-deixa--corpo">
+                        <Realce texto={s.body} termo={termo} />
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </section>
+      </div>
+
+      <p className="sr-only" aria-live="polite">
+        {anuncio}
+      </p>
     </div>
   );
 }
+
+/** Uma fala da transcrição. Memorizada: só re-renderiza quando o estado dela muda. */
+const Fala = memo(function Fala({ fala, passo, estado, andou, termo, onIr }) {
+  return (
+    <li data-fala-atual={estado === 'agora' ? '' : undefined}>
+      <button
+        type="button"
+        className={`ajuda-deixa is-${estado}`}
+        aria-current={estado === 'agora' ? 'true' : undefined}
+        onClick={() => onIr(fala, passo)}
+      >
+        <span className="ajuda-deixa__tempo">{tempoCurto(fala.inicio)}</span>
+        {/* O invólucro é o item da grade; a fala fica em linha dentro dele, e o
+            marca-texto acompanha as quebras de linha em vez de pintar um bloco. */}
+        <span className="ajuda-deixa__texto">
+          <span className={`ajuda-fala ajuda-fala--${estado}`} style={{ '--andou': andou }}>
+            <Realce texto={fala.texto} termo={termo} />
+          </span>
+        </span>
+      </button>
+    </li>
+  );
+});
+
+/** O cabeçalho de um passo na transcrição (e o cartão no modo texto): número, título e início. */
+const CabecaDoPasso = memo(function CabecaDoPasso({ indice, titulo, inicio, on, feito, termo, onIr }) {
+  return (
+    <button
+      type="button"
+      className={`ajuda-cabeca${on ? ' is-on' : ''}${feito ? ' is-feito' : ''}`}
+      aria-current={on ? 'step' : undefined}
+      onClick={() => onIr(indice)}
+    >
+      <span className="ajuda-cabeca__num" aria-hidden="true">
+        {indice + 1}
+      </span>
+      <span className="sr-only">{`Passo ${indice + 1}: `}</span>
+      <span className="ajuda-cabeca__titulo">
+        <Realce texto={titulo} termo={termo} />
+      </span>
+      {typeof inicio === 'number' && (
+        <span className="ajuda-cabeca__tempo">
+          <span className="sr-only">, começa em </span>
+          {tempoCurto(inicio)}
+        </span>
+      )}
+    </button>
+  );
+});
 
 /**
  * A linha de capítulos: um trecho por passo, do tamanho dele no vídeo.
@@ -304,8 +629,8 @@ function PassoAPassoComVideo({ feature, steps, total, ativa, setAtiva, passo, on
  * Os trechos já passados ficam cheios, o atual enche com o tempo, e os
  * próximos ficam vazios. As frestas entre os trechos são as marcas dos
  * capítulos. É um atalho de ponteiro (clicar leva ao capítulo) e uma leitura
- * visual: fica fora do leitor de tela e do Tab, porque a lista de passos logo
- * abaixo já dá o mesmo caminho, com nome.
+ * visual: fica fora do leitor de tela e do Tab, porque os passos da
+ * transcrição já dão o mesmo caminho, com nome.
  */
 function LinhaDeCapitulos({ steps, ativa, progresso, duracao, onIr }) {
   const marcados = steps.map((s, i) => ({ i, inicio: s.start_s })).filter((m) => typeof m.inicio === 'number');
@@ -334,91 +659,16 @@ function LinhaDeCapitulos({ steps, ativa, progresso, duracao, onIr }) {
   );
 }
 
-/**
- * O texto do passo, frase a frase, acompanhando a fala.
- *
- * Com as falas cronometradas, cada uma vira um trecho: a dita agora fica
- * acesa, com o marca-texto andando por baixo no ritmo da fala; a anterior
- * apagada; as que vêm, mais apagadas. A troca é por transição de cor e do
- * tamanho do fundo, e não de bloco: a leitura escorre de uma frase para a
- * outra. Com movimento reduzido, o marca-texto aparece inteiro, sem andar.
- *
- * Sem falas (passo sem tempo), é o texto corrido, como no modo texto.
- */
-function TextoNarrado({ texto, falas, atual, tempo }) {
-  if (!falas || falas.length === 0) {
-    return <p className="ajuda-narrado">{texto}</p>;
-  }
-  return (
-    <p className="ajuda-narrado">
-      {falas.map((f, i) => {
-        const estado = i === atual ? 'agora' : i < atual ? i === atual - 1 ? 'antes' : 'dita' : 'vem';
-        const duracao = Math.max(0.001, f.fim - f.inicio);
-        const andou = i === atual ? Math.min(1, Math.max(0, (tempo - f.inicio) / duracao)) : i < atual ? 1 : 0;
-        return (
-          <span key={`${f.inicio}-${i}`}>
-            <span className={`ajuda-fala ajuda-fala--${estado}`} style={{ '--andou': andou }}>
-              {f.texto}
-            </span>
-            {i < falas.length - 1 ? ' ' : ''}
-          </span>
-        );
-      })}
-    </p>
-  );
-}
-
-/* ── Sem vídeo: passo a passo em texto, navegação manual ──────────────────── */
+/* ── Sem vídeo: todos os passos em texto ──────────────────────────────────── */
 
 function PassoAPassoEmTexto({ steps, total, ativa, setAtiva, onPassoChange, tituloNivel }) {
-  const base = useId();
-  const abasEl = useRef([]);
-  const anteriorEl = useRef(null);
-  const proximoEl = useRef(null);
-  const painelEl = useRef(null);
-
-  const irPara = (indice, { focar = false } = {}) => {
+  const escolher = (indice) => {
     if (indice < 0 || indice >= total) return;
     setAtiva(indice);
     onPassoChange?.(indice);
-    if (focar) abasEl.current[indice]?.focus();
   };
 
-  /**
-   * Chegando à ponta, o botão clicado vira `disabled` e perderia o foco: ele
-   * vai para o botão do outro lado, o próximo gesto provável; com um passo só,
-   * para o painel.
-   */
-  const andarPeloBotao = (direcao) => {
-    const destino = ativa + direcao;
-    if (destino < 0 || destino >= total) return;
-    irPara(destino);
-    const naPonta = direcao < 0 ? destino === 0 : destino === total - 1;
-    if (!naPonta) return;
-    const outro = direcao < 0 ? proximoEl.current : anteriorEl.current;
-    if (outro && total > 1) outro.focus();
-    else painelEl.current?.focus();
-  };
-
-  // Padrão WAI-ARIA de tablist, vertical e com ativação automática.
-  const aoTeclar = (e) => {
-    const mapa = {
-      ArrowRight: (ativa + 1) % total,
-      ArrowDown: (ativa + 1) % total,
-      ArrowLeft: (ativa - 1 + total) % total,
-      ArrowUp: (ativa - 1 + total) % total,
-      Home: 0,
-      End: total - 1,
-    };
-    if (!(e.key in mapa)) return;
-    e.preventDefault();
-    irPara(mapa[e.key], { focar: true });
-  };
-
-  const step = steps[Math.min(ativa, total - 1)];
   const Titulo = tituloNivel;
-  const painelId = `${base}-painel`;
-  const abaId = (i) => `${base}-aba-${i}`;
 
   return (
     <div className="ajuda-player ajuda-player--texto">
@@ -426,69 +676,22 @@ function PassoAPassoEmTexto({ steps, total, ativa, setAtiva, onPassoChange, titu
         <ListOrdered size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
         <span>{SELO_TEXTO}</span>
         <span aria-hidden="true" className="ajuda-modo-texto__sep">·</span>
-        <span style={{ color: T.mute }}>{total === 1 ? '1 passo' : `${total} passos`}</span>
+        <span style={{ color: 'var(--color-mute)' }}>{total === 1 ? '1 passo' : `${total} passos`}</span>
       </p>
 
-      <div
-        ref={painelEl}
-        id={painelId}
-        role="tabpanel"
-        aria-labelledby={abaId(ativa)}
-        tabIndex={0}
-        className="ajuda-agora ajuda-painel"
-        style={{ borderRadius: R.card }}
-      >
-        <p className="ajuda-agora__rotulo">Passo {ativa + 1} de {total}</p>
-        {total > 1 && (
-          // A trilha repete o "Passo N de M" em forma de caminho, e por isso
-          // fica fora do leitor de tela.
-          <div aria-hidden="true" className="ajuda-trilha">
-            {steps.map((s, i) => (
-              <span key={s.id ?? i} className={`ajuda-trilha__seg${i <= ativa ? ' is-feito' : ''}`} />
-            ))}
-          </div>
-        )}
-        <Titulo className="ajuda-agora__titulo" style={{ fontFamily: T.display, fontWeight: W.title }}>
-          {step.title}
-        </Titulo>
-        <p className="ajuda-narrado ajuda-narrado--texto">{step.body}</p>
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
-          <Button variant="secondary" ref={anteriorEl} onClick={() => andarPeloBotao(-1)} disabled={ativa === 0} style={{ flex: '1 1 140px' }}>
-            <ArrowLeft size={16} aria-hidden="true" /> Passo anterior
-          </Button>
-          <Button variant="primary" ref={proximoEl} onClick={() => andarPeloBotao(1)} disabled={ativa === total - 1} style={{ flex: '1 1 140px' }}>
-            Próximo passo <ArrowRight size={16} aria-hidden="true" />
-          </Button>
-        </div>
-      </div>
-
-      <div role="tablist" aria-label="Passos do tutorial" aria-orientation="vertical" className="ajuda-passos">
+      <ol className="ajuda-roteiro ajuda-roteiro--texto" aria-label="Passos do tutorial">
         {steps.map((s, i) => {
           const on = i === ativa;
           return (
-            <button
-              key={s.id ?? i}
-              ref={(el) => {
-                abasEl.current[i] = el;
-              }}
-              id={abaId(i)}
-              type="button"
-              role="tab"
-              aria-selected={on}
-              aria-controls={painelId}
-              tabIndex={on ? 0 : -1}
-              className={`ajuda-passo${on ? ' is-on' : ''}${i < ativa ? ' is-feito' : ''}`}
-              onClick={() => irPara(i)}
-              onKeyDown={aoTeclar}
-            >
-              <span className="ajuda-passo__num" aria-hidden="true">{i + 1}</span>
-              <span className="sr-only">{`Passo ${i + 1}: `}</span>
-              <span className="ajuda-passo__titulo">{s.title}</span>
-            </button>
+            <li key={s.id ?? i} className={`ajuda-cartao-passo${on ? ' is-on' : ''}`}>
+              <Titulo className="ajuda-roteiro__passo">
+                <CabecaDoPasso indice={i} titulo={s.title} on={on} feito={i < ativa} onIr={escolher} />
+              </Titulo>
+              {s.body && <p className="ajuda-narrado ajuda-narrado--texto">{s.body}</p>}
+            </li>
           );
         })}
-      </div>
+      </ol>
     </div>
   );
 }

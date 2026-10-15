@@ -1,6 +1,8 @@
 import { render } from '@testing-library/react';
 import RootPage from '@/app/page';
+import { SoNoCelular } from '@/app/components/TelaPorLargura';
 import { useAuthStore } from '@/app/store/auth';
+import { simularAparelho, COMPUTADOR, TELEFONE } from './helpers/aparelho';
 
 const replace = jest.fn();
 jest.mock('next/navigation', () => ({ useRouter: () => ({ replace: (...a) => replace(...a) }) }));
@@ -13,15 +15,8 @@ jest.mock('next/navigation', () => ({ useRouter: () => ({ replace: (...a) => rep
  * para a tela de vistoria — telas que não têm nada do que essas contas fazem.
  */
 function comoUsuario(user, { desktop = false } = {}) {
-  window.matchMedia = (query) => ({
-    matches: desktop && query.includes('1024'),
-    media: query,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  });
+  // `desktop` aceita o aparelho inteiro (largura e mouse) ou só verdadeiro/falso.
+  simularAparelho(desktop === true ? COMPUTADOR : desktop || TELEFONE);
   useAuthStore.setState({ user, isLoading: false });
 }
 
@@ -138,5 +133,41 @@ describe('para onde a raiz manda cada conta', () => {
     comoUsuario({ kind: 'USER', role: 'ADMIN', memberships: [] }, { desktop: true });
     render(<RootPage />);
     expect(replace).toHaveBeenCalledWith('/desktop/admin/dashboard');
+  });
+});
+
+/**
+ * O caso que motivou a regra por aparelho: PC com a janela pela metade (meia
+ * tela com escala de 125% dá uns 920px CSS). Antes caía no telefone.
+ */
+describe('computador com a janela estreita', () => {
+  const inspetor = {
+    kind: 'USER',
+    role: 'NONE',
+    memberships: [{ building_id: 'p1', role: 'INSPECTOR' }],
+  };
+
+  it('com mouse a 900px a raiz manda para a mesa do computador', () => {
+    comoUsuario(inspetor, { desktop: { largura: 900, mouse: true } });
+    render(<RootPage />);
+    expect(replace).toHaveBeenLastCalledWith('/desktop/inspetor');
+  });
+
+  it('com toque a 900px (tablet) continua no celular', () => {
+    comoUsuario(inspetor, { desktop: { largura: 900, mouse: false } });
+    render(<RootPage />);
+    expect(replace).toHaveBeenLastCalledWith('/home');
+  });
+
+  it('a tela só de celular leva o mouse de 900px para a versão do computador', () => {
+    comoUsuario(inspetor, { desktop: { largura: 900, mouse: true } });
+    render(<SoNoCelular><p>tela do celular</p></SoNoCelular>);
+    expect(replace).toHaveBeenCalledWith('/desktop/inspetor');
+  });
+
+  it('a mesma tela não redireciona o tablet de toque de 900px', () => {
+    comoUsuario(inspetor, { desktop: { largura: 900, mouse: false } });
+    render(<SoNoCelular><p>tela do celular</p></SoNoCelular>);
+    expect(replace).not.toHaveBeenCalled();
   });
 });

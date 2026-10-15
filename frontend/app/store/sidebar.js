@@ -1,6 +1,7 @@
 'use client';
 import { useEffect } from 'react';
 import { create } from 'zustand';
+import { useMediaQuery } from '@/app/hooks/useMediaQuery';
 
 /**
  * A barra lateral está aberta ou recolhida.
@@ -50,10 +51,29 @@ export const useSidebarStore = create((set, get) => ({
     set({ collapsed: next, animated: true });
   },
 
+  /**
+   * Aberta à mão numa janela estreita (ver `JANELA_ESTREITA`). Não vai para o
+   * storage: é um empréstimo de espaço, e alargar a janela devolve a barra à
+   * escolha guardada.
+   */
+  abertaNoEstreito: false,
+
+  toggleNoEstreito: () => {
+    set({ abertaNoEstreito: !get().abertaNoEstreito, animated: true });
+  },
+
   enableAnimation: () => {
     if (!get().animated) set({ animated: true });
   },
 }));
+
+/**
+ * Computador com a janela estreita: entre 768 e 1023px (ver DESKTOP_QUERY) a
+ * tela continua sendo a de computador, e 224px de barra aberta comeriam um
+ * terço da largura. Aqui ela começa como trilho de ícones, sem mexer na escolha
+ * guardada para a janela larga.
+ */
+export const JANELA_ESTREITA = '(max-width: 1023.98px)';
 
 /**
  * O que a barra precisa saber: se está recolhida, se pode animar, e como virar.
@@ -64,9 +84,14 @@ export const useSidebarStore = create((set, get) => ({
  * efeito, e a animação só entra no quadro seguinte.
  */
 export function useSidebar() {
-  const collapsed = useSidebarStore((s) => s.collapsed);
+  const recolhidaGuardada = useSidebarStore((s) => s.collapsed);
   const animated = useSidebarStore((s) => s.animated);
-  const toggle = useSidebarStore((s) => s.toggle);
+  const toggleGuardado = useSidebarStore((s) => s.toggle);
+  const abertaNoEstreito = useSidebarStore((s) => s.abertaNoEstreito);
+  const toggleNoEstreito = useSidebarStore((s) => s.toggleNoEstreito);
+  const estreita = useMediaQuery(JANELA_ESTREITA);
+  const collapsed = estreita ? !abertaNoEstreito : recolhidaGuardada;
+  const toggle = estreita ? toggleNoEstreito : toggleGuardado;
   const hydrate = useSidebarStore((s) => s.hydrate);
   const enableAnimation = useSidebarStore((s) => s.enableAnimation);
 

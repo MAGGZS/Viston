@@ -87,10 +87,10 @@ export function RouteGuard({ children, roles = [], manages, qualquerAparelho = f
   /**
    * Quem só visualiza não tem acesso no mobile.
    *
-   * A decisão é do CSS, não do JS. O `lg:` do Tailwind troca no mesmo frame do
+   * A decisão é do CSS, não do JS. O `desk:` (ver globals.css) troca no mesmo frame do
    * resize; o `isDesktop` depende do evento `change` do matchMedia chegar, e
    * enquanto ele não chega o conteúdo mobile já apareceu. Com o par
-   * `hidden lg:contents` / `lg:hidden`, abaixo de 1024px não existe frame em que
+   * `hidden desk:contents` / `desk:hidden`, fora do computador não existe frame em que
    * a tela vaze.
    *
    * O JS ainda decide se monta: em mobile estável nada é montado, nenhuma
@@ -109,8 +109,8 @@ export function RouteGuard({ children, roles = [], manages, qualquerAparelho = f
     if (!isDesktop) return <DesktopOnly buildings={buildings} />;
     return (
       <>
-        <div className="hidden lg:contents">{children}</div>
-        <div className="lg:hidden"><DesktopOnly buildings={buildings} /></div>
+        <div className="hidden desk:contents">{children}</div>
+        <div className="desk:hidden"><DesktopOnly buildings={buildings} /></div>
       </>
     );
   }

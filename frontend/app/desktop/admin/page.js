@@ -170,10 +170,10 @@ export default function AdminUsersPage() {
 
   return (
     <RouteGuard roles={['ADMIN']}>
-      <div className="hidden lg:flex min-h-screen bg-page">
+      <div className="hidden desk:flex min-h-screen bg-page">
         <AdminSidebar />
-        <main id={CONTENT_ID} className="flex-1 px-6 py-8">
-          <div className="flex items-center justify-between mb-8">
+        <main id={CONTENT_ID} className="flex-1 min-w-0 px-6 py-8">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
             <div className="anim-fade-down">
               <h1 className="text-2xl font-semibold text-ink">Usuários</h1>
               <p className="text-mute text-sm mt-0.5">
@@ -187,8 +187,9 @@ export default function AdminUsersPage() {
             </div>
           </div>
 
-          {/* Tabela */}
-          <div className="anim-fade-up anim-d1 bg-card rounded-card overflow-hidden">
+          {/* Tabela. Rola de lado em vez de cortar o e-mail quando a janela do
+              computador é estreita (768–1023px, ver `desk:`). */}
+          <div className="anim-fade-up anim-d1 bg-card rounded-card overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-line">
@@ -270,7 +271,7 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Mobile: redirecionar para home */}
-      <div className="lg:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
+      <div className="desk:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
         <div>
           <p className="text-4xl mb-4">🖥️</p>
           <p className="text-ink font-semibold text-lg">Painel Admin</p>

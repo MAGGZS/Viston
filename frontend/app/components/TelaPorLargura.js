@@ -75,7 +75,7 @@ function AvisoDeLargura({ className, icon: Icon, titulo, texto, href, acao }) {
  * Tela que só existe no celular.
  *
  * Como o `RouteGuard` do visualizador, quem esconde é o CSS: o par
- * `lg:hidden` / `hidden lg:flex` troca no mesmo quadro do redimensionamento, sem
+ * `desk:hidden` / `hidden desk:flex` troca no mesmo quadro do redimensionamento, sem
  * esperar evento nenhum do JavaScript. O JavaScript só decide o redirecionamento,
  * e só na chegada — ver `AvisoDeLargura` para o porquê de não seguir o resize.
  *
@@ -95,9 +95,9 @@ export function SoNoCelular({ children, destino }) {
 
   return (
     <>
-      <div className="lg:hidden">{children}</div>
+      <div className="desk:hidden">{children}</div>
       <AvisoDeLargura
-        className="hidden lg:flex"
+        className="hidden desk:flex"
         icon={Smartphone}
         titulo="Esta tela é do celular"
         texto="No computador, o mesmo trabalho tem uma tela própria, com mais espaço."
@@ -136,7 +136,7 @@ export function SoNoComputador({
     <>
       {children}
       <AvisoDeLargura
-        className="flex lg:hidden"
+        className="flex desk:hidden"
         icon={Monitor}
         titulo="Esta tela é do computador"
         texto={texto}

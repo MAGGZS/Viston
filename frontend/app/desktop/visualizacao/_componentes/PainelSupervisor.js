@@ -71,7 +71,9 @@ export function NumerosDaAgenda({ schedules, loading, semInspetor = 0 }) {
   const s = schedules ?? {};
   const c = contagensDaAgenda(schedules);
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16 }}>
+    // Quatro colunas a partir de 1024px; no computador de janela estreita
+    // (768–1023px, ver `desk:`) duas, para os rótulos não quebrarem em três linhas.
+    <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: 16 }}>
       <StatCard
         className="anim-fade-up"
         icon={CalendarClock}

@@ -349,7 +349,7 @@ export default function PainelDoResponsavelPage() {
       }
     >
       <div style={{ flex: 1, overflowY: 'auto', padding: '2px 32px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 16 }}>
+        <div className="fileira-de-cinco" style={{ gap: 16 }}>
           <StatCard className="anim-fade-up anim-d1" icon={Inbox} label="A receber" value={aReceber} loading={isLoading} />
           <StatCard className="anim-fade-up anim-d2" icon={Spline} label="Em andamento" value={andamento} loading={isLoading} />
           <StatCard className="anim-fade-up anim-d3" icon={UserCheck} label="Com o moderador" value={comModerador} loading={isLoading} />
@@ -357,7 +357,7 @@ export default function PainelDoResponsavelPage() {
           <StatCard className="anim-fade-up anim-d5" icon={AlertTriangle} label="Fora do prazo" value={atrasados} loading={isLoading} alerta />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 20, alignItems: 'start' }}>
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" style={{ gap: 20, alignItems: 'start' }}>
           <PrecisaDeVoce tickets={tickets} isLoading={isLoading} onAbrir={(t) => setAberto(t)} />
           <SeuRitmo tickets={tickets} isLoading={isLoading} />
         </div>

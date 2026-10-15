@@ -103,7 +103,10 @@ function DesktopSheet({ report, entries, totalRecords }) {
             {records.length === 0 ? (
               <p style={D.empty}>Nada a relatar neste andar.</p>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 12 }}>
+              // Rola de lado dentro da folha, e não a caixa inteira, quando a
+              // janela do computador é estreita (768–1023px, ver `desk:`).
+              <div style={{ overflowX: 'auto', marginTop: 12 }}>
+              <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
                     <th style={{ ...D.th, width: 150 }}>Tipo</th>
@@ -131,6 +134,7 @@ function DesktopSheet({ report, entries, totalRecords }) {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </section>
         );
@@ -262,6 +266,13 @@ function MobileSheet({ report, entries, totalRecords }) {
 }
 
 /**
+ * 1000px, mas nunca mais larga que a janela: entre 768 e 1023px a tela já é a de
+ * computador (ver `desk:`), e com 1000 fixos o X e "Gerar planilha" ficavam
+ * fora da tela.
+ */
+const LARGURA_NO_COMPUTADOR = 'min(1000px, calc(100vw - 32px))';
+
+/**
  * O relatório completo, em folha de documento dentro de um modal.
  *
  * O `reportId` continua sendo o de uma vistoria — é o que a linha do histórico
@@ -300,7 +311,7 @@ export function ReportDocumentModal({ open, onClose, reportId }) {
   // No telefone o relatório ocupa a tela inteira: sobra de margem só encolhe a
   // única coisa que interessa aqui, que é o texto da ocorrência.
   const shellStyle = isDesktop
-    ? { width: 1000, maxHeight: '92vh', borderRadius: R.control }
+    ? { width: LARGURA_NO_COMPUTADOR, maxHeight: '92vh', borderRadius: R.control }
     : { width: '100vw', height: '100vh', maxHeight: '100vh', borderRadius: 0 };
 
   return (
@@ -308,7 +319,7 @@ export function ReportDocumentModal({ open, onClose, reportId }) {
       onClose={onClose}
       className={`${closing ? 'is-closing' : ''} ${isDesktop ? '' : 'dialog--full'}`}
       labelledBy={titleId}
-      style={isDesktop ? { width: 1000 } : { width: '100vw', maxWidth: '100vw', height: '100vh' }}
+      style={isDesktop ? { width: LARGURA_NO_COMPUTADOR } : { width: '100vw', maxWidth: '100vw', height: '100vh' }}
     >
       <div className={closing ? 'anim-scale-out' : 'anim-scale-in'} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', ...shellStyle }}>
         {/* Barra de ações — fora da folha, para o documento ficar limpo */}

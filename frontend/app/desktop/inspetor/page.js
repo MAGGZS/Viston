@@ -258,7 +258,7 @@ export default function InspetorDesktopPage() {
         destinoNoCelular="/home"
         texto="No celular, a sua agenda e a vistoria ficam na tela inicial."
       >
-        <div className="hidden lg:flex" style={{ minHeight: '100vh', background: T.bg }}>
+        <div className="hidden desk:flex" style={{ minHeight: '100vh', background: T.bg }}>
           <InspetorSidebar buildingName={buildings.find((b) => b.building_id === buildingId)?.name} />
 
           <main id={CONTENT_ID} style={{ flex: 1, minWidth: 0, maxHeight: '100vh', overflowY: 'auto' }}>
@@ -267,7 +267,7 @@ export default function InspetorDesktopPage() {
                   o conteúdo que vem depois ganharia o empilhamento. */}
               <header
                 className="anim-fade-down"
-                style={{ position: 'relative', zIndex: 20, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, marginBottom: 28 }}
+                style={{ position: 'relative', zIndex: 20, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, marginBottom: 28 }}
               >
                 <div style={{ minWidth: 0 }}>
                   <p style={{ fontSize: 13, color: T.mute }}>

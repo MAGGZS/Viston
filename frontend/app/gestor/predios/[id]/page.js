@@ -226,7 +226,7 @@ export default function GestorBuildingPage() {
             de entrada dele não dizia uma palavra sobre prazo — ele precisava
             abrir o painel analítico para descobrir que havia chamado vencido.
             Quem responde pelo prédio tem de ver isso ao chegar. */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {[
             { icon: ClipboardList, label: 'Total de inspeções', value: data?.totalInspections },
             { icon: Users, label: 'Inspetores', value: data?.inspectorCount },
@@ -255,7 +255,7 @@ export default function GestorBuildingPage() {
             legenda, do tamanho do que sobrava da tabela ao lado. É o mesmo
             ajuste que o painel do moderador já faz. */}
         {/* Pizza de categorias + Histórico */}
-        <div className="anim-fade-up anim-d4 grid grid-cols-3 gap-6 items-start">
+        <div className="anim-fade-up anim-d4 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           <OcorrenciasPorCategoriaPizza
             buildingId={id}
             className="col-span-1"
@@ -263,7 +263,7 @@ export default function GestorBuildingPage() {
           />
 
           <div
-            className="col-span-2 bg-card rounded-card overflow-hidden"
+            className="lg:col-span-2 bg-card rounded-card overflow-hidden"
             style={{ height: 568, display: 'flex', flexDirection: 'column' }}
           >
             <div className="px-6 py-4 border-b border-line" style={{ flexShrink: 0 }}>

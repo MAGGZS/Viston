@@ -5,6 +5,7 @@ import { useAuthStore } from '@/app/store/auth';
 import { Logo } from '@/app/components/Logo';
 import { destinoNoComputador } from '@/app/components/TelaPorLargura';
 import { canInspect, isAdmin, isManagerAccount, isResponsible, memberships } from '@/app/lib/roles';
+import { DESKTOP_QUERY } from '@/app/hooks/useMediaQuery';
 
 export default function RootPage() {
   const { user, isLoading } = useAuthStore();
@@ -26,7 +27,7 @@ export default function RootPage() {
       return;
     }
 
-    const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
+    const isDesktop = window.matchMedia(DESKTOP_QUERY).matches;
 
     if (isAdmin(user)) {
       router.replace(isDesktop ? '/desktop/admin/dashboard' : '/home');

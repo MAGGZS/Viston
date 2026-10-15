@@ -383,7 +383,10 @@ export default function HistoricoPage() {
       {!isAdmin && !buildingsLoading && !hasBuilding ? (
         <div style={{ padding: '0 32px' }}><NoPredioState /></div>
       ) : (
-        <div style={{ padding: '2px 32px 32px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, overflowY: 'auto' }}>
+        // Lista e calendário lado a lado a partir de 1024px; no computador de
+        // janela estreita (ver `desk:`) um embaixo do outro — lado a lado, cada
+        // coluna ficava com uns 300px, largura de telefone.
+        <div className="grid grid-cols-1 lg:grid-cols-2" style={{ padding: '2px 32px 32px', gap: 24, overflowY: 'auto' }}>
           <div className="anim-fade-up anim-d1" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <HistoricoSwitcher
               view={historico.view}

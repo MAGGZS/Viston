@@ -109,7 +109,7 @@ export default function TutoriaisAdminPage() {
 
   return (
     <RouteGuard roles={['ADMIN']}>
-      <div className="hidden lg:flex min-h-screen bg-page">
+      <div className="hidden desk:flex min-h-screen bg-page">
         <AdminSidebar />
         <main
           ref={mainEl}

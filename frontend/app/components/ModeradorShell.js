@@ -21,7 +21,7 @@ export function useModeratorBuilding() {
 /**
  * Aviso de que a mesa do moderador é tela larga.
  *
- * O layout mora nas classes, e não no `style`: `lg:hidden` esconde por folha de
+ * O layout mora nas classes, e não no `style`: `desk:hidden` esconde por folha de
  * estilo, e um `display` inline venceria essa regra — o aviso ficava no fim da
  * página no desktop, com uma tela inteira de rolagem atrás do painel. Nada de
  * `display` inline aqui.
@@ -29,7 +29,7 @@ export function useModeratorBuilding() {
 function DesktopOnly() {
   return (
     <div
-      className="lg:hidden flex flex-col items-center justify-center min-h-screen text-center"
+      className="desk:hidden flex flex-col items-center justify-center min-h-screen text-center"
       style={{ background: T.bg, padding: 32 }}
     >
       <div className="anim-pop-in" style={{ fontSize: 44, marginBottom: 16 }}>🖥️</div>
@@ -66,7 +66,7 @@ function NoBuilding() {
 export function ModeradorShell({ building, isLoading, title, subtitle, actions, ownHeader = false, children }) {
   return (
     <RouteGuard roles={['MODERADOR', 'GESTOR', 'ADMIN']}>
-      <div className="hidden lg:flex" style={{ minHeight: '100vh', background: T.bg }}>
+      <div className="hidden desk:flex" style={{ minHeight: '100vh', background: T.bg }}>
         <ModeradorSidebar buildingId={building?.building_id} buildingName={building?.name} />
 
         <main id={CONTENT_ID} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: '100vh', overflow: 'hidden' }}>
@@ -81,7 +81,7 @@ export function ModeradorShell({ building, isLoading, title, subtitle, actions, 
               telas continuam recebendo o cabeçalho daqui, e é o que mantém as
               duas mesas parecidas. */}
           {!ownHeader && (
-            <header className="anim-fade-down" style={{ padding: '28px 32px 20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
+            <header className="anim-fade-down" style={{ padding: '28px 32px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
               <div>
                 <h1 style={{ color: T.text, fontSize: 22, fontWeight: W.title }}>{title}</h1>
                 {subtitle && <p style={{ color: T.mute, fontSize: 14, marginTop: 4 }}>{subtitle}</p>}

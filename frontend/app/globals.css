@@ -1,6 +1,22 @@
 @import "tailwindcss";
 @source "../app/**/*.{js,jsx,ts,tsx}";
 
+/*
+ * `desk:` — a troca entre a experiência de telefone e a de computador.
+ *
+ * O mesmo critério de DESKTOP_QUERY (app/hooks/useMediaQuery.js), e os dois
+ * precisam andar juntos: CSS e JS decidem no mesmo quadro. A partir de 1024px
+ * é sempre computador; com mouse ou trackpad, já a partir de 768px — um PC com
+ * a janela pela metade não pode cair na tela de celular. `lg:` continua
+ * existindo, mas só para ajuste de largura dentro de uma tela que já é de
+ * computador; quem troca de experiência é o `desk:`.
+ */
+@custom-variant desk {
+  @media (min-width: 1024px), (hover: hover) and (pointer: fine) and (min-width: 768px) {
+    @slot;
+  }
+}
+
 /* Mesmos tokens de app/lib/theme.js, expostos como utilitários:
    bg-page, bg-card, bg-chip, text-mute, border-line, rounded-card... */
 @theme {
@@ -1944,7 +1960,8 @@ input:-webkit-autofill:focus {
   margin: 0 auto;
 }
 
-@media (min-width: 1024px) {
+/* Mesmo critério do `desk:` (ver o topo): segue o `isDesktop` do AjudaShell. */
+@media (min-width: 1024px), (hover: hover) and (pointer: fine) and (min-width: 768px) {
   .ajuda-miolo { padding: 0 16px; }
 }
 
@@ -1952,16 +1969,18 @@ input:-webkit-autofill:focus {
   padding: calc(20px + env(safe-area-inset-top)) 0 22px;
 }
 
-@media (min-width: 1024px) {
+/* Mesmo critério do `desk:` (ver o topo): segue o `isDesktop` do AjudaShell. */
+@media (min-width: 1024px), (hover: hover) and (pointer: fine) and (min-width: 768px) {
   .ajuda-topo { padding: 28px 0 24px; }
 }
 
-/* A coluna do tutorial: player e "Isso ajudou?" um sobre o outro. */
+/* A coluna do tutorial: player e "Isso ajudou?" um sobre o outro. Ocupa a
+   coluna da grade (até ~1200px); a leitura já é limitada por linha na transcrição. */
 .ajuda-tutorial {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  max-width: 880px;
+  max-width: 1200px;
 }
 
 /* Grade das pastas: uma coluna no telefone, duas no tablet, três no computador. */
@@ -2070,20 +2089,65 @@ input:-webkit-autofill:focus {
   flex-direction: column;
   padding: 28px 32px 0;
 }
+/* Título e grade dividem a mesma largura e o mesmo centro: numa tela larga a
+   mesa fica no meio, e o título continua alinhado à borda da árvore. */
 .ajuda-mesa__titulo {
   font-size: 22px;
   margin-bottom: 20px;
+  width: 100%;
+  max-width: 1520px;
+  margin-inline: auto;
 }
 .ajuda-mesa__grade {
   flex: 1;
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 8px;
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1520px;
+  margin-inline: auto;
 }
 .ajuda-mesa__conteudo {
   min-width: 0;
   padding: 0 8px 48px 24px;
+}
+/* Cinco cartões numa fileira (painel do moderador e do responsável). No
+   computador de janela estreita (768–1023px, ver `desk:`) cinco não cabem, e
+   três por linha deixava um buraco embaixo: numa grade de 6, os três primeiros
+   ocupam 2 cada e os dois últimos 3 cada — duas linhas cheias. */
+.fileira-de-cinco {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.fileira-de-cinco > * { grid-column: span 2; }
+.fileira-de-cinco > :nth-child(n + 4) { grid-column: span 3; }
+@media (min-width: 1024px) {
+  .fileira-de-cinco { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .fileira-de-cinco > *,
+  .fileira-de-cinco > :nth-child(n + 4) { grid-column: auto; }
+}
+
+/* ── Configurações da conta no computador (app/perfil) ──────────────────────
+ * Colunas e respiro em CSS, e não no `style`, para encolherem no computador de
+ * janela estreita (768–1023px, ver `desk:`): ali o painel da direita fica com
+ * uns 400px, e dois campos por linha cortariam o e-mail no meio.
+ */
+.conta-mesa { padding: 28px 32px 0; }
+.conta-mesa__grade { grid-template-columns: 186px minmax(0, 1fr); }
+.conta-campos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 1023.98px) {
+  .conta-mesa { padding: 24px 20px 0; }
+  .conta-mesa__grade { grid-template-columns: 164px minmax(0, 1fr); }
+  .conta-campos { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Computador com a janela estreita (768–1023px, ver `desk:`): a árvore cede
+   60px e as margens encolhem, para a coluna de leitura não ficar espremida. */
+@media (max-width: 1023.98px) {
+  .ajuda-mesa { padding: 24px 20px 0; }
+  .ajuda-mesa__grade { grid-template-columns: 220px minmax(0, 1fr); }
+  .ajuda-mesa__conteudo { padding: 0 4px 40px 16px; }
+  .ajuda-faixa { padding: 0 20px; }
 }
 
 /* A coluna da árvore. A divisória fica nela, que estica até o fim da grade;
@@ -2266,31 +2330,37 @@ input:-webkit-autofill:focus {
  * Fundo preto nos dois temas: é a cor de onde o vídeo sai, e um palco branco no
  * tema claro faria as tarjas laterais de um vídeo em pé parecerem moldura.
  *
- * O vídeo gravado no celular é em pé. Na largura toda ele passaria da altura da
- * tela, e os controles ficariam abaixo da dobra; o teto de altura mantém o vídeo
- * inteiro à vista, centrado no palco.
+ * O vídeo em pé, na largura toda, passaria da altura da tela e os controles
+ * ficariam abaixo da dobra; o teto de altura mantém o vídeo inteiro à vista.
  */
 .ajuda-palco {
   background: #000;
   border-radius: var(--radius-card);
   overflow: hidden;
+  min-width: 0;
 }
 .ajuda-palco video {
   display: block;
   width: 100%;
   max-height: 70vh;
+  max-height: 70svh;
   margin: 0 auto;
   background: #000;
 }
-.ajuda-palco[data-dispositivo='celular'] video { max-height: min(72vh, 640px); }
+/* Em pé e empilhado (telefone, coluna estreita): o vídeo deixa espaço para a
+   fala atual aparecer logo abaixo dele, sem rolar. Lado a lado, ele cresce. */
+.ajuda-palco[data-dispositivo='celular'] video,
+.ajuda-player[data-orientacao='em-pe'] .ajuda-palco video {
+  max-height: min(58vh, 640px);
+  max-height: min(58svh, 640px);
+}
 
 /*
  * O selo do tutorial sem vídeo, no lugar do palco.
  *
  * Pequeno de propósito: o tutorial em texto é completo, e um bloco do tamanho
- * do vídeo dizendo "sem vídeo" faria a tela parecer quebrada. A pílula só diz
- * o formato e quantos passos há, e as abas sobem para perto do título. O ícone
- * em dourado e o texto na cor do corpo: dourado sobre chip, no texto, ficaria
+ * do vídeo dizendo "sem vídeo" faria a tela parecer quebrada. O ícone em
+ * dourado e o texto na cor do corpo: dourado sobre chip, no texto, ficaria
  * abaixo de 4,5:1 no tema claro.
  */
 .ajuda-modo-texto {
@@ -2309,34 +2379,73 @@ input:-webkit-autofill:focus {
 .ajuda-modo-texto__sep { color: var(--color-mute); }
 
 /*
- * A trilha do tutorial em texto: um segmento por passo, aceso até o atual.
+ * O player do tutorial (ver PlayerTutorial).
  *
- * Faz o papel do fio da aba, que no modo texto não existe (não há tempo para
- * medir): mostra quanto do caminho já foi. Só a cor muda, em 200 ms, e por
- * isso fica igual com movimento reduzido.
- */
-.ajuda-trilha {
-  display: flex;
-  gap: 4px;
-  margin-top: 8px;
-}
-.ajuda-trilha__seg {
-  flex: 1;
-  height: 3px;
-  border-radius: 999px;
-  background: var(--color-hover-strong);
-  transition: background-color 200ms ease;
-}
-.ajuda-trilha__seg.is-feito { background: var(--color-accent-ink); }
-
-/*
- * O player do tutorial (ver PlayerTutorial). Uma coluna, nos dois modos: o
- * palco (ou o selo do modo texto), o passo atual e a lista de passos.
+ * Com vídeo deitado: uma coluna, como numa videoaula — palco, linha de
+ * capítulos e a transcrição. Com vídeo em pé, havendo largura, a transcrição
+ * vai para o lado do vídeo e tem a altura dele: o vídeo em pé deixa metade da
+ * coluna vazia, e é ali que a leitura cabe. A largura medida é a do próprio
+ * player (container query), e não a da tela: na pré-visualização do admin ele
+ * mora numa coluna estreita de uma tela larga.
  */
 .ajuda-player {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
+}
+.ajuda-player--video,
+.ajuda-player--texto { container-type: inline-size; }
+.ajuda-player__grade {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+/* A 560px de player o vídeo leva até 46% e a transcrição fica com pelo menos
+   ~280px: é a tela do tablet deitado e a coluna da prévia do admin. */
+@container (min-width: 560px) {
+  /* Até 420px de largura (746px de altura em 9:16), sempre presos a 72% da
+     altura da tela: no player largo o vídeo cresce, sem empurrar os controles. */
+  .ajuda-player[data-orientacao='em-pe'] .ajuda-palco video {
+    max-height: min(72vh, 746px);
+    max-height: min(72svh, 746px);
+  }
+  .ajuda-player[data-orientacao='em-pe'] .ajuda-player__grade {
+    --palco-largura: min(420px, 46cqi, calc(min(72vh, 746px) * 9 / 16));
+    --palco-largura: min(420px, 46cqi, calc(min(72svh, 746px) * 9 / 16));
+    grid-template-columns: var(--palco-largura) minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 20px;
+    row-gap: 12px;
+  }
+  .ajuda-player[data-orientacao='em-pe'] .ajuda-palco { grid-column: 1; grid-row: 1; }
+  .ajuda-player[data-orientacao='em-pe'] .ajuda-capitulos { grid-column: 1; grid-row: 2; }
+  /* `contain: size` tira a transcrição da conta da altura da linha: quem
+     manda é o vídeo, e ela estica até a altura dele e rola por dentro. */
+  .ajuda-player[data-orientacao='em-pe'] .ajuda-roteiro {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    contain: size;
+    min-height: 240px;
+  }
+  /* Lado a lado a lista tem a altura do vídeo e prende a rolagem nela; no
+     empilhado, não, para a página continuar rolando no telefone. */
+  .ajuda-player[data-orientacao='em-pe'] .ajuda-roteiro__lista {
+    flex: 1;
+    max-height: none;
+    overscroll-behavior-y: contain;
+  }
+}
+
+/* Deitado num player largo: com o teto de 70% da altura, um palco da largura
+   toda ganharia tarjas pretas dos lados. Palco e capítulos ficam na largura
+   que o 16:9 pede para essa altura, centrados; a transcrição segue inteira. */
+.ajuda-player[data-orientacao='deitado'] .ajuda-palco,
+.ajuda-player[data-orientacao='deitado'] .ajuda-capitulos {
+  width: 100%;
+  max-inline-size: calc(70vh * 16 / 9);
+  max-inline-size: calc(70svh * 16 / 9);
+  justify-self: center;
 }
 
 /*
@@ -2385,152 +2494,392 @@ input:-webkit-autofill:focus {
   .ajuda-capitulo:hover::before { background: var(--color-faint); }
 }
 
-/* O passo atual: rótulo, título e o texto narrado. */
-.ajuda-agora {
+/*
+ * A transcrição: barra (legenda + busca) e a lista de falas, agrupadas por
+ * passo. A lista rola por dentro; o cabeçalho de cada passo gruda no topo
+ * enquanto as falas dele passam, e diz sempre em que passo a leitura está.
+ */
+.ajuda-roteiro {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
   background: var(--color-card);
   border-radius: var(--radius-card);
   box-shadow: var(--card-ring);
-  padding: 18px 18px 20px;
 }
-.ajuda-agora__rotulo {
+.ajuda-roteiro__barra {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+/* O botão da legenda: o quadrado escuro com o ícone; ligado, no dourado. */
+.ajuda-roteiro__legenda {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-chip);
   color: var(--color-mute);
+  cursor: pointer;
+  transition: background-color 180ms var(--ease-saida), color 180ms var(--ease-saida), transform 160ms var(--ease-saida);
+}
+.ajuda-roteiro__legenda[aria-pressed='true'] {
+  background: var(--color-accent);
+  color: var(--color-onaccent);
+}
+.ajuda-roteiro__legenda:active { transform: scale(0.95); }
+@media (hover: hover) and (pointer: fine) {
+  .ajuda-roteiro__legenda[aria-pressed='false']:hover { background: var(--color-hover-strong); color: var(--color-ink); }
+  .ajuda-roteiro__legenda[aria-pressed='true']:hover { background: var(--color-accent-hover); }
+}
+.ajuda-roteiro__legenda:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 2px;
+}
+
+.ajuda-roteiro__campo {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.ajuda-roteiro__lupa {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-faint);
+  pointer-events: none;
+}
+.ajuda-busca--legenda {
+  height: 44px;
+  padding: 0 46px 0 40px;
+  border-radius: 10px;
+}
+.ajuda-busca--legenda::placeholder { color: var(--color-faint); }
+.ajuda-roteiro__limpar {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-mute);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ajuda-roteiro__limpar:hover { background: var(--color-hover-strong); color: var(--color-ink); }
+}
+.ajuda-roteiro__limpar:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: -2px;
+}
+
+.ajuda-roteiro__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0 2px 4px 0;
+  min-height: 0;
+  max-height: min(360px, 45vh);
+  max-height: min(360px, 45svh);
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-hover-strong) transparent;
+}
+.ajuda-roteiro__grupo + .ajuda-roteiro__grupo { margin-top: 8px; }
+
+/* O cabeçalho do passo: o `h2`/`h3` que embrulha o botão. */
+.ajuda-roteiro__passo {
+  margin: 0;
+  font: inherit;
+}
+.ajuda-roteiro__lista .ajuda-roteiro__passo {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-card);
+  padding-bottom: 2px;
+}
+.ajuda-cabeca {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-mute);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 180ms var(--ease-saida), color 180ms var(--ease-saida);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ajuda-cabeca:hover { background: var(--color-hover-raised); color: var(--color-ink); }
+}
+.ajuda-cabeca:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: -2px;
+}
+.ajuda-cabeca__num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--color-chip);
+  color: var(--color-mute);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 180ms var(--ease-saida), color 180ms var(--ease-saida);
+}
+.ajuda-cabeca__titulo { flex: 1; min-width: 0; overflow-wrap: anywhere; text-wrap: pretty; }
+.ajuda-cabeca__tempo {
+  flex-shrink: 0;
+  color: var(--color-faint);
   font-size: 12px;
-  letter-spacing: 0.02em;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
-.ajuda-agora__tempo { color: var(--color-faint); }
-.ajuda-agora__titulo {
-  color: var(--color-ink);
-  font-size: 17px;
-  line-height: 1.3;
-  margin-top: 4px;
+.ajuda-cabeca.is-feito .ajuda-cabeca__num { background: var(--color-hover-strong); color: var(--color-ink); }
+.ajuda-cabeca.is-on { color: var(--color-ink); }
+.ajuda-cabeca.is-on .ajuda-cabeca__num { background: var(--color-accent); color: var(--color-onaccent); }
+
+/*
+ * As falas. Cada uma é um cartão com a barra à esquerda: fina e cinza nas
+ * outras, grossa e dourada na dita agora, com o entalhe apontando para o
+ * texto. A dita agora ganha fundo, peso e o marca-texto andando por baixo no
+ * ritmo dela (`--andou`, de 0 a 1). Só cor, fundo e `transform` mudam.
+ */
+.ajuda-deixas {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
+.ajuda-deixa {
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 2.75em minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  margin: 0;
+  padding: 9px 12px 9px 18px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-faint);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 180ms var(--ease-saida), color 180ms var(--ease-saida);
+}
+/* A barra: 4px de largura, mostrada pela metade (2px) nas outras falas. */
+.ajuda-deixa::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--color-hover-strong);
+  transform: scaleX(0.5);
+  transform-origin: left center;
+  transition: transform 180ms var(--ease-saida), background-color 180ms var(--ease-saida);
+}
+/* O entalhe: um triângulo saindo da barra, só na fala atual. */
+.ajuda-deixa::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  border: 5px solid transparent;
+  border-left-color: var(--color-accent);
+  transform: translate(-3px, -50%);
+  opacity: 0;
+  transition: opacity 180ms var(--ease-saida), transform 180ms var(--ease-saida);
+}
+@media (hover: hover) and (pointer: fine) {
+  button.ajuda-deixa:not(.is-agora):hover { background: var(--color-hover-raised); color: var(--color-ink); }
+}
+.ajuda-deixa:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: -2px;
+}
+.ajuda-deixa__tempo {
+  color: var(--color-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  transition: color 180ms var(--ease-saida);
+}
+.ajuda-deixa.is-antes { color: var(--color-mute); }
+/* Só cor, fundo e barra marcam a fala atual: peso diferente mudaria a quebra
+   das linhas no instante em que ela acende. */
+.ajuda-deixa.is-agora {
+  background: var(--color-chip);
+  color: var(--color-ink);
+}
+.ajuda-deixa.is-agora::before { background: var(--color-accent); transform: scaleX(1); }
+.ajuda-deixa.is-agora::after { opacity: 1; transform: translate(0, -50%); }
+.ajuda-deixa.is-agora .ajuda-deixa__tempo { color: var(--color-accent-ink); }
+/* Linha de leitura curta: a lista pode ser larga, a frase não passa de ~75ch. */
+.ajuda-deixa__texto { min-width: 0; max-inline-size: 75ch; }
+/* O passo sem fala: o texto dele no lugar, sem tempo e sem clique. */
+.ajuda-deixa--corpo {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-mute);
+  cursor: auto;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  max-inline-size: 75ch;
+}
+
+.ajuda-fala {
+  overflow-wrap: anywhere;
+  border-radius: 3px;
+  background-image: linear-gradient(var(--color-accent-soft), var(--color-accent-soft));
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+/* Só a fala atual anda; as outras trocam de fundo sem rebobinar. */
+.ajuda-fala--agora {
+  background-size: calc(var(--andou, 0) * 100%) 100%;
+  transition: background-size 250ms linear;
+}
+
+/* O trecho que bate com a busca. */
+.ajuda-realce {
+  background: var(--color-accent);
+  color: var(--color-onaccent);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.ajuda-roteiro__vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 16px;
+  color: var(--color-mute);
+  font-size: 14px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.ajuda-roteiro__vazio button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-accent-ink);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.ajuda-roteiro__vazio button:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 2px;
+}
+
+/*
+ * Sem vídeo: os passos como cartões, todos à vista. O escolhido ganha a barra
+ * dourada, como a fala dita agora no modo vídeo.
+ */
+.ajuda-roteiro--texto {
+  list-style: none;
+  margin: 0;
+  gap: 4px;
+}
+.ajuda-cartao-passo {
+  position: relative;
+  padding: 2px 4px 12px 14px;
+  border-radius: 10px;
+  transition: background-color 180ms var(--ease-saida);
+}
+.ajuda-cartao-passo::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 10px;
+  bottom: 12px;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--color-hover-strong);
+  transform: scaleX(0.5);
+  transform-origin: left center;
+  transition: transform 180ms var(--ease-saida), background-color 180ms var(--ease-saida);
+}
+.ajuda-cartao-passo.is-on { background: var(--color-chip); }
+.ajuda-cartao-passo.is-on::before { background: var(--color-accent); transform: scaleX(1); }
+.ajuda-cartao-passo .ajuda-cabeca { font-size: 15px; font-weight: 600; color: var(--color-ink); }
+.ajuda-cartao-passo .ajuda-narrado--texto { margin: 2px 10px 0 42px; }
+@container (max-width: 480px) {
+  .ajuda-cartao-passo .ajuda-narrado--texto { margin-left: 10px; }
+}
+
 .ajuda-narrado {
   color: var(--color-ink);
   font-size: 16px;
   line-height: 1.7;
   margin-top: 10px;
   text-wrap: pretty;
+  overflow-wrap: anywhere;
 }
 .ajuda-narrado--texto {
+  max-inline-size: 75ch;
   font-size: 15px;
   line-height: 1.65;
   white-space: pre-line;
-}
-@media (min-width: 1024px) {
-  .ajuda-player--video .ajuda-narrado { font-size: 17px; }
-}
-
-/*
- * As frases do passo, acompanhando a fala.
- *
- * A dita agora fica na cor do corpo, com o marca-texto dourado andando por
- * baixo no ritmo dela (`--andou`, de 0 a 1, posto pelo player a cada
- * `timeupdate`). Num elemento de linha, o fundo atravessa as quebras como uma
- * faixa só, e o marca-texto desce de uma linha para a outra sozinho. A
- * anterior fica apagada, e as outras mais ainda. Só cor e tamanho de fundo
- * mudam, em transição: a leitura escorre de uma frase para a outra, sem salto.
- */
-.ajuda-fala {
-  border-radius: 3px;
-  background-image: linear-gradient(var(--color-accent-soft), var(--color-accent-soft));
-  background-repeat: no-repeat;
-  background-size: 0% 100%;
-  transition: color 320ms ease, background-size 250ms linear;
-}
-.ajuda-fala--agora {
-  color: var(--color-ink);
-  background-size: calc(var(--andou, 0) * 100%) 100%;
-}
-.ajuda-fala--antes { color: var(--color-mute); }
-.ajuda-fala--dita,
-.ajuda-fala--vem { color: var(--color-faint); }
-
-/*
- * A lista de passos. O mesmo desenho nos dois modos: com vídeo, uma lista de
- * botões que levam o vídeo ao passo (`aria-current` no atual); sem vídeo, uma
- * tablist vertical que troca o painel.
- */
-.ajuda-passos {
-  list-style: none;
-  margin: 0;
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  background: var(--color-card);
-  border-radius: var(--radius-card);
-  box-shadow: var(--card-ring);
-}
-.ajuda-passo {
-  width: 100%;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 12px 9px 10px;
-  border: none;
-  border-radius: 10px;
-  background: transparent;
   color: var(--color-mute);
-  font-family: inherit;
-  font-size: 14px;
-  line-height: 1.35;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 200ms ease, color 200ms ease, transform 160ms var(--ease-saida);
 }
-.ajuda-passo:active { transform: scale(0.985); }
-@media (hover: hover) and (pointer: fine) {
-  .ajuda-passo:not(.is-on):hover { background-color: var(--color-hover); color: var(--color-ink); }
-}
-.ajuda-passo:focus-visible {
-  outline: 2px solid var(--color-accent-ink);
-  outline-offset: -2px;
-}
-.ajuda-passo__num {
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  display: inline-grid;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--color-chip);
-  color: var(--color-mute);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  transition: background-color 200ms ease, color 200ms ease;
-}
-.ajuda-passo__titulo { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.ajuda-passo__tempo {
-  flex-shrink: 0;
-  color: var(--color-faint);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-.ajuda-passo.is-feito { color: var(--color-ink); }
-.ajuda-passo.is-feito .ajuda-passo__num { background: var(--color-hover-strong); color: var(--color-ink); }
-.ajuda-passo.is-on {
-  background: var(--color-accent-soft);
-  color: var(--color-ink);
-  font-weight: 500;
-}
-.ajuda-passo.is-on .ajuda-passo__num { background: var(--color-accent); color: var(--color-onaccent); }
-.ajuda-passo.is-on .ajuda-passo__tempo { color: var(--color-mute); }
+.ajuda-cartao-passo.is-on .ajuda-narrado--texto { color: var(--color-ink); }
 
 @media (prefers-reduced-motion: reduce) {
   .ajuda-capitulo__cheio { transition: none; }
-  /* O marca-texto aparece inteiro, sem andar; a troca de cor fica, curta. */
-  .ajuda-fala { transition: color 150ms ease; }
+  /* O marca-texto aparece inteiro, sem andar; as trocas de cor ficam, curtas. */
+  .ajuda-fala,
+  .ajuda-fala--agora { transition: none; }
   .ajuda-fala--agora { background-size: 100% 100%; }
-  .ajuda-passo { transition: background-color 150ms ease, color 150ms ease; }
-  .ajuda-passo:active, .ajuda-cartao:active { transform: none; }
+  .ajuda-deixa,
+  .ajuda-cabeca,
+  .ajuda-cartao-passo { transition: background-color 150ms ease, color 150ms ease; }
+  .ajuda-deixa::before,
+  .ajuda-deixa::after,
+  .ajuda-cartao-passo::before { transition: none; }
+  .ajuda-roteiro__legenda { transition: background-color 150ms ease, color 150ms ease; }
+  .ajuda-roteiro__legenda:active,
+  .ajuda-cartao:active { transform: none; }
   .ajuda-cartao { transition: background-color 150ms ease, color 150ms ease; }
-}
-
-.ajuda-painel:focus-visible {
-  outline: 2px solid var(--color-accent-ink);
-  outline-offset: 2px;
 }
 
 /* O rótulo que faz as vezes de botão do seletor de arquivo (ver EnvioDoPacote). */

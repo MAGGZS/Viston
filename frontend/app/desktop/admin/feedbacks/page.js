@@ -299,10 +299,10 @@ export default function AdminFeedbacksPage() {
 
   return (
     <RouteGuard roles={['ADMIN']}>
-      <div className="hidden lg:flex min-h-screen bg-page">
+      <div className="hidden desk:flex min-h-screen bg-page">
         <AdminSidebar />
-        <main id={CONTENT_ID} className="flex-1 px-6 py-8 overflow-auto">
-          <div className="anim-fade-down flex items-center justify-between mb-6">
+        <main id={CONTENT_ID} className="flex-1 min-w-0 px-6 py-8 overflow-auto">
+          <div className="anim-fade-down flex flex-wrap items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-semibold text-ink">Feedbacks</h1>
               <p className="text-mute text-sm mt-0.5">
@@ -393,7 +393,7 @@ export default function AdminFeedbacksPage() {
       </div>
 
       {/* O painel é de tela larga, como o resto da área do admin */}
-      <div className="lg:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
+      <div className="desk:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
         <div>
           <p className="text-4xl mb-4">🖥️</p>
           <p className="text-ink font-semibold text-lg">Feedbacks</p>

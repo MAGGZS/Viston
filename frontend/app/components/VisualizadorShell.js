@@ -84,7 +84,7 @@ export function VisualizadorShell({ ctx, title, subtitle, actions, children }) {
             : 'O painel e a agenda de quem supervisiona são do computador. Abra o Viston num computador para continuar.'
         }
       >
-      <div className="hidden lg:flex" style={{ minHeight: '100vh', background: T.bg }}>
+      <div className="hidden desk:flex" style={{ minHeight: '100vh', background: T.bg }}>
         <VisualizadorSidebar buildingName={building?.name} supervisiona={supervisionaAlgum} />
 
         <main id={CONTENT_ID} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: '100vh', overflow: 'hidden' }}>
@@ -93,7 +93,7 @@ export function VisualizadorShell({ ctx, title, subtitle, actions, children }) {
             // Posicionado e acima do miolo: o seletor de prédio abre uma lista
             // que precisa passar por cima dos cartões (ver a nota da tela antiga
             // sobre o `transform` do `anim-fade-down`).
-            style={{ position: 'relative', zIndex: 30, padding: '28px 32px 20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}
+            style={{ position: 'relative', zIndex: 30, padding: '28px 32px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}
           >
             <div style={{ minWidth: 0 }}>
               <h1 style={{ color: T.text, fontSize: 22, fontWeight: W.title }}>{title}</h1>

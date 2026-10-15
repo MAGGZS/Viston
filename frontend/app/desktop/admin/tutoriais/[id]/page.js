@@ -47,7 +47,7 @@ export default function TutorialAdminPage() {
 
   return (
     <RouteGuard roles={['ADMIN']}>
-      <div className="hidden lg:flex min-h-screen bg-page">
+      <div className="hidden desk:flex min-h-screen bg-page">
         <AdminSidebar />
         <main id={CONTENT_ID} className="flex-1 px-6 py-8 overflow-auto" style={{ minWidth: 0 }}>
           <Link href="/desktop/admin/tutoriais" className="link-acao anim-fade-down" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: T.mute, fontSize: 14, marginBottom: 14 }}>

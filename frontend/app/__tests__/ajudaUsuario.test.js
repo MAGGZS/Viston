@@ -270,11 +270,11 @@ describe('Tela 3: o tutorial', () => {
   }
 
   const video = () => document.querySelector('video');
-  const aba = (nome) => screen.getByRole('tab', { name: new RegExp(nome) });
 
   const lista = () => screen.getByRole('list', { name: 'Passos do tutorial' });
   const passoBtn = (nome) => within(lista()).getByRole('button', { name: new RegExp(nome) });
-  const agora = () => document.querySelector('.ajuda-agora');
+  // A fala dita agora, destacada na transcrição.
+  const falaAtual = () => document.querySelector('.ajuda-fala--agora');
   const tocar = (t) =>
     act(() => {
       video().currentTime = t;
@@ -312,8 +312,7 @@ describe('Tela 3: o tutorial', () => {
     expect(video().currentTime).toBe(9.4);
     expect(passoBtn('Escolher os andares')).toHaveAttribute('aria-current', 'step');
     expect(passoBtn('Começar')).not.toHaveAttribute('aria-current');
-    expect(agora()).toHaveTextContent('Passo 2 de 4');
-    expect(agora()).toHaveTextContent('Marque os andares.');
+    expect(falaAtual()).toHaveTextContent('Marque os andares.');
     expect(replaceState).toHaveBeenLastCalledWith(null, '', '/ajuda/inspetor/inspetor-vistoria-completa?passo=2');
     replaceState.mockRestore();
   });
@@ -334,7 +333,7 @@ describe('Tela 3: o tutorial', () => {
 
     tocar(31);
     expect(passoBtn('Enviar')).toHaveAttribute('aria-current', 'step');
-    expect(agora()).toHaveTextContent('Envie a vistoria.');
+    expect(falaAtual()).toHaveTextContent('Envie a vistoria.');
     expect(anuncio).toHaveTextContent('Passo 4 de 4: Enviar');
   });
 
@@ -424,74 +423,201 @@ describe('Tela 3: o tutorial', () => {
     await screen.findByRole('list', { name: 'Passos do tutorial' });
 
     expect(passoBtn('Registrar')).toHaveAttribute('aria-current', 'step');
-    expect(agora()).toHaveTextContent('Registre cada andar.');
+    expect(falaAtual()).toHaveTextContent('Registre cada andar.');
     expect(video().currentTime).toBe(18);
   });
 
+  describe('a transcrição', () => {
+    const falaBtn = (texto) => within(lista()).getByRole('button', { name: new RegExp(texto) });
+    const busca = () => screen.getByRole('searchbox', { name: 'Buscar na legenda' });
+
+    it('mostra as falas do vídeo inteiro, agrupadas por passo, sem botões de próximo e anterior', async () => {
+      const { container } = abrir();
+      await screen.findByRole('list', { name: 'Passos do tutorial' });
+
+      for (const texto of ['Abra a vistoria.', 'Marque os andares.', 'Registre cada andar.', 'Envie a vistoria.']) {
+        expect(falaBtn(texto)).toBeInTheDocument();
+      }
+      expect(screen.queryByRole('button', { name: /Próximo passo|Passo anterior/ })).not.toBeInTheDocument();
+      expect(falaAtual()).toHaveTextContent('Abra a vistoria.');
+      expect(falaAtual().closest('button')).toHaveAttribute('aria-current', 'true');
+      expect(await axe(container)).toHaveNoViolations();
+    });
+
+    it('clicar numa fala leva o vídeo até ela e marca o passo dela', async () => {
+      const user = userEvent.setup();
+      abrir();
+      await screen.findByRole('list', { name: 'Passos do tutorial' });
+
+      await user.click(falaBtn('Registre cada andar.'));
+
+      expect(video().currentTime).toBe(18);
+      expect(passoBtn('Registrar')).toHaveAttribute('aria-current', 'step');
+      expect(falaAtual()).toHaveTextContent('Registre cada andar.');
+    });
+
+    it('a busca filtra as falas sem ligar para acento e caixa, realça o trecho e o Esc limpa', async () => {
+      const user = userEvent.setup();
+      const feature = {
+        ...FEATURE,
+        steps: [
+          { id: 's1', order: 1, title: 'Começar', body: 'Abra a câmera do celular.', start_s: 0 },
+          { id: 's2', order: 2, title: 'Fotografar', body: 'Tire a foto do andar.', start_s: 20 },
+        ],
+      };
+      abrir({ feature });
+      await screen.findByRole('list', { name: 'Passos do tutorial' });
+
+      await user.type(busca(), 'CAMERA');
+      expect(within(lista()).getAllByRole('button', { name: /câmera/ })).toHaveLength(1);
+      expect(within(lista()).queryByRole('button', { name: /Tire a foto/ })).not.toBeInTheDocument();
+      expect(document.querySelector('mark.ajuda-realce')).toHaveTextContent('câmera');
+      expect(screen.getByRole('status')).toHaveTextContent('1 trecho encontrado.');
+
+      await user.keyboard('{Escape}');
+      expect(busca()).toHaveValue('');
+      expect(falaBtn('Tire a foto do andar.')).toBeInTheDocument();
+    });
+
+    it('sem trecho que bata, diz que não achou e oferece limpar', async () => {
+      const user = userEvent.setup();
+      abrir();
+      await screen.findByRole('list', { name: 'Passos do tutorial' });
+
+      await user.type(busca(), 'xyzw');
+      expect(screen.getByText(/Nenhum trecho encontrado para/)).toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent('Nenhum trecho encontrado.');
+      expect(screen.queryByRole('list', { name: 'Passos do tutorial' })).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Limpar a busca' }));
+      expect(busca()).toHaveValue('');
+      expect(lista()).toBeInTheDocument();
+    });
+
+    it('a lista segue a fala atual rolando só ela, nunca a página, e para depois de a pessoa rolar', async () => {
+      abrir();
+      await screen.findByRole('list', { name: 'Passos do tutorial' });
+
+      // O jsdom não tem layout: a lista mede 200px, e a fala atual fica abaixo dela.
+      const retangulo = jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+        if (this.classList.contains('ajuda-roteiro__lista')) return { top: 0, bottom: 200, height: 200, left: 0, right: 300, width: 300 };
+        if (this.hasAttribute('data-fala-atual')) return { top: 500, bottom: 540, height: 40, left: 0, right: 300, width: 300 };
+        return { top: 0, bottom: 0, height: 0, left: 0, right: 0, width: 0 };
+      });
+      const rolarLista = jest.fn();
+      HTMLElement.prototype.scrollTo = rolarLista;
+      const rolarPagina = jest.spyOn(window, 'scrollTo').mockImplementation(() => {});
+
+      try {
+        tocar(20);
+        expect(rolarLista).toHaveBeenCalledTimes(1);
+        expect(rolarLista.mock.instances[0]).toBe(lista());
+        expect(rolarLista.mock.calls[0][0].top).toBeGreaterThan(0);
+
+        rolarLista.mockClear();
+        fireEvent.wheel(lista());
+        tocar(31);
+        expect(rolarLista).not.toHaveBeenCalled();
+        expect(rolarPagina).not.toHaveBeenCalled();
+      } finally {
+        retangulo.mockRestore();
+        rolarPagina.mockRestore();
+        delete HTMLElement.prototype.scrollTo;
+      }
+    });
+
+    it('o botão de legenda liga e desliga a legenda do vídeo', async () => {
+      const user = userEvent.setup();
+      abrir();
+      await screen.findByRole('list', { name: 'Passos do tutorial' });
+      const botao = screen.getByRole('button', { name: 'Legenda no vídeo' });
+      expect(botao).toHaveAttribute('aria-pressed', 'true');
+      await user.click(botao);
+      expect(botao).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('sem legenda, não há botão de legenda, e a busca continua', async () => {
+      abrir({ feature: { ...FEATURE, captions_url: null } });
+      await screen.findByRole('list', { name: 'Passos do tutorial' });
+      expect(screen.queryByRole('button', { name: 'Legenda no vídeo' })).not.toBeInTheDocument();
+      expect(busca()).toBeInTheDocument();
+    });
+
+    it('sem tempos para estimar as falas, cada passo mostra o próprio texto', async () => {
+      abrir({
+        feature: { ...FEATURE, duration_s: null, captions_url: null, steps: FEATURE.steps.map((s, i) => ({ ...s, start_s: i === 0 ? 0 : null })) },
+      });
+      await screen.findByRole('list', { name: 'Passos do tutorial' });
+      expect(lista()).toHaveTextContent('Marque os andares.');
+      expect(document.querySelector('.ajuda-deixa--corpo')).not.toBeNull();
+    });
+
+    it('o vídeo do celular começa em pé, e a orientação real vem dos metadados', async () => {
+      const { container } = abrir();
+      await screen.findByRole('list', { name: 'Passos do tutorial' });
+      const player = container.querySelector('.ajuda-player');
+      expect(player).toHaveAttribute('data-orientacao', 'em-pe');
+
+      Object.defineProperty(video(), 'videoWidth', { configurable: true, get: () => 1920 });
+      Object.defineProperty(video(), 'videoHeight', { configurable: true, get: () => 1080 });
+      fireEvent.loadedMetadata(video());
+      expect(player).toHaveAttribute('data-orientacao', 'deitado');
+    });
+  });
+
   describe('sem vídeo: passo a passo em texto', () => {
-    it('não monta <video>, <track> nem o fio, e mostra o selo e as abas', async () => {
+    it('não monta <video>, <track> nem o palco, e mostra o selo e todos os passos', async () => {
       const { container } = abrir({ feature: FEATURE_TEXTO });
-      await screen.findByRole('tablist', { name: 'Passos do tutorial' });
+      await screen.findByRole('list', { name: 'Passos do tutorial' });
 
       expect(container.querySelector('video')).toBeNull();
       expect(container.querySelector('track')).toBeNull();
-      expect(container.querySelector('.ajuda-aba__fio')).toBeNull();
       expect(container.querySelector('.ajuda-palco')).toBeNull();
       expect(screen.getByText('Passo a passo em texto')).toBeInTheDocument();
       expect(screen.getByText('4 passos')).toBeInTheDocument();
-      expect(screen.getAllByRole('tab')).toHaveLength(4);
+      expect(within(lista()).getAllByRole('listitem')).toHaveLength(4);
       // Sem vídeo, não há gravação nem duração no cabeçalho.
       expect(screen.queryByText(/Gravado no/)).not.toBeInTheDocument();
       expect(screen.getByText('No celular')).toBeInTheDocument();
-      expect(screen.getByRole('tabpanel')).toHaveTextContent('Abra a vistoria.');
+      // Todos os passos à vista, sem botões de próximo e anterior.
+      expect(lista()).toHaveTextContent('Abra a vistoria.');
+      expect(lista()).toHaveTextContent('Envie a vistoria.');
+      expect(screen.queryByRole('button', { name: /Próximo passo|Passo anterior/ })).not.toBeInTheDocument();
+      expect(passoBtn('Começar')).toHaveAttribute('aria-current', 'step');
     });
 
-    it('trocar de aba só troca o texto e a URL', async () => {
+    it('escolher um passo o marca como atual e troca a URL', async () => {
       const user = userEvent.setup();
       const replaceState = jest.spyOn(window.history, 'replaceState');
       abrir({ feature: FEATURE_TEXTO });
-      await screen.findByRole('tablist');
+      await screen.findByRole('list', { name: 'Passos do tutorial' });
 
-      await user.click(aba('Registrar'));
-      expect(aba('Registrar')).toHaveAttribute('aria-selected', 'true');
-      expect(screen.getByRole('tabpanel')).toHaveTextContent('Passo 3 de 4');
-      expect(screen.getByRole('tabpanel')).toHaveTextContent('Registre cada andar.');
-      expect(screen.getByRole('tabpanel')).not.toHaveTextContent('Abra a vistoria.');
+      await user.click(passoBtn('Registrar'));
+      expect(passoBtn('Registrar')).toHaveAttribute('aria-current', 'step');
+      expect(passoBtn('Começar')).not.toHaveAttribute('aria-current');
       expect(replaceState).toHaveBeenLastCalledWith(null, '', '/ajuda/inspetor/inspetor-vistoria-completa?passo=3');
       expect(document.querySelector('video')).toBeNull();
-
-      aba('Registrar').focus();
-      await user.keyboard('{ArrowRight}');
-      expect(aba('Enviar')).toHaveFocus();
-      expect(screen.getByRole('tabpanel')).toHaveTextContent('Envie a vistoria.');
       replaceState.mockRestore();
     });
 
-    it('?passo=N e os botões de passo continuam valendo', async () => {
-      const user = userEvent.setup();
+    it('?passo=N abre com o passo N marcado', async () => {
       abrir({ feature: FEATURE_TEXTO, passo: 2 });
-      await screen.findByRole('tablist');
-
-      expect(aba('Escolher os andares')).toHaveAttribute('aria-selected', 'true');
-      await user.click(screen.getByRole('button', { name: /Próximo passo/ }));
-      expect(screen.getByRole('tabpanel')).toHaveTextContent('Registre cada andar.');
-      await user.click(screen.getByRole('button', { name: /Passo anterior/ }));
-      await user.click(screen.getByRole('button', { name: /Passo anterior/ }));
-      expect(aba('Começar')).toHaveAttribute('aria-selected', 'true');
-      expect(screen.getByRole('button', { name: /Passo anterior/ })).toBeDisabled();
+      await screen.findByRole('list', { name: 'Passos do tutorial' });
+      expect(passoBtn('Escolher os andares')).toHaveAttribute('aria-current', 'step');
+      expect(passoBtn('Começar')).not.toHaveAttribute('aria-current');
     });
 
     it('passa no axe', async () => {
       const { container } = abrir({ feature: FEATURE_TEXTO });
-      await screen.findByRole('tablist');
+      await screen.findByRole('list', { name: 'Passos do tutorial' });
       expect(await axe(container)).toHaveNoViolations();
     });
 
     it('quando o vídeo chega, o player aparece no topo', async () => {
       const { container } = abrir({ feature: FEATURE });
       await screen.findByRole('list', { name: 'Passos do tutorial' });
-      const player = container.querySelector('.ajuda-player');
-      expect(player.firstElementChild).toHaveClass('ajuda-palco');
+      const grade = container.querySelector('.ajuda-player__grade');
+      expect(grade.firstElementChild).toHaveClass('ajuda-palco');
       expect(screen.queryByText('Passo a passo em texto')).not.toBeInTheDocument();
     });
   });

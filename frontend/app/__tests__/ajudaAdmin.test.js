@@ -597,8 +597,10 @@ describe('a funcionalidade, no admin', () => {
     const previa = await screen.findByRole('region', { name: 'Pré-visualização' });
     expect(previa.querySelector('video')).toBeNull();
     expect(within(previa).getByText('Passo a passo em texto')).toBeInTheDocument();
-    await user.click(within(previa).getByRole('tab', { name: /Registrar/ }));
-    expect(within(previa).getByRole('tabpanel')).toHaveTextContent('Registre cada andar.');
+    const passos = within(previa).getByRole('list', { name: 'Passos do tutorial' });
+    expect(passos).toHaveTextContent('Registre cada andar.');
+    await user.click(within(passos).getByRole('button', { name: /Registrar/ }));
+    expect(within(passos).getByRole('button', { name: /Registrar/ })).toHaveAttribute('aria-current', 'step');
   });
 
   it('publica sem vídeo, e a confirmação diz que vai só com os passos em texto', async () => {

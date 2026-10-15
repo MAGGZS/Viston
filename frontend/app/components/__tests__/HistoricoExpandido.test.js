@@ -8,6 +8,7 @@ import { AmpliarHistorico, HistoricoCompleto } from '@/app/components/HistoricoE
 // imports, e nesse ponto o mapeamento de alias do next/jest ainda não vale.
 jest.mock('../../lib/api', () => ({ __esModule: true, default: { get: jest.fn() } }));
 import api from '../../lib/api';
+import { simularAparelho, COMPUTADOR, TELEFONE } from '@/app/__tests__/helpers/aparelho';
 
 const push = jest.fn();
 jest.mock('next/navigation', () => ({ useRouter: () => ({ push: (...a) => push(...a) }) }));
@@ -66,16 +67,7 @@ function ultimaChamada(trecho) {
 
 /** A tela larga é uma escolha do teste: por padrão o jsdom responde telefone. */
 function comoDesktop(desktop) {
-  window.matchMedia = (query) => ({
-    matches: desktop && query.includes('min-width: 1024px'),
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  });
+  simularAparelho(desktop ? COMPUTADOR : TELEFONE);
 }
 
 const semLargura = window.matchMedia;

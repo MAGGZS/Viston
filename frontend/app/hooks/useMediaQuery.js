@@ -31,8 +31,20 @@ export function useMediaQuery(query) {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-/** Ponto de corte único do app: abaixo disso é a experiência mobile. */
-export const DESKTOP_QUERY = '(min-width: 1024px)';
+/**
+ * Quando o app vira a experiência de computador. Fonte única: o mesmo texto
+ * mora na variante `desk:` de app/globals.css, e os dois precisam andar juntos.
+ *
+ * Não é só largura. Um PC com a janela pela metade (meia tela com escala de
+ * 125% dá uns 920px CSS) caía na experiência de telefone, e no computador isso
+ * não pode acontecer. Então quem tem mouse ou trackpad (`hover` + `pointer:
+ * fine`) continua no computador até 768px; telefone e tablet de toque seguem a
+ * regra de antes (computador só a partir de 1024px). Abaixo de 768px é sempre
+ * a experiência mobile.
+ *
+ * A vírgula é o "ou" da lista de media queries.
+ */
+export const DESKTOP_QUERY = '(min-width: 1024px), (hover: hover) and (pointer: fine) and (min-width: 768px)';
 
 export function useIsDesktop() {
   return useMediaQuery(DESKTOP_QUERY);

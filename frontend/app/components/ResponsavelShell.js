@@ -87,14 +87,14 @@ export function ResponsavelShell({ title, subtitle, actions, children }) {
   return (
     <RouteGuard roles={['RESPONSAVEL']}>
       <SoNoComputador destinoNoCelular="/responsavel">
-        <div className="hidden lg:flex" style={{ minHeight: '100vh', background: T.bg }}>
+        <div className="hidden desk:flex" style={{ minHeight: '100vh', background: T.bg }}>
           <ResponsavelSidebar subtitle={marca} />
 
           <main id={CONTENT_ID} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: '100vh', overflow: 'hidden' }}>
             {/* Posicionado e acima do miolo: o sino abre uma caixa, e o menu
                 de filtros das telas abre listas suspensas — sem z-index aqui o
                 conteúdo que vem depois no documento ganharia o empilhamento. */}
-            <header className="anim-fade-down" style={{ position: 'relative', zIndex: 20, padding: '28px 32px 20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
+            <header className="anim-fade-down" style={{ position: 'relative', zIndex: 20, padding: '28px 32px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
               <div style={{ minWidth: 0 }}>
                 <h1 style={{ color: T.text, fontSize: 22, fontWeight: W.title }}>{title}</h1>
                 {subtitle && <p style={{ color: T.mute, fontSize: 14, marginTop: 4 }}>{subtitle}</p>}

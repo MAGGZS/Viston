@@ -19,6 +19,7 @@ import InspetorDesktopPage from '@/app/desktop/inspetor/page';
 import { numerosDoMes, ordenarProximos, prazoRelativo } from '@/app/desktop/inspetor/proximos';
 import { useAuthStore } from '@/app/store/auth';
 import { esquecerAbaAnterior } from '@/app/components/Sidebar';
+import { simularAparelho, COMPUTADOR } from './helpers/aparelho';
 
 const hoje = new Date();
 const k = (n) => format(addDays(hoje, n), 'yyyy-MM-dd');
@@ -59,15 +60,7 @@ const INSPECOES = {
 };
 
 function montarTela() {
-  window.matchMedia = (query) => ({
-    matches: query.includes('1024'),
-    media: query,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  });
+  simularAparelho(COMPUTADOR);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   useAuthStore.setState({
     user: {

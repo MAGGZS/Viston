@@ -103,9 +103,9 @@ export default function AdminDashboardPage() {
 
   return (
     <RouteGuard roles={['ADMIN']}>
-      <div className="hidden lg:flex min-h-screen bg-page">
+      <div className="hidden desk:flex min-h-screen bg-page">
         <AdminSidebar />
-        <main id={CONTENT_ID} className="flex-1 px-6 py-8 overflow-auto">
+        <main id={CONTENT_ID} className="flex-1 min-w-0 px-6 py-8 overflow-auto">
           <div className="anim-fade-down flex items-center justify-between mb-8">
             <div>
               <h1 className="text-2xl font-semibold text-ink">Visão geral</h1>
@@ -119,8 +119,10 @@ export default function AdminDashboardPage() {
           {/* Sem invólucro entre a grade e o cartão: como filho direto, cada
               cartão estica até a altura da linha, e os números da fileira —
               empurrados para baixo pelo `marginTop: auto` do StatCard — ficam
-              todos na mesma altura, mesmo nos dois cartões que têm dica. */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
+              todos na mesma altura, mesmo nos dois cartões que têm dica.
+              Duas colunas no computador de janela estreita (abaixo de 1024px,
+              ver `desk:`); quatro já não cabem ali sem quebrar os rótulos. */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {cards.map((card, idx) => (
               <StatCard
                 key={card.label}
@@ -131,14 +133,14 @@ export default function AdminDashboardPage() {
             ))}
           </div>
 
-          <div className="anim-fade-up anim-d5 grid grid-cols-2 gap-6">
+          <div className="anim-fade-up anim-d5 grid grid-cols-1 lg:grid-cols-2 gap-6">
             <RoleBreakdown stats={stats} loading={isLoading} />
             <TopBuildings stats={stats} loading={isLoading} />
           </div>
         </main>
       </div>
 
-      <div className="lg:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
+      <div className="desk:hidden flex items-center justify-center min-h-screen bg-page p-6 text-center">
         <div>
           <p className="text-4xl mb-4">🖥️</p>
           <p className="text-ink font-semibold text-lg">Painel Admin</p>
